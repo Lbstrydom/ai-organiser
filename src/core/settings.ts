@@ -480,8 +480,10 @@ export interface AIOrganiserSettings {
     azureRoutingMode: 'model-based' | 'deployment-based';
     /** Canonical-model-id → deployment-name mapping for deployment-based routing. */
     azureDeployments: { chat?: string; embeddings?: string };
-    /** Legacy deployment-based paths (whisper + chat/embeddings) carry an api-version; override here if Azure changes it. */
-    azureApiVersionOverride: { whisper?: string; chat?: string };
+    /** Deployment-qualified paths (whisper + chat/embeddings) carry a DATED api-version;
+     *  pin here when the resource is on an older/newer API surface. `embeddings` falls
+     *  back to `chat` when unset, so an existing single pin keeps working. */
+    azureApiVersionOverride: { whisper?: string; chat?: string; embeddings?: string };
     /** Per-capability Azure routing (flexible Azure config). Stores ONLY the
      *  mode + (for azure) the deployment name SSOT. BYO provider/key/model live
      *  in the existing specialist settings. Consulted ONLY in Azure mode.

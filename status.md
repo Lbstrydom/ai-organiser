@@ -1,5 +1,46 @@
 # Project Status Log
 
+## 2026-08-12 — Azure OpenAI deployment-qualified routing: api-version + emitted-URL contract ✅
+
+Triggered by upstream `claude-engineering-skills` commit `8b284ec9` ("route GPT + embeddings through the deployment-qualified API"), which fixed a `createOpenAIClient` Azure branch that pinned `baseURL = ${endpoint}/openai/v1` and 404'd on any resource or APIM front-end exposing the standard deployment-qualified API. Task: check whether the same fix is owed here.
+
+### Two surfaces, two answers
+- **The synced upstream bundle (`scripts/.claude-skills/`, gitignored, upstream-owned)** — already carries the fix. `.sync-manifest.json` pins upstream `c40a4fd`; `lib/openai-client.mjs` routes `gpt`/`embed` through the SDK's `AzureOpenAI` client, keys the client cache on the deployment (so chat and embeddings can't share one), and splits `apiVersion: 'preview'` (v1 surface) from `DEPLOYMENT_API_VERSION_DEFAULT = '2025-03-01-preview'` (deployment-qualified). **No re-sync needed; not edited.**
+- **The plugin's own Azure client (this repo's source)** — does NOT use the `openai` SDK (hand-built URLs via Obsidian `requestUrl`, so the SDK can't help), and the headline defect is structurally absent: URL construction is already centralised in the `endpointResolver` SSOT, both routing modes already exist behind the `azureRoutingMode` setting, chat and embeddings already resolve independently, and `azureTriageRouting` already rebuilds the URL for a different deployment rather than varying the body `model`. Three smaller real gaps remained.
+
+### Changes
+- **`src/services/azure/endpointResolver.ts`**: deployment-qualified chat + embeddings api-version `2024-10-21` → **`2025-03-01-preview`** (matches upstream's constant; both were already dated, so this was staleness, not the undated-sentinel bug). Split `AZURE_API_VERSIONS.embeddings` out of `.chat` — embeddings previously read `azureApiVersionOverride.chat`, so pinning chat silently repinned embeddings. New `.embeddings` override key falls back to `.chat` for back-compat. Whisper deliberately stays on `2024-10-21` (separate operation, separate cadence).
+- **`src/core/settings.ts` / `src/services/azure/azureTriageRouting.ts`**: `azureApiVersionOverride` gains `embeddings?`.
+- **`src/services/adapters/azureOpenAIAdapter.ts`**: `requestFormat.url` was the literal `'/openai/v1/responses'` — an operation this adapter never calls and unexpressible in deployment mode. Dead (the real URL is `getEndpoint() → config.endpoint`), but exactly the stale route metadata that hides a routing bug; now bound to the resolved endpoint. Docblock rewritten to state both emitted URL shapes.
+- **`AGENTS.md`**: new "Routing modes + api-version" subsection under Azure AI Foundry Providers — the two surfaces, the api-version contract, "deployment is route state not body state", "never hardcode an operation path in an adapter", and the emitted-URL test rule.
+
+### Verification — the point of the exercise
+Upstream's bug survived a green suite for its entire life because tests asserted on `client.baseURL`/`buildURL()` while the SDK appended `/deployments/` later, inside `buildRequest`. So the assertions here target the **emitted** URL:
+- **`tests/azureEmittedUrl.test.ts`** (new, 10 tests): injects a fake transport and asserts **full string equality** on the URL `requestUrl` is actually handed, end-to-end from settings, for chat + embeddings × both routing modes, plus azure-claude isolation and a chat≠embeddings deployment-collision guard.
+- **Unit negative control**: reintroduced the defect (deleted the deployment-based branch) → 3 tests went red with `Received: "https://…/openai/v1/chat/completions"` — the OLD url, not an import or construction error. Restored, re-confirmed green.
+- Strengthened 5 pre-existing `toContain` assertions in `tests/endpointResolver.test.ts` to `toBe` (a substring assertion stays green with a wrong prefix or query string) + 4 new cases incl. the per-capability deployment SSOT precedence.
+- **6559 unit tests green** (365 files, +1 new) · `tsc --noEmit` clean · `npm run lint` 0 errors · `npm run context:check` 0 HIGH.
+
+### Live verification — verified
+Real "Test Azure connection" button (production `testAzureConnection`, real SecretStorage key, real HTTP) against `gd-ai-dev-aif`, driven through the Playwright/CDP persona harness (`scripts/persona-harness/diag-azure-routing-live.mjs` + `diag-azure-routing-control.mjs`, both gitignored scratch). Obsidian was closed and relaunched with the debug port; settings were snapshot-restored (`ok=true`, back to `model-based` / `azureDeployments: {}`).
+- **model-based (current setup)** — all 7 surfaces green.
+- **deployment-based @ `2025-03-01-preview`** (chat=`gpt-5.5`, embed=`text-embedding-3-large`) — all 7 surfaces green. The bumped api-version is live-valid on the resource.
+- **Green alone proved nothing**, since it's also what a failed routing-mode flip looks like. Two live controls settle it: (1) deployment-based + bogus deployment `zz-not-a-real-deployment` → `✗ Azure OpenAI chat: deployment/endpoint not found` + `✗ embeddings`, while Claude/Whisper/Speech stayed green — the deployment name is genuinely in the PATH; (2) model-based + the *same* bogus name → all 7 green, proving control 1's red came from the routing mode and not from the settings write. Settings were read back mid-phase, not just before/after, so a failed write couldn't masquerade as a pass.
+
+### Consumer-side verification
+`unverified` — blocked prerequisite: this is an Obsidian plugin with no consumer checkout or package registry to fetch back from; the shipped artifact is the vault-deployed bundle, which `npm run build:quick` auto-deployed and the live run above exercised in-process. The pushed commit itself was not re-cloned and re-tested from the remote.
+
+### Notes / not changed
+- `blockOverride = adapterType === 'azure-openai'` drops per-call `modelOverride` in BOTH routing modes. In model-based mode the body `model` is the route selector, so overrides would work — but on Azure that field must name a *deployment*, and overrides carry canonical model ids, so the current behaviour is the safer one and is deliberate (plan AD-4). Documented as a known asymmetry, not changed.
+- `azureApiVersionOverride` has no settings UI (data.json hand-edit); routing mode and the two deployment-name fields are exposed. Worth a UI if per-resource api-version pinning becomes common.
+- Live config note: `azureCapabilities.embeddings.deployment` is `""` and takes precedence over `azureDeployments.embeddings` in the resolver — it fell through to the legacy field so the test passed, but the capability field is the more explicit place to set it.
+- Pre-existing unstaged edits (`.audit-loop/expected-schema.json`, `.gitattributes`, `docs/reference/consistency-contract.md`) predate this session and were deliberately left out of this commit.
+
+### Next Steps
+None outstanding.
+
+---
+
 ## 2026-07-15 — OneDrive link visual embed + refresh (onedrive-link-insert extension ✅)
 
 Extends the OneDrive link feature (previous entry) so PDFs/images and Office decks show up in the note as the actual document, not just a link — closing the gap the user flagged after shipping: "ideally we have the actual document in the note with the link from OneDrive, that would mean if the doc gets updated it can be updated here as well." Brainstormed via `/brainstorm --with-gemini` (OpenAI + Gemini independent views), synthesized, then implemented directly (no formal `/plan` — small, additive extension of an already-audited feature).

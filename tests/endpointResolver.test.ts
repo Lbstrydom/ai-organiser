@@ -59,13 +59,15 @@ describe('chat endpoint', () => {
 		expect(url).not.toContain('api-version');
 	});
 
-	it('deployment-based path includes a default api-version', () => {
+	// FULL string equality, not toContain: a substring assertion stays green when
+	// the prefix or the query string is wrong, which is how the upstream routing
+	// bug hid behind a passing suite.
+	it('deployment-based path is the deployment-qualified URL with a dated api-version', () => {
 		const url = getOpenAIChatEndpoint(base({
 			azureRoutingMode: 'deployment-based',
 			azureDeployments: { chat: 'my-gpt' },
 		}));
-		expect(url).toContain('/openai/deployments/my-gpt/chat/completions');
-		expect(url).toContain('?api-version=2024-10-21');
+		expect(url).toBe(`${OAI}/openai/deployments/my-gpt/chat/completions?api-version=2025-03-01-preview`);
 	});
 
 	it('deployment-based path honours a chat api-version override', () => {
@@ -74,7 +76,15 @@ describe('chat endpoint', () => {
 			azureDeployments: { chat: 'my-gpt' },
 			azureApiVersionOverride: { chat: '2099-01-01' },
 		}));
-		expect(url).toContain('?api-version=2099-01-01');
+		expect(url).toBe(`${OAI}/openai/deployments/my-gpt/chat/completions?api-version=2099-01-01`);
+	});
+
+	it('deployment-based falls back to azureGPTModel as the deployment name', () => {
+		const url = getOpenAIChatEndpoint(base({
+			azureRoutingMode: 'deployment-based',
+			azureGPTModel: 'gpt-5-5-dep',
+		}));
+		expect(url).toBe(`${OAI}/openai/deployments/gpt-5-5-dep/chat/completions?api-version=2025-03-01-preview`);
 	});
 });
 
@@ -85,21 +95,48 @@ describe('embeddings endpoint', () => {
 		expect(url).not.toContain('api-version');
 	});
 
-	it('deployment-based path includes a default api-version', () => {
+	it('deployment-based path is the deployment-qualified URL with a dated api-version', () => {
 		const url = getOpenAIEmbeddingsEndpoint(base({
 			azureRoutingMode: 'deployment-based',
 			azureDeployments: { embeddings: 'embed-large' },
 		}));
-		expect(url).toContain('/openai/deployments/embed-large/embeddings');
-		expect(url).toContain('?api-version=2024-10-21');
+		expect(url).toBe(`${OAI}/openai/deployments/embed-large/embeddings?api-version=2025-03-01-preview`);
+	});
+
+	it('embeddings api-version is independent of the chat pin', () => {
+		const url = getOpenAIEmbeddingsEndpoint(base({
+			azureRoutingMode: 'deployment-based',
+			azureDeployments: { embeddings: 'embed-large' },
+			azureApiVersionOverride: { chat: '2099-01-01', embeddings: '2024-10-21' },
+		}));
+		expect(url).toBe(`${OAI}/openai/deployments/embed-large/embeddings?api-version=2024-10-21`);
+	});
+
+	it('a lone chat pin still repins embeddings (back-compat)', () => {
+		const url = getOpenAIEmbeddingsEndpoint(base({
+			azureRoutingMode: 'deployment-based',
+			azureDeployments: { embeddings: 'embed-large' },
+			azureApiVersionOverride: { chat: '2024-10-21' },
+		}));
+		expect(url).toBe(`${OAI}/openai/deployments/embed-large/embeddings?api-version=2024-10-21`);
+	});
+
+	it('the per-capability deployment SSOT wins over the legacy field', () => {
+		const url = getOpenAIEmbeddingsEndpoint(base({
+			azureRoutingMode: 'deployment-based',
+			azureDeployments: { embeddings: 'legacy-dep' },
+			azureCapabilities: { embeddings: { mode: 'azure', deployment: 'ssot-dep' } },
+		}));
+		expect(url).toBe(`${OAI}/openai/deployments/ssot-dep/embeddings?api-version=2025-03-01-preview`);
 	});
 });
 
 describe('whisper endpoint', () => {
-	it('always includes an api-version', () => {
+	it('is always deployment-qualified with its OWN api-version', () => {
 		const url = getWhisperEndpoint(base({ azureWhisperDeployment: 'whisper' }));
-		expect(url).toContain('/openai/deployments/whisper/audio/transcriptions');
-		expect(url).toContain('?api-version=2024-10-21');
+		// Whisper stays on 2024-10-21 — a separate operation on a separate cadence
+		// from chat/embeddings, deliberately not bumped with them.
+		expect(url).toBe(`${OAI}/openai/deployments/whisper/audio/transcriptions?api-version=2024-10-21`);
 	});
 
 	it('honours a whisper api-version override', () => {
@@ -107,7 +144,7 @@ describe('whisper endpoint', () => {
 			azureWhisperDeployment: 'whisper',
 			azureApiVersionOverride: { whisper: '2030-05-05' },
 		}));
-		expect(url).toContain('?api-version=2030-05-05');
+		expect(url).toBe(`${OAI}/openai/deployments/whisper/audio/transcriptions?api-version=2030-05-05`);
 	});
 });
 

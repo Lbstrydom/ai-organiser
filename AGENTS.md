@@ -2779,6 +2779,14 @@ Two first-class providers for Azure AI Foundry, which exposes two surfaces under
 - `src/services/azure/azureConnectionTest.ts` — **live** connection test: real round-trips to all four surfaces (Claude / OpenAI chat / embeddings / Whisper-via-tiny-silent-WAV), per-surface `{ok, status, message}` with REDACTED messages (never echoes endpoint/key/headers).
 - `src/services/azure/requestLimiter.ts` — `SimpleSemaphore` concurrency cap.
 
+#### Routing modes + api-version (2026-08-12)
+`azureRoutingMode` picks the surface, and BOTH must keep working — a resource or APIM front-end exposing only the standard deployment-qualified API 404s on the v1 paths, and vice versa:
+- **model-based** (default) → `/openai/v1/chat/completions` · `/openai/v1/embeddings`, deployment in the body `model`, **no api-version** (the undated `preview` sentinel belongs to this surface and we omit the parameter entirely).
+- **deployment-based** → `/openai/deployments/<dep>/{chat/completions,embeddings}?api-version=<dated>`, deployment in the PATH. Default `2025-03-01-preview` (matches upstream claude-engineering-skills `DEPLOYMENT_API_VERSION_DEFAULT`); pin per-operation via `azureApiVersionOverride.chat` / `.embeddings` (embeddings falls back to `chat`, so an existing single pin still works). Whisper keeps its own `2024-10-21` — separate operation, separate cadence.
+- **The deployment is route state, not body state.** Anything selecting a different deployment MUST rebuild the URL (`azureTriageRouting` does); varying only the body `model` silently hits the deployment the URL already names. `blockOverride` drops `modelOverride` for `azure-openai` in both modes for this reason.
+- **Never hardcode an operation path in an adapter.** The full URL is `config.endpoint` from the resolver; `AzureOpenAIAdapter.requestFormat.url` is bound to it (it once carried a stale `/openai/v1/responses` that the code never emitted).
+- **Test the EMITTED url, not the constructed config** — `tests/azureEmittedUrl.test.ts` injects a fake transport and asserts full string equality on what `requestUrl` is actually handed. Substring/`toContain` assertions on a resolver stay green while the transport gets a different URL; that is exactly how the upstream bug survived its whole life.
+
 ### Azure mode (auto-routing, no silent fallback)
 `isAzureMode` (main provider is `azure-*`) auto-routes specialist services to the right Azure surface — both surfaces share one resource+key:
 - **Audio → Azure Whisper**, **embeddings → Azure OpenAI**, **PDF → Azure Claude** (documents). **No silent fallback**: in Azure mode a missing/invalid Azure surface surfaces a clear error, never quietly borrows the user's personal key. **YouTube** genuinely needs a separate Gemini key (Azure has no path) — shown explicitly, not a fallback.

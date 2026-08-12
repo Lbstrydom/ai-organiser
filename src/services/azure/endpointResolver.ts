@@ -14,9 +14,18 @@ const WHISPER_PATH_PREFIX = '/openai/deployments/';
 
 const AZURE_API_VERSIONS = {
 	whisper: '2024-10-21',
-	// Legacy deployment-based chat/embeddings paths REQUIRE an api-version.
-	// Model-based `/openai/v1/*` paths correctly omit it.
-	chat: '2024-10-21',
+	// Deployment-qualified chat/embeddings paths REQUIRE a DATED api-version.
+	// (The undated `preview` sentinel belongs to the model-based `/openai/v1/*`
+	// surface, which correctly omits the parameter entirely.)
+	//
+	// `2025-03-01-preview` matches the upstream claude-engineering-skills
+	// contract (`DEPLOYMENT_API_VERSION_DEFAULT`) and is what current-generation
+	// deployments + APIM front-ends expect. A resource on an older API surface
+	// can pin back via `azureApiVersionOverride.chat` / `.embeddings`.
+	chat: '2025-03-01-preview',
+	// Embeddings is its own operation on its own cadence — a user pinning chat's
+	// api-version must not silently repin embeddings (they were coupled before).
+	embeddings: '2025-03-01-preview',
 	// Speech (TTS) is a separate surface — give it its own version rather than
 	// inheriting chat's (H5). Bump independently if Azure changes the Speech API.
 	speech: '2024-10-21',
@@ -64,7 +73,7 @@ interface EndpointSettings {
 	azureRoutingMode?: 'model-based' | 'deployment-based';
 	azureDeployments?: { chat?: string; embeddings?: string };
 	azureGPTModel?: string;
-	azureApiVersionOverride?: { whisper?: string; chat?: string };
+	azureApiVersionOverride?: { whisper?: string; chat?: string; embeddings?: string };
 	/** Per-capability deployment SSOT (H1). Read first; legacy fields are the one-release fallback. */
 	azureCapabilities?: Partial<Record<string, { mode?: string; deployment?: string }>>;
 }
@@ -121,7 +130,10 @@ export function getOpenAIChatEndpoint(settings: EndpointSettings): OpenAIChatEnd
 export function getOpenAIEmbeddingsEndpoint(settings: EndpointSettings): OpenAIEmbeddingsEndpoint {
 	if (settings.azureRoutingMode === 'deployment-based') {
 		const dep = capabilityDeployment(settings, 'embeddings') ?? settings.azureDeployments?.embeddings ?? 'text-embedding-3-large';
-		const apiVersion = settings.azureApiVersionOverride?.chat ?? AZURE_API_VERSIONS.chat;
+		// Own override key, falling back to `chat` so an existing pin keeps working.
+		const apiVersion = settings.azureApiVersionOverride?.embeddings
+			?? settings.azureApiVersionOverride?.chat
+			?? AZURE_API_VERSIONS.embeddings;
 		return (normalizeEndpointUrl(settings.azureOpenAIEndpoint) + `/openai/deployments/${dep}/embeddings?api-version=${apiVersion}`) as OpenAIEmbeddingsEndpoint;
 	}
 	return (normalizeEndpointUrl(settings.azureOpenAIEndpoint) + OPENAI_EMBEDDINGS_PATH) as OpenAIEmbeddingsEndpoint;

@@ -33,7 +33,7 @@ export interface AzureTriageSettings {
     azureRoutingMode?: 'model-based' | 'deployment-based';
     azureDeployments?: { chat?: string; embeddings?: string };
     azureGPTModel?: string;
-    azureApiVersionOverride?: { whisper?: string; chat?: string };
+    azureApiVersionOverride?: { whisper?: string; chat?: string; embeddings?: string };
     azureCapabilities?: Partial<Record<string, { mode?: string; deployment?: string }>>;
 }
 

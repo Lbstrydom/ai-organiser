@@ -7,12 +7,17 @@ import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
  * Talks to Azure OpenAI (`/openai/...`, native OpenAI wire format). Identical
  * request/response/streaming/multimodal shaping to the direct OpenAIAdapter —
  * only the endpoint path and auth header differ:
- * - URL path: `/openai/v1/responses` (endpoint host resolved from settings)
  * - Auth: `api-key: <key>` header (NOT `Authorization: Bearer`)
+ * - URL: the FULL request URL is `config.endpoint`, built by
+ *   `azure/endpointResolver.getOpenAIChatEndpoint()` and returned verbatim by
+ *   `getEndpoint()`. This adapter never concatenates an operation path, so both
+ *   routing modes are honoured:
+ *     model-based      → `<host>/openai/v1/chat/completions`      (no api-version)
+ *     deployment-based → `<host>/openai/deployments/<dep>/chat/completions?api-version=<dated>`
  *
- * In deployment-based routing the deployment is baked into the URL (resolved by
- * endpointResolver / apiKeyHelpers) and the body `model` override is dropped by
- * cloudService's `blockOverride` guard. Concrete catalog ids only.
+ * In deployment-based routing the deployment is baked into the URL and the body
+ * `model` override is dropped by cloudService's `blockOverride` guard. Concrete
+ * catalog ids only.
  */
 export class AzureOpenAIAdapter extends BaseAdapter {
     constructor(config: AdapterConfig) {
@@ -24,7 +29,11 @@ export class AzureOpenAIAdapter extends BaseAdapter {
         this.provider = {
             name: 'azure-openai',
             requestFormat: {
-                url: '/openai/v1/responses',
+                // Bound to the resolved endpoint, never a literal path: a static
+                // string cannot express BOTH routing modes, and a stale one here
+                // (this previously read `/openai/v1/responses` — an operation this
+                // adapter never calls) is exactly how route drift hides.
+                url: this.config.endpoint,
                 body: {
                     model: this.config.modelName,
                     messages: []
