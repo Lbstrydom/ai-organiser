@@ -1,5 +1,31 @@
 # Project Status Log
 
+## 2026-08-12 (c) — Embeddings deployment set explicitly + precedence proven live ✅
+
+Closes the loose end left by entry (b). `azureCapabilities.embeddings.deployment` was `""`, so the resolver fell through capability -> `azureDeployments.embeddings` -> the hardcoded `'text-embedding-3-large'` default. It worked, but by default rather than by configuration — a silent dependency on a fallback nobody had chosen.
+
+**Config only — no code changed.** Set on both the per-capability SSOT and the legacy field (`text-embedding-3-large`, the value the chain was already resolving to and which is live-green on the APIM endpoint).
+
+### Live precedence proof (CDP harness, `scripts/persona-harness/set-embeddings-deployment.mjs`, gitignored)
+A happy-path re-run would have proven nothing: "green with the capability set" is also what "the capability field is ignored entirely" looks like. So precedence was driven in BOTH directions:
+
+| Phase | capability | legacy | embeddings | chat |
+|---|---|---|---|---|
+| 1 | `text-embedding-3-large` | unset | ✓ pass | ✓ pass |
+| 2 | `text-embedding-3-large` | `zz-not-a-real-embed-deployment` | ✓ pass | ✓ pass |
+| 3 | `zz-not-a-real-embed-deployment` | `text-embedding-3-large` | ✗ **fail** — `deployment/endpoint not found` | ✓ pass |
+| 4 (final) | `text-embedding-3-large` | `text-embedding-3-large` | ✓ pass | ✓ pass |
+
+Phase 2 shows a stale legacy value cannot break embeddings; phase 3 shows the capability field is genuinely consulted rather than inert. Chat stayed green throughout — a different deployment on a different route, correctly unaffected. This matches the `the per-capability deployment SSOT wins over the legacy field` unit assertion in `tests/endpointResolver.test.ts`, now confirmed against the real APIM endpoint.
+
+### Final vault state
+`azureOpenAIEndpoint=https://gd-ai-dev-apim.azure-api.net/foundry` · `azureRoutingMode=deployment-based` · `azureDeployments={chat: gpt-5.5, embeddings: text-embedding-3-large}` · `azureCapabilities.embeddings={mode: azure, deployment: text-embedding-3-large}` · `azureApiVersionOverride={chat, embeddings: 2025-03-01-preview}`.
+
+### Next Steps
+None outstanding.
+
+---
+
 ## 2026-08-12 (b) — Switch to the APIM-fronted Azure endpoint (`azure-api.net/foundry`) ✅
 
 Follow-up to the entry below, and the reason its api-version bump mattered. The user pointed the plugin at the NEW Azure config in `.env` (lines 57+): `AZURE_OPENAI_ENDPOINT=https://gd-ai-dev-apim.azure-api.net/foundry`, `AZURE_OPENAI_API_VERSION=2025-03-01-preview`, `AZURE_OPENAI_GPT_DEPLOYMENT=gpt-5.5`; the Foundry/Claude endpoint (`gd-ai-dev-aif.services.ai.azure.com`) is unchanged.
