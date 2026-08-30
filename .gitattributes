@@ -6,6 +6,8 @@
 docs/reference/consistency-contract.md text eol=lf
 scripts/.sync-manifest.json text eol=lf
 .audit-loop/migrations/** text eol=lf
+.audit-loop/expected-schema.json text eol=lf
+.sync-receipt.json text eol=lf
 # /managed-by:claude-engineering-skills-sync
 
 # ── Repo-wide line-ending normalization ──────────────────────────────────────
