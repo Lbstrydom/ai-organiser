@@ -156,6 +156,7 @@ dashboard/telemetry.html
 logs/mcp-*.log
 logs/mcp-*.log.gz
 .audit/
+.audit-loop/cache/
 .audit-loop/*-observed.json
 .audit-loop/*-verify-result.json
 .audit-loop/*-drift-ledger.json

@@ -1,0 +1,36 @@
+{
+  "version": 1,
+  "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
+  "syncedAt": "2026-08-30T10:55:11.141Z",
+  "source": {
+    "repo": "Lbstrydom/claude-engineering-skills",
+    "branch": "claude/consumer-sync-durability-b01abc",
+    "commitSha": "363b525aa62178bc711527782dacfc0dbff65268",
+    "sourceDirty": false
+  },
+  "counts": {
+    "created": 1,
+    "updated": 7,
+    "unchanged": 746,
+    "gcDeleted": 0,
+    "overridesHeld": 0,
+    "divergedOverwritten": 0,
+    "divergenceRefused": 0
+  },
+  "created": [
+    "scripts/.claude-skills/lib/azure-claude-route.mjs"
+  ],
+  "updated": [
+    ".claude/skills/ship/SKILL.md",
+    "scripts/.claude-skills/gemini-review.mjs",
+    "scripts/.claude-skills/lib/anthropic-client.mjs",
+    "scripts/.claude-skills/lib/config.mjs",
+    "scripts/.claude-skills/lib/context.mjs",
+    "scripts/.claude-skills/lib/neighbourhood-query.mjs",
+    "scripts/.claude-skills/security-memory/refresh-incidents.mjs"
+  ],
+  "gcDeleted": [],
+  "overridesHeld": [],
+  "divergedOverwritten": [],
+  "divergenceRefused": []
+}
