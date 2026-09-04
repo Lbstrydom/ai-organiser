@@ -58,6 +58,17 @@ describe('resolveBriefAudioBucket', () => {
         expect(() => resolve(digestPathForDate('2026-09-01'), 'brief-%zz.wav')).not.toThrow();
     });
 
+    it('keeps a percent-encoded question mark inside a folder name', () => {
+        // Decoding before stripping would turn %3F into a real ? and truncate
+        // the path there, losing the file name entirely.
+        const custom = (d: string) => `odd%3Fname/Digest — ${d}.md`;
+        expect(resolveBriefAudioBucket({
+            sourcePath: 'odd%3Fname/Digest — 2026-09-01.md',
+            audioSrc: 'odd%3Fname/brief-a.wav',
+            digestPathForDate: custom,
+        })).toEqual({ bucketDate: '2026-09-01', audioBasename: 'brief-a.wav' });
+    });
+
     it('returns null for empty input', () => {
         expect(resolve('', 'brief-a.wav')).toBeNull();
         expect(resolve(digestPathForDate('2026-09-01'), '')).toBeNull();

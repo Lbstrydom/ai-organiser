@@ -10,7 +10,7 @@ import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
-import { NewsletterService, getBriefDateStr } from '../services/newsletter/newsletterService';
+import { NewsletterService, getBriefDateStr, extractDigestDate } from '../services/newsletter/newsletterService';
 import { withProgress } from '../services/progress';
 
 /** Show the appropriate notice after a fetch completes. Shared by command and settings button. */
@@ -82,11 +82,15 @@ export function resolveCatchUpTargetDate(plugin: AIOrganiserPlugin): string {
         plugin.settings.newsletterBriefCutoffMinute ?? 0,
     );
     const active = plugin.app.workspace.getActiveFile();
-    const m = active ? /Digest — (\d{4}-\d{2}-\d{2})\.md$/.exec(active.name) : null;
-    if (!m) return today;
+    const digestDate = active ? extractDigestDate(active.name) : null;
+    if (!digestDate) return today;
     // A future-dated digest is clamped: you cannot be caught up on tomorrow.
-    return m[1] > today ? today : m[1];
+    return digestDate > today ? today : digestDate;
 }
+
+/** Single-flight guard: rapid clicks must not spawn overlapping catch-up runs
+ *  that each read the ledger and race each other's writes. */
+let markingCaughtUp = false;
 
 /**
  * Run the catch-up and show one notice. Shared by the command and the settings
@@ -99,6 +103,24 @@ export function resolveCatchUpTargetDate(plugin: AIOrganiserPlugin): string {
 export async function runMarkCaughtUp(plugin: AIOrganiserPlugin): Promise<void> {
     const t = plugin.t;
     const nl = t.settings?.newsletter;
+
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
+        new Notice(nl?.caughtUpDisabled || 'Turn on story memory first', 5000);
+        return;
+    }
+    if (markingCaughtUp) return;
+    markingCaughtUp = true;
+    try {
+        await markCaughtUpInner(plugin, nl);
+    } finally {
+        markingCaughtUp = false;
+    }
+}
+
+async function markCaughtUpInner(
+    plugin: AIOrganiserPlugin,
+    nl: AIOrganiserPlugin['t']['settings']['newsletter'] | undefined,
+): Promise<void> {
     const through = resolveCatchUpTargetDate(plugin);
     const service = new NewsletterService(plugin);
 

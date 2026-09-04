@@ -1426,6 +1426,18 @@ export function getDigestPath(outputRoot: string, dateStr: string): string {
     return normalizePath(`${outputRoot}/Digest — ${dateStr}.md`);
 }
 
+/**
+ * Extract the bucket date from a digest file name, or null.
+ *
+ * Lives beside `getDigestPath` so the naming rule has ONE owner. The command
+ * layer must not re-encode it: a change to the digest filename would otherwise
+ * make a duplicated regex fail silently rather than fail loudly.
+ */
+export function extractDigestDate(fileName: string): string | null {
+    const m = /^Digest — (\d{4}-\d{2}-\d{2})\.md$/.exec(fileName);
+    return m ? m[1] : null;
+}
+
 /** Format a Date as YYYY-MM-DD using LOCAL time parts. Mirrors the
  *  bucket-key convention used elsewhere — never uses UTC, so a 23:00
  *  local-time fetch the day before cutoff still maps to the correct

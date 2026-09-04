@@ -47,9 +47,11 @@ function safeDecode(value: string): string {
 
 /** Normalise a vault-ish path for comparison. */
 function canonicalise(path: string): string {
-    return safeDecode(path)
+    // Strip the query and fragment BEFORE decoding. Decoding first would turn a
+    // legitimately encoded `%3F` inside a folder name into a real `?`, and this
+    // regex would then truncate the path at it.
+    return safeDecode(path.replace(/[?#].*$/, ''))
         .replaceAll('\\', '/')
-        .replace(/[?#].*$/, '')
         .replaceAll(/\/{2,}/g, '/')
         .replace(/^\//, '')
         .trim();
