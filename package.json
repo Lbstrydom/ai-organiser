@@ -40,7 +40,8 @@
     "maintenance:run": "node scripts/.claude-skills/maintenance-checks.mjs",
     "maintenance:status": "node scripts/.claude-skills/maintenance-checks.mjs --status",
     "learning:weekly-review": "node scripts/.claude-skills/cross-skill.mjs learning-weekly-review",
-    "learning:stats": "node scripts/.claude-skills/cross-skill.mjs learning-stats"
+    "learning:stats": "node scripts/.claude-skills/cross-skill.mjs learning-stats",
+    "skills:hydrate": "node -e \"const{execFileSync}=require('node:child_process'),p=require('node:path'),f=require('node:fs');const main=p.dirname(execFileSync('git',['rev-parse','--path-format=absolute','--git-common-dir'],{encoding:'utf8'}).trim());const dir='scripts/.claude-skills';const src=p.join(main,dir);if(p.resolve(dir)===p.resolve(src)){console.log('[hydrate] main checkout - nothing to do');process.exit(0)}if(!f.existsSync(src)){console.error('[hydrate] no tooling at '+src+' - re-sync the main checkout first');process.exit(1)}f.cpSync(src,dir,{recursive:true});console.log('[hydrate] copied '+src)\""
   },
   "keywords": [
     "obsidian",
