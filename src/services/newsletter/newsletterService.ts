@@ -21,6 +21,7 @@ import { isAzureMode } from '../azure/endpointResolver';
 import { updateAIOMetadata, createSummaryHook } from '../../utils/frontmatterUtils';
 import { SourceType } from '../../core/constants';
 import { getLanguageNameForPrompt } from '../languages';
+import { type Result, ok, err } from '../../core/result';
 
 const TRIAGE_MAX_CHARS = 6000;
 const MAX_SEEN_IDS = 500;
@@ -940,9 +941,9 @@ export class NewsletterService {
      * block from today's digest file and pipes it through the same audio
      * pipeline used in `generateAndInjectBrief`.
      */
-    public async regenerateAudioForToday(): Promise<{ success: boolean; error?: string; path?: string }> {
+    public async regenerateAudioForToday(): Promise<Result<{ path: string }>> {
         if (!this.plugin.settings.newsletterAudioPodcast) {
-            return { success: false, error: 'Audio podcast is off — toggle it on in settings first.' };
+            return err('Audio podcast is off — toggle it on in settings first.');
         }
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
@@ -950,7 +951,7 @@ export class NewsletterService {
         const digestPath = getDigestPath(outputRoot, dateStr);
         const digestFile = vault.getAbstractFileByPath(digestPath);
         if (!(digestFile instanceof TFile)) {
-            return { success: false, error: `No digest file at ${digestPath} — run a newsletter fetch first.` };
+            return err(`No digest file at ${digestPath} — run a newsletter fetch first.`);
         }
         const content = await vault.cachedRead(digestFile);
         // Strip any prior audio embed from the brief content before
@@ -960,17 +961,17 @@ export class NewsletterService {
         const priorEmbed = /\s*🎧\s*\*\*Listen:\*\*\s*!\[\[[^\]]*brief-[^\]]+\.(?:wav|mp3)\]\]\s*/g;
         const match = /<!--\s*DAILY_BRIEF_START\s*-->\s*##\s*Daily Brief\s*([\s\S]*?)<!--\s*DAILY_BRIEF_END\s*-->/.exec(content);
         if (!match) {
-            return { success: false, error: "No Daily Brief block found in today's digest — the brief step didn't run or failed." };
+            return err("No Daily Brief block found in today's digest — the brief step didn't run or failed.");
         }
         const brief = match[1].replaceAll(priorEmbed, '').trim();
         if (brief.length < 50) {
-            return { success: false, error: "Today's Daily Brief is empty / too short for audio synthesis." };
+            return err("Today's Daily Brief is empty / too short for audio synthesis.");
         }
         try {
             await this.generateAudioForBrief(brief, outputRoot, dateStr);
-            return { success: true, path: `${outputRoot}/${dateStr}/` };
+            return ok({ path: `${outputRoot}/${dateStr}/` });
         } catch (e) {
-            return { success: false, error: e instanceof Error ? e.message : String(e) };
+            return err(e instanceof Error ? e.message : String(e));
         }
     }
 
