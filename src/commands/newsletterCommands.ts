@@ -6,6 +6,7 @@
 
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import type { CaughtUpOutcome } from '../services/newsletter/newsletterMemoryTypes';
 import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
@@ -100,6 +101,32 @@ export function resolveCatchUpTargetDate(plugin: AIOrganiserPlugin): string {
 let markingCaughtUp = false;
 
 /**
+ * Map a catch-up outcome to its notice. ONE function, used by the command and
+ * the settings button, so the two surfaces cannot drift apart in what they tell
+ * the user — and so a new outcome state cannot be added without the compiler
+ * pointing here.
+ */
+export function formatCaughtUpOutcome(
+    outcome: CaughtUpOutcome,
+    nl: AIOrganiserPlugin['t']['settings']['newsletter'] | undefined,
+): string {
+    switch (outcome.kind) {
+        case 'ok':
+            return (nl?.caughtUpOk || 'Caught up through {through} — {buckets} day(s), {stories} stories')
+                .replace('{through}', outcome.through)
+                .replace('{buckets}', String(outcome.buckets))
+                .replace('{stories}', String(outcome.stories));
+        case 'noop':
+            return nl?.caughtUpNoop || 'Already up to date — nothing to mark';
+        case 'disabled':
+            return nl?.caughtUpDisabled || 'Turn on story memory first';
+        case 'error':
+            return (nl?.caughtUpError || 'Could not mark caught up: {error}')
+                .replace('{error}', outcome.error);
+    }
+}
+
+/**
  * Run the catch-up and show one notice. Shared by the command and the settings
  * button so their messaging cannot drift.
  *
@@ -132,34 +159,12 @@ async function markCaughtUpInner(
     nl: AIOrganiserPlugin['t']['settings']['newsletter'] | undefined,
 ): Promise<void> {
     const through = resolveCatchUpTargetDate(plugin);
-    const service = new NewsletterService(plugin);
+    const outcome = await new NewsletterService(plugin).markCaughtUp(through);
 
-    const result = await service.markCaughtUp(through);
-    if (!result.ok) {
-        if (result.error === 'disabled') {
-            new Notice(nl?.caughtUpDisabled || 'Turn on story memory first', 5000);
-            return;
-        }
-        logger.error('Newsletter', `Mark caught up failed: ${result.error}`);
-        new Notice(
-            (nl?.caughtUpError || 'Could not mark caught up: {error}').replace('{error}', result.error),
-            6000,
-        );
-        return;
+    if (outcome.kind === 'error') {
+        logger.error('Newsletter', `Mark caught up failed: ${outcome.error}`);
     }
-
-    if (result.value.buckets === 0) {
-        new Notice(nl?.caughtUpNoop || 'Already up to date — nothing to mark', 4000);
-        return;
-    }
-
-    new Notice(
-        (nl?.caughtUpOk || 'Caught up through {through} — {buckets} day(s), {stories} stories')
-            .replace('{through}', through)
-            .replace('{buckets}', String(result.value.buckets))
-            .replace('{stories}', String(result.value.stories)),
-        5000,
-    );
+    new Notice(formatCaughtUpOutcome(outcome, nl), outcome.kind === 'error' ? 6000 : 5000);
 }
 
 export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {

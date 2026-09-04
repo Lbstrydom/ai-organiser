@@ -152,6 +152,21 @@ export type ParseBriefResult =
     | { kind: 'parsed'; stories: ParsedStory[] }
     | { kind: 'unrecognised' };
 
+/**
+ * The result of a catch-up request, as a discriminated union.
+ *
+ * Deliberately NOT `Result<CatchUpResult>` with an error string sentinel:
+ * "story memory is off" and "nothing to do" are ordinary, expected outcomes,
+ * not failures, and encoding them as error strings means a genuine error whose
+ * message happened to match would be silently reclassified. The union makes
+ * every state explicit and lets one formatter cover both call sites.
+ */
+export type CaughtUpOutcome =
+    | { kind: 'ok'; buckets: number; stories: number; through: string }
+    | { kind: 'noop' }
+    | { kind: 'disabled' }
+    | { kind: 'error'; error: string };
+
 export function emptyLedger(): StoryLedger {
     return { version: MEMORY_SCHEMA_VERSION, buckets: {} };
 }

@@ -29,12 +29,11 @@ import {
     markBucketConsumed,
     markAllConsumedThrough,
     clearConsumption,
-    type CatchUpResult,
 } from './newsletterConsumption';
 import { selectRecall } from './newsletterRecall';
 import { ok, err, type Result } from '../../core/result';
 import { resolveBriefAudioBucket } from './briefAudioResolver';
-import type { RecallSelection } from './newsletterMemoryTypes';
+import type { RecallSelection, CaughtUpOutcome } from './newsletterMemoryTypes';
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
@@ -1204,13 +1203,15 @@ export class NewsletterService {
      * Unlike the audio signal this is a user assertion, so consuming each
      * bucket's CURRENT revision is correct rather than a guess.
      */
-    async markCaughtUp(throughDateStr: string): Promise<Result<CatchUpResult>> {
+    async markCaughtUp(throughDateStr: string): Promise<CaughtUpOutcome> {
         try {
-            if (!isStoryMemoryEnabled(this.plugin.settings)) return err('disabled');
+            if (!isStoryMemoryEnabled(this.plugin.settings)) return { kind: 'disabled' };
             const ledger = await loadLedger(this.plugin);
-            return ok(await markAllConsumedThrough(this.plugin, throughDateStr, ledger));
+            const res = await markAllConsumedThrough(this.plugin, throughDateStr, ledger);
+            if (res.buckets === 0) return { kind: 'noop' };
+            return { kind: 'ok', buckets: res.buckets, stories: res.stories, through: throughDateStr };
         } catch (e) {
-            return err(e instanceof Error ? e.message : String(e));
+            return { kind: 'error', error: e instanceof Error ? e.message : String(e) };
         }
     }
 
