@@ -4,12 +4,20 @@
  * Prompts for daily brief synthesis and podcast script generation.
  */
 
+import type { RecallSelection, RecallStory } from '../newsletter/newsletterMemoryTypes';
+
 const STRUCTURAL_TAGS = [
     '</newsletters>', '<newsletters>',
     '</task>', '<task>',
     '</requirements>', '<requirements>',
     '</output_format>', '<output_format>',
     '--- SOURCE:', '--- END SOURCE ---',
+    // Story-memory + region sections. Ledger titles and gists are LLM output
+    // derived from untrusted email, so they inherit the taint and a crafted
+    // newsletter must not be able to forge a section boundary.
+    '</story_memory>', '<story_memory>',
+    '</home_region>', '<home_region>',
+    '--- STORY ---',
 ];
 
 /** Strip structural XML/delimiter tags used by the prompt from source content to prevent injection.
@@ -35,6 +43,12 @@ function stripStructuralTags(text: string): string {
 export interface BriefSource {
     sourceDisplayName: string;
     triageText: string;
+    /** Populated by collectDayNewsletters; the explicit inputs isRegionRelevant reads. */
+    senderName?: string;
+    subject?: string;
+    /** True when this source covers the reader's configured home region.
+     *  Protects it from the budget trimmer's drop pass. */
+    local?: boolean;
 }
 
 /**
@@ -42,14 +56,55 @@ export interface BriefSource {
  * Language instruction is injected when a non-English language is configured.
  * Word budget scales with source count for heavier news days.
  */
-export function buildDailyBriefPrompt(options: { language?: string } = {}): string {
+export interface DailyBriefPromptOptions {
+    language?: string;
+    /** Cross-day story memory. Omitted or empty = today's behaviour, byte-identical. */
+    recall?: RecallSelection;
+    /** Home-region alias list. Empty = today's behaviour, byte-identical. */
+    homeRegion?: string;
+}
+
+export function buildDailyBriefPrompt(options: DailyBriefPromptOptions = {}): string {
     const isNonEnglish = options.language && options.language.toLowerCase() !== 'english';
     const langInstruction = isNonEnglish
         ? `\n- Write the entire brief, including all headings, in ${options.language}`
         : '';
+
+    const region = (options.homeRegion ?? '').trim();
+    const hasRegion = region.length > 0;
+
+    const themes = 'Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society';
+    const localTheme = hasRegion ? ', Closer to home' : '';
     const headingNote = isNonEnglish
-        ? `Choose 2-4 thematic headings appropriate for ${options.language} (e.g. equivalent of Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society) — only include headings that have content`
-        : 'Group under 2-4 thematic headings chosen from: Geopolitics, Tech & AI, Business & Markets, Science & Health, Culture & Society — only include headings that have content';
+        ? `Choose 2-4 thematic headings appropriate for ${options.language} (e.g. equivalent of ${themes}${localTheme}) — only include headings that have content`
+        : `Group under 2-4 thematic headings chosen from: ${themes}${localTheme} — only include headings that have content`;
+
+    // Region rules exist because the default requirements actively suppress
+    // local news: a local paper is single-source by definition, so the
+    // "prioritise multi-source stories" rule down-ranks it every single day.
+    const regionRules = hasRegion
+        ? `
+- The reader's home region is given in <home_region>. Stories about that region matter to them personally
+- Put home-region stories under a "Closer to home" heading
+- A home-region story reported by only ONE source is NOT less important — the multi-source
+  priority rule below does NOT apply to it, because local papers are single-source by nature
+- Never drop a home-region story to make room for international news`
+        : '';
+
+    const regionBlock = hasRegion
+        ? `\n<home_region>\n${stripStructuralTags(region).slice(0, 400)}\n</home_region>`
+        : '';
+
+    const memoryRules = options.recall && !isSelectionEmpty(options.recall)
+        ? `
+- <story_memory> lists what this reader has and has not already been told. Obey it:
+  · already_heard: omit entirely UNLESS today's sources carry a genuinely new development
+  · continuing: LEAD WITH WHAT IS NEW. The reader already knows the background — do not restate it
+  · not_yet_heard: the reader missed these, so include them with a brief catch-up. Do NOT suppress them
+- When continuing a story listed in <story_memory>, reuse that entry's title EXACTLY as written`
+        : '';
+
+    const memoryBlock = options.recall ? renderStoryMemory(options.recall) : '';
 
     return `<task>Synthesise these newsletter summaries into a comprehensive daily brief that covers all significant stories.</task>
 <requirements>
@@ -62,15 +117,52 @@ export function buildDailyBriefPrompt(options: { language?: string } = {}): stri
 - Factual, neutral tone; no filler phrases
 - Prioritise stories that appear in multiple sources — they are the day's signal
 - Include every significant story — the brief should scale with the news volume
-- Niche or soft stories (lifestyle, opinion pieces) can be omitted if space is needed for hard news${langInstruction}
+- Niche or soft stories (lifestyle, opinion pieces) can be omitted if space is needed for hard news${regionRules}${memoryRules}${langInstruction}
 </requirements>
 <output_format>
 ### [Theme heading]
 - **[Story title]**: One-two sentence summary. (Sources: Newsletter A, Newsletter B)
-</output_format>
+</output_format>${regionBlock}${memoryBlock}
 <newsletters>
 {{CONTENT}}
 </newsletters>`;
+}
+
+function isSelectionEmpty(sel: RecallSelection): boolean {
+    return sel.heard.length === 0 && sel.continuing.length === 0 && sel.unheard.length === 0;
+}
+
+/**
+ * Render the story-memory section.
+ *
+ * `heard` is split on `isCurrentBucket` so the model can say "since this
+ * morning" rather than "yesterday" — the same story means something different
+ * depending on when the reader heard it.
+ *
+ * Every title and gist goes through stripStructuralTags: these strings are LLM
+ * output derived from untrusted email, so they inherit the taint.
+ */
+function renderStoryMemory(sel: RecallSelection): string {
+    if (isSelectionEmpty(sel)) return '';
+
+    const earlierToday = sel.heard.filter(s => s.isCurrentBucket);
+    const previousDays = sel.heard.filter(s => !s.isCurrentBucket);
+
+    const sections = [
+        renderStoryList('already_heard (earlier today)', earlierToday),
+        renderStoryList('already_heard (previous days)', previousDays),
+        renderStoryList('continuing (new development the reader has NOT heard)', sel.continuing),
+        renderStoryList('not_yet_heard (the reader missed these)', sel.unheard),
+    ].filter(Boolean);
+
+    return `\n<story_memory>\n${sections.join('\n')}\n</story_memory>`;
+}
+
+function renderStoryList(label: string, stories: RecallStory[]): string {
+    if (stories.length === 0) return '';
+    const lines = stories.map(s =>
+        `--- STORY ---\n${stripStructuralTags(s.title)}: ${stripStructuralTags(s.gist)}`);
+    return `[${label}]\n${lines.join('\n')}`;
 }
 
 /** Minimum meaningful chars for a source to be worth including. */
@@ -118,18 +210,18 @@ export function insertBriefContent(
     );
 
     // Build all blocks first, then trim if over budget
-    const cleaned: { name: string; text: string }[] = [];
+    const cleaned: { name: string; text: string; local: boolean }[] = [];
     for (const src of sources) {
         const name = stripStructuralTags(src.sourceDisplayName);
         const triage = stripStructuralTags(src.triageText);
         if (isGarbageSource(triage)) continue;
-        cleaned.push({ name, text: triage });
+        cleaned.push({ name, text: triage, local: src.local === true });
     }
 
     // Assemble blocks — no per-source cap. Every story the user subscribed to gets included.
     const entries = cleaned.map((c, i) => ({
         block: `--- SOURCE: ${c.name} ---\n${c.text}\n--- END SOURCE ---`,
-        idx: i, text: c.text, name: c.name,
+        idx: i, text: c.text, name: c.name, local: c.local,
     }));
 
     const { blocks, truncatedCount } = fitToTokenBudget(entries, totalBudget);
@@ -151,7 +243,16 @@ const WORDS_PER_MINUTE = 130;
  * Converts markdown brief to spoken conversational prose.
  * maxMins is a ceiling — if the news is light, produce a shorter script rather than padding.
  */
-export function buildPodcastScriptPrompt(options: { language?: string; maxMins?: number } = {}): string {
+export interface PodcastScriptPromptOptions {
+    language?: string;
+    maxMins?: number;
+    /** Cross-day memory, so the script opens with what is NEW. */
+    recall?: RecallSelection;
+    /** Home-region aliases, so a local segment is reserved. */
+    homeRegion?: string;
+}
+
+export function buildPodcastScriptPrompt(options: PodcastScriptPromptOptions = {}): string {
     const isNonEnglish = options.language && options.language.toLowerCase() !== 'english';
     const langInstruction = isNonEnglish
         ? `\n- Speak entirely in ${options.language}, including opening, closing, and all transitions`
@@ -161,12 +262,34 @@ export function buildPodcastScriptPrompt(options: { language?: string; maxMins?:
         : 'Convert theme headings to spoken transitions: "In geopolitics today...", "In tech and AI...", "On the business and markets front..."';
     const maxWords = Math.round((options.maxMins ?? 5) * WORDS_PER_MINUTE);
 
+    const region = (options.homeRegion ?? '').trim();
+    const hasRegion = region.length > 0;
+    // Without a reserved segment the local story loses every time: the opener
+    // asks for the biggest stories and the word cap squeezes from the bottom.
+    const regionRule = hasRegion
+        ? `\n- Reserve a short segment for stories close to home (${stripStructuralTags(region).slice(0, 200)}). Do not cut it to fit the word budget — cut international coverage instead`
+        : '';
+
+    const hasMemory = options.recall
+        && (options.recall.continuing.length > 0 || options.recall.heard.length > 0);
+    const memoryRule = hasMemory
+        ? `
+- The listener has heard earlier briefings. Open with what is NEW since they last listened
+- For a story that continues from a previous briefing, give the new development only — do NOT
+  re-explain the background they already have
+- For anything they missed, one sentence of catch-up is enough`
+        : '';
+
+    const openerRule = hasMemory
+        ? '- Open with one sentence on what has changed since the last briefing'
+        : '- Open with one sentence previewing the 2-3 biggest stories of the day';
+
     return `<task>Rewrite this daily news brief as a spoken podcast script for a solo news briefing.</task>
 <requirements>
 - Remove all markdown formatting (no **, ##, ###, -, bullets)
 - ${transitionNote}
 - Remove source attribution parentheses like (Sources: X, Y)
-- Open with one sentence previewing the 2-3 biggest stories of the day
+${openerRule}${regionRule}${memoryRule}
 - Close with a single sentence wrap-up — vary the phrasing, do NOT use generic "thanks for tuning in"
 - Write for the ear, not the eye: use contractions, short sentences, and natural rhythm
 - Connect related stories where possible ("And that ties into...", "Meanwhile on the same front...")
@@ -195,7 +318,20 @@ interface BlockEntry {
     idx: number;
     text: string;
     name: string;
+    /** Home-region source: protected from the drop pass. */
+    local: boolean;
 }
+
+/** Trim floor for an ordinary source. */
+const MIN_SOURCE_CHARS = 200;
+/**
+ * Trim floor for a home-region source.
+ *
+ * Higher than the ordinary floor so a trimmed local paper keeps enough text to
+ * be summarisable rather than being reduced to a headline. Local papers are
+ * short to begin with, so the old flat 200-char floor gutted them.
+ */
+const MIN_LOCAL_SOURCE_CHARS = 600;
 
 /** Trim source blocks to fit within a character budget. Preserves source count where possible. */
 function fitToTokenBudget(
@@ -209,26 +345,55 @@ function fitToTokenBudget(
         return { blocks: entries.map(e => e.block), truncatedCount: 0 };
     }
 
-    // Proportionally trim the largest sources first
+    // ── Step 1: trim iteratively, largest first ─────────────────────────────
+    // Reduce only as much as the overage requires. The floors are floors the
+    // trimmer may not cross, NOT targets to trim down to — bulk-truncating
+    // every source to its floor the moment the budget is exceeded would throw
+    // away most of an available budget to recover a small overage.
     entries.sort((a, b) => b.block.length - a.block.length);
     for (const entry of entries) {
         if (total <= budget) break;
-        const maxChars = Math.max(200, Math.floor(entry.text.length * (budget / total)));
+        const floor = entry.local ? MIN_LOCAL_SOURCE_CHARS : MIN_SOURCE_CHARS;
+        const maxChars = Math.max(floor, Math.floor(entry.text.length * (budget / total)));
         const capped = capAtSentenceBoundary(entry.text, maxChars);
         if (capped.length < entry.text.length) {
             const oldLen = entry.block.length;
             entry.block = `--- SOURCE: ${entry.name} ---\n${capped}\n--- END SOURCE ---`;
+            entry.text = capped;
             total -= (oldLen - entry.block.length);
             truncatedCount++;
         }
     }
 
-    // If still over budget, drop shortest-content sources
-    entries.sort((a, b) => a.block.length - b.block.length);
-    while (total > budget && entries.length > 0) {
+    // ── Step 2: drop, non-local first ───────────────────────────────────────
+    // The comparator is (local ASC, length ASC): EVERY non-local source is
+    // exhausted before the first local one is dropped, regardless of length.
+    // Length-only ordering dropped the shortest first, which is exactly the
+    // shape of a local paper — that is how local news was being silently
+    // squeezed out of the brief on heavy news days.
+    entries.sort((a, b) => {
+        if (a.local !== b.local) return a.local ? 1 : -1;
+        return a.block.length - b.block.length;
+    });
+    while (total > budget && entries.length > 1) {
         const dropped = entries.shift();
         if (dropped) total -= dropped.block.length;
         truncatedCount++;
+    }
+
+    // ── Step 3: one source left and still over budget ───────────────────────
+    // Protection changes the ORDER of sacrifice, never the ceiling. The floors
+    // are floors on trimming, not guarantees against a budget smaller than the
+    // floor, so the last survivor is hard-truncated to fit.
+    if (total > budget && entries.length === 1) {
+        const only = entries[0];
+        const overhead = only.block.length - only.text.length;
+        const room = Math.max(0, budget - overhead);
+        if (only.text.length > room) {
+            const capped = only.text.slice(0, room);
+            only.block = `--- SOURCE: ${only.name} ---\n${capped}\n--- END SOURCE ---`;
+            truncatedCount++;
+        }
     }
 
     // Restore original order

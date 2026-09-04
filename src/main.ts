@@ -66,6 +66,8 @@ import { findAllMermaidBlocks } from './utils/mermaidUtils';
 import { mermaidStalenessGutterExtension } from './ui/editor/mermaidStalenessGutter';
 import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
 import { NewsletterService, LAST_FETCH_DATA_KEY } from './services/newsletter/newsletterService';
+import { saveSettingsData, stripDataOnlyKeys } from './core/pluginDataStore';
+import { isStoryMemoryEnabled } from './services/newsletter/newsletterMemoryPolicy';
 import { showNewsletterFetchResultNotice } from './commands/newsletterCommands';
 import { LongRunningOpController } from './services/longRunningOp/progressController';
 import { computeSmartTagBudget } from './services/smartTagBudgets';
@@ -193,7 +195,16 @@ export default class AIOrganiserPlugin extends Plugin {
     public async loadSettings(): Promise<void> {
         const oldSettings = await this.loadData();
         const migrated = migrateOldSettings(oldSettings);
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, migrated);
+        // Strip the non-settings data keys before they enter `this.settings`.
+        // `migrateOldSettings` returns the WHOLE loaded object, so without this
+        // the settings object carries a load-time snapshot of e.g. the seen-id
+        // list, and a later settings save would write that stale copy back —
+        // silently rolling back newsletter dedup state.
+        this.settings = Object.assign(
+            {},
+            DEFAULT_SETTINGS,
+            migrated ? stripDataOnlyKeys(migrated) : migrated,
+        );
         this.t = getTranslations(this.settings.interfaceLanguage);
         this.lastEmbeddingConfig = {
             provider: this.settings.embeddingProvider,
@@ -269,7 +280,7 @@ export default class AIOrganiserPlugin extends Plugin {
             this.settings.newsletterAutoFetch !== this.lastNewsletterConfig.autoFetch ||
             this.settings.newsletterAutoFetchIntervalMins !== this.lastNewsletterConfig.intervalMins;
 
-        await this.saveData(this.settings);
+        await saveSettingsData(this, this.settings);
         await this.initializeLLMService();
 
         if (embeddingSettingsChanged) {
@@ -529,7 +540,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 const adopt = await selectVisualBackend(this);
                 if (adopt.kind !== 'ready') return;
                 this.settings.featureFlags['visual-search'] = true;
-                await this.saveData(this.settings);
+                await saveSettingsData(this, this.settings);
                 logger.debug('Search', 'Visual search auto-enabled: a configured backend was detected');
             }
             const sel = await selectVisualBackend(this);
@@ -1091,7 +1102,28 @@ export default class AIOrganiserPlugin extends Plugin {
         // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
         // a small playback-speed toolbar (0.75×…2×). Obsidian's default
         // controls expose no speed UI despite the browser supporting it.
-        this.registerMarkdownPostProcessor((el) => enhanceAudioPlayersIn(el));
+        // The `onListened` callback is attached ONLY when story memory is on —
+        // the setting means "collect and use no memory", not "hide it from the
+        // prompt", so a disabled feature must record no consumption signal at all.
+        //
+        // The async boundary is explicit here: the component's callback is
+        // synchronous by contract, and this adapter owns the promise. An
+        // unhandled rejection inside a media event listener is invisible to the
+        // user, so the catch is mandatory rather than defensive decoration.
+        this.registerMarkdownPostProcessor((el, ctx) => {
+            const onListened = isStoryMemoryEnabled(this.settings)
+                ? (audioSrc: string) => {
+                    void new NewsletterService(this)
+                        .markBriefAudioConsumed({ sourcePath: ctx.sourcePath, audioSrc })
+                        .then((r) => {
+                            if (!r.ok) logger.warn('Newsletter', `Consumption signal failed: ${r.error}`);
+                        })
+                        .catch((e) => logger.warn('Newsletter', 'Consumption signal threw', e));
+                }
+                : undefined;
+            const dispose = enhanceAudioPlayersIn(el, { onListened });
+            this.register(dispose);
+        });
 
         // Register tag network view + related notes view. Obsidian throws
         // `Attempting to register an existing view type` if another plugin
@@ -1150,7 +1182,7 @@ export default class AIOrganiserPlugin extends Plugin {
         // immediately so it never re-fires across reloads. Fires after layout settles.
         if (!this.settings.featuresIntroShown) {
             this.settings.featuresIntroShown = true;
-            void this.saveData(this.settings).catch((err) =>
+            void saveSettingsData(this, this.settings).catch((err) =>
                 logger.warn('Core', 'Failed to persist featuresIntroShown marker', err));
             this.app.workspace.onLayoutReady(() => new Notice(this.t.features.intro, 8000));
         }
@@ -1307,12 +1339,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
     /** Persist the current time as the last newsletter fetch timestamp. */
     public async updateNewsletterLastFetchTime(): Promise<void> {
-        try {
-            const data = (await this.loadData()) ?? {};
-            data[LAST_FETCH_DATA_KEY] = Date.now();
-            await this.saveData(data);
-            this.newsletterLastFetchTime = data[LAST_FETCH_DATA_KEY];
-        } catch { /* best-effort */ }
+        await new NewsletterService(this).persistLastFetchTime();
     }
 
     // ─────────────────────────────────────────────────────────────────────────

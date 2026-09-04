@@ -391,6 +391,8 @@ export interface AIOrganiserSettings {
     newsletterBriefCutoffHour: number;  // Hour (0-23) when "today" rolls over for brief grouping
     newsletterBriefCutoffMinute: number; // Minute (0-59) offset within the cutoff hour, for sub-hour precision (e.g. 7:30)
     newsletterRetentionDays: number;    // Days to keep newsletter notes (0 = keep forever)
+    newsletterHomeRegion: string;       // '' = off. Semicolon/comma-separated aliases, e.g. 'Leidschendam; Voorburg; Netherlands'
+    newsletterStoryMemory: boolean;     // Cross-day story memory: lead with the delta instead of retelling
 
     // === AUDIO NARRATION ===
     /** User-facing narration provider. `openai-gpt-audio` (gpt-audio-1.5 chat audio-out)
@@ -847,6 +849,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterBriefCutoffHour: 6,
     newsletterBriefCutoffMinute: 0,
     newsletterRetentionDays: 30,
+    newsletterHomeRegion: '',
+    newsletterStoryMemory: true,
 
     // Audio Narration Defaults
     audioNarrationProvider: 'gemini',

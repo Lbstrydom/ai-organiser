@@ -10,7 +10,7 @@ import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
-import { NewsletterService } from '../services/newsletter/newsletterService';
+import { NewsletterService, getBriefDateStr } from '../services/newsletter/newsletterService';
 import { withProgress } from '../services/progress';
 
 /** Show the appropriate notice after a fetch completes. Shared by command and settings button. */
@@ -69,6 +69,67 @@ export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<voi
     );
 }
 
+/**
+ * Which day the reader is asserting they are caught up through.
+ *
+ * One policy shared by the command and the settings button, so the two surfaces
+ * cannot disagree about what "caught up" means: the digest you are looking at
+ * if you are looking at one, otherwise today's cutoff-aware bucket.
+ */
+export function resolveCatchUpTargetDate(plugin: AIOrganiserPlugin): string {
+    const today = getBriefDateStr(
+        plugin.settings.newsletterBriefCutoffHour ?? 6,
+        plugin.settings.newsletterBriefCutoffMinute ?? 0,
+    );
+    const active = plugin.app.workspace.getActiveFile();
+    const m = active ? /Digest — (\d{4}-\d{2}-\d{2})\.md$/.exec(active.name) : null;
+    if (!m) return today;
+    // A future-dated digest is clamped: you cannot be caught up on tomorrow.
+    return m[1] > today ? today : m[1];
+}
+
+/**
+ * Run the catch-up and show one notice. Shared by the command and the settings
+ * button so their messaging cannot drift.
+ *
+ * A control that silently does nothing is worse than one that says why, so the
+ * disabled and no-op cases get their own distinct notices rather than a
+ * generic success.
+ */
+export async function runMarkCaughtUp(plugin: AIOrganiserPlugin): Promise<void> {
+    const t = plugin.t;
+    const nl = t.settings?.newsletter;
+    const through = resolveCatchUpTargetDate(plugin);
+    const service = new NewsletterService(plugin);
+
+    const result = await service.markCaughtUp(through);
+    if (!result.ok) {
+        if (result.error === 'disabled') {
+            new Notice(nl?.caughtUpDisabled || 'Turn on story memory first', 5000);
+            return;
+        }
+        logger.error('Newsletter', `Mark caught up failed: ${result.error}`);
+        new Notice(
+            (nl?.caughtUpError || 'Could not mark caught up: {error}').replace('{error}', result.error),
+            6000,
+        );
+        return;
+    }
+
+    if (result.value.buckets === 0) {
+        new Notice(nl?.caughtUpNoop || 'Already up to date — nothing to mark', 4000);
+        return;
+    }
+
+    new Notice(
+        (nl?.caughtUpOk || 'Caught up through {through} — {buckets} day(s), {stories} stories')
+            .replace('{through}', through)
+            .replace('{buckets}', String(result.value.buckets))
+            .replace('{stories}', String(result.value.stories)),
+        5000,
+    );
+}
+
 export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
 
@@ -124,6 +185,13 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
             }
             // On !r.ok the reporter already fired the toast.
         }
+    });
+
+    plugin.addCommand({
+        id: 'newsletter-mark-caught-up',
+        name: t.commands.newsletterMarkCaughtUp || 'Mark newsletters caught up',
+        icon: 'check-check',
+        callback: () => { void runMarkCaughtUp(plugin); },
     });
 
     plugin.addCommand({

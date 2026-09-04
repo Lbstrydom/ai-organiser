@@ -843,6 +843,17 @@ export interface Translations {
             briefCutoffHourDesc: string;
             briefCutoffMinute: string;
             briefCutoffMinuteDesc: string;
+            homeRegion: string;
+            homeRegionDesc: string;
+            storyMemory: string;
+            storyMemoryDesc: string;
+            markCaughtUp: string;
+            markCaughtUpDesc: string;
+            markCaughtUpButton: string;
+            caughtUpOk: string;
+            caughtUpNoop: string;
+            caughtUpDisabled: string;
+            caughtUpError: string;
             retentionDays: string;
             retentionDaysDesc: string;
         };
@@ -1241,6 +1252,7 @@ export interface Translations {
         kindleSync: string;
         newsletterFetch: string;
         newsletterRegenerateAudio: string;
+        newsletterMarkCaughtUp: string;
         narrateNote: string;
         playNarration: string;
         digitiseImage: string;
@@ -2737,6 +2749,7 @@ export interface Translations {
                 newsletter: string;
                 newsletterFetch: string;
                 newsletterRegenerateAudio: string;
+                newsletterMarkCaughtUp: string;
                 newSketch: string;
                 askSearchGroup: string;
                 chatWithAI: string;
