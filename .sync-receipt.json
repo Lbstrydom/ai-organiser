@@ -1,36 +1,325 @@
 {
-  "version": 1,
-  "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "syncedAt": "2026-08-30T10:55:11.141Z",
-  "source": {
-    "repo": "Lbstrydom/claude-engineering-skills",
-    "branch": "claude/consumer-sync-durability-b01abc",
-    "commitSha": "363b525aa62178bc711527782dacfc0dbff65268",
-    "sourceDirty": false
-  },
-  "counts": {
-    "created": 1,
-    "updated": 7,
-    "unchanged": 746,
-    "gcDeleted": 0,
-    "overridesHeld": 0,
-    "divergedOverwritten": 0,
-    "divergenceRefused": 0
-  },
-  "created": [
-    "scripts/.claude-skills/lib/azure-claude-route.mjs"
-  ],
-  "updated": [
-    ".claude/skills/ship/SKILL.md",
-    "scripts/.claude-skills/gemini-review.mjs",
-    "scripts/.claude-skills/lib/anthropic-client.mjs",
-    "scripts/.claude-skills/lib/config.mjs",
-    "scripts/.claude-skills/lib/context.mjs",
-    "scripts/.claude-skills/lib/neighbourhood-query.mjs",
-    "scripts/.claude-skills/security-memory/refresh-incidents.mjs"
-  ],
-  "gcDeleted": [],
-  "overridesHeld": [],
-  "divergedOverwritten": [],
-  "divergenceRefused": []
+  "version": 2,
+  "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
+  "olderSyncsDropped": 8,
+  "recentSyncs": [
+    {
+      "syncedAt": "2026-09-04T17:30:26.353Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/sleepy-bardeen-e78f97",
+        "commitSha": "fc454937fdb15cd6a93c53f3300c0e774d5a3321",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 782,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T16:32:15.469Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/wine-cellar-sync-links-7ac0e5",
+        "commitSha": "b6f9d44ea22e43c0fabfc3f99d02ce6620d6f5c3",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 33,
+        "unchanged": 749,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        ".claude/skills/ai-context-management/references/input-acquisition.md",
+        ".claude/skills/audit-code/SKILL.md",
+        ".claude/skills/audit-code/references/debt-capture.md",
+        ".claude/skills/audit-code/references/gemini-gate.md",
+        ".claude/skills/audit-code/references/input-acquisition.md",
+        ".claude/skills/audit-code/references/ledger-format.md",
+        ".claude/skills/audit-code/references/prerequisite-ladder.md",
+        ".claude/skills/audit-code/references/verification-discipline.md",
+        ".claude/skills/audit-plan/references/gemini-gate.md",
+        ".claude/skills/audit-plan/references/input-acquisition.md",
+        ".claude/skills/audit-plan/references/ledger-format.md",
+        ".claude/skills/audit-plan/references/prerequisite-ladder.md",
+        ".claude/skills/audit-plan/references/verification-discipline.md",
+        ".claude/skills/brainstorm/references/input-acquisition.md",
+        ".claude/skills/click-test/SKILL.md",
+        ".claude/skills/click-test/references/browser-tool-detection.md",
+        ".claude/skills/click-test/references/input-acquisition.md",
+        ".claude/skills/explain/references/verification-discipline.md",
+        ".claude/skills/investigate/references/verification-discipline.md",
+        ".claude/skills/nav-audit/references/verification-discipline.md",
+        ".claude/skills/persona-test/SKILL.md",
+        ".claude/skills/persona-test/references/audit-correlation.md",
+        ".claude/skills/persona-test/references/auth-bootstrap.md",
+        ".claude/skills/persona-test/references/browser-tool-detection.md",
+        ".claude/skills/persona-test/references/consistency-mode.md",
+        ".claude/skills/persona-test/references/input-acquisition.md",
+        ".claude/skills/plan/references/verification-discipline.md",
+        ".claude/skills/ship/SKILL.md",
+        ".claude/skills/ship/references/input-acquisition.md",
+        ".claude/skills/ship/references/verification-discipline.md",
+        ".claude/skills/ux-lock/references/input-acquisition.md",
+        ".claude/skills/ux-lock/references/verification-discipline.md",
+        "docs/reference/consistency-contract.md"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T16:10:44.159Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/sleepy-bardeen-e78f97",
+        "commitSha": "64c9c07f56cf9a4c5492e17b9b342dca4c2ce290",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 3,
+        "unchanged": 779,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/symbol-index/prune.mjs",
+        "scripts/.claude-skills/symbol-index/refresh.mjs",
+        "scripts/.claude-skills/symbol-index/summarise-domains.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T15:33:22.711Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/symbol-index-corpus-fix-196b90",
+        "commitSha": "90822348df1d5b8a86d51196fa24280ea3bc5410",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 782,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T15:26:53.021Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/clever-moser-aa1f69",
+        "commitSha": "0fa73e2fd0eb6fbcbdd9f8b65c56e1172a967982",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 8,
+        "unchanged": 774,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/lib/cross-skill/commands/arch-query.mjs",
+        "scripts/.claude-skills/lib/store/arch/coverage.mjs",
+        "scripts/.claude-skills/lib/store/arch/imports.mjs",
+        "scripts/.claude-skills/lib/store/arch/symbols.mjs",
+        "scripts/.claude-skills/symbol-index/drift.mjs",
+        "scripts/.claude-skills/symbol-index/refresh.mjs",
+        "scripts/.claude-skills/symbol-index/render-mermaid.mjs",
+        "scripts/.claude-skills/symbol-index/summarise-domains.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T13:07:24.404Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "1a624b22a4c5167fea2f739302805323834adb36",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 782,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T13:07:16.250Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "1a624b22a4c5167fea2f739302805323834adb36",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 5,
+        "unchanged": 777,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        "docs/reference/consistency-contract.md",
+        "scripts/.claude-skills/lib/db/errors.mjs",
+        "scripts/.claude-skills/lib/store/arch/imports.mjs",
+        "scripts/.claude-skills/lib/store/arch/refresh-runs.mjs",
+        "scripts/.claude-skills/lib/store/arch/snapshots.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T12:27:50.970Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/cranky-pike-3525bf",
+        "commitSha": "c12d50785953a9a622b91cb9717495223be72125",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 782,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T12:14:57.866Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "1a4dedc2d915a090380b62a8bfdb5d4f06217726",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 1,
+        "unchanged": 781,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        ".claude/hooks/legacy-surface-advisory.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-04T12:03:17.197Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/symbol-index-corpus-fix-196b90",
+        "commitSha": "c0017b68c0c5d4dd9f9a6793f5629668696e5d15",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 2,
+        "updated": 19,
+        "unchanged": 761,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/sync-owned-sidecar.mjs",
+        "scripts/.claude-skills/lib/upstream-ownership.mjs"
+      ],
+      "updated": [
+        ".claude/skills/audit-code/SKILL.md",
+        "scripts/.claude-skills/debt-review.mjs",
+        "scripts/.claude-skills/lib/audit/findings-pipeline.mjs",
+        "scripts/.claude-skills/lib/audit/llm-helpers.mjs",
+        "scripts/.claude-skills/lib/audit/run-finalization.mjs",
+        "scripts/.claude-skills/lib/coverage-schema.mjs",
+        "scripts/.claude-skills/lib/debt-review-helpers.mjs",
+        "scripts/.claude-skills/lib/package-manager.mjs",
+        "scripts/.claude-skills/lib/plan-paths.mjs",
+        "scripts/.claude-skills/lib/robustness.mjs",
+        "scripts/.claude-skills/lib/schemas.mjs",
+        "scripts/.claude-skills/lib/store/arch/snapshots.mjs",
+        "scripts/.claude-skills/lib/symbol-index/graph-coverage.mjs",
+        "scripts/.claude-skills/openai-audit.mjs",
+        "scripts/.claude-skills/skills-hydrate.mjs",
+        "scripts/.claude-skills/symbol-index/drift.mjs",
+        "scripts/.claude-skills/symbol-index/duplicates.mjs",
+        "scripts/.claude-skills/symbol-index/extract.mjs",
+        "scripts/.claude-skills/symbol-index/refresh.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    }
+  ]
 }
