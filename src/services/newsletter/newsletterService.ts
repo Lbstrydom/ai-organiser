@@ -33,6 +33,7 @@ import {
 import { selectRecall } from './newsletterRecall';
 import { ok, err, type Result } from '../../core/result';
 import { resolveBriefAudioBucket } from './briefAudioResolver';
+import { postProcessBrief } from './briefPostProcess';
 import type { RecallSelection, CaughtUpOutcome } from './newsletterMemoryTypes';
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
@@ -722,6 +723,13 @@ export class NewsletterService {
         }
 
         if (!brief) return; // leave existing block unchanged on failure
+
+        // Deterministic guards for two defects that survived being forbidden in
+        // the prompt: a memory section label written into the source
+        // attribution, and the same story listed under two headings. Both were
+        // seen in real generated output; instructions about global properties of
+        // a long document are followed unreliably, so they are enforced here.
+        brief = postProcessBrief(brief);
 
         const truncationSuffix = truncatedCount > 1 ? 's were' : ' was';
         const truncationWarning = truncatedCount > 0

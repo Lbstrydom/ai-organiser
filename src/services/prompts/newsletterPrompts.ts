@@ -85,7 +85,8 @@ export function buildDailyBriefPrompt(options: DailyBriefPromptOptions = {}): st
     const regionRules = hasRegion
         ? `
 - The reader's home region is given in <home_region>. Stories about that region matter to them personally
-- Put home-region stories under a "Closer to home" heading
+- Put home-region stories under a "Closer to home" heading, and ONLY there. A home-region
+  story must not also appear under a topical heading — one story, one place in the brief
 - A home-region story reported by only ONE source is NOT less important — the multi-source
   priority rule below does NOT apply to it, because local papers are single-source by nature
 - Never drop a home-region story to make room for international news`
@@ -97,11 +98,28 @@ export function buildDailyBriefPrompt(options: DailyBriefPromptOptions = {}): st
 
     const memoryRules = options.recall && !isSelectionEmpty(options.recall)
         ? `
-- <story_memory> lists what this reader has and has not already been told. Obey it:
-  · already_heard: omit entirely UNLESS today's sources carry a genuinely new development
-  · continuing: LEAD WITH WHAT IS NEW. The reader already knows the background — do not restate it
-  · not_yet_heard: the reader missed these, so include them with a brief catch-up. Do NOT suppress them
-- When continuing a story listed in <story_memory>, reuse that entry's title EXACTLY as written`
+- <story_memory> lists what this reader has and has not already been told, each entry dated. Obey it:
+  · ALREADY_TOLD_THEM_*: omit entirely UNLESS today's sources carry a genuinely new development
+  · THEY_KNOW_THIS_STORY_BUT_NOT_THIS_UPDATE: LEAD WITH WHAT IS NEW. They already know the
+    background — do not restate it
+  · THEY_MISSED_THESE_ENTIRELY: include with a brief catch-up. Do NOT suppress them
+- RUNNING STORIES SHRINK. A big ongoing situation (a war, a court case, an election) reappears
+  under a different headline every day. Judge it by the DATES in <story_memory>, not by whether
+  the wording matches:
+  · under 1 prior date  → normal length, lead with the new development
+  · under 2-3 prior dates → ONE sentence, the newest development only
+  · under 4+ prior dates → one short clause, and only if something actually changed. The reader
+    has followed this for days; they need the update, not the situation
+- Do NOT re-establish context the reader already has. Phrases like "amid ongoing tensions", "as
+  the conflict continues" or "in the latest escalation" are words they have already read
+- A long-running story must NEVER take space from a story the reader has not seen. When space is
+  tight, cut the ongoing story further and keep the fresh one at full length
+- Second-order stories belong to their parent situation. If the reader has followed a conflict for
+  days, a story about that conflict's effect on shipping or food prices is a development in it,
+  not a new story
+- When continuing a story listed in <story_memory>, reuse that entry's title EXACTLY as written
+- The (Sources: …) field names newsletters from <newsletters> ONLY. Never put a <story_memory>
+  section name there — those labels describe what the reader has heard, they are not sources`
         : '';
 
     const memoryBlock = options.recall ? renderStoryMemory(options.recall) : '';
@@ -149,19 +167,31 @@ function renderStoryMemory(sel: RecallSelection): string {
     const previousDays = sel.heard.filter(s => !s.isCurrentBucket);
 
     const sections = [
-        renderStoryList('already_heard (earlier today)', earlierToday),
-        renderStoryList('already_heard (previous days)', previousDays),
-        renderStoryList('continuing (new development the reader has NOT heard)', sel.continuing),
-        renderStoryList('not_yet_heard (the reader missed these)', sel.unheard),
+        renderStoryList('ALREADY_TOLD_THEM_EARLIER_TODAY', earlierToday, false),
+        renderStoryList('ALREADY_TOLD_THEM_ON_A_PREVIOUS_DAY', previousDays, false),
+        renderStoryList('THEY_KNOW_THIS_STORY_BUT_NOT_THIS_UPDATE', sel.continuing, true),
+        renderStoryList('THEY_MISSED_THESE_ENTIRELY', sel.unheard, true),
     ].filter(Boolean);
 
     return `\n<story_memory>\n${sections.join('\n')}\n</story_memory>`;
 }
 
-function renderStoryList(label: string, stories: RecallStory[]): string {
+function renderStoryList(label: string, stories: RecallStory[], withGist: boolean): string {
     if (stories.length === 0) return '';
-    const lines = stories.map(s =>
-        `--- STORY ---\n${stripStructuralTags(s.title)}: ${stripStructuralTags(s.gist)}`);
+    // The DATE is load-bearing, not decoration. Headline similarity cannot thread
+    // a running situation whose framing changes daily — "US sanctions on Egyptian
+    // bank" and "Iran attacks U.S. bases in Jordan" are the same conflict and
+    // share almost no words — but a model reading dated entries groups them
+    // easily. The dates are what make the proportionality rule work at all.
+    //
+    // `withGist` is false for already-heard stories: the model only has to
+    // RECOGNISE them, and the gist costs four times the characters for no gain.
+    // Charging every list for gists is what truncated a week of memory down to
+    // twelve entries, which in turn made a week-long story look brand new.
+    const lines = stories.map(s => {
+        const head = `[${s.bucketDate}] ${stripStructuralTags(s.title)}`;
+        return withGist ? `--- STORY ---\n${head}: ${stripStructuralTags(s.gist)}` : head;
+    });
     return `[${label}]\n${lines.join('\n')}`;
 }
 

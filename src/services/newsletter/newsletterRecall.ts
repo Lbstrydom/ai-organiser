@@ -27,12 +27,31 @@ export interface RecallOptions {
     windowDays?: number;
     /** Max stories per list, newest first. */
     maxStories?: number;
-    /** Max total gist characters per list. */
+    /** Override the per-list character budget. Omit to use the per-list defaults,
+     *  which differ because `heard` renders title-only and the others do not. */
     maxChars?: number;
 }
 
-const DEFAULT_MAX_STORIES = 25;
-const DEFAULT_MAX_CHARS = 2500;
+/**
+ * Caps differ per list because the lists are not equally expensive, and getting
+ * this wrong silently guts the feature.
+ *
+ * Measured on a real corpus: 7 days holds roughly 150-250 stories at ~200 chars
+ * of title+gist each. A flat 2500-char cap therefore showed the model about 12
+ * of them — 8% of what the reader had actually heard — so a story running all
+ * week never appeared in the window and was treated as brand new.
+ *
+ * The fix is to charge each list for what it actually RENDERS. A `heard` entry
+ * only has to be recognisable, so it renders as a title alone and costs ~55
+ * chars; `continuing` and `unheard` need the gist to be useful and cost ~200.
+ * That buys a full week of recognition for less than the old cap spent on 12
+ * full entries.
+ */
+const DEFAULT_MAX_STORIES = 250;
+/** `heard` renders title-only, so this buys ~150 recognisable entries. */
+const DEFAULT_HEARD_MAX_CHARS = 9_000;
+/** `continuing` and `unheard` render the gist too — fewer, but complete. */
+const DEFAULT_DETAILED_MAX_CHARS = 4_000;
 
 interface Accumulated {
     /** Any occurrence of this key, in any in-window bucket, was consumed. */
@@ -60,7 +79,8 @@ export function selectRecall(
 ): RecallSelection {
     const windowDays = opts.windowDays ?? MEMORY_WINDOW_DAYS;
     const maxStories = opts.maxStories ?? DEFAULT_MAX_STORIES;
-    const maxChars = opts.maxChars ?? DEFAULT_MAX_CHARS;
+    const heardChars = opts.maxChars ?? DEFAULT_HEARD_MAX_CHARS;
+    const detailChars = opts.maxChars ?? DEFAULT_DETAILED_MAX_CHARS;
     const cutoff = shiftDateStr(currentBucketStr, -windowDays);
 
     // Newest bucket first, so the first occurrence we see for a key is the newest.
@@ -131,9 +151,9 @@ export function selectRecall(
     }
 
     return {
-        heard: cap(sortNewestFirst(heard), maxStories, maxChars),
-        continuing: cap(sortNewestFirst(continuing), maxStories, maxChars),
-        unheard: cap(sortNewestFirst(unheard), maxStories, maxChars),
+        heard: cap(sortNewestFirst(heard), maxStories, heardChars, titleCost),
+        continuing: cap(sortNewestFirst(continuing), maxStories, detailChars, fullCost),
+        unheard: cap(sortNewestFirst(unheard), maxStories, detailChars, fullCost),
     };
 }
 
@@ -144,18 +164,35 @@ function sortNewestFirst(list: RecallStory[]): RecallStory[] {
     });
 }
 
-function cap(list: RecallStory[], maxStories: number, maxChars: number): RecallStory[] {
+/**
+ * Trim a list to its budget.
+ *
+ * `costOf` must match what the PROMPT actually renders for that list, or the
+ * budget is fiction — charging a title-only list for its gists is what
+ * truncated a week of memory down to twelve entries.
+ */
+function cap(
+    list: RecallStory[],
+    maxStories: number,
+    maxChars: number,
+    costOf: (s: RecallStory) => number,
+): RecallStory[] {
     const out: RecallStory[] = [];
     let chars = 0;
     for (const s of list) {
         if (out.length >= maxStories) break;
-        const cost = s.title.length + s.gist.length;
+        const cost = costOf(s);
         if (chars + cost > maxChars && out.length > 0) break;
         out.push(s);
         chars += cost;
     }
     return out;
 }
+
+/** `heard` renders as `[date] title` only. */
+const titleCost = (s: RecallStory) => s.title.length + 14;
+/** `continuing` / `unheard` render `[date] title: gist`. */
+const fullCost = (s: RecallStory) => s.title.length + s.gist.length + 14;
 
 /** True when there is nothing worth putting in the prompt. */
 export function isRecallEmpty(sel: RecallSelection): boolean {
