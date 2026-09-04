@@ -28,6 +28,7 @@ import { extractTriageFromNote, extractFrontmatterField } from '../../src/servic
 import { parseBriefStories, mergeBucketRevision, storyKey } from '../../src/services/newsletter/newsletterStoryLedger';
 import { selectRecall } from '../../src/services/newsletter/newsletterRecall';
 import { isRegionRelevant } from '../../src/services/newsletter/homeRegionAliases';
+import { postProcessBrief } from '../../src/services/newsletter/briefPostProcess';
 import {
     MEMORY_SCHEMA_VERSION,
     type ConsumptionState,
@@ -127,8 +128,22 @@ describe.skipIf(!RUN)('brief simulation with memory, real data + real model', ()
             console.log(`recall → heard ${recall.heard.length}, continuing ${recall.continuing.length}, unheard ${recall.unheard.length}`);
             console.log(`prompt: ${prompt.length} chars`);
 
-            const brief = await synthesise(prompt);
+            // RAW is what the model returned; FINAL is what the pipeline ships.
+            // Reporting both separates "the prompt fixed it" from "the code
+            // guard fixed it", which matters: a defect only the guard catches is
+            // one the prompt is still producing.
+            const raw = await synthesise(prompt);
+            const brief = postProcessBrief(raw);
+            writeFileSync(join(OUT, `brief-raw-${day}.md`), raw);
             writeFileSync(join(OUT, `brief-with-memory-${day}.md`), brief);
+
+            const LABELS = /\(Sources?:\s*(THEY_[A-Z_]+|ALREADY_[A-Z_]+|continuing|not[ _]yet[ _]heard)\s*\)/gi;
+            const dupCount = (md: string) => {
+                const titles = [...md.matchAll(/^\s*[-*]\s+\*\*(.+?)\*\*/gm)].map(m => m[1].trim().toLowerCase());
+                return titles.length - new Set(titles).size;
+            };
+            console.log(`leaked memory labels : raw ${(raw.match(LABELS) ?? []).length} → final ${(brief.match(LABELS) ?? []).length}`);
+            console.log(`duplicate bullets    : raw ${dupCount(raw)} → final ${dupCount(brief)}`);
 
             const actual = briefBlock(day) ?? '';
             writeFileSync(join(OUT, `brief-actual-${day}.md`), actual);

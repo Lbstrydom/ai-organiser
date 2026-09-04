@@ -2479,19 +2479,26 @@ revision.**
 
 ### The prompt is not trusted for global properties
 
-Two defects were forbidden in the prompt and appeared anyway in real generated output, so they
-are enforced deterministically in `briefPostProcess.ts`:
+Two defects appeared in real generated output. **Measured** (simulation reports raw model
+output alongside the post-processed brief, so the two layers can be told apart):
 
-- a memory section label written into the source attribution, `(Sources: continuing)` — a
-  catch-up story comes from the ledger, not from today's newsletters, so it genuinely has no
-  source and the model filled the slot with the nearest label it could see;
-- the same story listed under both a topical heading and "Closer to home".
+| Defect | Prompt rule alone | Needs the code guard |
+|---|---|---|
+| Memory label as a source, `(Sources: continuing)` | **fixed** — 0 in raw output both days | no |
+| Same story under a topical heading AND "Closer to home" | **not fixed** — 2 duplicates in raw output | **yes** |
 
-De-duplication **prefers the home-region copy**, because that section renders last and a
-keep-the-first rule would always discard the local placement and undo the section's purpose.
+The label leak was cured by RENAMING the sections (`THEY_MISSED_THESE_ENTIRELY` etc.) so they
+cannot read as a newsletter name — a catch-up story comes from the ledger, not from today's
+newsletters, so it has no source and the model was filling the slot with the nearest label it
+could see. Do not rename them back to something source-shaped.
 
-General lesson: an instruction about a global property of a long document ("never repeat a
-story", "never write X in this field") is followed unreliably. Guard it in code.
+De-duplication is still doing real work every run, and **prefers the home-region copy**: that
+section renders last, so a keep-the-first rule would always discard the local placement and
+undo the section's purpose.
+
+General lesson, now with evidence on both sides: a rule about LOCAL wording (what may appear in
+one field) is followed; a rule about a GLOBAL property of a long document ("never repeat a story
+anywhere") is not. Guard the second kind in code.
 
 ### Benchmarks read the live vault
 
