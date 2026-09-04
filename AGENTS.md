@@ -2438,10 +2438,11 @@ to know. It saw only that bucket's newsletters, so a recurring story was retold 
 - `newsletterRecall.ts` — `selectRecall`, pure, no I/O. Spans buckets **up to and including**
   the one being regenerated, using its pre-generation snapshot.
 
-### Four invariants that are each load-bearing
+### Seven invariants that are each load-bearing
 
-Every one of these was a real defect caught in review; changing any of them silently breaks
-the feature while tests and lint still pass.
+Every one of these was a real defect — four caught in review, three caught only by
+BENCHMARKING AGAINST A REAL VAULT (219 stories over 7 days). Changing any of them silently
+breaks the feature while tests and lint still pass.
 
 1. **Two revisions per story, not one.** `firstRevision` answers "did it exist when they
    listened" (background); `contentRevision` answers "has it changed since" (update). Within a
@@ -2455,8 +2456,49 @@ the feature while tests and lint still pass.
 4. **Three-way classification** (`heard` / `continuing` / `unheard`). Two states cannot express
    "knows the background, has an unheard update", so a continuing story either loses its
    update or gets fully re-explained.
+5. **Story identity is SIMILARITY, not equality** (`newsletterStoryIdentity.ts`). Exact
+   token-set equality caught 2 continuations in 219 real stories; similarity at 0.42 catches 11.
+   A continuing story is precisely the case where the headline gains or loses a qualifier
+   ("…86 tonnes of gold from the US" vs "…78 tonnes of gold from US and Canada"), so equality
+   misses the cases the feature exists for. The threshold sits in a NARROW measured gap —
+   weakest true pair 0.444, strongest false pair 0.375 — and `newsletterStoryIdentity.test.ts`
+   pins both ends with the real headlines.
+6. **`heard` renders TITLE-ONLY, and `cap()` is charged for what is RENDERED.** Charging every
+   list for its gists truncated a week of memory to 12 of ~150 entries — the model saw 8% of
+   what the reader had heard, so a story running all week never entered the window and the
+   feature looked inert. If the render ever adds the gist back, the budget becomes fiction.
+7. **Memory entries carry their DATE, and length scales with how many dates a story spans.**
+   This is the only mechanism that compresses a big running story, because nothing else can:
+   the Iran conflict ran 7 days as bank sanctions → munitions → strikes → Hormuz → bases in
+   Jordan, headlines sharing almost no words. Entity threading was tested and REJECTED — it
+   groups Iran correctly but merges 17 unrelated Anthropic stories, and a false merge silently
+   suppresses real news the reader can never know they missed.
 
-Ordering is fixed: **read recall → build prompt → synthesise → record the new revision.**
+Ordering is fixed: **read recall → build prompt → synthesise → post-process → record the new
+revision.**
+
+### The prompt is not trusted for global properties
+
+Two defects were forbidden in the prompt and appeared anyway in real generated output, so they
+are enforced deterministically in `briefPostProcess.ts`:
+
+- a memory section label written into the source attribution, `(Sources: continuing)` — a
+  catch-up story comes from the ledger, not from today's newsletters, so it genuinely has no
+  source and the model filled the slot with the nearest label it could see;
+- the same story listed under both a topical heading and "Closer to home".
+
+De-duplication **prefers the home-region copy**, because that section renders last and a
+keep-the-first rule would always discard the local placement and undo the section's purpose.
+
+General lesson: an instruction about a global property of a long document ("never repeat a
+story", "never write X in this field") is followed unreliably. Guard it in code.
+
+### Benchmarks read the live vault
+
+`tests/bench/newsletter*.bench.test.ts` measure against real vault content rather than
+fixtures, which is how invariants 5-7 were found. `newsletterSimulation.bench.test.ts` replays
+chosen days through the real prompt and the user's own model (`NL_SIM=1`, costs LLM calls);
+the others are free and deterministic. Re-run them rather than trusting the numbers quoted here.
 
 ### Consumption signals
 
@@ -2500,8 +2542,9 @@ keys, so a settings save after a fetch rolled back seen-ids.
   the only way to observe that.
 
 ### Tests
-`tests/{pluginDataStore,newsletterStoryLedger,newsletterConsumption,newsletterRecall,newsletterPrompts,briefAudioResolver,audioPlayerEnhancer,eslintGuards}.test.ts`.
-The catch-up matrix in `newsletterRecall.test.ts` is the one to read first.
+`tests/{pluginDataStore,newsletterStoryLedger,newsletterStoryIdentity,newsletterConsumption,newsletterRecall,newsletterPrompts,briefPostProcess,briefAudioResolver,audioPlayerEnhancer,eslintGuards}.test.ts`.
+The catch-up matrix in `newsletterRecall.test.ts` is the one to read first;
+`newsletterStoryIdentity.test.ts` is the one that will fail if the threshold is nudged.
 
 **Plan**: [docs/plans/newsletter-story-memory-local-news.md](docs/plans/newsletter-story-memory-local-news.md)
 
