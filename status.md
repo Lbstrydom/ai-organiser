@@ -1,5 +1,33 @@
 # Project Status Log
 
+## 2026-09-04 (b) — AGENTS.md condensed to invariants; CLAUDE.md given its two real notes ✅
+
+`check-context-drift --strict` had been reporting `ctx/oversized-agents-md` at **264 314 chars against a 92 000 cap** — 2.9x over, failing silently. Fixed by applying the progressive-disclosure split the cap exists to force, then filling in the one file the topology had left empty.
+
+### AGENTS.md: 264 314 -> 41 788 chars
+Loaded every session by every agent, so its size is a per-session cost and buried depth degrades recall of the rules that matter. It now keeps the invariants and a *what-it-is / when-you-need-it / pointer* stub per subsystem; the depth moved to [docs/features/](docs/features/) — the same shape a skill uses between its `SKILL.md` and its `references/`.
+
+- 44 dossiers moved **verbatim** into 8 domain docs + a [README index](docs/features/README.md). Byte-preservation asserted, and every original H2 heading retained so existing references and searches still land.
+- Two new sections: **Feature Subsystems** (the stub index) and **Cross-Cutting Invariants** — the repo-wide rules that were previously discoverable only by reading whichever dossier happened to mention them (`latest-*` sentinels, `useMainKeyFallback: false`, default-off/byte-identical opt-in, `Result<T>` boundaries, schemas-degrade-don't-hard-fail, the `applyNoteEdit` seam, the CSSOM longhand trap, prompt-cache prefix stability).
+- **75 links re-based.** Moving the text broke every root-relative `src/...` path — they would have silently resolved under `docs/features/`. Zero unresolved links or anchors now remain outside `docs/plans/` and `docs/completed/`, which are gitignored by design.
+- Four stale claims corrected, **each contradicted by another section of the same file**: D3 described as CDN-loaded (it is bundled, and the review bot blocks remote scripts), the command-picker taxonomy still showing Essentials/Manage (it is Pinned + five workflow stages), the integration-test path (`scripts/`, not `tests/`), and EN/ZH i18n parity (zh-cn retired 2026-06).
+
+### CLAUDE.md: 8 -> 52 lines, still one allowlisted heading
+It was correctly thin but recorded nothing, so two genuinely Claude-Code-only facts lived only in session memory:
+- **Worktree preflight.** Claude Code runs in a linked worktree; `scripts/.claude-skills/` is gitignored, so every skill that shells into it dies on `MODULE_NOT_FOUND`. The repo had never adopted the documented remedy, so `skills:hydrate` was **added to package.json** and verified — documenting a command that did not exist would have been worse than silence. Includes the warning not to `cd` to the main checkout instead: `ship-commit.mjs` reads HEAD and branch from cwd and would attribute the wrong tree silently.
+- **`#`-key memory routing.** Private per-project memory is local to one machine and invisible to every other agent, so a fact about the codebase belongs in AGENTS.md even when a Claude session surfaced it; `#`-memory is for what is true of the user and this machine.
+
+Also added the standing warning never to copy CLAUDE.md over AGENTS.md — they are not mirrors, and after this change that mistake would destroy 42 KB of canonical context.
+
+### Verification
+`context:check` clean (import at line 3, single allowlisted H2, 52/80 lines). Lint 0 errors (273 pre-existing `prefer-active-doc` warnings), 6563 tests passed / 2 skipped, 45/45 integration tests, build clean with all `verify:build` checks PASS. No test reads AGENTS.md, so a markdown split cannot regress the suite.
+
+### Next Steps
+None outstanding.
+
+---
+
+
 ## 2026-09-04 — `regenerateAudioForToday` returns `Result<T>` ✅
 
 Contract-hygiene fix, no behaviour change. `NewsletterService.regenerateAudioForToday()` returned a hand-rolled `{ success: boolean; error?: string; path?: string }` bag instead of the repo-standard `Result<T>` from [src/core/result.ts](src/core/result.ts), which AGENTS.md names as the convention at service boundaries.
