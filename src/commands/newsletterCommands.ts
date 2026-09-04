@@ -41,6 +41,13 @@ export function showNewsletterFetchResultNotice(
  *  flash that disappears before the actual work starts. */
 export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<void> {
     const nl = plugin.t.settings.newsletter;
+    // Respect the master feature toggle, same as newsletter-fetch. Without this
+    // the command stays runnable from the native palette after the feature is
+    // switched off, since the audio-podcast setting is a sub-toggle, not the gate.
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
+        noticeWithSettingsLink(plugin, nl?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
+        return;
+    }
     if (!plugin.settings.newsletterAudioPodcast) {
         new Notice(nl?.audioPodcastOffNotice || 'Audio podcast is off — enable it in settings first.', 5000);
         return;
@@ -104,8 +111,11 @@ export async function runMarkCaughtUp(plugin: AIOrganiserPlugin): Promise<void> 
     const t = plugin.t;
     const nl = t.settings?.newsletter;
 
+    // The master feature toggle and the story-memory sub-toggle are different
+    // states, so they get different notices — "turn on story memory" would be
+    // misleading advice when the whole feature is off.
     if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
-        new Notice(nl?.caughtUpDisabled || 'Turn on story memory first', 5000);
+        noticeWithSettingsLink(plugin, nl?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
         return;
     }
     if (markingCaughtUp) return;

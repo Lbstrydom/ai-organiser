@@ -2409,9 +2409,101 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 | `newsletterAutoFetchIntervalMins` | `60` | Interval in minutes |
 | `newsletterOutputFolder` | `'Newsletter Inbox'` | Subfolder under plugin folder |
 | `newsletterAutoTag` | `false` | Run AI tagging after import |
+| `newsletterHomeRegion` | `''` | `''` = off. Semicolon/comma-separated aliases, e.g. `Leidschendam; Voorburg; Netherlands` |
+| `newsletterStoryMemory` | `true` | Cross-day story memory; `false` also PURGES both data keys |
 
 ### Commands
 - `newsletter-fetch`: Fetch newsletters now — in Command Picker → Capture
+- `newsletter-mark-caught-up`: Assert you are up to date, so earlier stories stop repeating — Capture
+
+## Newsletter Story Memory (consumption-aware) + local-news fairness
+
+**Status**: ✅ Implemented (September 2026)
+
+Three defects in the daily brief, one root cause — what `generateAndInjectBrief` was allowed
+to know. It saw only that bucket's newsletters, so a recurring story was retold every day.
+
+### The model: two independent facts, joined purely
+
+"Already told" is a JOIN of what was **published** (ledger) and what was **consumed**
+(watermark). Keeping them apart is what makes catch-up expressible at all.
+
+- `newsletterMemoryTypes.ts` — neutral types; everything else imports downward into it.
+- `newsletterStoryLedger.ts` (key `newsletter-story-ledger`) — the ledger is derived by
+  **parsing the brief we already generated**, so it costs no extra LLM call. `storyKey` is a
+  normalised, stemmed token SET (not a slug) so a retitled continuing story still matches.
+- `newsletterConsumption.ts` (key `newsletter-consumed-briefs`) — **revision-scoped, never a
+  per-bucket boolean.** A live bucket regenerates on every fetch, so a boolean would mark
+  stories that arrived *after* the reader listened as heard.
+- `newsletterRecall.ts` — `selectRecall`, pure, no I/O. Spans buckets **up to and including**
+  the one being regenerated, using its pre-generation snapshot.
+
+### Four invariants that are each load-bearing
+
+Every one of these was a real defect caught in review; changing any of them silently breaks
+the feature while tests and lint still pass.
+
+1. **Two revisions per story, not one.** `firstRevision` answers "did it exist when they
+   listened" (background); `contentRevision` answers "has it changed since" (update). Within a
+   live bucket the merge overwrites the entry, so a single revision makes a *changed* story
+   look brand-new and the reader gets it re-explained instead of just the delta.
+2. **The merge is a UNION.** A key absent from the new brief is RETAINED. The afternoon brief
+   correctly *omits* an already-heard story, and dropping it here would erase the record that
+   it was ever told, so tomorrow it would be retold from scratch.
+3. **Re-stamp `contentRevision` on a changed gist.** Without it, a new development on an
+   already-heard story is born already-consumed and can never be surfaced.
+4. **Three-way classification** (`heard` / `continuing` / `unheard`). Two states cannot express
+   "knows the background, has an unheard update", so a continuing story either loses its
+   update or gets fully re-explained.
+
+Ordering is fixed: **read recall → build prompt → synthesise → record the new revision.**
+
+### Consumption signals
+
+- **Audio**: `audioPlayerEnhancer` measures coverage from the media element's `played`
+  TimeRanges. A scrub to the end plays nothing and extends no range, so it does not count.
+  The signal consumes **the revision that recording was rendered from** (`bucket.audio[name]`,
+  stamped from a revision captured BEFORE the podcast/TTS pipeline starts) — never the current
+  one, which could mark unheard afternoon stories as heard.
+- **Manual**: `newsletter-mark-caught-up`, single-flight, shares
+  `resolveCatchUpTargetDate` + the notice formatter with the settings button.
+- An **unparseable brief** sets `parseFailedAt`: stories are preserved (no data loss) but the
+  bucket is EXCLUDED from recall until a successful parse, so drift degrades to today's
+  behaviour rather than asserting stale memory.
+
+### Local-news fairness
+
+`newsletterHomeRegion` (default `''`, so unconfigured installs are byte-identical) adds a
+"Closer to home" heading, exempts local stories from the multi-source priority rule, and
+orders the trimmer's drop pass `(local ASC, length ASC)` — every non-local source is exhausted
+before the first local one, because length-only ordering dropped the shortest first, which is
+exactly the shape of a local paper.
+
+**Aliases are matched as complete phrases; there is NO automatic word splitting.** Splitting
+"New York" yields the token "new", which whole-word-matches nearly every newsletter — every
+source would be flagged local and the protection would degenerate into none.
+
+### Persistence (fixes a latent lost-update)
+
+`src/core/pluginDataStore.ts` is the ONLY module that calls `plugin.saveData`. Obsidian's
+`saveData` writes the WHOLE object, so separate keys give no isolation — six unserialised
+writers shared it, and `this.settings` carried a load-time snapshot of the newsletter data
+keys, so a settings save after a fetch rolled back seen-ids.
+- `saveSettingsData` is **replacement-based**, preserving only `DATA_ONLY_KEYS`. An overlay
+  would resurrect every legacy key a migration deletes, silently disabling migrations.
+- `updatePluginData`'s mutator returns `{changed}`, so a no-op decided inside the lock skips
+  the write.
+- Two ESLint guards enforce it. **They are COMPOSED from named fragments, and the broad block
+  is declared FIRST**: flat config *replaces* a rule value rather than merging it, and adding
+  the plugin-data guard silently disabled all four note-edit write-seam selectors for the
+  command layer. `tests/eslintGuards.test.ts` asserts the EFFECTIVE rule per file, which is
+  the only way to observe that.
+
+### Tests
+`tests/{pluginDataStore,newsletterStoryLedger,newsletterConsumption,newsletterRecall,newsletterPrompts,briefAudioResolver,audioPlayerEnhancer,eslintGuards}.test.ts`.
+The catch-up matrix in `newsletterRecall.test.ts` is the one to read first.
+
+**Plan**: [docs/plans/newsletter-story-memory-local-news.md](docs/plans/newsletter-story-memory-local-news.md)
 
 ### Tests
 - `tests/newsletterServiceIntegration.test.ts` (27 tests): fetch pipeline, seen-ID dedup, two-phase confirmation, HTML detection, key links extraction, hit-limit flag
