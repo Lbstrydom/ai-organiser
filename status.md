@@ -1,5 +1,32 @@
 # Project Status Log
 
+## 2026-09-04 — `regenerateAudioForToday` returns `Result<T>` ✅
+
+Contract-hygiene fix, no behaviour change. `NewsletterService.regenerateAudioForToday()` returned a hand-rolled `{ success: boolean; error?: string; path?: string }` bag instead of the repo-standard `Result<T>` from [src/core/result.ts](src/core/result.ts), which AGENTS.md names as the convention at service boundaries.
+
+Flagged MEDIUM by a Gemini review during the newsletter story-memory work (branch `claude/newsletter-memory-local-news-9bae96`) and deliberately left out of that branch: it predates the change and is unrelated to the feature.
+
+### Changes
+- **[src/services/newsletter/newsletterService.ts](src/services/newsletter/newsletterService.ts)** — return type is `Result<{ path: string }>`; the four failure paths use `err(...)`, the success path `ok({ path })`. `path` is non-optional on the success arm, which is what removes the caller's fallback below.
+- **[src/commands/newsletterCommands.ts](src/commands/newsletterCommands.ts)** — `runRegenerateAudio` checks `!result.ok`, forwards `result.value`, and reads `r.value.path` directly (the `|| ''` guard is gone).
+- **[src/ui/settings/NewsletterSettingsSection.ts](src/ui/settings/NewsletterSettingsSection.ts)** — untouched. It awaits `runRegenerateAudio`, whose `Promise<void>` signature did not change, so the seam absorbed the refactor.
+
+User-facing notices are byte-identical — the `withProgress` reporter still owns the failure toast, and the success `Notice` renders the same `{path}` substitution.
+
+### Verification
+`npm run lint && npm test && npm run build:quick` — lint 0 errors (273 pre-existing `prefer-active-doc` warnings, untouched), 6563 tests passed / 2 skipped across 365 files, build clean with all `verify:build` checks PASS.
+
+Merged via [PR #9](https://github.com/Lbstrydom/ai-organiser/pull/9) (squash `012ad07`).
+
+### Known drift (pre-existing, not introduced here)
+`check-context-drift --strict` reports HIGH 0 / MEDIUM 1: AGENTS.md is 264 KB against a 92 KB sprawl cap. Untouched by this change and out of its scope; condensing the dossier-grade sections to pointer stubs is its own piece of work.
+
+### Next Steps
+None outstanding.
+
+---
+
+
 ## 2026-08-12 (c) — Embeddings deployment set explicitly + precedence proven live ✅
 
 Closes the loose end left by entry (b). `azureCapabilities.embeddings.deployment` was `""`, so the resolver fell through capability -> `azureDeployments.embeddings` -> the hardcoded `'text-embedding-3-large'` default. It worked, but by default rather than by configuration — a silent dependency on a fallback nobody had chosen.
