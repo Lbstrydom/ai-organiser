@@ -20,6 +20,7 @@ import {
 } from './newsletterMemoryTypes';
 import { consumedRevision } from './newsletterConsumption';
 import { shiftDateStr } from './newsletterStoryLedger';
+import { keyTokens, findSimilarKey } from './newsletterStoryIdentity';
 
 export interface RecallOptions {
     /** Rolling window in days. */
@@ -68,6 +69,10 @@ export function selectRecall(
         .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 
     const acc = new Map<string, Accumulated>();
+    // Token sets alongside the accumulator, so a reworded headline can be
+    // recognised as the SAME running story. Exact key equality misses almost
+    // every real continuation — see newsletterStoryIdentity for the measurement.
+    const accTokens = new Map<string, Set<string>>();
 
     for (const date of dates) {
         const bucket = ledger.buckets[date];
@@ -87,7 +92,12 @@ export function selectRecall(
             // would get the whole thing re-explained instead of just the delta.
             const existedWhenHeard = consumedRev !== null && story.firstRevision <= consumedRev;
             const contentHeard = consumedRev !== null && story.contentRevision <= consumedRev;
-            const existing = acc.get(story.key);
+
+            const tokens = keyTokens(story.key);
+            const matchKey = acc.has(story.key)
+                ? story.key
+                : findSimilarKey(tokens, accTokens);
+            const existing = matchKey ? acc.get(matchKey) : undefined;
 
             if (existing) {
                 // Newest already captured; older occurrences only contribute
@@ -97,6 +107,7 @@ export function selectRecall(
                 continue;
             }
 
+            accTokens.set(story.key, tokens);
             acc.set(story.key, {
                 hasBackground: existedWhenHeard,
                 hasUnheardUpdate: !contentHeard,

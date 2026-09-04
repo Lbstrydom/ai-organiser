@@ -12,6 +12,7 @@
 import type { Plugin } from 'obsidian';
 import { updatePluginData, loadPluginData } from '../../core/pluginDataStore';
 import { logger } from '../../utils/logger';
+import { keyTokens, findSimilarKey } from './newsletterStoryIdentity';
 import {
     MEMORY_SCHEMA_VERSION,
     MEMORY_WINDOW_DAYS,
@@ -176,13 +177,27 @@ export function mergeBucketRevision(
     nextRevision: number,
 ): LedgerStory[] {
     const byKey = new Map<string, LedgerStory>();
-    for (const s of prev) byKey.set(s.key, s);
+    const tokensByKey = new Map<string, Set<string>>();
+    for (const s of prev) {
+        byKey.set(s.key, s);
+        tokensByKey.set(s.key, keyTokens(s.key));
+    }
 
     for (const p of parsed) {
-        const existing = byKey.get(p.key);
+        // Match a REWORDED headline back onto the story it continues. A running
+        // story's headline gains and loses qualifiers between revisions, so
+        // exact key equality would file each wording as a separate story and the
+        // reader would be told it fresh every time.
+        const tokens = keyTokens(p.key);
+        const matchKey = byKey.has(p.key) ? p.key : findSimilarKey(tokens, tokensByKey);
+        const existing = matchKey ? byKey.get(matchKey) : undefined;
         const changed = !existing || gistFingerprint(existing.gist) !== gistFingerprint(p.gist);
-        byKey.set(p.key, {
-            key: p.key,
+
+        // Keep the ORIGINAL key so the identity stays stable across revisions;
+        // the newest title and gist are what the reader sees.
+        const key = existing ? existing.key : p.key;
+        byKey.set(key, {
+            key,
             title: p.title,
             gist: p.gist,
             // firstRevision is never re-stamped: it records that the story
@@ -190,6 +205,7 @@ export function mergeBucketRevision(
             firstRevision: existing ? existing.firstRevision : nextRevision,
             contentRevision: changed ? nextRevision : existing.contentRevision,
         });
+        tokensByKey.set(key, tokens);
     }
 
     const merged = [...byKey.values()];
