@@ -6,7 +6,9 @@ import { getNewsletterOutputFullPath, getEffectiveOutputRoot } from '../../core/
 import { NewsletterService, SEEN_DATA_KEY, LAST_FETCH_DATA_KEY } from '../../services/newsletter/newsletterService';
 import { showNewsletterFetchResultNotice } from '../../commands/newsletterCommands';
 import { addFolderPicker } from './components/FolderSuggest';
+import { logger } from '../../utils/logger';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
+import { updatePluginData } from '../../core/pluginDataStore';
 
 const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query params.
 // Apps Script redirects POST requests (302→GET), dropping the body,
@@ -317,6 +319,58 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         }));
             }
 
+            // ── Local news ──────────────────────────────────────────────
+            new Setting(this.containerEl)
+                .setName(nl?.homeRegion || 'Home region')
+                .setDesc(nl?.homeRegionDesc || 'Local news about this region is given its own section and is never dropped to make room for international stories. Separate alternative names with semicolons. Leave empty to turn this off.')
+                .addText(text => text
+                    .setPlaceholder('Leidschendam; Voorburg; Netherlands')
+                    .setValue(this.plugin.settings.newsletterHomeRegion || '')
+                    .onChange(value => {
+                        this.plugin.settings.newsletterHomeRegion = value;
+                        void this.plugin.saveSettings();
+                    }));
+
+            // ── Story memory ────────────────────────────────────────────
+            new Setting(this.containerEl)
+                .setName(nl?.storyMemory || 'Story memory')
+                .setDesc(nl?.storyMemoryDesc || 'Remember which stories you have already been told, so the brief leads with what is new instead of retelling. Turning this off deletes the stored history.')
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.newsletterStoryMemory !== false)
+                    .onChange(async value => {
+                        this.plugin.settings.newsletterStoryMemory = value;
+                        await this.plugin.saveSettings();
+                        // Turning memory off must actually forget. Pruning is
+                        // driven by store activity, so a disabled feature would
+                        // otherwise strand a week of story text in plugin data —
+                        // the opposite of what switching it off implies.
+                        if (!value) {
+                            try {
+                                await new NewsletterService(this.plugin).clearStoryMemory();
+                            } catch (e) {
+                                logger.warn('Newsletter', 'Failed to clear story memory', e);
+                            }
+                        }
+                        this.settingTab.display();
+                    }));
+
+            if (this.plugin.settings.newsletterStoryMemory !== false) {
+                new Setting(this.containerEl)
+                    .setName(nl?.markCaughtUp || 'Mark all caught up')
+                    .setDesc(nl?.markCaughtUpDesc || 'Tell the brief you are up to date, so earlier stories stop being repeated.')
+                    .addButton(btn => btn
+                        .setButtonText(nl?.markCaughtUpButton || 'Mark caught up')
+                        .onClick(async () => {
+                            btn.setDisabled(true);
+                            try {
+                                const { runMarkCaughtUp } = await import('../../commands/newsletterCommands');
+                                await runMarkCaughtUp(this.plugin);
+                            } finally {
+                                btn.setDisabled(false).setButtonText(nl?.markCaughtUpButton || 'Mark caught up');
+                            }
+                        }));
+            }
+
             new Setting(this.containerEl)
                 .setName(nl?.briefCutoffHour || 'Brief day cutoff')
                 .setDesc(nl?.briefCutoffHourDesc || 'Hour when the daily brief rolls over to a new day. Newsletters arriving before this hour are grouped with the previous day.')
@@ -437,10 +491,11 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .onClick(async () => {
                     btn.setDisabled(true);
                     try {
-                        const data = (await this.plugin.loadData()) ?? {};
-                        delete data[SEEN_DATA_KEY];
-                        delete data[LAST_FETCH_DATA_KEY];
-                        await this.plugin.saveData(data);
+                        await updatePluginData(this.plugin, (data) => {
+                            delete data[SEEN_DATA_KEY];
+                            delete data[LAST_FETCH_DATA_KEY];
+                            return { changed: true };
+                        });
                         this.plugin.newsletterSeenIds = [];
                         this.plugin.newsletterLastFetchTime = 0;
                         new Notice(nl?.resetHistoryDone || 'Import history cleared');

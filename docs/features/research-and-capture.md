@@ -432,11 +432,154 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 | `newsletterAutoFetchIntervalMins` | `60` | Interval in minutes |
 | `newsletterOutputFolder` | `'Newsletter Inbox'` | Subfolder under plugin folder |
 | `newsletterAutoTag` | `false` | Run AI tagging after import |
+| `newsletterHomeRegion` | `''` | `''` = off. Semicolon/comma-separated aliases, e.g. `Leidschendam; Voorburg; Netherlands` |
+| `newsletterStoryMemory` | `true` | Cross-day story memory; `false` also PURGES both data keys |
 
 ### Commands
 - `newsletter-fetch`: Fetch newsletters now — in Command Picker → Capture
+- `newsletter-mark-caught-up`: Assert you are up to date, so earlier stories stop repeating — Capture
+
+## Newsletter Story Memory (consumption-aware) + local-news fairness
+
+**Status**: ✅ Implemented (September 2026)
+
+Three defects in the daily brief, one root cause — what `generateAndInjectBrief` was allowed
+to know. It saw only that bucket's newsletters, so a recurring story was retold every day.
+
+### The model: two independent facts, joined purely
+
+"Already told" is a JOIN of what was **published** (ledger) and what was **consumed**
+(watermark). Keeping them apart is what makes catch-up expressible at all.
+
+- `newsletterMemoryTypes.ts` — neutral types; everything else imports downward into it.
+- `newsletterStoryLedger.ts` (key `newsletter-story-ledger`) — the ledger is derived by
+  **parsing the brief we already generated**, so it costs no extra LLM call. `storyKey` is a
+  normalised, stemmed token SET (not a slug) so a retitled continuing story still matches.
+- `newsletterConsumption.ts` (key `newsletter-consumed-briefs`) — **revision-scoped, never a
+  per-bucket boolean.** A live bucket regenerates on every fetch, so a boolean would mark
+  stories that arrived *after* the reader listened as heard.
+- `newsletterRecall.ts` — `selectRecall`, pure, no I/O. Spans buckets **up to and including**
+  the one being regenerated, using its pre-generation snapshot.
+
+### Seven invariants that are each load-bearing
+
+Every one of these was a real defect — four caught in review, three caught only by
+BENCHMARKING AGAINST A REAL VAULT (219 stories over 7 days). Changing any of them silently
+breaks the feature while tests and lint still pass.
+
+1. **Two revisions per story, not one.** `firstRevision` answers "did it exist when they
+   listened" (background); `contentRevision` answers "has it changed since" (update). Within a
+   live bucket the merge overwrites the entry, so a single revision makes a *changed* story
+   look brand-new and the reader gets it re-explained instead of just the delta.
+2. **The merge is a UNION.** A key absent from the new brief is RETAINED. The afternoon brief
+   correctly *omits* an already-heard story, and dropping it here would erase the record that
+   it was ever told, so tomorrow it would be retold from scratch.
+3. **Re-stamp `contentRevision` on a changed gist.** Without it, a new development on an
+   already-heard story is born already-consumed and can never be surfaced.
+4. **Three-way classification** (`heard` / `continuing` / `unheard`). Two states cannot express
+   "knows the background, has an unheard update", so a continuing story either loses its
+   update or gets fully re-explained.
+5. **Story identity is SIMILARITY, not equality** (`newsletterStoryIdentity.ts`). Exact
+   token-set equality caught 2 continuations in 219 real stories; similarity at 0.42 catches 11.
+   A continuing story is precisely the case where the headline gains or loses a qualifier
+   ("…86 tonnes of gold from the US" vs "…78 tonnes of gold from US and Canada"), so equality
+   misses the cases the feature exists for. The threshold sits in a NARROW measured gap —
+   weakest true pair 0.444, strongest false pair 0.375 — and `newsletterStoryIdentity.test.ts`
+   pins both ends with the real headlines.
+6. **`heard` renders TITLE-ONLY, and `cap()` is charged for what is RENDERED.** Charging every
+   list for its gists truncated a week of memory to 12 of ~150 entries — the model saw 8% of
+   what the reader had heard, so a story running all week never entered the window and the
+   feature looked inert. If the render ever adds the gist back, the budget becomes fiction.
+7. **Memory entries carry their DATE, and length scales with how many dates a story spans.**
+   This is the only mechanism that compresses a big running story, because nothing else can:
+   the Iran conflict ran 7 days as bank sanctions → munitions → strikes → Hormuz → bases in
+   Jordan, headlines sharing almost no words. Entity threading was tested and REJECTED — it
+   groups Iran correctly but merges 17 unrelated Anthropic stories, and a false merge silently
+   suppresses real news the reader can never know they missed.
+
+Ordering is fixed: **read recall → build prompt → synthesise → post-process → record the new
+revision.**
+
+### The prompt is not trusted for global properties
+
+Two defects appeared in real generated output. **Measured** (simulation reports raw model
+output alongside the post-processed brief, so the two layers can be told apart):
+
+| Defect | Prompt rule alone | Needs the code guard |
+|---|---|---|
+| Memory label as a source, `(Sources: continuing)` | **fixed** — 0 in raw output both days | no |
+| Same story under a topical heading AND "Closer to home" | **not fixed** — 2 duplicates in raw output | **yes** |
+
+The label leak was cured by RENAMING the sections (`THEY_MISSED_THESE_ENTIRELY` etc.) so they
+cannot read as a newsletter name — a catch-up story comes from the ledger, not from today's
+newsletters, so it has no source and the model was filling the slot with the nearest label it
+could see. Do not rename them back to something source-shaped.
+
+De-duplication is still doing real work every run, and **prefers the home-region copy**: that
+section renders last, so a keep-the-first rule would always discard the local placement and
+undo the section's purpose.
+
+General lesson, now with evidence on both sides: a rule about LOCAL wording (what may appear in
+one field) is followed; a rule about a GLOBAL property of a long document ("never repeat a story
+anywhere") is not. Guard the second kind in code.
+
+### Benchmarks read the live vault
+
+`tests/bench/newsletter*.bench.test.ts` measure against real vault content rather than
+fixtures, which is how invariants 5-7 were found. `newsletterSimulation.bench.test.ts` replays
+chosen days through the real prompt and the user's own model (`NL_SIM=1`, costs LLM calls);
+the others are free and deterministic. Re-run them rather than trusting the numbers quoted here.
+
+### Consumption signals
+
+- **Audio**: `audioPlayerEnhancer` measures coverage from the media element's `played`
+  TimeRanges. A scrub to the end plays nothing and extends no range, so it does not count.
+  The signal consumes **the revision that recording was rendered from** (`bucket.audio[name]`,
+  stamped from a revision captured BEFORE the podcast/TTS pipeline starts) — never the current
+  one, which could mark unheard afternoon stories as heard.
+- **Manual**: `newsletter-mark-caught-up`, single-flight, shares
+  `resolveCatchUpTargetDate` + the notice formatter with the settings button.
+- An **unparseable brief** sets `parseFailedAt`: stories are preserved (no data loss) but the
+  bucket is EXCLUDED from recall until a successful parse, so drift degrades to today's
+  behaviour rather than asserting stale memory.
+
+### Local-news fairness
+
+`newsletterHomeRegion` (default `''`, so unconfigured installs are byte-identical) adds a
+"Closer to home" heading, exempts local stories from the multi-source priority rule, and
+orders the trimmer's drop pass `(local ASC, length ASC)` — every non-local source is exhausted
+before the first local one, because length-only ordering dropped the shortest first, which is
+exactly the shape of a local paper.
+
+**Aliases are matched as complete phrases; there is NO automatic word splitting.** Splitting
+"New York" yields the token "new", which whole-word-matches nearly every newsletter — every
+source would be flagged local and the protection would degenerate into none.
+
+### Persistence (fixes a latent lost-update)
+
+`src/core/pluginDataStore.ts` is the ONLY module that calls `plugin.saveData`. Obsidian's
+`saveData` writes the WHOLE object, so separate keys give no isolation — six unserialised
+writers shared it, and `this.settings` carried a load-time snapshot of the newsletter data
+keys, so a settings save after a fetch rolled back seen-ids.
+- `saveSettingsData` is **replacement-based**, preserving only `DATA_ONLY_KEYS`. An overlay
+  would resurrect every legacy key a migration deletes, silently disabling migrations.
+- `updatePluginData`'s mutator returns `{changed}`, so a no-op decided inside the lock skips
+  the write.
+- Two ESLint guards enforce it. **They are COMPOSED from named fragments, and the broad block
+  is declared FIRST**: flat config *replaces* a rule value rather than merging it, and adding
+  the plugin-data guard silently disabled all four note-edit write-seam selectors for the
+  command layer. `tests/eslintGuards.test.ts` asserts the EFFECTIVE rule per file, which is
+  the only way to observe that.
+
+### Tests
+`tests/{pluginDataStore,newsletterStoryLedger,newsletterStoryIdentity,newsletterConsumption,newsletterRecall,newsletterPrompts,briefPostProcess,briefAudioResolver,audioPlayerEnhancer,eslintGuards}.test.ts`.
+The catch-up matrix in `newsletterRecall.test.ts` is the one to read first;
+`newsletterStoryIdentity.test.ts` is the one that will fail if the threshold is nudged.
+
+**Plan**: [docs/plans/newsletter-story-memory-local-news.md](../plans/newsletter-story-memory-local-news.md)
 
 ### Tests
 - `tests/newsletterServiceIntegration.test.ts` (27 tests): fetch pipeline, seen-ID dedup, two-phase confirmation, HTML detection, key links extraction, hit-limit flag
 
 **Plan**: [docs/completed/newsletter-digest-plan.md](../completed/newsletter-digest-plan.md)
+

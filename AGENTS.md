@@ -246,6 +246,7 @@ Repo-wide rules that bind *every* subsystem are in
 | Quick peek | One-paragraph triage of embedded sources with action cards | Changing fast triage |
 | Kindle sync | Clippings import + Amazon cloud sync over `requestUrl` | Changing highlight import or auth |
 | Newsletter digest | Apps Script fetch -> triage -> daily brief + optional podcast | Changing fetch, brief generation, or the scheduler |
+| Newsletter story memory | Consumption-aware cross-day recall + local-news fairness, so a running story compresses instead of repeating | Changing recall, the story ledger, the brief prompt, or listen tracking |
 
 ### [Chat, Attachments & Semantic Retrieval](docs/features/chat-and-rag.md)
 

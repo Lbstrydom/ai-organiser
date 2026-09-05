@@ -14,7 +14,7 @@ between its `SKILL.md` and its `references/`.
 | [presentation.md](presentation.md) | Consultant storyboard + storyline, chat/presentation builder, depth controls, per-slide polish, reliability fixes, side-rail workspace, the DOMPurify sanitizer, brand fidelity |
 | [azure-and-llm.md](azure-and-llm.md) | Azure AI Foundry providers, Azure audio adapters, 429 pacing, LLM gateway-lite, Anthropic prompt caching |
 | [audio-and-minutes.md](audio-and-minutes.md) | Recording, speaker-aware transcription, Deepgram diarization, narration enhancement, meeting minutes, the minutes controllers |
-| [research-and-capture.md](research-and-capture.md) | Web research assistant, Claude web search, web reader, quick peek, Kindle sync, newsletter digest |
+| [research-and-capture.md](research-and-capture.md) | Web research assistant, Claude web search, web reader, quick peek, Kindle sync, newsletter digest + story memory |
 | [chat-and-rag.md](chat-and-rag.md) | Free chat + projects, smart document indexing, Mermaid chat, visual (page-image) search |
 | [vault-tools.md](vault-tools.md) | Obsidian Bases, canvas toolkit, find-embeds hygiene scan |
 | [content-pipeline.md](content-pipeline.md) | Document extraction, chunking, digitisation, translate/integrate, export, the `applyNoteEdit` write seam, reviewed edits |

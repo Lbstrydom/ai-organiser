@@ -14,6 +14,27 @@ import { htmlToMarkdown, cleanMarkdown, cleanNewsletterMarkdown, extractNewslett
 import { truncateAtBoundary, getMaxContentCharsForModel } from '../tokenLimits';
 import { buildTriagePrompt, insertContentIntoTriagePrompt } from '../prompts/triagePrompts';
 import { buildDailyBriefPrompt, insertBriefContent, type BriefSource } from '../prompts/newsletterPrompts';
+import { updatePluginData } from '../../core/pluginDataStore';
+import { isStoryMemoryEnabled } from './newsletterMemoryPolicy';
+import { isRegionRelevant } from './homeRegionAliases';
+import {
+    loadLedger,
+    parseBriefStories,
+    recordBucketStories,
+    recordBriefAudio,
+    clearStoryLedger,
+} from './newsletterStoryLedger';
+import {
+    loadConsumption,
+    markBucketConsumed,
+    markAllConsumedThrough,
+    clearConsumption,
+} from './newsletterConsumption';
+import { selectRecall } from './newsletterRecall';
+import { ok, err, type Result } from '../../core/result';
+import { resolveBriefAudioBucket } from './briefAudioResolver';
+import { postProcessBrief } from './briefPostProcess';
+import type { RecallSelection, CaughtUpOutcome } from './newsletterMemoryTypes';
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
@@ -21,10 +42,16 @@ import { isAzureMode } from '../azure/endpointResolver';
 import { updateAIOMetadata, createSummaryHook } from '../../utils/frontmatterUtils';
 import { SourceType } from '../../core/constants';
 import { getLanguageNameForPrompt } from '../languages';
-import { type Result, ok, err } from '../../core/result';
 
 const TRIAGE_MAX_CHARS = 6000;
 const MAX_SEEN_IDS = 500;
+/** Normalise the home-region setting: blank or whitespace means "not configured",
+ *  which the prompt builders treat as byte-identical to the pre-feature prompt. */
+function memoryOrRegion(region: string | undefined): string | undefined {
+    const trimmed = (region ?? '').trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+}
+
 export const SEEN_DATA_KEY = 'newsletter-seen-ids';
 export const LAST_FETCH_DATA_KEY = 'newsletter-last-auto-fetch';
 
@@ -177,7 +204,10 @@ export class NewsletterService {
             const ids = encodeURIComponent(messageIds.join(','));
             const label = encodeURIComponent(this.plugin.settings.newsletterGmailLabel || 'Newsletters');
             const confirmUrl = `${url}?action=confirm&ids=${ids}&label=${label}`;
-            logger.debug('Newsletter', 'Newsletter confirm:', { confirmUrl, count: messageIds.length });
+            // The URL carries the deployed Apps Script id and every Gmail message id.
+            // Both are operationally sensitive: copied out of a log they identify the
+            // mailbox and can re-trigger the confirm/archive mutation.
+            logger.debug('Newsletter', 'Newsletter confirm:', { count: messageIds.length });
             const response = await requestUrl({ url: confirmUrl, method: 'GET' });
             logger.debug('Newsletter', 'Newsletter confirm response:', {
                 status: response.status,
@@ -655,8 +685,29 @@ export class NewsletterService {
         const model = settings.serviceType === 'local' ? undefined : settings.providerSettings?.[cloudType]?.model;
         const maxChars = getMaxContentCharsForModel(provider, model);
 
+        // Story memory. Read BEFORE synthesis — recording first would classify
+        // the brand-new stories as already heard. Best-effort throughout: a
+        // memory failure must never block the brief.
+        const memoryOn = isStoryMemoryEnabled(settings);
+        let recall: RecallSelection | undefined;
+        if (memoryOn) {
+            try {
+                const [ledger, consumption] = await Promise.all([
+                    loadLedger(this.plugin),
+                    loadConsumption(this.plugin),
+                ]);
+                recall = selectRecall(ledger, consumption, dateStr);
+            } catch (e) {
+                logger.warn('Newsletter', 'Story memory unavailable — brief falls back to no-memory behaviour', e);
+            }
+        }
+
         const { filled, truncatedCount } = insertBriefContent(
-            buildDailyBriefPrompt({ language: langName || undefined }),
+            buildDailyBriefPrompt({
+                language: langName || undefined,
+                recall,
+                homeRegion: memoryOrRegion(settings.newsletterHomeRegion),
+            }),
             sources,
             maxChars
         );
@@ -673,12 +724,30 @@ export class NewsletterService {
 
         if (!brief) return; // leave existing block unchanged on failure
 
+        // Deterministic guards for two defects that survived being forbidden in
+        // the prompt: a memory section label written into the source
+        // attribution, and the same story listed under two headings. Both were
+        // seen in real generated output; instructions about global properties of
+        // a long document are followed unreliably, so they are enforced here.
+        brief = postProcessBrief(brief);
+
         const truncationSuffix = truncatedCount > 1 ? 's were' : ' was';
         const truncationWarning = truncatedCount > 0
             ? `\n> [!note] ${truncatedCount} newsletter${truncationSuffix} excluded from this synthesis — the digest was too long to fit the synthesis budget.\n`
             : '';
 
         await this.mergeOrPrependBrief(digestFile, brief + truncationWarning);
+
+        // Record what the reader was just told. The brief IS the record, so this
+        // costs no extra LLM call. An unparseable brief leaves the bucket intact
+        // and pauses recall for that day rather than replacing it with nothing.
+        if (memoryOn) {
+            try {
+                await recordBucketStories(this.plugin, dateStr, parseBriefStories(brief));
+            } catch (e) {
+                logger.warn('Newsletter', 'Failed to record story memory (non-fatal)', e);
+            }
+        }
 
         // Phase 5: Audio podcast — runs only when the bucket is CLOSED.
         //
@@ -703,19 +772,39 @@ export class NewsletterService {
             const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
             const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
             if (isBucketClosed(dateStr, cutoff, new Date(), cutoffMinute)) {
-                await this.generateAudioForBrief(brief, outputRoot, dateStr);
+                await this.generateAudioForBrief(brief, outputRoot, dateStr, recall);
             } else {
                 logger.debug('Newsletter', `Audio podcast deferred for bucket ${dateStr} — bucket is still live (cutoff ${cutoff}:${String(cutoffMinute).padStart(2, '0')} next day not yet reached)`);
             }
         }
     }
 
-    private async generateAudioForBrief(brief: string, outputRoot: string, dateStr: string): Promise<void> {
+    private async generateAudioForBrief(
+        brief: string,
+        outputRoot: string,
+        dateStr: string,
+        recall?: RecallSelection,
+    ): Promise<void> {
         // This used to wrap everything in a try/catch that silently swallowed
         // errors — the user would see a success notice but no file, and no
         // console output told them why. Now errors propagate to the caller
         // (auto-fetch's own try/catch for background runs, or the
         // regenerateAudioForToday() caller which surfaces via Notice).
+
+        // Capture the ledger revision NOW, before the script LLM call and the
+        // TTS render. A concurrent fetch can bump the ledger across those await
+        // boundaries; stamping the revision at write time would attach the NEW
+        // revision to a recording of the OLD one, and playing it would mark
+        // stories the reader never heard as consumed.
+        let audioRevision: number | null = null;
+        if (isStoryMemoryEnabled(this.plugin.settings)) {
+            try {
+                const ledger = await loadLedger(this.plugin);
+                audioRevision = ledger.buckets[dateStr]?.revision ?? null;
+            } catch (e) {
+                logger.warn('Newsletter', 'Could not read ledger revision for audio stamping', e);
+            }
+        }
 
         // Resolve Gemini API key:
         //   1. SecretStorage 'gemini' provider key (primary — this is where
@@ -788,7 +877,12 @@ export class NewsletterService {
 
         const maxMins = this.plugin.settings.newsletterPodcastMaxMins ?? 5;
         const scriptPrompt = insertPodcastContent(
-            buildPodcastScriptPrompt({ language: langName || undefined, maxMins }),
+            buildPodcastScriptPrompt({
+                language: langName || undefined,
+                maxMins,
+                recall,
+                homeRegion: memoryOrRegion(settings.newsletterHomeRegion),
+            }),
             brief
         );
         const scriptResult = await summarizeText(pluginContext(this.plugin), scriptPrompt);
@@ -817,6 +911,16 @@ export class NewsletterService {
             throw new Error('Audio generation returned success but no filePath');
         }
         logger.debug('Newsletter', `Audio saved: ${result.filePath}`);
+
+        // Bind this recording to the revision it was rendered FROM.
+        if (audioRevision !== null) {
+            const basename = result.filePath.split('/').pop() ?? result.filePath;
+            try {
+                await recordBriefAudio(this.plugin, dateStr, basename, audioRevision);
+            } catch (e) {
+                logger.warn('Newsletter', 'Failed to stamp audio revision (non-fatal)', e);
+            }
+        }
 
             // Embed the audio link into today's digest note so the user
             // actually sees it. Otherwise the audio lives in a dated subfolder
@@ -1013,10 +1117,12 @@ export class NewsletterService {
             // Prefer in-memory data for current batch entries
             const inMemory = batchByPath.get(normalizedPath);
             if (inMemory) {
-                sources.push({
+                sources.push(this.tagRegion({
                     sourceDisplayName: inMemory.senderName || inMemory.subject,
                     triageText: inMemory.triage ?? '',
-                });
+                    senderName: inMemory.senderName,
+                    subject: inMemory.subject,
+                }));
                 continue;
             }
 
@@ -1026,16 +1132,102 @@ export class NewsletterService {
 
             try {
                 const content = await vault.cachedRead(noteFile);
-                sources.push({
-                    sourceDisplayName: extractFrontmatterField(content, 'sender_name') ?? extractSenderName(noteFile.basename),
+                const senderName = extractFrontmatterField(content, 'sender_name') ?? extractSenderName(noteFile.basename);
+                sources.push(this.tagRegion({
+                    sourceDisplayName: senderName,
                     triageText: extractTriageFromNote(content),
-                });
+                    senderName,
+                    subject: extractFrontmatterField(content, 'subject'),
+                }));
             } catch {
                 // best-effort — skip unreadable notes
             }
         }
 
         return sources;
+    }
+
+    /**
+     * Flag a source as home-region news so the budget trimmer protects it.
+     *
+     * Reads sender, subject and the triage summary only — deliberately NOT the
+     * full note body. A global paper that mentions the region once would
+     * otherwise be protected, diluting the protection to uselessness.
+     */
+    private tagRegion(src: BriefSource): BriefSource {
+        const region = this.plugin.settings.newsletterHomeRegion;
+        if (!region || region.trim().length === 0) return src;
+        return {
+            ...src,
+            local: isRegionRelevant(
+                { senderName: src.senderName, subject: src.subject, triageText: src.triageText },
+                region,
+            ),
+        };
+    }
+
+    /**
+     * Record that the reader listened to a brief recording.
+     *
+     * Consumes the revision THAT RECORDING was rendered from, looked up in the
+     * ledger's audio map. An unmapped basename returns ok(false) rather than
+     * falling back to the current revision, because that fallback would mark
+     * unheard stories as heard.
+     */
+    async markBriefAudioConsumed(input: { sourcePath: string; audioSrc: string }): Promise<Result<boolean>> {
+        try {
+            if (!isStoryMemoryEnabled(this.plugin.settings)) return ok(false);
+
+            const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
+            const resolved = resolveBriefAudioBucket({
+                sourcePath: input.sourcePath,
+                audioSrc: input.audioSrc,
+                digestPathForDate: (dateStr) => getDigestPath(outputRoot, dateStr),
+            });
+            // Not a brief recording — the common case, and not an error.
+            if (!resolved) return ok(false);
+
+            const ledger = await loadLedger(this.plugin);
+            const bucket = ledger.buckets[resolved.bucketDate];
+            const revision = bucket?.audio?.[resolved.audioBasename];
+            if (revision === undefined) {
+                logger.warn('Newsletter', `Played brief audio "${resolved.audioBasename}" has no recorded revision — not marking consumed (it predates story memory, or was copied in by hand)`);
+                return ok(false);
+            }
+
+            const changed = await markBucketConsumed(this.plugin, resolved.bucketDate, 'audio', revision);
+            if (changed) {
+                logger.debug('Newsletter', `Marked ${resolved.bucketDate} consumed at revision ${revision} (audio)`);
+            }
+            return ok(changed);
+        } catch (e) {
+            return err(e instanceof Error ? e.message : String(e));
+        }
+    }
+
+    /**
+     * Explicit "I am up to date" from the reader.
+     *
+     * Unlike the audio signal this is a user assertion, so consuming each
+     * bucket's CURRENT revision is correct rather than a guess.
+     */
+    async markCaughtUp(throughDateStr: string): Promise<CaughtUpOutcome> {
+        try {
+            if (!isStoryMemoryEnabled(this.plugin.settings)) return { kind: 'disabled' };
+            const ledger = await loadLedger(this.plugin);
+            const res = await markAllConsumedThrough(this.plugin, throughDateStr, ledger);
+            if (res.buckets === 0) return { kind: 'noop' };
+            return { kind: 'ok', buckets: res.buckets, stories: res.stories, through: throughDateStr };
+        } catch (e) {
+            return { kind: 'error', error: e instanceof Error ? e.message : String(e) };
+        }
+    }
+
+    /** Purge all story memory. Called when the feature is switched off, so a
+     *  disabled feature does not strand a window of story text in plugin data. */
+    async clearStoryMemory(): Promise<void> {
+        await clearStoryLedger(this.plugin);
+        await clearConsumption(this.plugin);
     }
 
     /**
@@ -1102,11 +1294,26 @@ export class NewsletterService {
         }
     }
 
+    /** Persist "now" as the last newsletter auto-fetch timestamp and mirror it
+     *  onto the plugin. Lives here rather than on the plugin coordinator because
+     *  it is newsletter storage semantics; `main.ts` delegates to it. */
+    async persistLastFetchTime(): Promise<void> {
+        try {
+            const now = Date.now();
+            await updatePluginData(this.plugin, (data) => {
+                data[LAST_FETCH_DATA_KEY] = now;
+                return { changed: true };
+            });
+            this.plugin.newsletterLastFetchTime = now;
+        } catch { /* best-effort */ }
+    }
+
     private async persistSeenIds(seen: string[]): Promise<void> {
         try {
-            const data = (await this.plugin.loadData()) ?? {};
-            data[SEEN_DATA_KEY] = seen;
-            await this.plugin.saveData(data);
+            await updatePluginData(this.plugin, (data) => {
+                data[SEEN_DATA_KEY] = seen;
+                return { changed: true };
+            });
         } catch {
             // Silent — dedup is best-effort
         }
@@ -1226,6 +1433,18 @@ function extractNewsletterLinks(htmlBody: string): Array<{text: string; href: st
 /** Build the vault path for today's digest note. */
 export function getDigestPath(outputRoot: string, dateStr: string): string {
     return normalizePath(`${outputRoot}/Digest — ${dateStr}.md`);
+}
+
+/**
+ * Extract the bucket date from a digest file name, or null.
+ *
+ * Lives beside `getDigestPath` so the naming rule has ONE owner. The command
+ * layer must not re-encode it: a change to the digest filename would otherwise
+ * make a duplicated regex fail silently rather than fail loudly.
+ */
+export function extractDigestDate(fileName: string): string | null {
+    const m = /^Digest — (\d{4}-\d{2}-\d{2})\.md$/.exec(fileName);
+    return m ? m[1] : null;
 }
 
 /** Format a Date as YYYY-MM-DD using LOCAL time parts. Mirrors the

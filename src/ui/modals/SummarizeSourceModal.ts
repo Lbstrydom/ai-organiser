@@ -1,5 +1,6 @@
 import { App, Modal, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
+import { saveSettingsData } from '../../core/pluginDataStore';
 
 export type SummarizeSourceOption = 'note' | 'url' | 'pdf' | 'youtube' | 'audio';
 
@@ -152,7 +153,7 @@ export class SummarizeSourceModal extends Modal {
 
     private async handleConfirm(): Promise<void> {
         this.plugin.settings.lastSummarizeSource = this.selectedSource;
-        await this.plugin.saveData(this.plugin.settings);
+        await saveSettingsData(this.plugin, this.plugin.settings);
         this.close();
         this.onConfirm(this.selectedSource);
     }

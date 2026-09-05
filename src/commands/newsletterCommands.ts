@@ -6,11 +6,12 @@
 
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
+import type { CaughtUpOutcome } from '../services/newsletter/newsletterMemoryTypes';
 import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
-import { NewsletterService } from '../services/newsletter/newsletterService';
+import { NewsletterService, getBriefDateStr, extractDigestDate } from '../services/newsletter/newsletterService';
 import { withProgress } from '../services/progress';
 
 /** Show the appropriate notice after a fetch completes. Shared by command and settings button. */
@@ -41,6 +42,13 @@ export function showNewsletterFetchResultNotice(
  *  flash that disappears before the actual work starts. */
 export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<void> {
     const nl = plugin.t.settings.newsletter;
+    // Respect the master feature toggle, same as newsletter-fetch. Without this
+    // the command stays runnable from the native palette after the feature is
+    // switched off, since the audio-podcast setting is a sub-toggle, not the gate.
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
+        noticeWithSettingsLink(plugin, nl?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
+        return;
+    }
     if (!plugin.settings.newsletterAudioPodcast) {
         new Notice(nl?.audioPodcastOffNotice || 'Audio podcast is off — enable it in settings first.', 5000);
         return;
@@ -67,6 +75,96 @@ export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<voi
         (nl?.audioRegenerated || 'Audio regenerated. See {path}').replace('{path}', r.value.path),
         6000,
     );
+}
+
+/**
+ * Which day the reader is asserting they are caught up through.
+ *
+ * One policy shared by the command and the settings button, so the two surfaces
+ * cannot disagree about what "caught up" means: the digest you are looking at
+ * if you are looking at one, otherwise today's cutoff-aware bucket.
+ */
+export function resolveCatchUpTargetDate(plugin: AIOrganiserPlugin): string {
+    const today = getBriefDateStr(
+        plugin.settings.newsletterBriefCutoffHour ?? 6,
+        plugin.settings.newsletterBriefCutoffMinute ?? 0,
+    );
+    const active = plugin.app.workspace.getActiveFile();
+    const digestDate = active ? extractDigestDate(active.name) : null;
+    if (!digestDate) return today;
+    // A future-dated digest is clamped: you cannot be caught up on tomorrow.
+    return digestDate > today ? today : digestDate;
+}
+
+/** Single-flight guard: rapid clicks must not spawn overlapping catch-up runs
+ *  that each read the ledger and race each other's writes. */
+let markingCaughtUp = false;
+
+/**
+ * Map a catch-up outcome to its notice. ONE function, used by the command and
+ * the settings button, so the two surfaces cannot drift apart in what they tell
+ * the user — and so a new outcome state cannot be added without the compiler
+ * pointing here.
+ */
+export function formatCaughtUpOutcome(
+    outcome: CaughtUpOutcome,
+    nl: AIOrganiserPlugin['t']['settings']['newsletter'] | undefined,
+): string {
+    switch (outcome.kind) {
+        case 'ok':
+            return (nl?.caughtUpOk || 'Caught up through {through} — {buckets} day(s), {stories} stories')
+                .replace('{through}', outcome.through)
+                .replace('{buckets}', String(outcome.buckets))
+                .replace('{stories}', String(outcome.stories));
+        case 'noop':
+            return nl?.caughtUpNoop || 'Already up to date — nothing to mark';
+        case 'disabled':
+            return nl?.caughtUpDisabled || 'Turn on story memory first';
+        case 'error':
+            return (nl?.caughtUpError || 'Could not mark caught up: {error}')
+                .replace('{error}', outcome.error);
+    }
+}
+
+/**
+ * Run the catch-up and show one notice. Shared by the command and the settings
+ * button so their messaging cannot drift.
+ *
+ * A control that silently does nothing is worse than one that says why, so the
+ * disabled and no-op cases get their own distinct notices rather than a
+ * generic success.
+ */
+export async function runMarkCaughtUp(plugin: AIOrganiserPlugin): Promise<void> {
+    const t = plugin.t;
+    const nl = t.settings?.newsletter;
+
+    // The master feature toggle and the story-memory sub-toggle are different
+    // states, so they get different notices — "turn on story memory" would be
+    // misleading advice when the whole feature is off.
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
+        noticeWithSettingsLink(plugin, nl?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
+        return;
+    }
+    if (markingCaughtUp) return;
+    markingCaughtUp = true;
+    try {
+        await markCaughtUpInner(plugin, nl);
+    } finally {
+        markingCaughtUp = false;
+    }
+}
+
+async function markCaughtUpInner(
+    plugin: AIOrganiserPlugin,
+    nl: AIOrganiserPlugin['t']['settings']['newsletter'] | undefined,
+): Promise<void> {
+    const through = resolveCatchUpTargetDate(plugin);
+    const outcome = await new NewsletterService(plugin).markCaughtUp(through);
+
+    if (outcome.kind === 'error') {
+        logger.error('Newsletter', `Mark caught up failed: ${outcome.error}`);
+    }
+    new Notice(formatCaughtUpOutcome(outcome, nl), outcome.kind === 'error' ? 6000 : 5000);
 }
 
 export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
@@ -124,6 +222,13 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
             }
             // On !r.ok the reporter already fired the toast.
         }
+    });
+
+    plugin.addCommand({
+        id: 'newsletter-mark-caught-up',
+        name: t.commands.newsletterMarkCaughtUp || 'Mark newsletters caught up',
+        icon: 'check-check',
+        callback: () => { void runMarkCaughtUp(plugin); },
     });
 
     plugin.addCommand({

@@ -6,6 +6,46 @@ import obsidianmdImport from 'eslint-plugin-obsidianmd';
 // exposed them at the top level. Support both so a version bump can't break lint.
 const obsidianmd = obsidianmdImport.configs ? obsidianmdImport : obsidianmdImport.default;
 
+// ── no-restricted-syntax fragments ───────────────────────────────────────────
+// ESLint flat config REPLACES a rule value when a later config sets the same
+// rule key for a matching file — it never merges. So a narrow block that only
+// listed its own selector would silently switch off every selector a broader
+// block had set for the same file. Composing named fragments makes that
+// impossible to get wrong by accident; `tests/eslintGuards.test.ts` asserts the
+// effective rule for representative files.
+const NOTE_EDIT_SELECTORS = [
+    {
+        selector: "CallExpression[callee.object.name='editor'][callee.property.name=/^(setValue|replaceSelection|replaceRange)$/]",
+        message: 'Direct editor writes are forbidden here — route note mutations through applyNoteEdit (src/services/noteEdit).',
+    },
+    {
+        selector: "CallExpression[callee.name='insertAtCursor']",
+        message: 'insertAtCursor bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
+    },
+    {
+        selector: "CallExpression[callee.name='appendAsNewSections']",
+        message: 'appendAsNewSections bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
+    },
+    {
+        selector: "CallExpression[callee.property.name='modify'][callee.object.property.name='vault']",
+        message: 'vault.modify bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
+    },
+];
+
+const SAVE_DATA_SELECTORS = [
+    {
+        selector: "CallExpression[callee.property.name='saveData']",
+        message: 'Direct saveData bypasses the serialised plugin-data seam — use saveSettingsData or updatePluginData (src/core/pluginDataStore).',
+    },
+];
+
+const SETTINGS_WRITER_SELECTORS = [
+    {
+        selector: "CallExpression[callee.name='updatePluginData']",
+        message: 'Settings surfaces must use saveSettingsData; updatePluginData is for non-settings data keys only.',
+    },
+];
+
 export default defineConfig([
     ...obsidianmd.configs.recommendedWithLocalesEn,
     {
@@ -66,6 +106,34 @@ export default defineConfig([
         },
     },
     {
+        // ── Plugin-data write-seam guard ────────────────────────────────────
+        // Obsidian's `saveData` writes the WHOLE plugin-data object, so two
+        // unserialised read-modify-write cycles silently lose one update even
+        // when they touch different top-level keys. `src/core/pluginDataStore.ts`
+        // owns the serialisation and the settings/data-key merge semantics, so it
+        // is excluded — it IS the mechanism.
+        //
+        // Declared BEFORE the narrower blocks below, which re-state these
+        // selectors alongside their own.
+        files: ['src/**/*.ts'],
+        ignores: ['src/core/pluginDataStore.ts'],
+        rules: {
+            'no-restricted-syntax': ['error', ...SAVE_DATA_SELECTORS],
+        },
+    },
+    {
+        // Settings surfaces must go through `saveSettingsData`, never the raw
+        // data-key mutator: a mutator that wrote the settings object wholesale
+        // would clobber the data-only keys, just deterministically.
+        // NewsletterSettingsSection is excluded because its reset-history button
+        // legitimately mutates newsletter data keys, not settings.
+        files: ['src/main.ts', 'src/ui/settings/**/*.ts'],
+        ignores: ['src/ui/settings/NewsletterSettingsSection.ts'],
+        rules: {
+            'no-restricted-syntax': ['error', ...SAVE_DATA_SELECTORS, ...SETTINGS_WRITER_SELECTORS],
+        },
+    },
+    {
         // ── Write-seam guard (command-layer-hardening M4) ──────────────
         // The command layer + multi-source service must mutate notes ONLY through
         // `applyNoteEdit` (src/services/noteEdit/**). Forbid direct editor / vault
@@ -78,25 +146,7 @@ export default defineConfig([
             'src/services/multiSource/**/*.ts',
         ],
         rules: {
-            'no-restricted-syntax': [
-                'error',
-                {
-                    selector: "CallExpression[callee.object.name='editor'][callee.property.name=/^(setValue|replaceSelection|replaceRange)$/]",
-                    message: 'Direct editor writes are forbidden here — route note mutations through applyNoteEdit (src/services/noteEdit).',
-                },
-                {
-                    selector: "CallExpression[callee.name='insertAtCursor']",
-                    message: 'insertAtCursor bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
-                },
-                {
-                    selector: "CallExpression[callee.name='appendAsNewSections']",
-                    message: 'appendAsNewSections bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
-                },
-                {
-                    selector: "CallExpression[callee.property.name='modify'][callee.object.property.name='vault']",
-                    message: 'vault.modify bypasses the write seam — use applyNoteEdit (src/services/noteEdit).',
-                },
-            ],
+            'no-restricted-syntax': ['error', ...NOTE_EDIT_SELECTORS, ...SAVE_DATA_SELECTORS],
         },
     },
     {
