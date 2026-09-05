@@ -55,7 +55,7 @@ export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<voi
     }
     type AudioPhase = 'regeneratingAudio';
     const tp = plugin.t.progress;
-    const r = await withProgress<{ path?: string }, AudioPhase>(
+    const r = await withProgress<{ path: string }, AudioPhase>(
         {
             plugin,
             initialPhase: { key: 'regeneratingAudio' },
@@ -64,15 +64,15 @@ export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<voi
         async () => {
             const service = new NewsletterService(plugin);
             const result = await service.regenerateAudioForToday();
-            if (!result.success) {
+            if (!result.ok) {
                 throw new Error(result.error || 'unknown');
             }
-            return { path: result.path };
+            return result.value;
         },
     );
     if (!r.ok) return; // reporter fired the toast
     new Notice(
-        (nl?.audioRegenerated || 'Audio regenerated. See {path}').replace('{path}', r.value.path || ''),
+        (nl?.audioRegenerated || 'Audio regenerated. See {path}').replace('{path}', r.value.path),
         6000,
     );
 }

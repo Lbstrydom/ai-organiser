@@ -1,13 +1,15 @@
 # Persona-Test Consistency Mode — HTML Attribute Contract
 
 > Authoritative spec for consumer-app frontend devs adopting consistency mode.
-> Plan: [docs/plans/persona-test-consistency-mode.md](../completed/persona-test-consistency-mode.md).
+> Plan (upstream only — the sync ships no `docs/plans/`):
+> [docs/plans/persona-test-consistency-mode.md](https://github.com/Lbstrydom/claude-engineering-skills/blob/main/docs/plans/persona-test-consistency-mode.md).
 
 This document defines the HTML `data-*` attribute contract that lets the
 consistency-mode rig detect cross-step UI/state contradictions without
 text-parsing. The Zod schema enforcing the contract lives in
-[`scripts/lib/persona-test/schemas.mjs`](../../scripts/lib/persona-test/schemas.mjs)
-— this doc is the human-readable companion.
+[`scripts/lib/persona-test/schemas.mjs`](https://github.com/Lbstrydom/claude-engineering-skills/blob/main/scripts/lib/persona-test/schemas.mjs)
+— this doc is the human-readable companion. In a consumer repo that module is
+synced to `scripts/.claude-skills/lib/persona-test/schemas.mjs`.
 
 ## Why an attribute contract
 
@@ -175,6 +177,37 @@ The rig sees the network response `{wines: [{id:"abc123",vintage:2020}, {id:"def
 
 Nested scopes inherit through DOM ancestry — innermost wins.
 
+#### Response shapes a collection can bind
+
+A named array is the shape above. Two others are supported, because they are
+ordinary REST and were previously **unbindable and silently skipped** — a
+surface declaring a per-row assertion that never executed, while `surfaces.json`
+read as enforced coverage (upstream `a0b58a34`).
+
+| Response | `jsonPath` | `keyField` |
+|---|---|---|
+| `{"wines": [{"id":"A", …}]}` | `"wines"` | `"id"` |
+| `{"wines": {"R1": {"id":"A", …}}}` — object map, id inside the value | `"wines"` | `"id"` |
+| `{"wines": {"R1": {…}}}` — object map, **id is the key** | `"wines"` | `"$key"` |
+| `[{"id":"A", …}]` — top-level array | `"$"` | `"id"` |
+
+`"$"` addresses the document root; `"$key"` takes a map row's identity from the
+map's own key. Both satisfy the existing `z.string().min(1)`, so no manifest
+schema change was needed.
+
+Two deliberate refusals, so a wrong binding fails loudly rather than plausibly:
+
+- **`"$key"` on an array** is rejected rather than falling back to the array
+  index. An index is positional, so any reordering of the response silently
+  re-identifies every row.
+- **A binding that resolves to nothing, or to a scalar**, emits a
+  `collection-binding-unusable` rig warning naming the collection and the
+  `jsonPath`. It is deduped for the whole session — one manifest defect is one
+  warning, not one per HTTP response.
+
+An **empty** array or map is not a warning: a legitimately empty collection is
+the normal case, and flagging it would make the signal noise on every quiet page.
+
 ---
 
 ## Surface manifest (`surfaces.json`)
@@ -187,7 +220,7 @@ it projects. Resolution order (the runner tries each in turn):
 3. `<src-root>/persona-test-surfaces.json` — for monorepo `src/` layouts
 
 Pick one. The schema is enforced via Zod
-([`SurfaceManifestSchema`](../../scripts/lib/persona-test/schemas.mjs)).
+([`SurfaceManifestSchema`](https://github.com/Lbstrydom/claude-engineering-skills/blob/main/scripts/lib/persona-test/schemas.mjs)).
 
 ### Minimum example
 
@@ -247,6 +280,43 @@ UX, **start at P1**.
 The stale-projection contradiction kind ALWAYS fires when
 `data-freshness="stale"` is visible — severity choice controls whether
 that fires loud or quiet, not whether it fires at all.
+
+### Applicability (`appliesTo`) — gating a surface to where it renders
+
+A surface that only exists on some views declares `appliesTo`, and the
+**negative-space** checks (`missing-surface`, `unannotated-surface`) are then
+skipped everywhere it doesn't apply. Positive comparison is unaffected —
+claims are captured by locator regardless.
+
+| Key | Matched against | Notes |
+|---|---|---|
+| `routePattern` | `currentRoute` — the URL's **pathname AND query string** (`/wines?tab=all`) | Unanchored regex |
+| `journeyStepLabels` | the current journey step's `label` | Exact membership |
+| `requiresState` | `activeStateTags`, derived from state-projecting DOM claims | ALL tags must be active |
+
+**`routePattern` matches on the query string** (`"view=grid"` against
+`/?view=grid`). It did not before 2026-08-11: `currentRoute` was the pathname
+alone, so a query-routed SPA — every view served from `/` — produced `"/"` at
+every step and any such pattern could never test true. Nothing looked wrong,
+which is the point: the surface's claims were still compared, so only the
+checks that fire when a surface **stops rendering** went quiet (upstream
+`8c62cfcc`, wine-cellar-app; four surfaces sat that way for their whole life).
+
+> **Upgrading from before 2026-08-11 — one shape changes.** A pattern anchored
+> at the end (`^/wines$`) matched `/wines` and now stops matching
+> `/wines?tab=all`. It fails **silent**, not loud: the surface is gated out, so
+> you lose a check rather than gain a failure. Re-anchor as `^/wines(\?|$)`, or
+> drop the `$`. Unanchored patterns (`^/wines`, `wines`) are unaffected.
+
+**A pattern that matches nothing is reported.** If a `routePattern` matched no
+route the whole run visited, the run emits a `route-pattern-never-matched` rig
+warning to stderr and to the ledger's top-level `runWarnings[]`, naming the
+surface, the pattern and the routes actually visited — and saying so outright
+when stripping the query would have matched (i.e. the anchoring case above). It
+does not change the exit code: a declared check that never ran is a defect
+worth hearing, not a reason to fail someone's build. Same reasoning as
+`collection-binding-unusable` — a gate that abstains is indistinguishable from
+one that passes unless it says so.
 
 ### Locators
 
@@ -553,6 +623,51 @@ The runner exits with one of:
 The session ledger at `.persona-test/sessions/<SID>.json` is ALWAYS persisted
 before exit (except when exit 4 fires — that's the explicit "couldn't even
 write the ledger" condition).
+
+---
+
+## Candidate emission — RETIRED 2026-08-11, and what replaced it
+
+The runner used to write each unexpected P0/P1 contradiction into
+`regression_specs` as a `persona-consistency-candidate`, and `/ship` Step 5.6
+promoted approved ones into generated Playwright specs. **The whole path is
+removed** — both consistency `source_kind` values, the four evidence columns,
+the promoter, the spec renderer and the `/ship` step (migration
+`20260811150000`).
+
+Two facts sit behind that, and they are independent:
+
+1. **It never worked.** The runner passed a repo *descriptor* where a uuid was
+   expected, so every write raised `22P02` into a swallowed catch and the run
+   still exited 0. Measured against the live store on the day of removal:
+   `regression_specs` held 100 rows, all `unit-test`, and
+   `count(candidate_fingerprint)` was 0. Not one candidate was ever written and
+   not one was ever promoted.
+2. **It was the wrong artifact anyway** — which is why it was removed rather
+   than kept now that the writer is fixed. A promoted spec asserts a DOM
+   contract through a browser; the durable fix for a DOM-vs-engine
+   contradiction is a **declaration** (what the surface claims) or a
+   **renderer contract test** (what the renderer must emit). The sole adopting
+   consumer wrote 106 contract tests over the same 12 weeks and every defect in
+   its recent surface push was fixed by a manifest fragment or a contract test.
+
+> **The `max` ratchet is now the only journey-level lock, and it is loosenable.**
+> This is the cost of the removal, recorded rather than hidden.
+> `expectedContradictions` gates on a **count** (`min`/`max`) plus
+> assert-**present** `shapes[]`. It cannot express *"this specific contradiction
+> must be absent"* — so after fixing a defect you lock it by setting `max: 0`,
+> and anyone can unlock every past defect on that journey by editing one integer
+> to unblock CI, with no diff that reads as a regression. A named per-defect
+> spec resisted that; nothing in the remaining design does. A renderer contract
+> test resists it equally well, but only if somebody writes one.
+>
+> **Treat raising `max` with the same scrutiny as deleting a test**, and prefer
+> pinning the mechanism in a contract test so the lock does not live in an
+> integer.
+
+A run with contradictions and no failure is still normal — most commonly
+because they were `P2`/`P3`, or were declared in the canary's `shapes[]`. What
+is no longer possible is a silent write failure masquerading as either.
 
 ---
 
