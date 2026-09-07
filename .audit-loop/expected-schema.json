@@ -7204,6 +7204,15 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 20
+        },
+        {
+          "column_name": "ownership_rule_epoch",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 21
         }
       ]
     },
