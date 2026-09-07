@@ -691,8 +691,10 @@ Tracked in git:
 Consistency mode introduces two egress boundaries — both are gated:
 
 **LLM egress (semantic-compare)**: only fields with `llmSafe: true` get sent
-to the external LLM, and content runs through `scripts/lib/redact.mjs`
-secret-pattern redactor before egress. Every call is logged to
+to the external LLM, and content runs through the
+[`scripts/lib/redact.mjs`](https://github.com/Lbstrydom/claude-engineering-skills/blob/main/scripts/lib/redact.mjs)
+secret-pattern redactor before egress. In a consumer repo that module is
+synced to `scripts/.claude-skills/lib/redact.mjs`. Every call is logged to
 `.persona-test/semantic-egress.log` with `{timestamp, surfaceId, modelId,
 charsIn, costUsd, redactionCount}` (NOT the prose itself).
 
