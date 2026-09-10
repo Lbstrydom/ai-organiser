@@ -2,6 +2,36 @@
 
 ### Consumer Verification (previous ship)
 
+**State: verified (content, type-check, integration suite, and the full unit-test battery — all in a fresh clone).**
+
+- **Locator**: `a9a2bf1` on `main` (opt-in Claude-via-OpenAI-gateway routing for Azure).
+- **Retrieval actually run**: `git clone --depth 2 https://github.com/Lbstrydom/ai-organiser.git` into a scratch dir — a fresh consumer-side fetch, not a local re-read.
+- **Content check**: `azureClaudeAdapter.ts`/`settings.ts`/`endpointResolver.ts` in the clone diff byte-identical to the local working tree (`diff --strip-trailing-cr`; a naive diff falsely disagreed on every line — CRLF-on-disk vs LF-in-blob, not a content defect).
+- **`npx tsc --noEmit -p tsconfig.build.json`** in the clone: clean, 0 errors.
+- **`node scripts/automated-tests.js`** in the clone: 44/45 (the one failure is "Build produces main.js" — expected, since `npm run build` was not run in the clone; not a code defect).
+- **`npx vitest run`** in the clone: 378 test files passed, 6737 tests passed, 2/3 skipped — identical to the producer-side run.
+- **Not verified from the clone**: a full production build (`npm run build`) — deliberately skipped, since it would trigger the auto-deploy step and overwrite the real Obsidian vault from a throwaway clone.
+
+## 2026-09-10 (c) — Swap Azure Claude pins to Sonnet 5 / Opus 5, custom-deployment escape hatch ✅
+
+Field diagnosis: a live user reported "unauthorized" on Claude/websearch while chat/embeddings worked, traced to `azureOpenAIEndpoint` pointed at a native `.openai.azure.com` host instead of the API-management gateway — separately, a follow-up "deployment/endpoint not found" traced to `azureRoutingMode` still on the model-based default (the gateway only exposes the deployment-based paths). Neither needed a code change. This entry is the code change that followed: moving the shipped Azure Claude model picker off the now-superseded 4.6/4.7 pins.
+
+### Bug found along the way: `parseClaudeModel` couldn't parse the actual 5th-gen ID format
+The parser required a two-number `claude-{tier}-{major}-{minor}` pattern; Anthropic's Claude 5 generation dropped the minor segment entirely (`claude-opus-5`, not `claude-opus-5-0`). Existing tests had anticipated the two-number form continuing (`claude-opus-5-0`) and would have silently passed while the real IDs failed `parseClaudeModel` → `null` → adaptive thinking, 1M context, and dynamic web search all silently disabled for the exact models this change makes the default. Fixed by making the minor segment optional (defaults to 0), matching the precedent already set by `parseOpenAIModel`/`parseGeminiModel` in the same file. Locked with new cases in [tests/modelCapabilities.test.ts](tests/modelCapabilities.test.ts) for the bare single-number form.
+
+### Changes
+- **[src/ui/settings/LLMSettingsSection.ts](src/ui/settings/LLMSettingsSection.ts)** — the "Default model" dropdown's two pins swapped `claude-sonnet-4-6`/`claude-opus-4-7` → `claude-sonnet-5`/`claude-opus-5`; added a third "Custom deployment name…" option that reveals a free-text field. Azure deployment names are user-chosen at creation time, so the previous two-preset-only dropdown had no path for any tenant whose deployment isn't named exactly after the model id — this was already a latent gap in the public plugin, just surfaced by a naming mismatch. The passthrough-preserve behavior for an already-saved non-preset value is unchanged (still no forced migration).
+- **[src/services/adapters/modelCapabilities.ts](src/services/adapters/modelCapabilities.ts)** — `parseClaudeModel`'s minor-version segment is now optional (see above).
+- **[src/services/adapters/azureClaudeAdapter.ts](src/services/adapters/azureClaudeAdapter.ts)**, **[azureConnectionTest.ts](src/services/azure/azureConnectionTest.ts)**, **[providerRegistry.ts](src/services/adapters/providerRegistry.ts)** — azure-claude's concrete default model id updated to `claude-sonnet-5`.
+- **[src/core/settings.ts](src/core/settings.ts)** — `DEFAULT_SETTINGS.taskModels.{tagging,summarization,chat,mermaid}` and the azure-first migration fallback updated to `claude-sonnet-5` (a generic upgrade, not tenant-specific — Sonnet 5 is Anthropic's current flagship). `DEFAULT_AZURE_DEPLOYMENT_RPM` gained `claude-sonnet-5`/`claude-opus-5` entries alongside (not replacing) the 4.6/4.7 ones, since a tenant's deployment may still be named after either generation. `taskModels.audit`/`.research` (still pinned to the older `claude-opus-4-6`) were deliberately left untouched — unrelated to this dropdown, out of scope.
+- **[src/i18n/en.ts](src/i18n/en.ts)/[types.ts](src/i18n/types.ts)** — updated labels + new custom-entry field strings.
+- Deliberately left alone: `azureGPTModel`'s default (`gpt-5.5`) and the GPT model field's placeholder — that field is already free text, so no code change was needed there; a tenant-specific GPT deployment codename (e.g. a Wärtsilä-only `gpt-5.6-terra`) must never become the shipped public default regardless. `src/core/modelCatalog.ts` (the direct, non-Azure Claude catalog backing `latest-sonnet`/`latest-opus`) is separately stale at 4.6/4.7 but is a bigger, distinct change affecting every non-Azure Claude user of the public plugin — out of scope here.
+
+### Verification
+Full type-check clean. `node scripts/automated-tests.js`: 45/45. `npx vitest run`: 378 files / 6739 tests passed (2 new cases added), 2/3 skipped. Production build clean, all `verify:build` checks PASS.
+
+### Consumer Verification (previous ship)
+
 **State: verified (content, config and the drift gate); test battery not re-run in the clone.**
 
 - **Locator**: `0bef971` on `main` (preceded by `cc34114`, the AGENTS.md condense).

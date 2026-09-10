@@ -127,6 +127,10 @@ export interface Translations {
                 defaultModelDesc: string;
                 modelSonnet: string;
                 modelOpus: string;
+                modelCustom: string;
+                customModelName: string;
+                customModelNameDesc: string;
+                customModelNamePlaceholder: string;
                 testConfig: string;
                 testConfigDesc: string;
                 testButton: string;

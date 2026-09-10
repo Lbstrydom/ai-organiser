@@ -66,7 +66,7 @@ function claudeAuthHeaders(plugin: AIOrganiserPlugin, key: string): Record<strin
 	return { ...base, 'Authorization': `Bearer ${key}` };
 }
 
-const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5';
 const DEFAULT_GPT_MODEL = 'gpt-5.5';
 const DEFAULT_EMBED_MODEL = 'text-embedding-3-large';
 

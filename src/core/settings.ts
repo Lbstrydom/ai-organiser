@@ -572,7 +572,11 @@ export const DEFAULT_AZURE_DEPLOYMENT_RPM: Record<string, number> = {
     //  • embed-v-4-0 — the visual lane isn't implemented yet;
     //  • gpt-5.3-chat / claude-opus-4-6 — superseded (migrated to gpt-5.5 / opus-4-7).
     // nano + haiku are kept as the fast-triage tier so pacing is correct if a user
-    // opts into fast triage later.
+    // opts into fast triage later. Older sonnet-4-6/opus-4-7 pins are kept
+    // alongside the current sonnet-5/opus-5 ones — a tenant's deployment may
+    // still be named after either generation (deployment names are user-chosen).
+    'claude-sonnet-5': 200,
+    'claude-opus-5': 100,
     'claude-sonnet-4-6': 200,
     'claude-opus-4-7': 100,
     'claude-haiku-4-5': 10,
@@ -914,12 +918,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureTtsSeedV2: false,
     azureSpeechRpmSeedV1: false,
     taskModels: {
-        tagging: 'claude-sonnet-4-6',
-        summarization: 'claude-sonnet-4-6',
+        tagging: 'claude-sonnet-5',
+        summarization: 'claude-sonnet-5',
         audit: 'claude-opus-4-6',
         research: 'claude-opus-4-6',
-        chat: 'claude-sonnet-4-6',
-        mermaid: 'claude-sonnet-4-6',
+        chat: 'claude-sonnet-5',
+        mermaid: 'claude-sonnet-5',
         embeddings: 'text-embedding-3-large',
         transcription: 'whisper',
     },
@@ -1568,7 +1572,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         s.cloudServiceType = 'azure-claude';
         s.cloudEndpoint = '';
         const tm = s.taskModels as { chat?: string } | undefined;
-        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-4-6';
+        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-5';
     }
     if (typeof s.preAzureFirstProvider !== 'string') s.preAzureFirstProvider = DEFAULT_SETTINGS.preAzureFirstProvider;
 

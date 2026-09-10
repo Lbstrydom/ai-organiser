@@ -33,6 +33,15 @@ describe('parseClaudeModel', () => {
         expect(parseClaudeModel('claude-opus-4-5-20251101')).toEqual({ tier: 'opus', major: 4, minor: 5 });
     });
 
+    it('parses the 5th-generation single-number scheme (no minor segment)', () => {
+        // Anthropic dropped the minor version for Claude 5 — `claude-opus-5`,
+        // not `claude-opus-5-0`. Minor defaults to 0 so major-only comparisons
+        // (versionAtLeast) still work correctly against 4.x models.
+        expect(parseClaudeModel('claude-opus-5')).toEqual({ tier: 'opus', major: 5, minor: 0 });
+        expect(parseClaudeModel('claude-sonnet-5')).toEqual({ tier: 'sonnet', major: 5, minor: 0 });
+        expect(parseClaudeModel('claude-haiku-5')).toEqual({ tier: 'haiku', major: 5, minor: 0 });
+    });
+
     it('rejects non-Claude or malformed IDs', () => {
         expect(parseClaudeModel('gpt-5.2')).toBeNull();
         expect(parseClaudeModel('gemini-3.1-flash')).toBeNull();
@@ -54,6 +63,12 @@ describe('claudeSupportsAdaptiveThinking — future-proof future Claude releases
         expect(claudeSupportsAdaptiveThinking('claude-opus-4-8')).toBe(true);
         expect(claudeSupportsAdaptiveThinking('claude-opus-5-0')).toBe(true);
         expect(claudeSupportsAdaptiveThinking('claude-opus-6-1-20280101')).toBe(true);
+    });
+
+    it('picks up the actual 5th-generation single-number IDs', () => {
+        expect(claudeSupportsAdaptiveThinking('claude-opus-5')).toBe(true);
+        expect(claudeSupportsAdaptiveThinking('claude-sonnet-5')).toBe(true);
+        expect(claudeSupportsAdaptiveThinking('claude-haiku-5')).toBe(false); // haiku: never
     });
 
     it('sonnet 4.6 and newer (but not 4.5)', () => {

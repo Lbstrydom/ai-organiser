@@ -33,7 +33,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
             ...config,
             endpoint: config.endpoint || '',
             // Concrete default — NEVER a `latest-*` sentinel on the Azure path.
-            modelName: config.modelName || 'claude-sonnet-4-6'
+            modelName: config.modelName || 'claude-sonnet-5'
         });
         this.provider = {
             name: 'azure-claude',

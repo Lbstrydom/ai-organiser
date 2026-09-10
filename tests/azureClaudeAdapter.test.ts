@@ -42,7 +42,7 @@ describe('AzureClaudeAdapter', () => {
 		it('defaults to a concrete model id (never a latest-* sentinel)', () => {
 			const adapter = new AzureClaudeAdapter(makeConfig({ modelName: undefined }));
 			const body = adapter.formatRequest('x');
-			expect(body.model).toBe('claude-sonnet-4-6');
+			expect(body.model).toBe('claude-sonnet-5');
 		});
 
 		it('exposes the configured Azure endpoint', () => {

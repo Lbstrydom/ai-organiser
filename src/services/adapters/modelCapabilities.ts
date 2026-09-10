@@ -20,21 +20,25 @@ export interface ClaudeModelParts {
 }
 
 /**
- * Parse Anthropic's `claude-{tier}-{major}-{minor}[-{date-suffix}]` pattern.
+ * Parse Anthropic's `claude-{tier}-{major}[-{minor}][-{date-suffix}]` pattern.
+ * The minor segment is OPTIONAL — the 5th generation dropped it entirely
+ * (`claude-opus-5`, not `claude-opus-5-0`), unlike 4.x's two-number scheme.
  * Returns null for non-Claude or malformed IDs. Examples parsed:
  *   - claude-opus-4-7            → { opus, 4, 7 }
  *   - claude-opus-4-6            → { opus, 4, 6 }
  *   - claude-sonnet-4-5-20250929 → { sonnet, 4, 5 }
  *   - claude-haiku-4-5-20251001  → { haiku, 4, 5 }
+ *   - claude-opus-5              → { opus, 5, 0 }
+ *   - claude-sonnet-5            → { sonnet, 5, 0 }
  */
 export function parseClaudeModel(id: string | undefined | null): ClaudeModelParts | null {
     if (!id) return null;
-    const m = /^claude-(opus|sonnet|haiku)-(\d+)-(\d+)/.exec(id);
+    const m = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d+))?/.exec(id);
     if (!m) return null;
     return {
         tier: m[1] as 'opus' | 'sonnet' | 'haiku',
         major: Number(m[2]),
-        minor: Number(m[3]),
+        minor: m[3] ? Number(m[3]) : 0,
     };
 }
 

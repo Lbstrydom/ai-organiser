@@ -206,27 +206,39 @@ export class LLMSettingsSection extends BaseSettingSection {
                 }));
 
         // Default model for general tasks.
+        const CUSTOM_MODEL_SENTINEL = '__custom__';
+        const PRESET_MODELS = ['claude-sonnet-5', 'claude-opus-5'];
+        let customModelSetting: Setting | null = null;
         new Setting(this.containerEl)
             .setName(az.defaultModel)
             .setDesc(az.defaultModelDesc)
             .addDropdown(dropdown => {
-                // Current azure-claude models (Batch A catalog). opus-4-7 is the
-                // 1M-context upgrade; the stale opus-4-6 option was removed.
-                const current = this.plugin.settings.taskModels?.tagging || 'claude-sonnet-4-6';
+                // Current azure-claude models (Batch B catalog). Azure deployment
+                // names are user-chosen at creation time, so these presets only
+                // work when a deployment is literally named after the model id —
+                // the "Custom" option below covers every other tenant.
+                const current = this.plugin.settings.taskModels?.tagging || 'claude-sonnet-5';
                 dropdown
-                    .addOption('claude-sonnet-4-6', az.modelSonnet)
-                    .addOption('claude-opus-4-7', az.modelOpus);
-                // Preserve any other stored value (e.g. a legacy opus-4-6 or a
-                // custom deployment) as a passthrough option so the dropdown
-                // never silently mismatches what's saved — no forced migration
-                // of a tenant model the user may rely on.
-                if (current !== 'claude-sonnet-4-6' && current !== 'claude-opus-4-7') {
+                    .addOption('claude-sonnet-5', az.modelSonnet)
+                    .addOption('claude-opus-5', az.modelOpus)
+                    .addOption(CUSTOM_MODEL_SENTINEL, az.modelCustom);
+                // Preserve any other stored value (e.g. a legacy sonnet-4-6/
+                // opus-4-7 pin or an already-custom deployment) as a passthrough
+                // option so the dropdown never silently mismatches what's saved
+                // — no forced migration of a tenant model the user may rely on.
+                const isPreset = PRESET_MODELS.includes(current);
+                if (!isPreset) {
                     dropdown.addOption(current, current);
                 }
                 dropdown
                     .setValue(current)
                     .onChange((value) => {
                         if (!this.plugin.settings.taskModels) return;
+                        if (value === CUSTOM_MODEL_SENTINEL) {
+                            customModelSetting?.settingEl.show();
+                            return;
+                        }
+                        customModelSetting?.settingEl.hide();
                         this.plugin.settings.taskModels.tagging = value;
                         this.plugin.settings.taskModels.summarization = value;
                         this.plugin.settings.taskModels.chat = value;
@@ -234,6 +246,30 @@ export class LLMSettingsSection extends BaseSettingSection {
                         void this.plugin.saveSettings();
                     });
             });
+
+        // Free-text entry for any deployment name that doesn't match a preset —
+        // e.g. any tenant other than one whose Azure deployments happen to be
+        // named exactly after the model id. Hidden unless "Custom" is selected
+        // above, or the currently-saved value is already a non-preset name.
+        customModelSetting = new Setting(this.containerEl)
+            .setName(az.customModelName)
+            .setDesc(az.customModelNameDesc)
+            .addText(text => text
+                .setPlaceholder(az.customModelNamePlaceholder)
+                .setValue(PRESET_MODELS.includes(this.plugin.settings.taskModels?.tagging || '') ? '' : (this.plugin.settings.taskModels?.tagging || ''))
+                .onChange((value) => {
+                    if (!this.plugin.settings.taskModels || !value.trim()) return;
+                    const v = value.trim();
+                    this.plugin.settings.taskModels.tagging = v;
+                    this.plugin.settings.taskModels.summarization = v;
+                    this.plugin.settings.taskModels.chat = v;
+                    this.plugin.settings.taskModels.mermaid = v;
+                    void this.plugin.saveSettings();
+                }));
+        const currentTagging = this.plugin.settings.taskModels?.tagging || 'claude-sonnet-5';
+        if (PRESET_MODELS.includes(currentTagging)) {
+            customModelSetting.settingEl.hide();
+        }
 
         // GPT model — used by azure-openai chat + the live test.
         new Setting(this.containerEl)
