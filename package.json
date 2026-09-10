@@ -102,7 +102,7 @@
     "dompurify": "^3.3.2",
     "dotenv": "^17.3.1",
     "js-yaml": "^4.1.0",
-    "jspdf": "^4.0.0",
+    "jspdf": "4.2.0",
     "officeparser": "^6.0.4",
     "openai": "^6.33.0",
     "perfect-freehand": "^1.2.3",
