@@ -101,7 +101,8 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             apiKey: config.apiKey || '',
             modelName: resolvedModel,
             language: config.language,
-            thinkingMode: config.thinkingMode
+            thinkingMode: config.thinkingMode,
+            azureClaudeAuthHeader: config.azureClaudeAuthHeader
         });
     }
 

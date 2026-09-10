@@ -482,6 +482,14 @@ export interface AIOrganiserSettings {
     azureRoutingMode: 'model-based' | 'deployment-based';
     /** Canonical-model-id → deployment-name mapping for deployment-based routing. */
     azureDeployments: { chat?: string; embeddings?: string };
+    /** When true, Claude requests route through `azureOpenAIEndpoint` with the
+     *  same `api-key` auth header as the OpenAI surface, instead of the native
+     *  Anthropic path on `azureAIEndpoint` with `Authorization: Bearer`. Off by
+     *  default — byte-identical to the pre-existing direct-Foundry behavior.
+     *  Turn this on when your gateway/API-management front-end in front of the
+     *  Foundry resource only recognizes the OpenAI-style key header on its
+     *  Anthropic passthrough route (some APIM-style setups do). */
+    azureClaudeViaOpenAIGateway: boolean;
     /** Deployment-qualified paths (whisper + chat/embeddings) carry a DATED api-version;
      *  pin here when the resource is on an older/newer API surface. `embeddings` falls
      *  back to `chat` when unset, so an existing single pin keeps working. */
@@ -894,6 +902,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureGPTModel: 'gpt-5.5',
     azureRoutingMode: 'model-based',
     azureDeployments: {},
+    azureClaudeViaOpenAIGateway: false,
     azureApiVersionOverride: {},
     azureCapabilities: {},   // seeded from observable state by migrateOldSettings; empty → defaultModeFor at resolve time
     // Azure AI Speech — public-safe empty defaults; no behaviour change when unset (plan #18).
@@ -1534,6 +1543,9 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     if (typeof s.azureGPTModel !== 'string') s.azureGPTModel = DEFAULT_SETTINGS.azureGPTModel;
     if (s.azureRoutingMode !== 'model-based' && s.azureRoutingMode !== 'deployment-based') {
         s.azureRoutingMode = DEFAULT_SETTINGS.azureRoutingMode;
+    }
+    if (typeof s.azureClaudeViaOpenAIGateway !== 'boolean') {
+        s.azureClaudeViaOpenAIGateway = DEFAULT_SETTINGS.azureClaudeViaOpenAIGateway;
     }
     if (typeof s.azureDeployments !== 'object' || s.azureDeployments === null) {
         s.azureDeployments = { ...DEFAULT_SETTINGS.azureDeployments };

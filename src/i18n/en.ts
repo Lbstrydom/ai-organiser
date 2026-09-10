@@ -169,6 +169,8 @@ export const en: Translations = {
                 chatDeploymentDesc: "Azure OpenAI deployment name for chat completions.",
                 embeddingsDeployment: "Embeddings deployment name",
                 embeddingsDeploymentDesc: "Azure OpenAI deployment name for embeddings.",
+                claudeViaGateway: "Route Claude through the OpenAI endpoint",
+                claudeViaGatewayDesc: "Off by default. Turn on only if your API gateway (e.g. API Management in front of your Foundry resource) rejects Claude requests with an authorization error even though your key works for chat/embeddings — some gateways only recognize the OpenAI-style key header on the Claude route, not native Anthropic auth. When on, Claude uses the same endpoint and key as your Azure OpenAI chat deployment.",
                 mainProviderChoice: "Main model",
                 mainProviderChoiceDesc: "Which Azure surface serves your main tasks. Both endpoints are still used automatically.",
                 providerAzureClaude: "Azure Claude",

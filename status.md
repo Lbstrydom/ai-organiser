@@ -1,5 +1,54 @@
 # Project Status Log
 
+### Consumer Verification (previous ship)
+
+**State: verified (content, config and the drift gate); test battery not re-run in the clone.**
+
+- **Locator**: `0bef971` on `main` (preceded by `cc34114`, the AGENTS.md condense).
+- **Retrieval actually run**: `git clone --depth 2 https://github.com/Lbstrydom/ai-organiser.git` into a scratch dir — a fresh consumer-side fetch, not a local re-read.
+- **Observed in the clone**: `AGENTS.md` blob `d1ea9d14` matches the local blob exactly (the 41 788 vs 41 920 figure is LF-normalized content vs CRLF on disk, not a discrepancy); `CLAUDE.md` is 52 lines with its `@./AGENTS.md` import at line 3; `docs/features/` carries all 9 files; `package.json` exposes `skills:hydrate`; `git status` is clean, so nothing that shipped depends on an ignored or case-folded path.
+- **Gate re-run against the clone**: `check-context-drift --strict` reports `OK No context drift detected` — the one gate this change exists to satisfy, verified on the fetched tree rather than inherited from the producer side.
+- **Not verified from the clone**: the test battery, which would need a full `npm ci` for a markdown + one-npm-script delta. `npm run lint && npm test && npm run test:auto && npm run build:quick` ran green on the byte-identical source tree locally (0 lint errors, 6563 passed / 2 skipped, 45/45 integration, build clean with all `verify:build` checks PASS). Producer-side evidence, explicitly not inherited as consumer-side proof.
+- **`skills:hydrate` was executed**, not merely added — it copied the tooling tree into this worktree successfully before being documented.
+
+## 2026-09-10 — Opt-in Claude-via-OpenAI-gateway routing for Azure ✅
+
+Some Azure API-management front-ends only recognize the OpenAI-style `api-key`
+header on the Claude/Anthropic passthrough route, not native `Authorization:
+Bearer` auth — a user whose gateway-issued key works fine for chat/embeddings/
+Whisper gets an unauthorized error on Claude specifically, even though the key
+is valid. Diagnosed via a live probe against a real Azure AI Foundry + API
+Management deployment: the same subscription key that fails with `Bearer`
+against the native Foundry host succeeds with `api-key` against the same
+`/anthropic/v1/messages` operation routed through the gateway.
+
+### Changes
+- **[src/core/settings.ts](src/core/settings.ts)** — new `azureClaudeViaOpenAIGateway: boolean` setting, default `false` (byte-identical for every existing install).
+- **[src/services/azure/endpointResolver.ts](src/services/azure/endpointResolver.ts)** — `getClaudeMessagesEndpoint()` targets `azureOpenAIEndpoint` instead of `azureAIEndpoint` when the setting is on.
+- **[src/services/azure/azureKey.ts](src/services/azure/azureKey.ts)** — Claude resolves the same key as the OpenAI surface (dedicated `azure-openai` secret, falling back to the shared Foundry secret) when gateway mode is on.
+- **[src/services/adapters/azureClaudeAdapter.ts](src/services/adapters/azureClaudeAdapter.ts)** — `getHeaders()` sends `api-key` instead of `Authorization: Bearer` in gateway mode, via a new `azureClaudeAuthHeader` config field threaded through `LLMServiceConfig` → `AdapterConfig` from `main.ts`/`cloudService.ts`.
+- **[src/services/azure/azureConnectionTest.ts](src/services/azure/azureConnectionTest.ts)** — `testClaudeSurface`/`testWebSearchSurface` share a `claudeAuthHeaders()` helper so the live "Test connection" button reflects the chosen mode.
+- **[src/services/research/adapters/claudeWebSearchAdapter.ts](src/services/research/adapters/claudeWebSearchAdapter.ts)** + **[researchSearchService.ts](src/services/research/researchSearchService.ts)** — web search (which shares the Claude surface) gets the same endpoint/header branch.
+- **[src/ui/settings/LLMSettingsSection.ts](src/ui/settings/LLMSettingsSection.ts)** + **[src/i18n/en.ts](src/i18n/en.ts)/[types.ts](src/i18n/types.ts)** — settings toggle: "Route Claude through the OpenAI endpoint."
+
+### Verification
+Full type-check clean, 45/45 automated integration checks, 6737 unit tests
+passed (2 skipped). Live-verified end-to-end against a real Azure deployment
+via the plugin's own Settings UI: with the toggle off, a gateway-only key gets
+`unauthorized — check key` on Azure Claude and Claude web search while OpenAI
+chat/embeddings/Whisper stay connected (the exact symptom this fixes); with the
+toggle on and the same key, all five of those surfaces connect. Restore to the
+original key + toggle state re-verified byte-identical afterward.
+
+### Decisions Made
+- Kept the mechanism generic (no tenant/org-specific naming in code, settings copy, or docs) since this ships in the public Obsidian plugin — any Azure AI Foundry deployment fronted by an API-management gateway can hit the same header mismatch.
+- Left Azure AI Speech on its existing native-key path untouched — out of scope for this change by design, not an oversight.
+
+### Next Steps
+None outstanding for this change. Rollout of the toggle to individual Azure users is an operational step outside this repo.
+
+---
+
 ## 2026-09-04 (b) — AGENTS.md condensed to invariants; CLAUDE.md given its two real notes ✅
 
 `check-context-drift --strict` had been reporting `ctx/oversized-agents-md` at **264 314 chars against a 92 000 cap** — 2.9x over, failing silently. Fixed by applying the progressive-disclosure split the cap exists to force, then filling in the one file the topology had left empty.

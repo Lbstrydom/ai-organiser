@@ -137,11 +137,19 @@ export class AzureClaudeAdapter extends BaseAdapter {
         if (!this.config.apiKey) {
             throw new Error('API key is required for Azure Claude');
         }
-        return {
+        const base = {
             'Content-Type': 'application/json',
             'anthropic-version': this.anthropicVersion,
-            'Authorization': `Bearer ${this.config.apiKey}`
         };
+        // Gateway mode (settings.ts azureClaudeViaOpenAIGateway): the request is
+        // routed through the same host as the OpenAI surface, whose API-management
+        // front-end recognizes the OpenAI-style `api-key` header, not native
+        // Anthropic Bearer auth. Default remains native Bearer — unchanged for
+        // every existing install.
+        if (this.config.azureClaudeAuthHeader === 'api-key') {
+            return { ...base, 'api-key': this.config.apiKey };
+        }
+        return { ...base, 'Authorization': `Bearer ${this.config.apiKey}` };
     }
 
     /**

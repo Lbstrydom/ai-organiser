@@ -76,6 +76,8 @@ interface EndpointSettings {
 	azureApiVersionOverride?: { whisper?: string; chat?: string; embeddings?: string };
 	/** Per-capability deployment SSOT (H1). Read first; legacy fields are the one-release fallback. */
 	azureCapabilities?: Partial<Record<string, { mode?: string; deployment?: string }>>;
+	/** See settings.ts — routes Claude through the OpenAI-compatible gateway host/auth. */
+	azureClaudeViaOpenAIGateway?: boolean;
 }
 
 /** Per-capability deployment is the SSOT (H1); legacy field is the fallback. */
@@ -138,6 +140,9 @@ export function normalizeEndpointUrl(raw: string): string {
 // ── Resolver Functions ──────────────────────────────────────────────────────
 
 export function getClaudeMessagesEndpoint(settings: EndpointSettings): ClaudeMessagesEndpoint {
+	if (settings.azureClaudeViaOpenAIGateway) {
+		return (normalizeEndpointUrl(settings.azureOpenAIEndpoint) + CLAUDE_MESSAGES_PATH) as ClaudeMessagesEndpoint;
+	}
 	return (normalizeEndpointUrl(settings.azureAIEndpoint) + CLAUDE_MESSAGES_PATH) as ClaudeMessagesEndpoint;
 }
 

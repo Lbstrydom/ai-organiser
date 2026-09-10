@@ -105,6 +105,11 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
              * `Authorization: Bearer` auth instead of direct Anthropic + `x-api-key`.
              */
             azureEndpointBase?: string;
+            /** Auth header to use when `azureEndpointBase` is set. Native Foundry
+             *  passthrough uses 'bearer' (default); a gateway/API-management front-end
+             *  that only recognizes the OpenAI-style key on this route needs 'api-key'
+             *  (settings.ts azureClaudeViaOpenAIGateway). */
+            azureAuthHeader?: 'bearer' | 'api-key';
         } = {},
     ) {}
 
@@ -539,9 +544,13 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         const headers: Record<string, string> = {
             'Content-Type': 'application/json',
             'anthropic-version': '2023-06-01',
-            // Azure uses Authorization: Bearer; direct Anthropic uses x-api-key.
+            // Azure native passthrough uses Authorization: Bearer; a gateway front-end
+            // routed via azureAuthHeader: 'api-key' uses the OpenAI-style header;
+            // direct Anthropic uses x-api-key.
             ...(this.isAzure
-                ? { 'Authorization': `Bearer ${apiKey}` }
+                ? (this.options.azureAuthHeader === 'api-key'
+                    ? { 'api-key': apiKey }
+                    : { 'Authorization': `Bearer ${apiKey}` })
                 : { 'x-api-key': apiKey }),
         };
         if (useDynamic) {

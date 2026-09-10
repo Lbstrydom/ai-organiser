@@ -161,6 +161,8 @@ export interface Translations {
                 chatDeploymentDesc: string;
                 embeddingsDeployment: string;
                 embeddingsDeploymentDesc: string;
+                claudeViaGateway: string;
+                claudeViaGatewayDesc: string;
                 mainProviderChoice: string;
                 mainProviderChoiceDesc: string;
                 providerAzureClaude: string;

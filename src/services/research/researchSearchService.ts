@@ -56,9 +56,14 @@ export class ResearchSearchService {
                     // Azure web search routes through the Foundry passthrough only when
                     // the websearch capability is in AZURE mode (H2 — don't hand the
                     // azure base to the Claude adapter when the user chose BYO/off).
+                    // Gateway mode (azureClaudeViaOpenAIGateway) reuses the OpenAI
+                    // endpoint + api-key header, same as the main Claude surface.
                     azureEndpointBase: wsAzure
-                        ? (plugin.settings.azureAIEndpoint?.trim().replace(/\/+$/, '') || undefined)
+                        ? ((plugin.settings.azureClaudeViaOpenAIGateway
+                            ? plugin.settings.azureOpenAIEndpoint
+                            : plugin.settings.azureAIEndpoint)?.trim().replace(/\/+$/, '') || undefined)
                         : undefined,
+                    azureAuthHeader: plugin.settings.azureClaudeViaOpenAIGateway ? 'api-key' : 'bearer',
                 },
             )],
         ]);

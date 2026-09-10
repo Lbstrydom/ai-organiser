@@ -866,7 +866,8 @@ export default class AIOrganiserPlugin extends Plugin {
                     modelName: cloudModel,
                     type: cloudType,
                     language: this.settings.language,
-                    thinkingMode: this.settings.claudeThinkingMode
+                    thinkingMode: this.settings.claudeThinkingMode,
+                    azureClaudeAuthHeader: this.settings.azureClaudeViaOpenAIGateway ? 'api-key' : 'bearer'
                 }, this.app);
         }
 
@@ -923,6 +924,7 @@ export default class AIOrganiserPlugin extends Plugin {
             type: route.type,
             language: this.settings.language,
             thinkingMode: this.settings.claudeThinkingMode,
+            azureClaudeAuthHeader: this.settings.azureClaudeViaOpenAIGateway ? 'api-key' : 'bearer'
         }, this.app);
         svc.setDebugMode(this.settings.debugMode);
         svc.setSummarizeTimeout(this.settings.summarizeTimeoutSeconds);

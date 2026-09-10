@@ -56,6 +56,16 @@ export interface AzureTestReport {
 	surfaces: AzureSurfaceResult[];
 }
 
+/** Claude auth headers, mirroring AzureClaudeAdapter.getHeaders() — native
+ *  Bearer by default, `api-key` when azureClaudeViaOpenAIGateway is on. */
+function claudeAuthHeaders(plugin: AIOrganiserPlugin, key: string): Record<string, string> {
+	const base = { 'Content-Type': 'application/json', 'anthropic-version': '2023-06-01' };
+	if (plugin.settings.azureClaudeViaOpenAIGateway) {
+		return { ...base, 'api-key': key };
+	}
+	return { ...base, 'Authorization': `Bearer ${key}` };
+}
+
 const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-4-6';
 const DEFAULT_GPT_MODEL = 'gpt-5.5';
 const DEFAULT_EMBED_MODEL = 'text-embedding-3-large';
@@ -126,11 +136,7 @@ async function testClaudeSurface(
 			: (plugin.settings.taskModels?.chat || DEFAULT_CLAUDE_MODEL);
 	const { status, raw } = await probe(
 		endpoint,
-		{
-			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${key}`,
-			'anthropic-version': '2023-06-01',
-		},
+		claudeAuthHeaders(plugin, key),
 		{ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] },
 		signal,
 	);
@@ -470,11 +476,7 @@ async function testWebSearchSurface(
 			: (plugin.settings.azureCapabilities?.websearch?.deployment || DEFAULT_CLAUDE_MODEL);
 	const { status, raw } = await probe(
 		endpoint,
-		{
-			'Content-Type': 'application/json',
-			'Authorization': `Bearer ${key}`,
-			'anthropic-version': '2023-06-01',
-		},
+		claudeAuthHeaders(plugin, key),
 		{ model, max_tokens: 8, messages: [{ role: 'user', content: 'ping' }] },
 		signal,
 	);

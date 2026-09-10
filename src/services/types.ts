@@ -42,6 +42,9 @@ export interface LLMServiceConfig {
     apiKey?: string;
     apiSecret?: string;
     language?: LanguageCode;
+    /** azure-claude only: 'api-key' when routed through the OpenAI-compatible
+     *  gateway (settings.ts azureClaudeViaOpenAIGateway), else native 'bearer'. */
+    azureClaudeAuthHeader?: 'bearer' | 'api-key';
 }
 
 export interface GenerateTagsResponse {

@@ -327,6 +327,16 @@ export class LLMSettingsSection extends BaseSettingSection {
                     }));
         }
 
+        new Setting(this.containerEl)
+            .setName(az.claudeViaGateway)
+            .setDesc(az.claudeViaGatewayDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.azureClaudeViaOpenAIGateway)
+                .onChange((value) => {
+                    this.plugin.settings.azureClaudeViaOpenAIGateway = value;
+                    void this.plugin.saveSettings();
+                }));
+
         // Live connection test — pre-flight validates config, then makes real
         // minimal round-trips to each configured Azure surface. Results render
         // per-surface (✓/✗ + redacted message) under the button.

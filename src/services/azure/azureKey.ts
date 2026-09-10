@@ -21,7 +21,13 @@ export async function getAzureApiKey(
         return plugin.settings.azureApiKey || null;
     }
 
-    if (provider === 'azure-claude') {
+    // Claude-via-gateway mode (settings.ts: azureClaudeViaOpenAIGateway) sends
+    // Claude requests through the same host/auth as the OpenAI surface — some
+    // API-management front-ends only recognize the OpenAI-style key there, not
+    // native Foundry Bearer auth. Resolve the same key OpenAI would in that case.
+    const claudeUsesOpenAIKey = provider === 'azure-claude' && plugin.settings.azureClaudeViaOpenAIGateway;
+
+    if (provider === 'azure-claude' && !claudeUsesOpenAIKey) {
         return await secretStorage.resolveApiKey({
             primaryId: PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY,
             useMainKeyFallback: false,
@@ -29,7 +35,8 @@ export async function getAzureApiKey(
         });
     }
 
-    // azure-openai: dedicated key first, then shared Foundry key, then plaintext.
+    // azure-openai (and azure-claude in gateway mode): dedicated key first,
+    // then shared Foundry key, then plaintext.
     const dedicated = await secretStorage.resolveApiKey({
         primaryId: PLUGIN_SECRET_IDS.AZURE_OPENAI,
         useMainKeyFallback: false,
