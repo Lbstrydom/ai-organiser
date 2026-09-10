@@ -10,6 +10,7 @@ interface MockOpts {
     azureSpeechRegion?: string;
     azureSpeechEndpoint?: string;
     azureApiKey?: string;
+    azureClaudeViaOpenAIGateway?: boolean;
     secrets?: Record<string, string>;
     secretsAvailable?: boolean;
     secretsThrow?: boolean;
@@ -23,6 +24,7 @@ function makePlugin(o: MockOpts = {}): any {
             azureSpeechRegion: o.azureSpeechRegion ?? '',
             azureSpeechEndpoint: o.azureSpeechEndpoint ?? '',
             azureApiKey: o.azureApiKey ?? '',
+            azureClaudeViaOpenAIGateway: o.azureClaudeViaOpenAIGateway ?? false,
         },
         secretStorageService: {
             isAvailable: () => o.secretsAvailable ?? true,
@@ -52,6 +54,24 @@ describe('resolveAzureSpeechCredential (plan D9)', () => {
 
     it('falls back to the shared Foundry key when no dedicated secret', async () => {
         const plugin = makePlugin({ secrets: { [PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY]: 'FOUNDRY-KEY' } });
+        const r = await resolveAzureSpeechCredential(plugin);
+        expect(r.ok).toBe(true);
+        if (r.ok) expect(r.value.key).toBe('FOUNDRY-KEY');
+    });
+
+    it('regression: still resolves the native Foundry key when gateway mode is on (2026-09-10)', async () => {
+        // azureClaudeViaOpenAIGateway redirects Claude's OWN key resolution to
+        // the dedicated OpenAI/APIM secret — but Speech shares the Foundry
+        // resource unconditionally and must never follow that redirect. A
+        // Cognitive Services surface rejects an APIM-shaped key outright.
+        const plugin = makePlugin({
+            azureClaudeViaOpenAIGateway: true,
+            azureSpeechRegion: 'swedencentral',
+            secrets: {
+                [PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY]: 'FOUNDRY-KEY',
+                [PLUGIN_SECRET_IDS.AZURE_OPENAI]: 'OPENAI-GATEWAY-KEY',
+            },
+        });
         const r = await resolveAzureSpeechCredential(plugin);
         expect(r.ok).toBe(true);
         if (r.ok) expect(r.value.key).toBe('FOUNDRY-KEY');

@@ -3,10 +3,11 @@
  *
  * Single source for "which key/endpoint/region does the azure-speech surface
  * use". Resolution order for the key: dedicated Speech secret
- * (`PLUGIN_SECRET_IDS.AZURE_SPEECH`) → shared Foundry key (`getAzureApiKey`,
+ * (`PLUGIN_SECRET_IDS.AZURE_SPEECH`) → shared Foundry key (`getFoundryApiKey`,
  * documented fallback — a Speech resource co-located with the Foundry resource
- * shares its key) → unavailable. NEVER the user's personal cloud key
- * (`useMainKeyFallback: false` everywhere — the Deepgram lesson).
+ * shares its NATIVE key, always, regardless of `azureClaudeViaOpenAIGateway` —
+ * see that function's doc comment) → unavailable. NEVER the user's personal
+ * cloud key (`useMainKeyFallback: false` everywhere — the Deepgram lesson).
  *
  * Readiness predicates are SEPARATE per operation (plan D10/H4): TTS needs
  * region + key (the `{region}.tts.speech.microsoft.com` host); Fast
@@ -21,7 +22,7 @@
 import type AIOrganiserPlugin from '../../main';
 import { type Result, ok, err } from '../../core/result';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
-import { getAzureApiKey } from './azureKey';
+import { getFoundryApiKey } from './azureKey';
 
 export interface AzureSpeechCredential {
     /** The `Ocp-Apim-Subscription-Key` value. */
@@ -44,7 +45,7 @@ async function resolveSpeechKey(plugin: AIOrganiserPlugin): Promise<string | nul
         // fall through to the shared Foundry key
     }
     try {
-        return await getAzureApiKey(plugin, 'azure-claude');
+        return await getFoundryApiKey(plugin);
     } catch {
         return null;
     }

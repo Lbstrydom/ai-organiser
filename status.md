@@ -1,5 +1,22 @@
 # Project Status Log
 
+## 2026-09-10 (d) — Azure Speech regression from gateway mode: `getAzureApiKey('azure-claude')` overloaded two different meanings ✅
+
+Field-caught via a live user's own vault: enabling `azureClaudeViaOpenAIGateway` (shipped earlier today) silently broke Azure AI Speech, which had nothing to do with Claude's routing at all.
+
+### Root cause
+`azureSpeechCredential.ts` resolved its shared-credential fallback via `getAzureApiKey(plugin, 'azure-claude')`, documented as "the shared Foundry key". That was true until gateway mode existed — `getAzureApiKey('azure-claude')` now means "whichever key Claude itself is currently routed to use", which in gateway mode is the dedicated OpenAI/APIM secret, not the native Foundry key. Speech is a Cognitive Services surface co-located with the Foundry resource; it always needs the native key regardless of how Claude is routed, and rejects an APIM-shaped key outright ("unauthorized").
+
+(Separately, in the field session that surfaced this, the actual native key had also been directly overwritten via a live settings-UI race — unrelated to this bug, but it initially looked like the same symptom and cost real diagnostic time before the two were told apart via a network-level check of the literal key bytes sent on the wire.)
+
+### Fix
+- **[src/services/azure/azureKey.ts](src/services/azure/azureKey.ts)** — new `getFoundryApiKey()`: always resolves the native `AZURE_AI_FOUNDRY` secret, independent of `azureClaudeViaOpenAIGateway`. `getAzureApiKey(plugin, 'azure-claude')` keeps its gateway-aware behavior for its other four call sites (`testClaudeSurface`, `testWebSearchSurface`, the websearch capability, PDF-via-Claude) — those genuinely want "whatever key Claude is using".
+- **[src/services/azure/azureSpeechCredential.ts](src/services/azure/azureSpeechCredential.ts)** — switched to `getFoundryApiKey()`.
+- **[tests/azureSpeechCredential.test.ts](tests/azureSpeechCredential.test.ts)** — regression test: gateway mode on + a dedicated OpenAI secret present → Speech still resolves the Foundry key, not the OpenAI one.
+
+### Verification
+Type-check clean, 12/12 azureSpeechCredential tests (1 new). Live-verified end-to-end in the field vault: all 7 Azure surfaces green after the fix, including both Speech rows.
+
 ### Consumer Verification (previous ship)
 
 **State: verified (content, type-check, integration suite, and the full unit-test battery — all in a fresh clone).**
