@@ -9719,6 +9719,14 @@
     margin: 4px 0 8px;
 }
 
+.ai-organiser-azure-import-textarea {
+    width: 100%;
+    min-height: 220px;
+    font-family: var(--font-monospace);
+    font-size: var(--font-ui-small);
+    resize: vertical;
+}
+
 .ai-organiser-azure-rpm-summary-list {
     color: var(--text-normal);
     font-variant-numeric: tabular-nums;

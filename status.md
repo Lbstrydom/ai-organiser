@@ -1,5 +1,29 @@
 # Project Status Log
 
+## 2026-09-10 (e) — Azure config export/import for team sync; default audio playback speed ✅
+
+Two independent, generic (non-tenant-specific) features requested in the same field session.
+
+### Azure config export/import
+A team sharing one Azure resource had been syncing config field-by-field over chat (endpoint values, routing mode, deployment names) — slow and error-prone (this is exactly how the earlier `gd-ai-dev-aif.openai.azure.com` endpoint mix-up happened). Added a generic settings snapshot mechanism, not a Wärtsilä-specific one — any team on a shared Azure resource has the same problem.
+
+- **[src/services/azure/azureConfigTransfer.ts](src/services/azure/azureConfigTransfer.ts)** (new) — `buildAzureConfigExport()`/`applyAzureConfigImport()`. Pure functions; export excludes `azureApiKey` and everything in SecretStorage by construction (the export shape simply has no field for it) — each person still enters their own key. Import type-checks every field from untrusted pasted JSON and skips anything malformed rather than throwing or coercing, mirroring the existing defensive style in `endpointResolver.ts`'s `capabilityDeployment`.
+- **[src/ui/modals/AzureConfigImportModal.ts](src/ui/modals/AzureConfigImportModal.ts)** (new) — paste-in target, standard modal lifecycle.
+- **[src/ui/settings/LLMSettingsSection.ts](src/ui/settings/LLMSettingsSection.ts)** — "Export config" (copies JSON to clipboard) / "Import config" buttons under the Azure section.
+- 8 new tests, including a defense-in-depth check that an `azureApiKey` field injected into the import payload is never applied even though nothing currently produces one.
+
+### Default audio playback speed
+`audioPlayerEnhancer.ts` (speed-control buttons under every `<audio>` embed — narration, newsletter audio, meeting recordings) hardcoded its starting speed to 1×, so a listener who always wants 2× had to click it on every single clip.
+
+- **[src/ui/components/audioPlayerEnhancer.ts](src/ui/components/audioPlayerEnhancer.ts)** — `PLAYBACK_SPEEDS` now exported (shared with the settings dropdown so the two lists can't drift); new `defaultSpeed` option on `EnhanceAudioOptions`, applied to `audio.playbackRate` and the initially-active speed button. An out-of-list value degrades to 1× rather than leaving no button active.
+- **[src/core/settings.ts](src/core/settings.ts)** — new `audioDefaultPlaybackSpeed` setting, default `1` (byte-identical for every existing install).
+- **[src/ui/settings/AudioNarrationSettingsSection.ts](src/ui/settings/AudioNarrationSettingsSection.ts)** — "Default playback speed" dropdown.
+- **[src/main.ts](src/main.ts)** — threads the setting into the one `enhanceAudioPlayersIn()` call site.
+- 4 new tests.
+
+### Verification
+Type-check clean. `node scripts/automated-tests.js`: 45/45. `npx vitest run`: 379 files / 6752 tests passed (13 new), 2/3 skipped. Production build clean, all `verify:build` checks PASS.
+
 ## 2026-09-10 (d) — Azure Speech regression from gateway mode: `getAzureApiKey('azure-claude')` overloaded two different meanings ✅
 
 Field-caught via a live user's own vault: enabling `azureClaudeViaOpenAIGateway` (shipped earlier today) silently broke Azure AI Speech, which had nothing to do with Claude's routing at all.

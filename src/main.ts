@@ -1123,7 +1123,7 @@ export default class AIOrganiserPlugin extends Plugin {
                         .catch((e) => logger.warn('Newsletter', 'Consumption signal threw', e));
                 }
                 : undefined;
-            const dispose = enhanceAudioPlayersIn(el, { onListened });
+            const dispose = enhanceAudioPlayersIn(el, { onListened, defaultSpeed: this.settings.audioDefaultPlaybackSpeed });
             this.register(dispose);
         });
 

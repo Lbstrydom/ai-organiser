@@ -406,6 +406,11 @@ export interface AIOrganiserSettings {
     audioNarrationCodeBlockMode: 'placeholder' | 'omit' | 'read-inline'; // Transformer behaviour for fenced code
     audioNarrationTableMode: 'row-prose' | 'header-summary' | 'omit';    // Transformer behaviour for tables
     audioNarrationImageMode: 'alt-text' | 'omit';                        // Transformer behaviour for images
+    /** Initial playbackRate applied to every enhanced <audio> embed (narration,
+     *  newsletter audio, meeting recordings) — one of audioPlayerEnhancer's
+     *  PLAYBACK_SPEEDS. Default 1 = byte-identical to pre-existing behavior;
+     *  a listener can still override per-clip with the speed buttons. */
+    audioDefaultPlaybackSpeed: number;
     // LLM enhancement pre-pass (off by default — zero behaviour change)
     audioNarrationLlmEnhancement: 'off' | 'on';                          // Master toggle for LLM markdown enhancement before TTS
     audioNarrationLlmProvider: 'gemini' | 'haiku';                       // Which LLM provider performs the enhancement
@@ -872,6 +877,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     audioNarrationCodeBlockMode: 'placeholder',
     audioNarrationTableMode: 'row-prose',
     audioNarrationImageMode: 'alt-text',
+    audioDefaultPlaybackSpeed: 1,
     audioNarrationLlmEnhancement: 'off',
     audioNarrationLlmProvider: 'gemini',
     llmEnhancerGeminiApiKey: '',

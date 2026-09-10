@@ -13,8 +13,7 @@
  * lose it between renders.
  */
 
-const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
-const DEFAULT_SPEED = 1;
+export const PLAYBACK_SPEEDS = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;
 const ENHANCED_ATTR = 'data-ai-organiser-speed-controls';
 
 /** Fraction of the media that must actually have PLAYED to count as listened. */
@@ -28,6 +27,13 @@ export interface EnhanceAudioOptions {
      * promises. Receives the element's `src`.
      */
     onListened?: (audioSrc: string) => void;
+    /**
+     * Playback rate applied to a freshly-enhanced `<audio>` element and shown
+     * as the initially-highlighted speed button. Must be one of
+     * `PLAYBACK_SPEEDS` — an out-of-list value degrades to 1 (no button would
+     * ever show as active otherwise). Defaults to 1 (unchanged behavior).
+     */
+    defaultSpeed?: number;
 }
 
 /** Elements already wired, so a re-render cannot double-attach. */
@@ -62,6 +68,9 @@ export function enhanceAudioPlayersIn(
 ): () => void {
     const cleanups: (() => void)[] = [];
     const audios = container.querySelectorAll<HTMLAudioElement>('audio');
+    const defaultSpeed = opts.defaultSpeed && (PLAYBACK_SPEEDS as readonly number[]).includes(opts.defaultSpeed)
+        ? opts.defaultSpeed
+        : 1;
 
     audios.forEach((audio) => {
         if (opts.onListened && !attached.has(audio)) {
@@ -72,7 +81,8 @@ export function enhanceAudioPlayersIn(
         if (audio.getAttribute(ENHANCED_ATTR) === 'true') return;
         audio.setAttribute(ENHANCED_ATTR, 'true');
 
-        const wrapper = createSpeedControls(audio);
+        audio.playbackRate = defaultSpeed;
+        const wrapper = createSpeedControls(audio, defaultSpeed);
         // Place controls immediately after the audio element so they stay
         // visually associated with their player even when multiple are
         // present on the same page.
@@ -111,7 +121,7 @@ function attachListenTracking(
     return () => { for (const e of events) audio.removeEventListener(e, evaluate); };
 }
 
-function createSpeedControls(audio: HTMLAudioElement): HTMLElement {
+function createSpeedControls(audio: HTMLAudioElement, defaultSpeed: number): HTMLElement {
     const wrapper = document.createElement('div');
     wrapper.className = 'ai-organiser-audio-speed-controls';
 
@@ -129,7 +139,7 @@ function createSpeedControls(audio: HTMLAudioElement): HTMLElement {
         btn.textContent = formatSpeedLabel(speed);
         btn.setAttribute('aria-label', `Set playback speed to ${speed}×`);
         btn.setAttribute('data-speed', String(speed));
-        if (speed === DEFAULT_SPEED) btn.classList.add('is-active');
+        if (speed === defaultSpeed) btn.classList.add('is-active');
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             audio.playbackRate = speed;

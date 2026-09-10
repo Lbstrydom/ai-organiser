@@ -11,6 +11,7 @@ import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { NARRATION_PROVIDERS, type NarrationProviderId } from '../../services/tts/ttsProviderRegistry';
 import { LLM_ENHANCEMENT_PROVIDERS } from '../../services/audioNarration/llmEnhancerProvider';
 import { estimateLlmEnhancementCostUsd } from '../../services/audioNarration/narrationCostEstimator';
+import { PLAYBACK_SPEEDS } from '../components/audioPlayerEnhancer';
 
 export class AudioNarrationSettingsSection extends BaseSettingSection {
     display(): void {
@@ -142,6 +143,25 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
                     this.plugin.settings.audioNarrationImageMode = value as 'alt-text' | 'omit';
                     void this.plugin.saveSettings();
                 }));
+
+        // Default playback speed — applies to every enhanced <audio> embed
+        // (narration, newsletter audio, meeting recordings), not just narration
+        // output. Per-clip, listeners can still override with the speed buttons
+        // under each player; this only sets what they start at.
+        new Setting(this.containerEl)
+            .setName(t.defaultPlaybackSpeed)
+            .setDesc(t.defaultPlaybackSpeedDesc)
+            .addDropdown(dropdown => {
+                for (const speed of PLAYBACK_SPEEDS) {
+                    dropdown.addOption(String(speed), `${speed}×`);
+                }
+                dropdown
+                    .setValue(String(this.plugin.settings.audioDefaultPlaybackSpeed))
+                    .onChange(value => {
+                        this.plugin.settings.audioDefaultPlaybackSpeed = Number.parseFloat(value);
+                        void this.plugin.saveSettings();
+                    });
+            });
 
         // Info box
         const info = this.containerEl.createDiv({ cls: 'ai-organiser-settings-info' });

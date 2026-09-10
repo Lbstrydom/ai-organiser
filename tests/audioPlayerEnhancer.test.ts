@@ -158,3 +158,31 @@ describe('enhanceAudioPlayersIn — listen detection', () => {
         expect(LISTENED_RATIO).toBeLessThan(1);
     });
 });
+
+describe('enhanceAudioPlayersIn — default playback speed', () => {
+    it('applies the configured default speed to a freshly-enhanced element', () => {
+        const a = makeAudio(100);
+        enhanceAudioPlayersIn(mount(a.el), { defaultSpeed: 2 });
+        expect(a.el.playbackRate).toBe(2);
+    });
+
+    it('defaults to 1× when no speed is configured — unchanged behavior', () => {
+        const a = makeAudio(100);
+        enhanceAudioPlayersIn(mount(a.el));
+        expect(a.el.playbackRate).toBe(1);
+    });
+
+    it('highlights the matching speed button as active, not always 1×', () => {
+        const a = makeAudio(100);
+        const container = mount(a.el);
+        enhanceAudioPlayersIn(container, { defaultSpeed: 1.5 });
+        const active = container.querySelector('.ai-organiser-audio-speed-btn.is-active');
+        expect(active?.getAttribute('data-speed')).toBe('1.5');
+    });
+
+    it('degrades to 1× for an out-of-list value rather than applying garbage', () => {
+        const a = makeAudio(100);
+        enhanceAudioPlayersIn(mount(a.el), { defaultSpeed: 3.7 as never });
+        expect(a.el.playbackRate).toBe(1);
+    });
+});

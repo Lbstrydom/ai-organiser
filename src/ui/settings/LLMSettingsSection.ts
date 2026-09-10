@@ -11,6 +11,7 @@ import {
 } from '../../services/adapters/dynamicModelService';
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
+import { AzureConfigImportModal } from '../modals/AzureConfigImportModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
 import { AzureCapabilitiesSettingsSection } from './AzureCapabilitiesSettingsSection';
 
@@ -371,6 +372,50 @@ export class LLMSettingsSection extends BaseSettingSection {
                 .onChange((value) => {
                     this.plugin.settings.azureClaudeViaOpenAIGateway = value;
                     void this.plugin.saveSettings();
+                }));
+
+        // Config export/import — copies every Azure setting on this screen
+        // (endpoints, routing, deployment names, RPM overrides, default model,
+        // Speech region/voice) as one JSON blob so a team on a shared Azure
+        // resource can sync in one paste instead of a field-by-field
+        // walkthrough. NEVER includes the API key — each person still enters
+        // their own.
+        new Setting(this.containerEl)
+            .setName(az.configTransfer)
+            .setDesc(az.configTransferDesc)
+            .addButton(button => button
+                .setButtonText(az.exportButton)
+                .onClick(async () => {
+                    const { buildAzureConfigExport } = await import('../../services/azure/azureConfigTransfer');
+                    const json = JSON.stringify(buildAzureConfigExport(this.plugin.settings), null, 2);
+                    try {
+                        await navigator.clipboard.writeText(json);
+                        new Notice(az.exportCopied);
+                    } catch {
+                        new Notice(az.exportCopyFailed);
+                    }
+                }))
+            .addButton(button => button
+                .setButtonText(az.importButton)
+                .onClick(() => {
+                    new AzureConfigImportModal(this.plugin.app, async (raw) => {
+                        const { applyAzureConfigImport } = await import('../../services/azure/azureConfigTransfer');
+                        let parsed: unknown;
+                        try {
+                            parsed = JSON.parse(raw);
+                        } catch {
+                            new Notice(az.importInvalidJson);
+                            return;
+                        }
+                        const result = applyAzureConfigImport(this.plugin.settings, parsed);
+                        if (!result.ok) {
+                            new Notice(az.importNoFields);
+                            return;
+                        }
+                        await this.plugin.saveSettings();
+                        new Notice(az.importApplied.replace('{count}', String(result.appliedFields.length)));
+                        this.settingTab.display();
+                    }).open();
                 }));
 
         // Live connection test — pre-flight validates config, then makes real

@@ -131,6 +131,15 @@ export interface Translations {
                 customModelName: string;
                 customModelNameDesc: string;
                 customModelNamePlaceholder: string;
+                configTransfer: string;
+                configTransferDesc: string;
+                exportButton: string;
+                importButton: string;
+                exportCopied: string;
+                exportCopyFailed: string;
+                importInvalidJson: string;
+                importNoFields: string;
+                importApplied: string;
                 testConfig: string;
                 testConfigDesc: string;
                 testButton: string;
@@ -890,6 +899,8 @@ export interface Translations {
             outputFolderDesc: string;
             embedInNote: string;
             embedInNoteDesc: string;
+            defaultPlaybackSpeed: string;
+            defaultPlaybackSpeedDesc: string;
             infoBox: string;
             modes: {
                 codeBlockLabel: string;
