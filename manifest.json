@@ -1,10 +1,10 @@
 {
-  "id": "ai-organiser",
-  "name": "AI Organiser",
-  "version": "1.0.21",
-  "minAppVersion": "1.11.4",
-  "description": "AI-powered note organization with 50+ commands: tagging, summarization, web research, meeting minutes, presentations, semantic search, Kindle sync, and more. Supports 14 cloud providers and local LLMs.",
-  "author": "L Strydom",
-  "authorUrl": "https://github.com/Lbstrydom",
-  "isDesktopOnly": false
+	"id": "ai-organiser",
+	"name": "AI Organiser",
+	"version": "1.0.22",
+	"minAppVersion": "1.11.4",
+	"description": "AI-powered note organization with 50+ commands: tagging, summarization, web research, meeting minutes, presentations, semantic search, Kindle sync, and more. Supports 14 cloud providers and local LLMs.",
+	"author": "L Strydom",
+	"authorUrl": "https://github.com/Lbstrydom",
+	"isDesktopOnly": false
 }
