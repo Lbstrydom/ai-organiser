@@ -1,5 +1,23 @@
 # Project Status Log
 
+## 2026-09-11 — Azure Speech API key field silently never reached SecretStorage ✅
+
+Field-caught, live, on a second device: a byte-verified-correct key pasted into "Speech API key (optional)" produced "unauthorized — check key" every time, with the exact same key working fine when used for the main "Azure API key" field on the same device minutes earlier.
+
+### Root cause
+The Speech key field's `onChange` set `settings.azureSpeechApiKey` as plaintext and called `saveSettings()`, with a comment claiming it was "migrated to SecretStorage (AZURE_SPEECH) on save." That migration only actually happens via `secretStorageService.migrateFromPlainText()` — called from exactly one place, a "Migrate" button gated on `hasPlainTextKeys()`. That gate checked `cloudApiKey`/`embeddingApiKey`/`youtubeGeminiApiKey`/`pdfApiKey`/`audioTranscriptionApiKey` — **never `azureSpeechApiKey`**. On a fresh install with no other plaintext key pending, the button never rendered at all — there was no UI path to migrate this field, ever. `resolveAzureSpeechCredential` only reads `secretStorage.getSecret(AZURE_SPEECH)`, never the plaintext setting directly, so a correctly-entered key sat inert and every Speech call silently fell back to the shared Foundry key resolution chain instead — which, on a device configured for the tracked-APIM pattern (see the Sonnet 5 / gateway-mode work below), resolves to the wrong key entirely.
+
+The main "Azure API key" field never had this problem — it has its own dedicated `migrateAzureSecretOnLoad()`, called on every plugin reinit, independent of the generic bulk-migrate button. The Speech field was the one path that relied on the button and got missed.
+
+### Fix
+- **[src/ui/settings/AzureCapabilitiesSettingsSection.ts](src/ui/settings/AzureCapabilitiesSettingsSection.ts)** — the Speech API key field now calls `secretStorageService.setSecret(AZURE_SPEECH, ...)` directly in `onChange`, immediately, then clears the plaintext field — matching what the field's own comment already claimed happened. Falls back to plaintext with a new warning Notice when SecretStorage genuinely isn't available on the platform, rather than silently doing nothing.
+- **[src/ui/settings/LLMSettingsSection.ts](src/ui/settings/LLMSettingsSection.ts)** — added `azureSpeechApiKey` to `hasPlainTextKeys()`, so anyone who already hit this bug (a value stuck in plaintext from before this fix) gets the "Migrate" button as a safety net instead of a second silent dead end.
+- **[src/i18n/en.ts](src/i18n/en.ts)/[types.ts](src/i18n/types.ts)** — new `apiKeyNoSecretStorage` string.
+- 3 new tests in [tests/azureCapabilitiesSettingsSection.test.ts](tests/azureCapabilitiesSettingsSection.test.ts) pinning: immediate migration + plaintext clear, no-op on empty input, and the no-SecretStorage fallback.
+
+### Verification
+Type-check clean. `npx vitest run`: 379 files / 6755 tests passed (3 new), 2/3 skipped. Production build clean, all `verify:build` checks PASS.
+
 ## 2026-09-10 (e) — Azure config export/import for team sync; default audio playback speed ✅
 
 Two independent, generic (non-tenant-specific) features requested in the same field session.

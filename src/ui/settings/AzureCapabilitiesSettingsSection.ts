@@ -18,6 +18,7 @@ import {
 } from '../../services/azure/azureCapabilities';
 import { capabilityChoice, isByoConfigured } from '../../services/azure/resolveAzureCapability';
 import { resolveAzureSpeechCredential, isAzureSpeechFastTranscriptionConfigured } from '../../services/azure/azureSpeechCredential';
+import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 import { listVoices, clearVoiceCatalogCache } from '../../services/tts/voiceCatalogService';
 
 export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
@@ -104,9 +105,42 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                 text.inputEl.type = 'password';
                 text.setValue(s.azureSpeechApiKey ?? '');
                 text.onChange((value) => {
-                    // Transient — migrated to SecretStorage (AZURE_SPEECH) on save.
-                    s.azureSpeechApiKey = value;
-                    void this.plugin.saveSettings();
+                    // Migrate into SecretStorage IMMEDIATELY, the same way
+                    // migrateAzureSecretOnLoad does for the main Azure key —
+                    // do NOT rely on the generic bulk migrateFromPlainText()
+                    // flow. That flow only runs from a "Migrate" button gated
+                    // on hasPlainTextKeys(), which does not check
+                    // azureSpeechApiKey at all: on a fresh install with no
+                    // OTHER plaintext key pending, that button never renders,
+                    // so a value typed here would sit inert forever and
+                    // resolveAzureSpeechCredential would silently fall back to
+                    // the shared Foundry key instead (regression found
+                    // 2026-09-11 — a correctly-entered key produced
+                    // "unauthorized" with no way to tell why from the UI).
+                    const secretStorage = this.plugin.secretStorageService;
+                    const trimmed = value.trim();
+                    if (!trimmed) {
+                        s.azureSpeechApiKey = '';
+                        void this.plugin.saveSettings();
+                        return;
+                    }
+                    if (!secretStorage.isAvailable()) {
+                        // No secure store on this platform — plaintext is the
+                        // only option; resolveAzureSpeechCredential's dedicated
+                        // getSecret() branch is skipped when unavailable, but
+                        // getFoundryApiKey's own plainTextFallback still reads
+                        // settings.azureApiKey, never this field, so leaving it
+                        // here would be silently ignored the same way. Warn
+                        // rather than pretend it took effect.
+                        s.azureSpeechApiKey = value;
+                        void this.plugin.saveSettings();
+                        new Notice(t.apiKeyNoSecretStorage);
+                        return;
+                    }
+                    void secretStorage.setSecret(PLUGIN_SECRET_IDS.AZURE_SPEECH, trimmed).then(async () => {
+                        s.azureSpeechApiKey = '';
+                        await this.plugin.saveSettings();
+                    });
                 });
             });
 

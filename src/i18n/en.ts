@@ -404,6 +404,7 @@ export const en: Translations = {
             deriveEndpointDone: "Speech endpoint filled from your main Azure resource — run Test connection to verify",
             apiKey: "Speech API key (optional)",
             apiKeyDesc: "Leave empty — the main Azure AI Foundry key is used automatically. Only fill this when your Speech resource has its own separate key.",
+            apiKeyNoSecretStorage: "Saved as plain text — this device has no secure key storage available, so it's stored unencrypted in settings.",
             voice: "Voice",
             voiceDesc: "Voice used for narration and podcasts. Required — text-to-speech stays unavailable until a voice is chosen.",
             voicePlaceholder: "en-US-AvaNeural",

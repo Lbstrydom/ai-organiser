@@ -1195,7 +1195,8 @@ export class LLMSettingsSection extends BaseSettingSection {
             settings.embeddingApiKey ||
             settings.youtubeGeminiApiKey ||
             settings.pdfApiKey ||
-            settings.audioTranscriptionApiKey) {
+            settings.audioTranscriptionApiKey ||
+            settings.azureSpeechApiKey) {
             return true;
         }
 

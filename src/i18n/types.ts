@@ -383,7 +383,7 @@ export interface Translations {
             region: string; regionDesc: string; regionPlaceholder: string;
             endpoint: string; endpointDesc: string; endpointPlaceholder: string;
             deriveEndpoint: string; deriveEndpointDesc: string; deriveEndpointDone: string;
-            apiKey: string; apiKeyDesc: string;
+            apiKey: string; apiKeyDesc: string; apiKeyNoSecretStorage: string;
             voice: string; voiceDesc: string; voicePlaceholder: string;
             browseVoices: string; voicePickerPlaceholder: string; voicePicked: string;
             maxSpeakers: string; maxSpeakersDesc: string;
