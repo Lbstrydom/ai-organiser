@@ -54,6 +54,18 @@ jobs:
     # `ai-organiser-runner` is registered against this repo for this job.
     runs-on: self-hosted
     timeout-minutes: 30
+    # Every `run:` step below is POSIX (bash `if [ ]`, $GITHUB_OUTPUT appends,
+    # heredocs). Actions defaults `run:` to PowerShell on Windows, where none
+    # of that parses — confirmed 2026-09-13: `test -f` failed with "The term
+    # 'test' is not recognized" the moment this job moved off ubuntu-latest.
+    # GIT BASH BY ABSOLUTE 8.3 SHORT PATH, not `shell: bash`: this runner
+    # splits the shell string on the first space to find the interpreter, so
+    # `C:\Program Files\Git\bin\bash.exe` parses as the command `C:\Program`
+    # plus a stray argument. `PROGRA~1` has no space. See storyline's
+    # architectural-drift.yml for the same fix, independently required there.
+    defaults:
+      run:
+        shell: 'C:\PROGRA~1\Git\bin\bash.exe -eo pipefail {0}'
     steps:
       - name: Checkout
         uses: actions/checkout@v7
