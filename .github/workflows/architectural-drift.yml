@@ -7,8 +7,8 @@ name: architectural-drift
 # the edit is invisible to upstream review and the bug persists for every
 # other consumer. Fix it upstream and re-deploy.
 #
-# Adapted from the source-repo original for the CONSUMER layout. Three
-# deliberate differences, each load-bearing:
+# Adapted from the source-repo original for the CONSUMER layout. Deliberate
+# differences, each load-bearing:
 #
 #   1. HYDRATION. The audit-loop tooling lives under scripts/.claude-skills/,
 #      which this repo gitignores — so it is ABSENT from a fresh CI checkout
@@ -18,9 +18,15 @@ name: architectural-drift
 #      scripts, never by hardcoded path: upstream's
 #      scripts/symbol-index/drift.mjs is scripts/.claude-skills/symbol-index/
 #      drift.mjs here, and the consumer path map is not ours to hand-compute.
-#   3. HARD PREFLIGHT. Upstream warns-and-skips on a missing DSN, which makes
-#      an unprovisioned secret report conclusion:success having checked
-#      nothing. This copy fails instead. See the step comment.
+#   3. HARD PREFLIGHT. This copy has always failed loud on a missing DSN
+#      (upstream warned-and-skipped until 2026-09-13, when it adopted the
+#      same hard-fail here — no longer a divergence, kept as history).
+#   4. SELF-HOSTED RUNNER (2026-09-13). AUDIT_DB_URL points at a private-LAN
+#      NAS; a GitHub-hosted runner has no route to it at all. This ran on
+#      ubuntu-latest — correctly failing every scheduled run via #3 above,
+#      never a false green — from this workflow's introduction until
+#      2026-09-13, when `ai-organiser-runner` was registered specifically to
+#      fix the reachability, not just detect its absence.
 
 on:
   schedule:
@@ -38,7 +44,15 @@ concurrency:
 
 jobs:
   drift:
-    runs-on: ubuntu-latest
+    # SELF-HOSTED, not ubuntu-latest. AUDIT_DB_URL points at a private-LAN NAS
+    # address — a GitHub-hosted runner has no route to that network at all, a
+    # routing impossibility no secret can fix. This ran on ubuntu-latest for
+    # this workflow's entire history and correctly FAILED every scheduled run
+    # (measured 2026-09-13: 5 consecutive failures since 2026-08-10) — the
+    # "hard preflight" below did its job, but the underlying reachability
+    # problem needed a runner that's actually on that network.
+    # `ai-organiser-runner` is registered against this repo for this job.
+    runs-on: self-hosted
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -89,7 +103,7 @@ jobs:
       - name: Refresh architectural memory (full)
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
-          AUDIT_DB_SSL_MODE: no-verify
+          AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: npm run arch:refresh:full || true
@@ -98,7 +112,7 @@ jobs:
         id: drift
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
-          AUDIT_DB_SSL_MODE: no-verify
+          AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
         run: |
           set +e
           npm run arch:drift -- --out /tmp/architectural-drift.md
@@ -112,7 +126,7 @@ jobs:
       - name: Run retention prune
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
-          AUDIT_DB_SSL_MODE: no-verify
+          AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
         run: npm run arch:prune || true
 
       # NOTE: upstream gates this on hashFiles('/tmp/architectural-drift.md'),

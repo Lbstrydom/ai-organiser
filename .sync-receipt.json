@@ -1,20 +1,47 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 59,
+  "olderSyncsDropped": 76,
   "recentSyncs": [
     {
-      "syncedAt": "2026-09-08T05:40:00.865Z",
+      "syncedAt": "2026-09-13T10:10:41.411Z",
       "source": {
         "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "aba8f8b5fd3dffc9a2f6b8c620861d8cd5cbb379",
+        "branch": "claude/cadence-doctor-measurement-detection-7016a8",
+        "commitSha": "79919ff747b7fedd5ffd40ce95aa67579a4c4b9f",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 2,
+        "unchanged": 800,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/maintenance-checks.mjs",
+        "scripts/.claude-skills/symbol-index/drift.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-13T09:38:07.894Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/cadence-doctor-measurement-detection-7016a8",
+        "commitSha": "988c4b6758577813ad4355191497806d26dfef93",
         "sourceDirty": false
       },
       "counts": {
         "created": 0,
         "updated": 0,
-        "unchanged": 797,
+        "unchanged": 802,
         "gcDeleted": 0,
         "overridesHeld": 0,
         "divergedOverwritten": 0,
@@ -28,15 +55,149 @@
       "divergenceRefused": []
     },
     {
-      "syncedAt": "2026-09-08T05:27:24.057Z",
+      "syncedAt": "2026-09-13T09:20:56.280Z",
       "source": {
         "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "1250f8cc78f0cb0f84d88fd5bfd31bb06987bb61",
+        "branch": "claude/cadence-doctor-measurement-detection-7016a8",
+        "commitSha": "cf4c75f340e1f29e62080ac5f3b5c5b7f2bb370d",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 1,
+        "updated": 1,
+        "unchanged": 800,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/measurement-marker.mjs"
+      ],
+      "updated": [
+        "scripts/.claude-skills/workflow-cadence-doctor.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-12T21:37:07.673Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/backlog-triage-65fe78",
+        "commitSha": "979e497a43ec897557571077334304a5f98b25f2",
         "sourceDirty": false
       },
       "counts": {
         "created": 0,
+        "updated": 0,
+        "unchanged": 801,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-12T21:24:51.339Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/backlog-triage-65fe78",
+        "commitSha": "403a80d93e7d2d36b366fe91784e662a3af56b33",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 4,
+        "unchanged": 797,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        ".claude/skills/brainstorm/SKILL.md",
+        ".claude/skills/cycle/SKILL.md",
+        ".claude/skills/ship/SKILL.md",
+        ".claude/skills/ux-lock/SKILL.md"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-12T20:58:11.511Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/ship-skill-audit-url-d65ea9",
+        "commitSha": "8346705858cd08e56c51208f0fc3b72fc8258877",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 1,
+        "unchanged": 800,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        ".claude/skills/ship/SKILL.md"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-12T19:36:23.953Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/backlog-triage-65fe78",
+        "commitSha": "dfe57eaed8ad7dc2f621955efed5c7dd0bd59815",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 2,
+        "unchanged": 799,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/debt-ledger-claims-check.mjs",
+        "scripts/.claude-skills/lib/debt-ledger-claim-check.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-10T08:44:35.323Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/mouse-without-borders-audit-b408ed",
+        "commitSha": "534d7550cc83a7f864aed510ad4561a32c3252dd",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 4,
         "updated": 2,
         "unchanged": 795,
         "gcDeleted": 0,
@@ -44,65 +205,15 @@
         "divergedOverwritten": 0,
         "divergenceRefused": 0
       },
-      "created": [],
-      "updated": [
-        "scripts/.claude-skills/brainstorm-round.mjs",
-        "scripts/.claude-skills/lib/brainstorm/depth-config.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-07T18:30:20.389Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/gemini-flash-3-8-review-484b93",
-        "commitSha": "0d72d185234d927a6d0305755259a7f96b88d9db",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 0,
-        "unchanged": 797,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-07T17:21:19.091Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/gemini-flash-3-8-review-484b93",
-        "commitSha": "63e9515823a80e4327ff8781d5047ca583026c43",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 2,
-        "updated": 3,
-        "unchanged": 792,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
       "created": [
-        "scripts/.claude-skills/lib/env-alias.mjs",
-        "scripts/.claude-skills/lib/final-review-config.mjs"
+        "scripts/.claude-skills/lib/sync-divergence.mjs",
+        "scripts/.claude-skills/lib/sync-receipt.mjs",
+        "scripts/.claude-skills/lib/sync-status.mjs",
+        "scripts/.claude-skills/sync-status.mjs"
       ],
       "updated": [
-        "scripts/.claude-skills/gemini-review.mjs",
-        "scripts/.claude-skills/lib/config.mjs",
-        "scripts/.claude-skills/lib/db/client.mjs"
+        "scripts/.claude-skills/lib/sync-isolation-verify.mjs",
+        "scripts/.claude-skills/lib/sync-manifest.mjs"
       ],
       "gcDeleted": [],
       "overridesHeld": [],
@@ -110,117 +221,69 @@
       "divergenceRefused": []
     },
     {
-      "syncedAt": "2026-09-07T17:00:41.121Z",
+      "syncedAt": "2026-09-10T08:30:36.796Z",
       "source": {
         "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/gemini-flash-3-8-review-484b93",
-        "commitSha": "bfd8b8b5b8f884383e21e3648880967ce14f7845",
+        "branch": "claude/mouse-without-borders-audit-b408ed",
+        "commitSha": "1a5cf2127bc441625e465792b02272607140c032",
         "sourceDirty": false
       },
       "counts": {
         "created": 0,
-        "updated": 1,
-        "unchanged": 794,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [
-        "scripts/.claude-skills/lib/config.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-07T14:48:38.824Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/gemini-flash-3-8-review-484b93",
-        "commitSha": "de4fb945b0f8386eb2f2c2afabb88ffb41d82274",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 0,
-        "unchanged": 795,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-07T14:37:56.445Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/gemini-flash-3-8-review-484b93",
-        "commitSha": "2eac28f10132b2fad41394c090f04fb515eb64f3",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 1,
-        "unchanged": 794,
-        "gcDeleted": 0,
+        "updated": 22,
+        "unchanged": 775,
+        "gcDeleted": 4,
         "overridesHeld": 0,
         "divergedOverwritten": 0,
         "divergenceRefused": 0
       },
       "created": [],
       "updated": [
-        "scripts/.claude-skills/lib/store/model-ab.mjs"
+        ".claude/skills/audit-code/SKILL.md",
+        ".claude/skills/audit-code/references/debt-capture.md",
+        ".claude/skills/audit-code/references/gemini-gate.md",
+        ".claude/skills/audit-code/references/ledger-format.md",
+        ".claude/skills/audit-code/references/r2-plus-mode.md",
+        ".claude/skills/audit-plan/SKILL.md",
+        ".claude/skills/audit-plan/references/gemini-gate.md",
+        ".claude/skills/audit-plan/references/ledger-format.md",
+        ".claude/skills/click-test/SKILL.md",
+        ".claude/skills/cycle/SKILL.md",
+        ".claude/skills/explain/SKILL.md",
+        ".claude/skills/persona-test/SKILL.md",
+        ".claude/skills/persona-test/references/interop.md",
+        ".claude/skills/persona-test/references/session-history.md",
+        ".claude/skills/plan/SKILL.md",
+        ".claude/skills/ship/SKILL.md",
+        ".claude/skills/skills/SKILL.md",
+        ".claude/skills/ux-lock/SKILL.md",
+        ".claude/skills/ux-lock/references/lock-mode-spec-generation.md",
+        ".claude/skills/ux-lock/references/verify-mode-generation.md",
+        "scripts/.claude-skills/lib/sync-isolation-verify.mjs",
+        "scripts/.claude-skills/lib/sync-manifest.mjs"
       ],
-      "gcDeleted": [],
+      "gcDeleted": [
+        "scripts/.claude-skills/lib/sync-divergence.mjs",
+        "scripts/.claude-skills/lib/sync-receipt.mjs",
+        "scripts/.claude-skills/lib/sync-status.mjs",
+        "scripts/.claude-skills/sync-status.mjs"
+      ],
       "overridesHeld": [],
       "divergedOverwritten": [],
       "divergenceRefused": []
     },
     {
-      "syncedAt": "2026-09-07T13:08:05.063Z",
+      "syncedAt": "2026-09-10T07:49:58.504Z",
       "source": {
         "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/epic-thompson-00502e",
-        "commitSha": "e4973cad3d547756e56666444e3b087b3d9d7149",
+        "branch": "claude/skills-sync-output-drift-36a260",
+        "commitSha": "64d214db131019405bba0c4e6c5dc3e412ca9bef",
         "sourceDirty": false
       },
       "counts": {
         "created": 0,
-        "updated": 0,
-        "unchanged": 795,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-07T12:35:59.903Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/gemini-flash-3-8-review-484b93",
-        "commitSha": "9e4e4d239024b85b5e1bec5754facc8f50b6c32f",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 7,
-        "unchanged": 788,
+        "updated": 3,
+        "unchanged": 798,
         "gcDeleted": 0,
         "overridesHeld": 0,
         "divergedOverwritten": 0,
@@ -228,38 +291,10 @@
       },
       "created": [],
       "updated": [
-        "scripts/.claude-skills/lib/brainstorm/pricing.mjs",
-        "scripts/.claude-skills/lib/config.mjs",
-        "scripts/.claude-skills/lib/model-eval/contracts.mjs",
-        "scripts/.claude-skills/lib/model-eval/route-catalog.mjs",
-        "scripts/.claude-skills/lib/model-pricing.mjs",
-        "scripts/.claude-skills/lib/store/model-ab.mjs",
-        "scripts/.claude-skills/lib/store/repo.mjs"
+        "scripts/.claude-skills/lib/sync-manifest.mjs",
+        "scripts/.claude-skills/lib/sync-status.mjs",
+        "scripts/.claude-skills/sync-status.mjs"
       ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-07T10:58:32.357Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/ship-gate-persona-repo-54be5a",
-        "commitSha": "a003fa9a3fb417de187987fb39cf6e31e873216b",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 0,
-        "unchanged": 795,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [],
       "gcDeleted": [],
       "overridesHeld": [],
       "divergedOverwritten": [],
