@@ -1,8 +1,59 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 76,
+  "olderSyncsDropped": 78,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-09-13T11:36:44.710Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/cadence-doctor-measurement-detection-7016a8",
+        "commitSha": "ba931683a371b03d2b581157b3e0440d6ea75748",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 802,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
+    {
+      "syncedAt": "2026-09-13T11:30:21.724Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/cadence-doctor-measurement-detection-7016a8",
+        "commitSha": "ac3283bf462efc08483642277ed1b7ef0a66a71a",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 2,
+        "unchanged": 800,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/symbol-index/refresh-lock.mjs",
+        "scripts/.claude-skills/symbol-index/refresh.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": []
+    },
     {
       "syncedAt": "2026-09-13T10:10:41.411Z",
       "source": {
@@ -214,86 +265,6 @@
       "updated": [
         "scripts/.claude-skills/lib/sync-isolation-verify.mjs",
         "scripts/.claude-skills/lib/sync-manifest.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-10T08:30:36.796Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/mouse-without-borders-audit-b408ed",
-        "commitSha": "1a5cf2127bc441625e465792b02272607140c032",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 22,
-        "unchanged": 775,
-        "gcDeleted": 4,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [
-        ".claude/skills/audit-code/SKILL.md",
-        ".claude/skills/audit-code/references/debt-capture.md",
-        ".claude/skills/audit-code/references/gemini-gate.md",
-        ".claude/skills/audit-code/references/ledger-format.md",
-        ".claude/skills/audit-code/references/r2-plus-mode.md",
-        ".claude/skills/audit-plan/SKILL.md",
-        ".claude/skills/audit-plan/references/gemini-gate.md",
-        ".claude/skills/audit-plan/references/ledger-format.md",
-        ".claude/skills/click-test/SKILL.md",
-        ".claude/skills/cycle/SKILL.md",
-        ".claude/skills/explain/SKILL.md",
-        ".claude/skills/persona-test/SKILL.md",
-        ".claude/skills/persona-test/references/interop.md",
-        ".claude/skills/persona-test/references/session-history.md",
-        ".claude/skills/plan/SKILL.md",
-        ".claude/skills/ship/SKILL.md",
-        ".claude/skills/skills/SKILL.md",
-        ".claude/skills/ux-lock/SKILL.md",
-        ".claude/skills/ux-lock/references/lock-mode-spec-generation.md",
-        ".claude/skills/ux-lock/references/verify-mode-generation.md",
-        "scripts/.claude-skills/lib/sync-isolation-verify.mjs",
-        "scripts/.claude-skills/lib/sync-manifest.mjs"
-      ],
-      "gcDeleted": [
-        "scripts/.claude-skills/lib/sync-divergence.mjs",
-        "scripts/.claude-skills/lib/sync-receipt.mjs",
-        "scripts/.claude-skills/lib/sync-status.mjs",
-        "scripts/.claude-skills/sync-status.mjs"
-      ],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-10T07:49:58.504Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/skills-sync-output-drift-36a260",
-        "commitSha": "64d214db131019405bba0c4e6c5dc3e412ca9bef",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 3,
-        "unchanged": 798,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [
-        "scripts/.claude-skills/lib/sync-manifest.mjs",
-        "scripts/.claude-skills/lib/sync-status.mjs",
-        "scripts/.claude-skills/sync-status.mjs"
       ],
       "gcDeleted": [],
       "overridesHeld": [],
