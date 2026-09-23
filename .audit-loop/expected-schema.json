@@ -2706,6 +2706,74 @@
       ]
     },
     {
+      "table_name": "debt_embeddings",
+      "columns": [
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "topic_id",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "embedding",
+          "data_type": "USER-DEFINED",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "embedding_model",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "dimension",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "snapshot_hash",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        }
+      ]
+    },
+    {
       "table_name": "debt_entries",
       "columns": [
         {
@@ -2968,6 +3036,33 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 29
+        },
+        {
+          "column_name": "classification_unavailable_reason",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 30
+        },
+        {
+          "column_name": "review_deadline",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 31
+        },
+        {
+          "column_name": "superseded_by",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 32
         }
       ]
     },
@@ -10830,6 +10925,15 @@
   ],
   "policies": [
     {
+      "table_ref": "public.debt_embeddings",
+      "policyname": "Allow all for anon",
+      "permissive": "PERMISSIVE",
+      "roles": "{public}",
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": "true"
+    },
+    {
       "table_ref": "public.domain_summaries",
       "policyname": "anon_read_domain_summaries",
       "permissive": "PERMISSIVE",
@@ -11413,6 +11517,18 @@
     {
       "table_name": "campaigns",
       "constraint_name": "campaigns_repo_id_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (repo_id) REFERENCES audit_repos(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "debt_embeddings",
+      "constraint_name": "debt_embeddings_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (repo_id, topic_id)"
+    },
+    {
+      "table_name": "debt_embeddings",
+      "constraint_name": "debt_embeddings_repo_id_fkey",
       "constraint_type": "FOREIGN KEY",
       "definition": "FOREIGN KEY (repo_id) REFERENCES audit_repos(id) ON DELETE CASCADE"
     },
@@ -12906,6 +13022,21 @@
       "indexdef": "CREATE UNIQUE INDEX campaigns_repo_id_campaign_key_key ON public.campaigns USING btree (repo_id, campaign_key)"
     },
     {
+      "tablename": "debt_embeddings",
+      "indexname": "debt_embeddings_pkey",
+      "indexdef": "CREATE UNIQUE INDEX debt_embeddings_pkey ON public.debt_embeddings USING btree (repo_id, topic_id)"
+    },
+    {
+      "tablename": "debt_embeddings",
+      "indexname": "idx_debt_embeddings_model",
+      "indexdef": "CREATE INDEX idx_debt_embeddings_model ON public.debt_embeddings USING btree (embedding_model, dimension)"
+    },
+    {
+      "tablename": "debt_embeddings",
+      "indexname": "idx_debt_embeddings_vector",
+      "indexdef": "CREATE INDEX idx_debt_embeddings_vector ON public.debt_embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists='20') WHERE (embedding IS NOT NULL)"
+    },
+    {
       "tablename": "debt_entries",
       "indexname": "debt_entries_pkey",
       "indexdef": "CREATE UNIQUE INDEX debt_entries_pkey ON public.debt_entries USING btree (id)"
@@ -14008,6 +14139,11 @@
     },
     {
       "grantee": "postgres",
+      "object": "public.debt_embeddings",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
       "object": "public.debt_entries",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
@@ -14450,6 +14586,11 @@
     },
     {
       "object_name": "campaigns",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "debt_embeddings",
       "object_kind": "r",
       "owner": "postgres"
     },
