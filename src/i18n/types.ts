@@ -140,6 +140,9 @@ export interface Translations {
                 importInvalidJson: string;
                 importNoFields: string;
                 importApplied: string;
+                importModalHeading: string;
+                importModalDesc: string;
+                importModalApplyButton: string;
                 testConfig: string;
                 testConfigDesc: string;
                 testButton: string;

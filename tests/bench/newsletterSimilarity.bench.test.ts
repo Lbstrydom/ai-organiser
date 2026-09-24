@@ -9,7 +9,7 @@
  * feature will under-trigger on exactly the cases it exists for.
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { storyKey } from '../../src/services/newsletter/newsletterStoryLedger';
 import type { StoryLedger } from '../../src/services/newsletter/newsletterMemoryTypes';
 
@@ -24,7 +24,10 @@ function jaccard(a: Set<string>, b: Set<string>): number {
     return inter / (a.size + b.size - inter);
 }
 
-describe('how strict is storyKey on real continuing stories?', () => {
+// Free and deterministic, but only meaningful against the author's own vault —
+// skip cleanly wherever `data.json` isn't there (CI, a fresh clone, this repo's
+// own contributors) instead of throwing ENOENT.
+describe.skipIf(!existsSync(DATA))('how strict is storyKey on real continuing stories?', () => {
     it('measures best cross-day title similarity', () => {
         const d = JSON.parse(readFileSync(DATA, 'utf8'));
         const ledger: StoryLedger = d['newsletter-story-ledger'];
