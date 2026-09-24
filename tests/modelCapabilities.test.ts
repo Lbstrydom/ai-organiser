@@ -7,6 +7,7 @@
  * hardcoded-ID matching.
  */
 
+import { claudeThinkingAlwaysOn, claudeAlwaysThinkingParams } from '../src/services/adapters/modelCapabilities';
 import { describe, it, expect } from 'vitest';
 import {
     parseClaudeModel,
@@ -321,5 +322,24 @@ describe('resolveLatestModel — symbolic IDs become concrete', () => {
     it('undefined/null input returns null', () => {
         expect(resolveLatestModel('claude', undefined, claudePool)).toBeNull();
         expect(resolveLatestModel('claude', null, claudePool)).toBeNull();
+    });
+});
+
+// ── Opus 5.5: thinking cannot be turned off (2026-09) ───────────────────────
+
+describe('claudeThinkingAlwaysOn / claudeAlwaysThinkingParams', () => {
+    it('is true from Opus 5.5 on, false for models that can still disable thinking', () => {
+        expect(claudeThinkingAlwaysOn('claude-opus-5-5')).toBe(true);
+        expect(claudeThinkingAlwaysOn('claude-opus-6')).toBe(true);
+        for (const id of ['claude-opus-5', 'claude-opus-4-7', 'claude-sonnet-5', 'claude-haiku-4-5-20251001', undefined, 'gpt-5.5']) {
+            expect(claudeThinkingAlwaysOn(id), String(id)).toBe(false);
+        }
+    });
+
+    it('adds low effort and a 4096 floor only for an always-thinking model', () => {
+        expect(claudeAlwaysThinkingParams('claude-opus-5-5', 1024)).toEqual({ output_config: { effort: 'low' }, max_tokens: 4096 });
+        expect(claudeAlwaysThinkingParams('claude-opus-5-5', 8192)).toEqual({ output_config: { effort: 'low' }, max_tokens: 8192 });
+        expect(claudeAlwaysThinkingParams('claude-opus-4-7', 1024)).toEqual({});
+        expect(claudeAlwaysThinkingParams('claude-sonnet-5', 1024)).toEqual({});
     });
 });

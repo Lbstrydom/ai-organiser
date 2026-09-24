@@ -1,7 +1,7 @@
 import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import { SYSTEM_PROMPT } from '../../utils/constants';
-import { claudeSupportsAdaptiveThinking } from './modelCapabilities';
+import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams } from './modelCapabilities';
 import { logger } from '../../utils/logger';
 
 /** Thin export so existing call sites don't change — capability logic lives in
@@ -68,7 +68,12 @@ export class AzureClaudeAdapter extends BaseAdapter {
      * - Removes temperature (incompatible with thinking)
      */
     private applyThinkingParams(body: Record<string, unknown>): Record<string, unknown> {
-        if (!this.useAdaptiveThinking) return body;
+        if (!this.useAdaptiveThinking) {
+            // Opus 5.5+ thinks even when not asked to, sharing max_tokens; keep it
+            // brief and give the reply room. No-op for every other model.
+            const extra = claudeAlwaysThinkingParams(this.config.modelName, (body.max_tokens as number) || 0);
+            return Object.keys(extra).length ? { ...body, ...extra } : body;
+        }
 
         const result: Record<string, unknown> = { ...body };
         result.thinking = { type: 'adaptive' };

@@ -322,7 +322,8 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                     .addDropdown(dropdown => {
                         const claudeLabels = {
                             default: 'Default (claude-sonnet-4-6)',
-                            opus47: 'Claude opus 4.7 (highest quality)',
+                            opus55: 'Claude opus 5.5 (highest quality)',
+                            opus47: 'Claude opus 4.7',
                             sonnet: 'Claude sonnet 4.6 (recommended)',
                             opus: 'Claude opus 4.6 (legacy)',
                             sonnet45: 'Claude sonnet 4.5 (legacy)',
@@ -336,6 +337,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                         if (selectedPdfProvider === 'claude') {
                             dropdown
                                 .addOption('', claudeLabels.default)
+                                .addOption('claude-opus-5-5', claudeLabels.opus55)
                                 .addOption('claude-opus-4-7', claudeLabels.opus47)
                                 .addOption('claude-sonnet-4-6', claudeLabels.sonnet)
                                 .addOption('claude-opus-4-6', claudeLabels.opus)

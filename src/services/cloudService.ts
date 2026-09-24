@@ -3,7 +3,7 @@ import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
 import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
-import { claudeSupportsAdaptiveThinking, resolveLatestModel } from './adapters/modelCapabilities';
+import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLatestModel } from './adapters/modelCapabilities';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
 import { getModelOutputLimit } from './tokenLimits';
@@ -882,6 +882,10 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         if (useThinking) {
             body.thinking = { type: 'adaptive' };
+        } else {
+            // Opus 5.5+ cannot turn thinking off (a `disableThinking` caller gets
+            // low effort, the nearest honest equivalent). No-op for other models.
+            Object.assign(body, claudeAlwaysThinkingParams(modelName, maxTokens));
         }
 
         return body;
