@@ -251,3 +251,49 @@ describe('azure pacer key reflects the per-call modelOverride', () => {
         expect(capturedPacerModel).toBe('claude-opus-4-7');
     });
 });
+
+// ── Opus 5.5: thinking cannot be turned off, so a no-thinking request goes low-effort ──
+describe('Opus 5.5 always-thinking request shape', () => {
+    it('standard-mode summarize on Opus 5.5 sends low effort and no disabled-thinking field', () => {
+        const svc = makeClaude('claude-opus-5-5', 'standard');
+        const body = buildBody(svc, 'hi');
+        expect(body.output_config).toEqual({ effort: 'low' });
+        expect(body).not.toHaveProperty('thinking');
+        expect(body.max_tokens).toBe(8192);
+    });
+
+    it('disableThinking on Opus 5.5 degrades to low effort (a disabled field would 400)', () => {
+        const svc = makeClaude('claude-opus-5-5', 'adaptive');
+        const body = buildBody(svc, 'hi', { disableThinking: true });
+        expect(body).not.toHaveProperty('thinking');
+        expect(body.output_config).toEqual({ effort: 'low' });
+    });
+
+    it('adaptive mode on Opus 5.5 keeps adaptive thinking and adds no effort override', () => {
+        const svc = makeClaude('claude-opus-5-5', 'adaptive');
+        const body = buildBody(svc, 'hi');
+        expect(body.thinking).toEqual({ type: 'adaptive' });
+        expect(body).not.toHaveProperty('output_config');
+    });
+
+    it('Opus 4.7 standard-mode request is unchanged (no effort field)', () => {
+        const body = buildBody(makeClaude('claude-opus-4-7', 'standard'), 'hi');
+        expect(body).not.toHaveProperty('output_config');
+        expect(body).not.toHaveProperty('thinking');
+    });
+
+    it('the bare 1024-token request is raised to 4096 with low effort on Opus 5.5, both adapters', () => {
+        for (const svc of [makeClaude('claude-opus-5-5', 'standard'), makeAzureClaude('claude-opus-5-5', 'standard')]) {
+            const req = (svc as unknown as { adapter: { formatRequest(p: string): Record<string, unknown> } }).adapter.formatRequest('hi');
+            expect(req.max_tokens).toBe(4096);
+            expect(req.output_config).toEqual({ effort: 'low' });
+        }
+        const old = (makeClaude('claude-opus-4-7', 'standard') as unknown as { adapter: { formatRequest(p: string): Record<string, unknown> } }).adapter.formatRequest('hi');
+        expect(old.max_tokens).toBe(1024);
+        expect(old).not.toHaveProperty('output_config');
+    });
+
+    it('latest-opus resolves to Opus 5.5 against the static claude pool', () => {
+        expect(resolveModelOverride('claude', 'latest-opus', computeAvailableModelIds('claude'))).toBe('claude-opus-5-5');
+    });
+});

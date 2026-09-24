@@ -1,5 +1,29 @@
 # Project Status Log
 
+## 2026-09-24 — Opus 5.5 for direct-Claude `latest-opus`, and the always-on thinking it brings
+
+`claude-opus-5-5` joins the direct-Claude model list, so `latest-opus`
+resolves to it offline (it was capped at Opus 4.7 unless the user had
+refreshed the live catalog). It is also offered in the PDF-provider
+dropdown. Sonnet paths and every Azure default are unchanged: Azure task
+models are deployment names on the tenant, so Opus 5.5 there needs a
+`claude-opus-5-5` deployment first.
+
+Opus 5.5 cannot turn thinking off, and that thinking counts against
+`max_tokens`. The bare request path uses a 1024-token cap, and a
+`disableThinking` summarize skips thinking only by omitting the field, so
+on 5.5 both could spend the budget reasoning and return no text. The new
+`claudeThinkingAlwaysOn` / `claudeAlwaysThinkingParams`
+(modelCapabilities.ts) send `effort: low` and a 4096 floor for such a
+model when thinking was not requested; they are a no-op for every other
+model, so Opus 4.x, Sonnet and Haiku requests are byte-identical.
+
+Verified: typecheck, 6759 unit tests (4 failures, all in `tests/bench/`,
+which read the local Obsidian vault and fail identically without this
+change), 45/45 automated tests after a production build. Lint's 2 errors
+are pre-existing in AzureConfigImportModal.ts. Not verified live: a real
+Opus 5.5 call through the plugin.
+
 ## 2026-09-11 — Azure Speech API key field silently never reached SecretStorage ✅
 
 Field-caught, live, on a second device: a byte-verified-correct key pasted into "Speech API key (optional)" produced "unauthorized — check key" every time, with the exact same key working fine when used for the main "Azure API key" field on the same device minutes earlier.

@@ -61,6 +61,35 @@ export function claudeSupportsAdaptiveThinking(modelId: string | undefined | nul
 }
 
 /**
+ * Is thinking permanently ON for this Claude model — i.e. can it NOT be turned
+ * off? Opus 5.5 (2026-09) is the first: `thinking: {type:'disabled'}` returns
+ * 400, omitting `thinking` still thinks (default effort `medium`), and that
+ * thinking counts against `max_tokens`. A request sized for a no-thinking
+ * model (the 1024-token bare request, a `disableThinking` summarize) can then
+ * spend its whole budget reasoning and return no text. Callers that did not
+ * ask for thinking send `effort: low` instead (see claudeAlwaysThinkingParams).
+ * Opus/Sonnet 5.0 think by default but CAN be disabled, so they are excluded.
+ */
+export function claudeThinkingAlwaysOn(modelId: string | undefined | null): boolean {
+    const p = parseClaudeModel(modelId);
+    return !!p && p.tier === 'opus' && versionAtLeast(p, 5, 5);
+}
+
+/**
+ * Request fields for a Claude call that did NOT ask for thinking: empty for
+ * every model except an always-thinking one, where it is low effort plus a
+ * `max_tokens` floor so thinking cannot consume the whole reply budget. Empty
+ * for Opus 4.x / Sonnet / Haiku, so their requests are byte-identical.
+ */
+export function claudeAlwaysThinkingParams(
+    modelId: string | undefined | null,
+    currentMaxTokens: number,
+): { output_config?: { effort: 'low' }; max_tokens?: number } {
+    if (!claudeThinkingAlwaysOn(modelId)) return {};
+    return { output_config: { effort: 'low' }, max_tokens: Math.max(currentMaxTokens, 4096) };
+}
+
+/**
  * Does this Claude model ship with a 1M input context window? Opus/Sonnet 4.6+
  * have it; older Claude models cap at ~200K per Anthropic defaults.
  *
