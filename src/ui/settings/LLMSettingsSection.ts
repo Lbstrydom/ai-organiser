@@ -398,7 +398,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             .addButton(button => button
                 .setButtonText(az.importButton)
                 .onClick(() => {
-                    new AzureConfigImportModal(this.plugin.app, async (raw) => {
+                    new AzureConfigImportModal(this.plugin.app, az, async (raw) => {
                         const { applyAzureConfigImport } = await import('../../services/azure/azureConfigTransfer');
                         let parsed: unknown;
                         try {
