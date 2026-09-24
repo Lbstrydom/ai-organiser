@@ -38,7 +38,10 @@ function days(): string[] {
     return Object.keys(d['newsletter-story-ledger']?.buckets ?? {}).sort();
 }
 
-describe('newsletter repetition, measured on real briefs', () => {
+// Free and deterministic, but only meaningful against the author's own vault —
+// skip cleanly wherever `data.json` isn't there (CI, a fresh clone, this repo's
+// own contributors) instead of throwing ENOENT out of `days()`/`briefFor()`.
+describe.skipIf(!existsSync(DATA))('newsletter repetition, measured on real briefs', () => {
     it('quantifies how often a story is retold on a later day', () => {
         const all = days();
         const seenBefore = new Map<string, string>(); // key -> first day it appeared
