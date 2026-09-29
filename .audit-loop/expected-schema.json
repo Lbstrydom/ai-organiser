@@ -5857,6 +5857,92 @@
       ]
     },
     {
+      "table_name": "persona_pair_sessions",
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "session_a",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "session_b",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "consensus_count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "a_only_count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "b_only_count",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "overlap_rate",
+          "data_type": "numeric",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 8
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 9
+        }
+      ]
+    },
+    {
       "table_name": "persona_test_sessions",
       "columns": [
         {
@@ -12013,6 +12099,66 @@
       "definition": "CHECK (((outcome <> ALL (ARRAY['dismissed'::text, 'wont_fix'::text])) OR ((rationale IS NOT NULL) AND (length(btrim(rationale)) > 0))))"
     },
     {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_a_only_count_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((a_only_count >= 0))"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_b_only_count_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((b_only_count >= 0))"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_consensus_count_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((consensus_count >= 0))"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_distinct_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((session_a <> session_b))"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_overlap_rate_check",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((overlap_rate >= (0)::numeric) AND (overlap_rate <= (1)::numeric)))"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_pair_uniq",
+      "constraint_type": "UNIQUE",
+      "definition": "UNIQUE (session_a, session_b)"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_repo_id_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (repo_id) REFERENCES audit_repos(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_session_a_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (session_a) REFERENCES persona_test_sessions(id) ON DELETE CASCADE"
+    },
+    {
+      "table_name": "persona_pair_sessions",
+      "constraint_name": "persona_pair_sessions_session_b_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (session_b) REFERENCES persona_test_sessions(id) ON DELETE CASCADE"
+    },
+    {
       "table_name": "persona_test_sessions",
       "constraint_name": "persona_click_path_is_array",
       "constraint_type": "CHECK",
@@ -13412,6 +13558,26 @@
       "indexdef": "CREATE UNIQUE INDEX persona_finding_outcomes_repo_id_persona_finding_hash_key ON public.persona_finding_outcomes USING btree (repo_id, persona_finding_hash)"
     },
     {
+      "tablename": "persona_pair_sessions",
+      "indexname": "idx_persona_pair_sessions_repo",
+      "indexdef": "CREATE INDEX idx_persona_pair_sessions_repo ON public.persona_pair_sessions USING btree (repo_id, created_at DESC)"
+    },
+    {
+      "tablename": "persona_pair_sessions",
+      "indexname": "idx_persona_pair_sessions_session_b",
+      "indexdef": "CREATE INDEX idx_persona_pair_sessions_session_b ON public.persona_pair_sessions USING btree (session_b)"
+    },
+    {
+      "tablename": "persona_pair_sessions",
+      "indexname": "persona_pair_sessions_pair_uniq",
+      "indexdef": "CREATE UNIQUE INDEX persona_pair_sessions_pair_uniq ON public.persona_pair_sessions USING btree (session_a, session_b)"
+    },
+    {
+      "tablename": "persona_pair_sessions",
+      "indexname": "persona_pair_sessions_pkey",
+      "indexdef": "CREATE UNIQUE INDEX persona_pair_sessions_pkey ON public.persona_pair_sessions USING btree (id)"
+    },
+    {
       "tablename": "persona_test_sessions",
       "indexname": "idx_persona_sessions_commit",
       "indexdef": "CREATE INDEX idx_persona_sessions_commit ON public.persona_test_sessions USING btree (commit_sha) WHERE (commit_sha IS NOT NULL)"
@@ -14284,6 +14450,11 @@
     },
     {
       "grantee": "postgres",
+      "object": "public.persona_pair_sessions",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
       "object": "public.persona_test_sessions",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
@@ -14681,6 +14852,11 @@
     },
     {
       "object_name": "persona_finding_outcomes",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "persona_pair_sessions",
       "object_kind": "r",
       "owner": "postgres"
     },
