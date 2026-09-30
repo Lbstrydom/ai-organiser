@@ -1,8 +1,143 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 150,
+  "olderSyncsDropped": 154,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-09-30T05:12:16.666Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "e73a40ee3054e16f0493e47751f7efe7069608ff",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 837,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-09-30T04:44:56.797Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/concern-identity-suppression-readout-abde9c",
+        "commitSha": "958ef4d7dc6e13ac14622beaea28041277df863a",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 2,
+        "updated": 11,
+        "unchanged": 824,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        ".audit-loop/migrations/20260929120000_memory_health_trgm_seqscan_off.sql",
+        "scripts/.claude-skills/symbol-index/refresh-publish-guard.mjs"
+      ],
+      "updated": [
+        ".audit-loop/expected-schema.json",
+        ".claude/skills/ship/SKILL.md",
+        "scripts/.claude-skills/lib/concern-identity.mjs",
+        "scripts/.claude-skills/lib/model-pricing-table.mjs",
+        "scripts/.claude-skills/lib/model-resolver.mjs",
+        "scripts/.claude-skills/lib/schemas.mjs",
+        "scripts/.claude-skills/maintenance-checks.mjs",
+        "scripts/.claude-skills/memory-health.mjs",
+        "scripts/.claude-skills/symbol-index/refresh-args.mjs",
+        "scripts/.claude-skills/symbol-index/refresh.mjs",
+        "scripts/.claude-skills/write-ledger-entries.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-09-29T12:07:29.669Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "HEAD",
+        "commitSha": "bc340f45aee0a73708757521acd13e716fae13eb",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 835,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-09-29T12:05:56.719Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "claude/wine-cellar-upstream-fixes-32029a",
+        "commitSha": "535c640b9480c34c06f7ec02e9df1e7477017413",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 15,
+        "unchanged": 820,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [],
+      "updated": [
+        ".claude/skills/audit-code/references/ledger-format.md",
+        ".claude/skills/audit-code/references/verification-discipline.md",
+        ".claude/skills/audit-plan/references/ledger-format.md",
+        ".claude/skills/audit-plan/references/verification-discipline.md",
+        ".claude/skills/explain/references/verification-discipline.md",
+        ".claude/skills/investigate/references/verification-discipline.md",
+        ".claude/skills/nav-audit/references/verification-discipline.md",
+        ".claude/skills/plan/references/verification-discipline.md",
+        ".claude/skills/ship/SKILL.md",
+        ".claude/skills/ship/references/verification-discipline.md",
+        ".claude/skills/ux-lock/references/verification-discipline.md",
+        "scripts/.claude-skills/lib/finalize-outcomes.mjs",
+        "scripts/.claude-skills/lib/sync-receipt.mjs",
+        "scripts/.claude-skills/openai-audit.mjs",
+        "scripts/.claude-skills/write-ledger-entries.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-09-29T08:03:58.148Z",
       "source": {
@@ -148,149 +283,6 @@
         "created": 0,
         "updated": 0,
         "unchanged": 835,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-28T15:44:48.607Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/repo-comparison-06959f",
-        "commitSha": "e259e1dc6ac4cebbae44f98553b6eafc88b4ecc9",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 1,
-        "unchanged": 834,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [
-        ".claude/skills/brainstorm/SKILL.md"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-28T15:34:06.159Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/repo-comparison-06959f",
-        "commitSha": "5511a97b911e7216d4c6277eba275790d0e88db3",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 1,
-        "unchanged": 834,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [],
-      "updated": [
-        ".claude/skills/brainstorm/SKILL.md"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-27T16:43:50.911Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/audit-loop-feedback-e88061",
-        "commitSha": "00d2ca7f54b65e17573081d7ae4986619eb7304f",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 9,
-        "updated": 32,
-        "unchanged": 794,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0
-      },
-      "created": [
-        ".audit-loop/migrations/20260927120000_persona_pair_sessions.sql",
-        ".claude/skills/cycle/references/remediate-mode.md",
-        "scripts/.claude-skills/lib/db/constraint-drift.mjs",
-        "scripts/.claude-skills/lib/db/live-catalog.mjs",
-        "scripts/.claude-skills/lib/diff-scope-admission.mjs",
-        "scripts/.claude-skills/lib/final-review/review-args.mjs",
-        "scripts/.claude-skills/lib/final-review/round-gate.mjs",
-        "scripts/.claude-skills/lib/persona-test/pair-overlap.mjs",
-        "scripts/.claude-skills/lib/persona-test/verdict-eligibility.mjs"
-      ],
-      "updated": [
-        ".audit-loop/expected-schema.json",
-        ".claude/skills/audit-code/SKILL.md",
-        ".claude/skills/audit-code/references/gemini-gate.md",
-        ".claude/skills/audit-plan/SKILL.md",
-        ".claude/skills/audit-plan/references/gemini-gate.md",
-        ".claude/skills/cycle/SKILL.md",
-        ".claude/skills/persona-test/SKILL.md",
-        ".claude/skills/persona-test/references/audit-correlation.md",
-        "scripts/.claude-skills/check-cli-flags.mjs",
-        "scripts/.claude-skills/debt-auto-capture.mjs",
-        "scripts/.claude-skills/gemini-review.mjs",
-        "scripts/.claude-skills/lib/audit-store-writers.mjs",
-        "scripts/.claude-skills/lib/audit/legacy-production-audit.mjs",
-        "scripts/.claude-skills/lib/audit/run-finalization.mjs",
-        "scripts/.claude-skills/lib/bundle-deps.json",
-        "scripts/.claude-skills/lib/cross-skill/commands/persona.mjs",
-        "scripts/.claude-skills/lib/cross-skill/registry.mjs",
-        "scripts/.claude-skills/lib/db/errors.mjs",
-        "scripts/.claude-skills/lib/db/schema-diff.mjs",
-        "scripts/.claude-skills/lib/diff-annotation.mjs",
-        "scripts/.claude-skills/lib/durable-write.mjs",
-        "scripts/.claude-skills/lib/final-review/output-schemas.mjs",
-        "scripts/.claude-skills/lib/final-review/post-review.mjs",
-        "scripts/.claude-skills/lib/final-review/prompts.mjs",
-        "scripts/.claude-skills/lib/ledger.mjs",
-        "scripts/.claude-skills/lib/persona/audit-correlator.mjs",
-        "scripts/.claude-skills/lib/robustness.mjs",
-        "scripts/.claude-skills/lib/schemas.mjs",
-        "scripts/.claude-skills/lib/store/persona-correlations.mjs",
-        "scripts/.claude-skills/lib/store/persona.mjs",
-        "scripts/.claude-skills/openai-audit.mjs",
-        "scripts/.claude-skills/setup-postgres.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": []
-    },
-    {
-      "syncedAt": "2026-09-27T11:46:29.033Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "claude/bc-gemini-unmeasured-model-eval-sdk",
-        "commitSha": "9882b24ac9c71126344b605d9488070b3dd89af1",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 0,
-        "unchanged": 826,
         "gcDeleted": 0,
         "overridesHeld": 0,
         "divergedOverwritten": 0,

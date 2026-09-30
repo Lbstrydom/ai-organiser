@@ -10252,7 +10252,7 @@
       "args": "window_days integer, similarity_reraise numeric, similarity_cluster numeric, max_pairs_per_repo integer",
       "return_type": "jsonb",
       "security_definer": true,
-      "config": "statement_timeout=120s,search_path=public, pg_temp"
+      "config": "statement_timeout=120s,search_path=public, pg_temp,enable_seqscan=off"
     },
     {
       "function_name": "memory_health_semantic_cluster",
