@@ -26,6 +26,26 @@ export function checkSetImmediatePolyfillNeutralised(bundleSource) {
 	return { name, status: 'pass', message: 'no un-neutralised setImmediate <script> polyfill signature found' };
 }
 
+/**
+ * Generic backstop: NO script element is created anywhere in the bundle, in any
+ * quote style. The setImmediate check above only knows one polyfill shape; the
+ * jsPDF 4.2.1 pdfobject loader (release 1.0.28 rejected by the review bot) was a
+ * second, differently-shaped instance that slipped past it.
+ * @returns {CheckResult}
+ */
+export function checkNoScriptElementCreation(bundleSource) {
+	const name = 'no-script-element-creation';
+	const count = (bundleSource.match(/createElement\(\s*["'`]script["'`]\s*\)/g) || []).length;
+	if (count > 0) {
+		return {
+			name,
+			status: 'fail',
+			message: `main.js contains ${count} createElement("script") call(s) — the Obsidian review bot rejects the release as dynamic script injection; find the dependency (grep main.js) and neutralise it at build time like scripts/jspdfPdfObjectNeutraliser.mjs`,
+		};
+	}
+	return { name, status: 'pass', message: 'zero createElement("script") calls in main.js' };
+}
+
 /** @returns {CheckResult} */
 export function checkNoManifestJsonLiteral(bundleSource) {
 	const name = 'no-manifest-json-literal';
@@ -142,6 +162,7 @@ export function loadArtifacts(readFileFn = readFileSync, existsFn = existsSync) 
 export function runAllChecks(artifacts) {
 	return [
 		checkSetImmediatePolyfillNeutralised(artifacts.bundleSource),
+		checkNoScriptElementCreation(artifacts.bundleSource),
 		checkNoManifestJsonLiteral(artifacts.bundleSource),
 		checkVersionSync(artifacts.pkgJson, artifacts.manifestJson, artifacts.versionsJson),
 		reportBundleSize(artifacts.bundleSource),

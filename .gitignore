@@ -65,6 +65,8 @@ scripts/*
 !scripts/verify-build.d.mts
 !scripts/setImmediatePolyfillSignature.mjs
 !scripts/setImmediatePolyfillSignature.d.mts
+!scripts/jspdfPdfObjectNeutraliser.mjs
+!scripts/jspdfPdfObjectNeutraliser.d.mts
 .github/skills/
 .github/appmod/
 .githooks/
