@@ -153,10 +153,10 @@ const prod = process.argv[2] === "production";
 
 // ── Auto-deploy ──────────────────────────────────────────────────────────────
 // After a successful build, copy the plugin artifacts to per-machine target
-// folders (the local Obsidian vault, a cloud-synced mobile folder, etc.). These
-// paths are MACHINE-SPECIFIC and must never be committed — this repo is public,
-// so a hardcoded vault path would leak the vault name and wouldn't match another
-// machine (e.g. a work box deploying to SharePoint instead of OneDrive).
+// folders (the local Obsidian vault for development). These paths are
+// MACHINE-SPECIFIC and must never be committed — this repo is public, so a
+// hardcoded vault path would leak the vault name and wouldn't match another
+// machine. Users receive releases through the community store, not this step.
 // Resolution precedence:
 //   1. deploy.local.json  →  { "targets": ["<dir>", ...] }   (gitignored)
 //   2. AIORG_DEPLOY_TARGETS env  (`;`-separated)             — CI / one-off
@@ -188,7 +188,7 @@ const DEPLOY_ARTIFACTS = ["main.js", "manifest.json", "styles.css"];
 function deployArtifacts() {
   for (const target of DEPLOY_TARGETS) {
     // Only deploy where the parent already exists — avoids creating stray
-    // folders on machines that don't have this vault / OneDrive layout.
+    // folders on machines that don't have this vault layout.
     if (!fs.existsSync(path.dirname(target))) continue;
     try {
       fs.mkdirSync(target, { recursive: true });
