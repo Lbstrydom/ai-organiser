@@ -1,5 +1,28 @@
 # Project Status Log
 
+## 2026-10-05 — 1.0.28 rejected by the community review bot (jsPDF script loader); fixed in 1.0.29
+
+The store scan of 1.0.28 failed with a blocking "Code creates script elements at
+runtime" error. Cause: my `jspdf` 4.2.0 → 4.2.1 bump (for a critical advisory) pulled in
+an unused `output('pdfobjectnewwindow')` branch that injects a CDN `<script>`. The
+plugin only calls `output('arraybuffer')`, so the branch is dead, but the bot counts the
+literal. `verify:build` did not catch it because its only script check knew the
+setImmediate polyfill shape.
+
+- **Fix**: new esbuild plugin `neutralizeJspdfPdfObjectLoader`
+  (`scripts/jspdfPdfObjectNeutraliser.mjs`) rewrites that one `createElement("script")`
+  to `"span"`, guarded by the pdfobject CDN literal appearing just before it (any other
+  loader is left intact and caught by the backstop below). jspdf stays on 4.2.1.
+- **Backstop**: `verify:build` gains `no-script-element-creation` — zero
+  `createElement("script")` in `main.js`, any quote style — so the next differently-shaped
+  instance fails the build instead of the store review. This is the "second, differently
+  shaped instance" `docs/build-invariants.md` said would justify a generic check.
+- Version bumped to 1.0.29 so a tag ships the fix; the 1.0.28 release stays rejected.
+
+Verified: bundle has 0 `createElement("script")`; `build:quick` passes all four
+verify:build checks; unit tests incl. new neutraliser and backstop cases. Not verified:
+the store re-scan of 1.0.29 (runs after the tag).
+
 ## 2026-10-05 — Azure model pickers, Sonnet/Opus 5.5 wiring, Speech 401 diagnosability, safe dep bumps
 
 Field-caught: Azure Claude and Claude web search 404'd because the "Default model"

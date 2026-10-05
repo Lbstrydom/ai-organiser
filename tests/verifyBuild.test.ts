@@ -8,12 +8,14 @@ import { describe, it, expect } from 'vitest';
 import {
 	checkSetImmediatePolyfillNeutralised,
 	checkNoManifestJsonLiteral,
+	checkNoScriptElementCreation,
 	checkVersionSync,
 	reportBundleSize,
 	loadArtifacts,
 	runAllChecks,
 } from '../scripts/verify-build.mjs';
 import { containsUnneutralisedPolyfillSignature } from '../scripts/setImmediatePolyfillSignature.mjs';
+import { neutraliseJspdfPdfObjectLoader } from '../scripts/jspdfPdfObjectNeutraliser.mjs';
 
 describe('containsUnneutralisedPolyfillSignature (shared signature module)', () => {
 	it('detects an un-neutralised polyfill signature', () => {
@@ -220,14 +222,65 @@ describe('loadArtifacts', () => {
 });
 
 describe('runAllChecks', () => {
-	it('runs all four checks and returns four results', () => {
+	it('runs all five checks and returns five results', () => {
 		const results = runAllChecks({
 			bundleSource: 'console.log(1)',
 			pkgJson: { version: '1.0.21' },
 			manifestJson: { version: '1.0.21', minAppVersion: '1.11.4' },
 			versionsJson: { '1.0.21': '1.11.4' },
 		});
-		expect(results).toHaveLength(4);
+		expect(results).toHaveLength(5);
 		expect(results.every(r => ['pass', 'fail', 'info'].includes(r.status))).toBe(true);
+	});
+});
+
+describe('checkNoScriptElementCreation (generic backstop)', () => {
+	it('fails on createElement("script") in either quote style', () => {
+		expect(checkNoScriptElementCreation('a.createElement("script")').status).toBe('fail');
+		expect(checkNoScriptElementCreation("a.createElement('script')").status).toBe('fail');
+		expect(checkNoScriptElementCreation('a.createElement( `script` )').status).toBe('fail');
+	});
+
+	it('passes a clean bundle and other element names', () => {
+		expect(checkNoScriptElementCreation('a.createElement("span"); createElementNS(x,"script-ish")').status).toBe('pass');
+	});
+
+	it('is part of runAllChecks', () => {
+		const names = runAllChecks({
+			bundleSource: 'ok',
+			pkgJson: { version: '1.0.0' },
+			manifestJson: { version: '1.0.0', minAppVersion: '1.0.0' },
+			versionsJson: { '1.0.0': '1.0.0' },
+		}).map(r => r.name);
+		expect(names).toContain('no-script-element-creation');
+	});
+});
+
+describe('neutraliseJspdfPdfObjectLoader', () => {
+	const cdn = '"https://cdnjs.cloudflare.com/ajax/libs/pdfobject/2.1.1/pdfobject.min.js"';
+
+	it('swaps the pdfobject script loader to a span (readable and minified shapes)', () => {
+		const readable = `var pdfObjectUrl = ${cdn}; var w = open(); var s = w.document.createElement("script"); s.src = pdfObjectUrl;`;
+		const minified = `var a=${cdn};var b=c.document.createElement('script');b.src=a`;
+		for (const src of [readable, minified]) {
+			const r = neutraliseJspdfPdfObjectLoader(src);
+			expect(r.swaps).toBe(1);
+			expect(r.source).not.toMatch(/createElement\((['"])script\1\)/);
+			expect(r.source).toContain('createElement(');
+			expect(r.source).toContain('span');
+		}
+	});
+
+	it('leaves an unrelated script loader intact (verify-build then catches it)', () => {
+		const other = 'var s = document.createElement("script"); s.src = "https://cdn.example.com/x.js";';
+		const r = neutraliseJspdfPdfObjectLoader(other);
+		expect(r.swaps).toBe(0);
+		expect(r.source).toBe(other);
+		expect(checkNoScriptElementCreation(r.source).status).toBe('fail');
+	});
+
+	it('does not touch a script loader far from the pdfobject marker', () => {
+		const src = `var u = ${cdn};` + ' '.repeat(3000) + 'document.createElement("script")';
+		expect(neutraliseJspdfPdfObjectLoader(src).swaps).toBe(0);
 	});
 });

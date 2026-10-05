@@ -5,6 +5,7 @@ export interface CheckResult {
 }
 
 export declare function checkSetImmediatePolyfillNeutralised(bundleSource: string): CheckResult;
+export declare function checkNoScriptElementCreation(bundleSource: string): CheckResult;
 export declare function checkNoManifestJsonLiteral(bundleSource: string): CheckResult;
 export declare function checkVersionSync(
 	pkgJson: unknown,
