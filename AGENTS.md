@@ -440,7 +440,7 @@ See `docs/usertest.md` for manual testing checklist.
 
 ## Deployment Verification ⚠️ CRITICAL
 
-**Auto-deploy (since June 2026)**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to BOTH the Second Brain vault plugin folder AND `C:\Users\User\OneDrive\Across Devices\mobile` after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path) and overridable via `AIORG_DEPLOY_TARGETS` (`;`-separated dirs). The manual steps below remain a fallback / for other machines.
+**Local dev auto-deploy**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder(s) listed in the gitignored `deploy.local.json` (or `AIORG_DEPLOY_TARGETS`, `;`-separated) after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path). The manual steps below remain a fallback / for other machines. **Users are not served from this step** — they get releases from the community store (see Version Management → Releasing).
 
 **Always verify deployment after building.** Stale builds in the Obsidian vault cause confusion when changes appear not to work.
 
@@ -480,14 +480,6 @@ If changes don't appear after Obsidian restart:
 ```bash
 npm run build && cp main.js manifest.json styles.css "<vault>/.obsidian/plugins/ai-organiser/"
 ```
-
-### Mobile Deploy Staging
-The OneDrive **mobile** folder (`C:\Users\User\OneDrive\Across Devices\mobile\`) is now populated **automatically** by the post-build deploy in `esbuild.config.mjs` (see Auto-deploy above) — no manual copy needed; files sync to phone/tablet via the OneDrive app. To also stage into the gitignored `docs/mobile/` (optional, manual):
-```bash
-cp main.js manifest.json styles.css docs/mobile/
-cp main.js manifest.json styles.css "C:/Users/User/OneDrive/Across Devices/mobile/"
-```
-The `docs/mobile/` folder is gitignored. The OneDrive folder (`C:\Users\User\OneDrive\Across Devices\mobile\`) syncs automatically — files appear on phone/tablet via the OneDrive app. Copy these 3 files to `<vault>/.obsidian/plugins/ai-organiser/` on each mobile device.
 
 ## Code Organization Principles
 
@@ -553,6 +545,14 @@ Version is stored in three places (must stay in sync):
 - `versions.json` → add new entry
 
 Use `npm run version` to bump all three automatically via `version-bump.mjs`.
+
+### Releasing (community store)
+
+The plugin is distributed through the Obsidian community store, which reads `manifest.json` and installs the GitHub release for that version. There is no mobile/OneDrive copy step — phones and tablets update through the store like everyone else. To release:
+
+1. `npm version <x.y.z> --no-git-tag-version` (runs `version-bump.mjs`; updates `package.json`, `manifest.json`, `versions.json`), commit via PR to `main`.
+2. Tag the merge commit **without a `v` prefix** and push it: `git tag x.y.z && git push origin x.y.z`.
+3. `.github/workflows/release.yml` (`npm ci` → `build:quick` → provenance attestation) publishes `main.js`, `manifest.json`, `styles.css` on the release. The store picks it up from there; merging to `main` alone ships nothing to users.
 
 ## ESLint (Obsidian Review Bot Compliance)
 
