@@ -125,6 +125,8 @@ export interface Translations {
                 whisperDeploymentPlaceholder: string;
                 defaultModel: string;
                 defaultModelDesc: string;
+                modelSonnet55: string;
+                modelOpus55: string;
                 modelSonnet: string;
                 modelOpus: string;
                 modelCustom: string;

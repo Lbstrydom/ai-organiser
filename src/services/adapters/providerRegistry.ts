@@ -72,8 +72,8 @@ export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   'openai-compatible': 'your-model',
   // Azure: concrete catalog ids only — `latest-*` sentinels never reach the
   // Azure path (plan AD-5). Endpoints are resolved from vault-local settings.
-  'azure-claude': 'claude-sonnet-5',
-  'azure-openai': 'gpt-5.3-chat',
+  'azure-claude': 'claude-sonnet-5-5',
+  'azure-openai': 'gpt-5.5',
 };
 
 // Default endpoints per provider

@@ -7,6 +7,7 @@ import {
 	CATALOG_ALIASES,
 	MODEL_CATALOG,
 	resolveDepthModel,
+	getAzureModelPresets,
 } from '../src/core/modelCatalog';
 
 describe('modelCatalog.getCapabilities', () => {
@@ -129,12 +130,32 @@ describe('resolveDepthModel (presentation-depth-controls D4)', () => {
 		// Derived from the MODEL_CATALOG SSOT — the newest azure-claude opus present.
 		const catalogOpus = MODEL_CATALOG.filter(m => m.provider === 'azure-claude' && /opus/.test(m.id)).map(m => m.id);
 		expect(catalogOpus).toContain(result);
-		expect(result).toBe('claude-opus-4-7');
+		expect(result).toBe('claude-opus-5-5');
 	});
 
 	it('non-claude providers → "" (no depth upgrade)', () => {
 		expect(resolveDepthModel({ adapterType: 'gemini', tier: 'quality', availableIds: [] })).toBe('');
 		expect(resolveDepthModel({ adapterType: 'openai', tier: 'quality', availableIds: ['gpt-4o'] })).toBe('');
 		expect(resolveDepthModel({ adapterType: 'azure-openai', tier: 'quality', availableIds: [] })).toBe('');
+	});
+});
+
+describe('getAzureModelPresets', () => {
+	it('chat presets: azure-openai completion models, no embeddings/whisper/superseded', () => {
+		const ids = getAzureModelPresets('chat').map(p => p.id);
+		expect(ids).toEqual(expect.arrayContaining(['gpt-6.1-sol', 'gpt-6-luna', 'gpt-5.5']));
+		expect(ids).not.toContain('gpt-5.3-chat');
+		expect(ids).not.toContain('whisper');
+		expect(ids).not.toContain('text-embedding-3-large');
+		expect(ids.some(id => id.startsWith('claude-'))).toBe(false);
+	});
+
+	it('embedding presets: only models with a vector dimension', () => {
+		expect(getAzureModelPresets('embedding').map(p => p.id).sort())
+			.toEqual(['text-embedding-3-large', 'text-embedding-3-small']);
+	});
+
+	it('never offers the tenant-only codename as a public preset', () => {
+		expect(getAzureModelPresets('chat').map(p => p.id)).not.toContain('gpt-5.6-terra');
 	});
 });

@@ -21,10 +21,12 @@ interface CatalogEntry {
 	name: string;
 	provider: 'azure-claude' | 'azure-openai';
 	capabilities: ModelCapabilities;
+	/** Still resolvable (aliases, capability lookup) but no longer offered as a settings preset. */
+	superseded?: boolean;
 }
 
 /** Catalog version — incremented when models are added/removed/renamed */
-export const CATALOG_VERSION = '2026-06-08';
+export const CATALOG_VERSION = '2026-10-05';
 
 /**
  * Model ID aliases for migration (old → new).
@@ -63,9 +65,34 @@ export const MODEL_CATALOG: CatalogEntry[] = [
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
 	},
 	{
+		id: 'claude-sonnet-5' as ModelId,
+		name: 'Claude Sonnet 5',
+		provider: 'azure-claude',
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
+	},
+	{
+		id: 'claude-opus-5' as ModelId,
+		name: 'Claude Opus 5',
+		provider: 'azure-claude',
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
+	},
+	{
+		id: 'claude-sonnet-5-5' as ModelId,
+		name: 'Claude Sonnet 5.5',
+		provider: 'azure-claude',
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
+	},
+	{
+		id: 'claude-opus-5-5' as ModelId,
+		name: 'Claude Opus 5.5',
+		provider: 'azure-claude',
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
+	},
+	{
 		id: 'gpt-5.3-chat' as ModelId,
 		name: 'GPT-5.3',
 		provider: 'azure-openai',
+		superseded: true,
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 128 },
 	},
 	{
@@ -73,6 +100,19 @@ export const MODEL_CATALOG: CatalogEntry[] = [
 		name: 'GPT-5.5',
 		provider: 'azure-openai',
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 128 },
+	},
+	{
+		id: 'gpt-6.1-sol' as ModelId,
+		name: 'GPT-6.1 Sol',
+		provider: 'azure-openai',
+		// ~1.05M-token context. Foundry retirement date: 2028-03-11.
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
+	},
+	{
+		id: 'gpt-6-luna' as ModelId,
+		name: 'GPT-6 Luna',
+		provider: 'azure-openai',
+		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
 	},
 	{
 		id: 'gpt-5.4-nano' as ModelId,
@@ -171,6 +211,22 @@ export const TASK_CAPABILITY_REQUIREMENTS: Record<TaskType, Partial<ModelCapabil
 	embeddings: {},
 	transcription: {},
 };
+
+/**
+ * Settings-dropdown presets for an Azure model field, derived from the catalog
+ * SSOT (a new model is a catalog edit). `chat` = azure-openai completion models,
+ * `embedding` = azure-openai models with a vector dimension. Superseded entries
+ * are omitted. Azure deployment names are tenant-chosen, so callers must still
+ * offer a custom/passthrough option.
+ */
+export function getAzureModelPresets(kind: 'chat' | 'embedding'): Array<{ id: string; name: string }> {
+	return MODEL_CATALOG
+		.filter(m => m.provider === 'azure-openai' && !m.superseded)
+		.filter(m => kind === 'embedding'
+			? m.capabilities.dimensions !== undefined
+			: m.capabilities.dimensions === undefined && m.capabilities.maxContextK > 0)
+		.map(m => ({ id: m.id as string, name: m.name }));
+}
 
 /**
  * Get the display name for a model ID.

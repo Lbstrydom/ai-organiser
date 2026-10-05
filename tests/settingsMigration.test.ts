@@ -430,6 +430,28 @@ describe('migrateOldSettings', () => {
             expect(deleted.azurePerDeploymentRpm['speech-tts']).toBeUndefined();
         });
 
+        it('additively seeds the 5.5-generation RPM rows ONCE without clobbering tuned rows (azureDeploymentRpmSeedV2)', () => {
+            const r = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureDeploymentRpmSeededV1: true,
+                azureSpeechRpmSeedV1: true,
+                azurePerDeploymentRpm: { whisper: 3, 'claude-opus-5-5': 40 },
+            })! as any;
+            expect(r.azurePerDeploymentRpm['claude-sonnet-5-5']).toBe(4968);
+            expect(r.azurePerDeploymentRpm['gpt-6.1-sol']).toBe(250);
+            expect(r.azurePerDeploymentRpm['claude-opus-5-5']).toBe(40); // tuned row kept
+            expect(r.azureDeploymentRpmSeedV2).toBe(true);
+
+            const deleted = migrateOldSettings({
+                cloudServiceType: 'azure-claude',
+                azureDeploymentRpmSeededV1: true,
+                azureSpeechRpmSeedV1: true,
+                azureDeploymentRpmSeedV2: true,
+                azurePerDeploymentRpm: { whisper: 3 },
+            })! as any;
+            expect(deleted.azurePerDeploymentRpm['claude-sonnet-5-5']).toBeUndefined();
+        });
+
         it('azure-openai user on Tavily + Gemini embeddings: BYO preserved, not force-azure (G2)', () => {
             const c = caps({ cloudServiceType: 'azure-openai', embeddingProvider: 'gemini', researchProvider: 'tavily' });
             expect(c.embeddings).toEqual({ mode: 'byo' });

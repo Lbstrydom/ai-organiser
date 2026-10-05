@@ -66,7 +66,7 @@ function claudeAuthHeaders(plugin: AIOrganiserPlugin, key: string): Record<strin
 	return { ...base, 'Authorization': `Bearer ${key}` };
 }
 
-const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5';
+const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5-5';
 const DEFAULT_GPT_MODEL = 'gpt-5.5';
 const DEFAULT_EMBED_MODEL = 'text-embedding-3-large';
 
@@ -81,6 +81,17 @@ function redactedMessage(status: number): string {
 	if (status === 0) return 'could not reach endpoint';
 	if (status >= 500) return 'server error — try again';
 	return `unexpected response (status ${status})`;
+}
+
+/** Appended to a Speech 401/403 when the key was the Foundry fallback (never the key itself). */
+const SPEECH_KEY_HINT = 'set a dedicated Speech key (resource key from Keys and Endpoint)';
+
+/** `redactedMessage` for the Speech surfaces, plus the dedicated-key hint on an
+ *  auth failure when the credential fell back to the shared Foundry key. */
+function speechRedactedMessage(status: number, source: 'dedicated' | 'foundry'): string {
+	const base = redactedMessage(status);
+	if ((status === 401 || status === 403) && source === 'foundry') return `${base} — ${SPEECH_KEY_HINT}`;
+	return base;
 }
 
 /** Shared minimal POST. Returns the HTTP status, or 0 on transport failure. */
@@ -387,7 +398,7 @@ async function testSpeechTtsSurface(
 			status = 0;
 		}
 		const ok = status === 200;
-		return { surface, ok, status, message: ok ? 'connected — voice synthesized' : redactedMessage(status) };
+		return { surface, ok, status, message: ok ? 'connected — voice synthesized' : speechRedactedMessage(status, cred.value.source) };
 	}
 
 	// No voice yet → the catalog round-trip still proves region + key.
@@ -406,7 +417,7 @@ async function testSpeechTtsSurface(
 		status = 0;
 	}
 	const ok = status === 200;
-	return { surface, ok, status, message: ok ? 'connected — pick a voice to finish setup' : redactedMessage(status) };
+	return { surface, ok, status, message: ok ? 'connected — pick a voice to finish setup' : speechRedactedMessage(status, cred.value.source) };
 }
 
 /**
@@ -445,7 +456,7 @@ async function testSpeechSttSurface(
 	// 400 = reached + authenticated + routed; the silent clip was rejected —
 	// still proves endpoint + key (same convention as the Whisper probe).
 	const ok = status === 400;
-	return { surface, ok, status, message: ok ? 'connected — endpoint + key valid' : redactedMessage(status) };
+	return { surface, ok, status, message: ok ? 'connected — endpoint + key valid' : speechRedactedMessage(status, cred.value.source) };
 }
 
 /**
