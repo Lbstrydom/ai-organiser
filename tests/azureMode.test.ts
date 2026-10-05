@@ -30,6 +30,7 @@ import { createEmbeddingServiceFromSettings } from '../src/services/embeddings/e
 import { testAzureConnection } from '../src/services/azure/azureConnectionTest';
 import { resolveProviderProfile } from '../src/services/providerProfile';
 import { NullLLMService } from '../src/services/llm/nullLLMService';
+import { PLUGIN_SECRET_IDS } from '../src/core/secretIds';
 
 const AI_ENDPOINT = 'https://my-resource.services.ai.azure.com';
 const OAI_ENDPOINT = 'https://my-resource.openai.azure.com';
@@ -371,6 +372,42 @@ describe('testAzureConnection — Azure AI Speech probes (azure-audio follow-up)
 		const stt = report.surfaces.find(s => s.surface === 'azure-speech-stt')!;
 		expect(stt.ok).toBe(true);
 		expect(stt.message).toBe('connected');
+	});
+
+	describe('Fast Transcription 401 diagnosability', () => {
+		const route401 = (opts: { url: string }) => {
+			if (opts.url.includes(':transcribe')) {
+				return Promise.resolve({ status: 401, json: null, text: 'Access denied', headers: {} });
+			}
+			if (opts.url.includes('/anthropic/')) return Promise.resolve({ status: 200, json: { content: [{ type: 'text', text: 'pong' }] } });
+			if (opts.url.includes('/embeddings')) return Promise.resolve({ status: 200, json: { data: [{ embedding: [0.1] }] } });
+			return Promise.resolve({ status: 200, json: { choices: [{ message: { content: 'p' } }], text: '' } });
+		};
+
+		it('401 with the Foundry-fallback key hints at a dedicated Speech key, without leaking the key', async () => {
+			mockRequestUrl.mockImplementation(route401);
+			const plugin = makePlugin({ azureSpeechEndpoint: 'https://res.cognitiveservices.azure.com' });
+			const report = await testAzureConnection(plugin);
+			const stt = report.surfaces.find(s => s.surface === 'azure-speech-stt')!;
+			expect(stt.ok).toBe(false);
+			expect(stt.status).toBe(401);
+			expect(stt.message).toBe('unauthorized — check key — set a dedicated Speech key (resource key from Keys and Endpoint)');
+			expect(JSON.stringify(report)).not.toContain('azure-key-123');
+		});
+
+		it('401 with a dedicated Speech key keeps the plain message (no misleading hint)', async () => {
+			mockRequestUrl.mockImplementation(route401);
+			const plugin = makePlugin({ azureSpeechEndpoint: 'https://res.cognitiveservices.azure.com' });
+			plugin.secretStorageService = {
+				isAvailable: () => true,
+				getSecret: async (id: string) => (id === PLUGIN_SECRET_IDS.AZURE_SPEECH ? 'speech-key-xyz' : null),
+				resolveApiKey: async (o: { plainTextFallback?: { primaryKey?: string } }) => o.plainTextFallback?.primaryKey ?? null,
+			};
+			const report = await testAzureConnection(plugin);
+			const stt = report.surfaces.find(s => s.surface === 'azure-speech-stt')!;
+			expect(stt.message).toBe('unauthorized — check key');
+			expect(JSON.stringify(report)).not.toContain('speech-key-xyz');
+		});
 	});
 });
 

@@ -2,6 +2,7 @@ import { Setting, ButtonComponent, Notice, requestUrl } from 'obsidian';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL, buildProviderOptions } from '../../services/adapters/providerRegistry';
+import { getAzureModelPresets } from '../../core/modelCatalog';
 import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
 import { claudeSupportsAdaptiveThinking } from '../../services/adapters/modelCapabilities';
 import {
@@ -98,7 +99,7 @@ export class LLMSettingsSection extends BaseSettingSection {
                             if (s.cloudModel) ps.model = s.cloudModel;
                             s.cloudServiceType = 'azure-claude';
                             s.cloudEndpoint = '';
-                            s.cloudModel = s.taskModels?.chat || 'claude-sonnet-4-6';
+                            s.cloudModel = s.taskModels?.chat || PROVIDER_DEFAULT_MODEL['azure-claude'];
                         }
                         s.azureFirstMode = true;
                     } else {
@@ -129,6 +130,59 @@ export class LLMSettingsSection extends BaseSettingSection {
         }
     }
 
+    /**
+     * Dropdown of catalog presets + any stored value that isn't one (kept as a
+     * passthrough, e.g. a tenant codename) + "Custom deployment name…", which
+     * reveals a free-text box on the same row. Azure deployment names are
+     * tenant-chosen, so typing a name stays possible — it is just no longer the
+     * only way. `set` mutates settings; this method saves.
+     */
+    private addAzureModelPicker(
+        setting: Setting,
+        kind: 'chat' | 'embedding',
+        get: () => string,
+        set: (value: string) => void,
+        placeholder: string,
+    ): void {
+        const az = this.plugin.t.settings.llm.azure;
+        const CUSTOM = '__custom__';
+        const presets = getAzureModelPresets(kind);
+        const isPreset = (v: string): boolean => presets.some(p => p.id === v);
+        const current = get();
+        const textRef: { el: HTMLInputElement | null } = { el: null };
+        const commit = (value: string): void => {
+            set(value);
+            void this.plugin.saveSettings();
+        };
+
+        setting.addDropdown(dropdown => {
+            for (const p of presets) dropdown.addOption(p.id, `${p.name} (${p.id})`);
+            if (current && !isPreset(current)) dropdown.addOption(current, current);
+            dropdown.addOption(CUSTOM, az.modelCustom);
+            dropdown
+                .setValue(current || CUSTOM)
+                .onChange((value) => {
+                    if (value === CUSTOM) {
+                        textRef.el?.show();
+                        textRef.el?.focus();
+                        return;
+                    }
+                    textRef.el?.hide();
+                    commit(value);
+                });
+        });
+        setting.addText(text => {
+            textRef.el = text.inputEl;
+            text.setPlaceholder(placeholder)
+                .setValue(current && !isPreset(current) ? current : '')
+                .onChange((value) => {
+                    if (value.trim()) commit(value.trim());
+                });
+        });
+        // Free text only when the saved value is a custom one (or nothing is set yet).
+        if (current && isPreset(current)) textRef.el?.hide();
+    }
+
     /** Azure config fields, shown when Azure-first mode is on. */
     private renderAzureSection(): void {
         const az = this.plugin.t.settings.llm.azure;
@@ -151,6 +205,11 @@ export class LLMSettingsSection extends BaseSettingSection {
                     .onChange((value) => {
                         this.plugin.settings.cloudServiceType = value as typeof this.plugin.settings.cloudServiceType;
                         this.plugin.settings.cloudEndpoint = PROVIDER_ENDPOINT[value as keyof typeof PROVIDER_ENDPOINT] || '';
+                        // cloudModel is what the runtime sends as the deployment name —
+                        // keep it in step with the surface instead of leaving a stale id.
+                        this.plugin.settings.cloudModel = value === 'azure-openai'
+                            ? (this.plugin.settings.azureGPTModel || PROVIDER_DEFAULT_MODEL['azure-openai'])
+                            : (this.plugin.settings.taskModels?.chat || PROVIDER_DEFAULT_MODEL['azure-claude']);
                         void this.plugin.saveSettings();
                         this.settingTab.display();
                     }));
@@ -208,18 +267,40 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         // Default model for general tasks.
         const CUSTOM_MODEL_SENTINEL = '__custom__';
-        const PRESET_MODELS = ['claude-sonnet-5', 'claude-opus-5'];
+        const PRESET_MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-sonnet-5', 'claude-opus-5'];
+        // `cloudModel` is what the runtime sends as the deployment name for the main
+        // azure-claude surface; `taskModels.*` carries the per-task copies. Both must
+        // move together or the dropdown is cosmetic (the connection test and chat read
+        // cloudModel).
+        const applyDefaultModel = (value: string): void => {
+            const s = this.plugin.settings;
+            if (s.taskModels) {
+                s.taskModels.tagging = value;
+                s.taskModels.summarization = value;
+                s.taskModels.chat = value;
+                s.taskModels.mermaid = value;
+            }
+            if (s.cloudServiceType === 'azure-claude') s.cloudModel = value;
+            void this.plugin.saveSettings();
+        };
+        const storedDefaultModel = (): string => {
+            const s = this.plugin.settings;
+            return (s.cloudServiceType === 'azure-claude' && s.cloudModel)
+                || s.taskModels?.tagging
+                || PROVIDER_DEFAULT_MODEL['azure-claude'];
+        };
         let customModelSetting: Setting | null = null;
         new Setting(this.containerEl)
             .setName(az.defaultModel)
             .setDesc(az.defaultModelDesc)
             .addDropdown(dropdown => {
-                // Current azure-claude models (Batch B catalog). Azure deployment
-                // names are user-chosen at creation time, so these presets only
-                // work when a deployment is literally named after the model id —
-                // the "Custom" option below covers every other tenant.
-                const current = this.plugin.settings.taskModels?.tagging || 'claude-sonnet-5';
+                // Azure deployment names are user-chosen at creation time, so these
+                // presets only work when a deployment is literally named after the
+                // model id — the "Custom" option below covers every other tenant.
+                const current = storedDefaultModel();
                 dropdown
+                    .addOption('claude-sonnet-5-5', az.modelSonnet55)
+                    .addOption('claude-opus-5-5', az.modelOpus55)
                     .addOption('claude-sonnet-5', az.modelSonnet)
                     .addOption('claude-opus-5', az.modelOpus)
                     .addOption(CUSTOM_MODEL_SENTINEL, az.modelCustom);
@@ -227,24 +308,18 @@ export class LLMSettingsSection extends BaseSettingSection {
                 // opus-4-7 pin or an already-custom deployment) as a passthrough
                 // option so the dropdown never silently mismatches what's saved
                 // — no forced migration of a tenant model the user may rely on.
-                const isPreset = PRESET_MODELS.includes(current);
-                if (!isPreset) {
+                if (!PRESET_MODELS.includes(current)) {
                     dropdown.addOption(current, current);
                 }
                 dropdown
                     .setValue(current)
                     .onChange((value) => {
-                        if (!this.plugin.settings.taskModels) return;
                         if (value === CUSTOM_MODEL_SENTINEL) {
                             customModelSetting?.settingEl.show();
                             return;
                         }
                         customModelSetting?.settingEl.hide();
-                        this.plugin.settings.taskModels.tagging = value;
-                        this.plugin.settings.taskModels.summarization = value;
-                        this.plugin.settings.taskModels.chat = value;
-                        this.plugin.settings.taskModels.mermaid = value;
-                        void this.plugin.saveSettings();
+                        applyDefaultModel(value);
                     });
             });
 
@@ -257,44 +332,32 @@ export class LLMSettingsSection extends BaseSettingSection {
             .setDesc(az.customModelNameDesc)
             .addText(text => text
                 .setPlaceholder(az.customModelNamePlaceholder)
-                .setValue(PRESET_MODELS.includes(this.plugin.settings.taskModels?.tagging || '') ? '' : (this.plugin.settings.taskModels?.tagging || ''))
+                .setValue(PRESET_MODELS.includes(storedDefaultModel()) ? '' : storedDefaultModel())
                 .onChange((value) => {
-                    if (!this.plugin.settings.taskModels || !value.trim()) return;
-                    const v = value.trim();
-                    this.plugin.settings.taskModels.tagging = v;
-                    this.plugin.settings.taskModels.summarization = v;
-                    this.plugin.settings.taskModels.chat = v;
-                    this.plugin.settings.taskModels.mermaid = v;
-                    void this.plugin.saveSettings();
+                    if (!value.trim()) return;
+                    applyDefaultModel(value.trim());
                 }));
-        const currentTagging = this.plugin.settings.taskModels?.tagging || 'claude-sonnet-5';
-        if (PRESET_MODELS.includes(currentTagging)) {
+        if (PRESET_MODELS.includes(storedDefaultModel())) {
             customModelSetting.settingEl.hide();
         }
 
         // GPT model — used by azure-openai chat + the live test.
-        new Setting(this.containerEl)
-            .setName(az.gptModel)
-            .setDesc(az.gptModelDesc)
-            .addText(text => text
-                .setPlaceholder(az.gptModelPlaceholder)
-                .setValue(this.plugin.settings.azureGPTModel)
-                .onChange((value) => {
-                    this.plugin.settings.azureGPTModel = value;
-                    void this.plugin.saveSettings();
-                }));
+        this.addAzureModelPicker(
+            new Setting(this.containerEl).setName(az.gptModel).setDesc(az.gptModelDesc),
+            'chat',
+            () => this.plugin.settings.azureGPTModel,
+            (value) => { this.plugin.settings.azureGPTModel = value; },
+            az.gptModelPlaceholder,
+        );
 
         // Embedding model — so semantic-search embeddings are configurable.
-        new Setting(this.containerEl)
-            .setName(az.embeddingModel)
-            .setDesc(az.embeddingModelDesc)
-            .addText(text => text
-                .setPlaceholder(az.embeddingModelPlaceholder)
-                .setValue(this.plugin.settings.embeddingModel)
-                .onChange((value) => {
-                    this.plugin.settings.embeddingModel = value;
-                    void this.plugin.saveSettings();
-                }));
+        this.addAzureModelPicker(
+            new Setting(this.containerEl).setName(az.embeddingModel).setDesc(az.embeddingModelDesc),
+            'embedding',
+            () => this.plugin.settings.embeddingModel,
+            (value) => { this.plugin.settings.embeddingModel = value; },
+            az.embeddingModelPlaceholder,
+        );
 
         // Rate-limit pacing — Azure deployments ship with low default quotas;
         // pace request starts to stay under them. Defaults: 4 concurrent / 60 RPM.
@@ -341,27 +404,27 @@ export class LLMSettingsSection extends BaseSettingSection {
                 }));
 
         if (this.plugin.settings.azureRoutingMode === 'deployment-based') {
-            new Setting(this.containerEl)
-                .setName(az.chatDeployment)
-                .setDesc(az.chatDeploymentDesc)
-                .addText(text => text
-                    .setValue(this.plugin.settings.azureDeployments?.chat || '')
-                    .onChange((value) => {
-                        if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
-                        this.plugin.settings.azureDeployments.chat = value;
-                        void this.plugin.saveSettings();
-                    }));
+            this.addAzureModelPicker(
+                new Setting(this.containerEl).setName(az.chatDeployment).setDesc(az.chatDeploymentDesc),
+                'chat',
+                () => this.plugin.settings.azureDeployments?.chat || '',
+                (value) => {
+                    if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
+                    this.plugin.settings.azureDeployments.chat = value;
+                },
+                az.gptModelPlaceholder,
+            );
 
-            new Setting(this.containerEl)
-                .setName(az.embeddingsDeployment)
-                .setDesc(az.embeddingsDeploymentDesc)
-                .addText(text => text
-                    .setValue(this.plugin.settings.azureDeployments?.embeddings || '')
-                    .onChange((value) => {
-                        if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
-                        this.plugin.settings.azureDeployments.embeddings = value;
-                        void this.plugin.saveSettings();
-                    }));
+            this.addAzureModelPicker(
+                new Setting(this.containerEl).setName(az.embeddingsDeployment).setDesc(az.embeddingsDeploymentDesc),
+                'embedding',
+                () => this.plugin.settings.azureDeployments?.embeddings || '',
+                (value) => {
+                    if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
+                    this.plugin.settings.azureDeployments.embeddings = value;
+                },
+                az.embeddingModelPlaceholder,
+            );
         }
 
         new Setting(this.containerEl)

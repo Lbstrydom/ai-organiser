@@ -1,5 +1,51 @@
 # Project Status Log
 
+## 2026-10-05 — Azure model pickers, Sonnet/Opus 5.5 wiring, Speech 401 diagnosability, safe dep bumps
+
+Field-caught: Azure Claude and Claude web search 404'd because the "Default model"
+dropdown wrote only `taskModels.*`, which nothing at runtime reads; `cloudModel`
+(the deployment name actually sent) stayed on `claude-sonnet-4-6`, which the tenant
+no longer deploys. The dropdown now also writes `cloudModel` when the main provider
+is azure-claude (and reads its current value from it), and switching the main
+provider resets `cloudModel` for the new surface.
+
+- **Presets/defaults**: `claude-sonnet-5-5` / `claude-opus-5-5` added to the dropdown,
+  catalog and RPM seeds (`claude-sonnet-5-5` 4968 RPM — inferred from the portal's
+  4,968K TPM at opus's 1 RPM:1K TPM ratio; `claude-opus-5-5` 250; `gpt-6.1-sol` 250),
+  with a one-time additive seed for already-seeded maps (`azureDeploymentRpmSeedV2`).
+  Azure Claude default → `claude-sonnet-5-5`; stale `gpt-5.3-chat` registry default →
+  `gpt-5.5`. GPT default deliberately NOT moved to `gpt-6.1-sol` (≈100 tests pin
+  gpt-5.5; fresh tenants without it would 404). `gpt-5.6-terra` stays out of the
+  public presets (tenant codename).
+- **GPT / embedding fields are dropdowns** (`addAzureModelPicker`): catalog-derived
+  presets (`getAzureModelPresets`) + the saved value as passthrough + "Custom
+  deployment name…" revealing a text box. Applies to GPT model, Embedding model,
+  Chat deployment and Embeddings deployment. `gpt-5.3-chat` is `superseded` (hidden
+  from presets, still resolves).
+- **Fast Transcription 401 is diagnosable**: `AzureSpeechCredential.source`
+  (`dedicated` | `foundry`); a 401/403 on a Speech probe that used the Foundry
+  fallback appends "set a dedicated Speech key (resource key from Keys and
+  Endpoint)". Never includes the key. A 401 during real transcription surfaces a
+  clear error — it does NOT fall back to Whisper (the only Whisper fall-through is at
+  resolution time in non-strict mode when Speech is unconfigured; Whisper retires
+  2026-12-15, so strict mode `azureSpeechRequired` is the safer setting).
+- **Placeholder**: the fast-Claude deployment placeholder no longer names a retiring
+  model id (`claude-haiku-4-5` → `my-fast-claude-deployment`).
+- **Dependencies**: in-range `npm update` + `jspdf` 4.2.1 (critical advisory). Audit
+  15 → 9 (1 critical remaining: `protobufjs` via `@xenova/transformers`, only fix is a
+  downgrade). HELD BACK: `obsidian` 1.13.1 (deprecates the settings API: +74
+  `no-deprecated` lint errors) and `typescript-eslint` 8.71 (+59
+  `no-unnecessary-type-assertion` errors on existing `as ModelId` casts); both stay
+  on their previous versions, lint 0 errors.
+
+Verified: typecheck, lint (0 errors), 6769 unit tests, `build:quick` + deploy.
+Connection test reported all green by the user on the live tenant (Claude, GPT,
+embeddings, Whisper, Speech once the dedicated key was set). Not verified:
+`en-GB-Ada:DragonHDLatestNeural` availability in swedencentral; the new dropdown
+rendering in a real Obsidian session.
+
+Backlog 2026-10-05T09:20Z: Q1 0c/0p (+0 aged) · Q2 0c/0p (0 perm) · Q3 0 · debt 0 cloud/25 local (0 spilled) · upstream 1
+
 ## 2026-09-24 — Opus 5.5 for direct-Claude `latest-opus`, and the always-on thinking it brings
 
 `claude-opus-5-5` joins the direct-Claude model list, so `latest-opus`

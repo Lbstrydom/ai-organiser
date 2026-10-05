@@ -525,6 +525,8 @@ export interface AIOrganiserSettings {
     /** One-time guard (default FALSE): additively seed the `speech-*` op buckets
      *  into an already-populated per-deployment RPM map (azure-audio follow-up). */
     azureSpeechRpmSeedV1: boolean;
+    /** One-time additive seed of the 5.5-generation deployment rows into an already-seeded RPM map. */
+    azureDeploymentRpmSeedV2: boolean;
     /** Azure Speech key — transient; migrated to SecretStorage (AZURE_SPEECH) on save. */
     azureSpeechApiKey?: string;
     /** Per-task model selection (concrete catalog ids; drives modelCatalog lookups). */
@@ -580,11 +582,16 @@ export const DEFAULT_AZURE_DEPLOYMENT_RPM: Record<string, number> = {
     // opts into fast triage later. Older sonnet-4-6/opus-4-7 pins are kept
     // alongside the current sonnet-5/opus-5 ones — a tenant's deployment may
     // still be named after either generation (deployment names are user-chosen).
+    // ~4,968 RPM: the portal shows 4,968,000 TPM for this deployment, and the 1 RPM per
+    // 1K TPM ratio matches claude-opus-5-5 (250K TPM / 250 RPM).
+    'claude-sonnet-5-5': 4968,
+    'claude-opus-5-5': 250,
     'claude-sonnet-5': 200,
     'claude-opus-5': 100,
     'claude-sonnet-4-6': 200,
     'claude-opus-4-7': 100,
     'claude-haiku-4-5': 10,
+    'gpt-6.1-sol': 250,
     'gpt-5.5': 100,
     'gpt-5.4-nano': 100,
     'whisper': 3,
@@ -923,13 +930,14 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureSpeechRequired: false,
     azureTtsSeedV2: false,
     azureSpeechRpmSeedV1: false,
+    azureDeploymentRpmSeedV2: false,
     taskModels: {
-        tagging: 'claude-sonnet-5',
-        summarization: 'claude-sonnet-5',
-        audit: 'claude-opus-4-6',
-        research: 'claude-opus-4-6',
-        chat: 'claude-sonnet-5',
-        mermaid: 'claude-sonnet-5',
+        tagging: 'claude-sonnet-5-5',
+        summarization: 'claude-sonnet-5-5',
+        audit: 'claude-opus-5-5',
+        research: 'claude-opus-5-5',
+        chat: 'claude-sonnet-5-5',
+        mermaid: 'claude-sonnet-5-5',
         embeddings: 'text-embedding-3-large',
         transcription: 'whisper',
     },
@@ -1524,6 +1532,19 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         s.azureSpeechRpmSeedV1 = true;
     }
     if (typeof s.azureSpeechRpmSeedV1 !== 'boolean') s.azureSpeechRpmSeedV1 = false;
+    // One-time ADDITIVE seed of the Sonnet 5.5 / Opus 5.5 / GPT-6.1 rows — same rules as
+    // the speech seed above: populated map only, only-if-absent, never clobbers a tuned row.
+    if (isAzureUserForV3 && s.azureDeploymentRpmSeedV2 !== true) {
+        const rpm = s.azurePerDeploymentRpm;
+        if (rpm && typeof rpm === 'object' && Object.keys(rpm).length > 0) {
+            const map = rpm as Record<string, number>;
+            for (const k of ['claude-sonnet-5-5', 'claude-opus-5-5', 'gpt-6.1-sol'] as const) {
+                if (!(k in map)) map[k] = DEFAULT_AZURE_DEPLOYMENT_RPM[k];
+            }
+        }
+        s.azureDeploymentRpmSeedV2 = true;
+    }
+    if (typeof s.azureDeploymentRpmSeedV2 !== 'boolean') s.azureDeploymentRpmSeedV2 = false;
     s.azureMaxConcurrentRequests = clampInt(s.azureMaxConcurrentRequests, 4, 1, 10);
     s.azureMaxRpm = clampInt(s.azureMaxRpm, 60, 1, 600);
     // Per-deployment RPM map: keep only string→finite-positive-int entries (drop blanks/garbage).
@@ -1578,7 +1599,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         s.cloudServiceType = 'azure-claude';
         s.cloudEndpoint = '';
         const tm = s.taskModels as { chat?: string } | undefined;
-        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-5';
+        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-5-5';
     }
     if (typeof s.preAzureFirstProvider !== 'string') s.preAzureFirstProvider = DEFAULT_SETTINGS.preAzureFirstProvider;
 

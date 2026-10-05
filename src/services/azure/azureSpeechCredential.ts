@@ -27,6 +27,10 @@ import { getFoundryApiKey } from './azureKey';
 export interface AzureSpeechCredential {
     /** The `Ocp-Apim-Subscription-Key` value. */
     key: string;
+    /** Where the key came from — `foundry` means the documented shared-key fallback
+     *  (no dedicated Speech secret), the usual cause of a 401 when the stored
+     *  Foundry key is an APIM subscription key or belongs to another resource. */
+    source: 'dedicated' | 'foundry';
     /** Raw `azureSpeechEndpoint` setting (may be '' — STT readiness is per-op). */
     endpoint: string;
     /** Raw `azureSpeechRegion` setting (may be '' — TTS readiness is per-op). */
@@ -34,18 +38,21 @@ export interface AzureSpeechCredential {
 }
 
 /** Resolve the Speech key: dedicated secret → shared Foundry key → err('no-key'). */
-async function resolveSpeechKey(plugin: AIOrganiserPlugin): Promise<string | null> {
+async function resolveSpeechKey(
+    plugin: AIOrganiserPlugin,
+): Promise<{ key: string; source: 'dedicated' | 'foundry' } | null> {
     const s = plugin.secretStorageService;
     try {
         if (s.isAvailable()) {
             const dedicated = await s.getSecret(PLUGIN_SECRET_IDS.AZURE_SPEECH);
-            if (dedicated) return dedicated;
+            if (dedicated) return { key: dedicated, source: 'dedicated' };
         }
     } catch {
         // fall through to the shared Foundry key
     }
     try {
-        return await getFoundryApiKey(plugin);
+        const foundry = await getFoundryApiKey(plugin);
+        return foundry ? { key: foundry, source: 'foundry' } : null;
     } catch {
         return null;
     }
@@ -59,10 +66,11 @@ async function resolveSpeechKey(plugin: AIOrganiserPlugin): Promise<string | nul
 export async function resolveAzureSpeechCredential(
     plugin: AIOrganiserPlugin,
 ): Promise<Result<AzureSpeechCredential>> {
-    const key = await resolveSpeechKey(plugin);
-    if (!key) return err('no-key');
+    const resolved = await resolveSpeechKey(plugin);
+    if (!resolved) return err('no-key');
     return ok({
-        key,
+        key: resolved.key,
+        source: resolved.source,
         endpoint: typeof plugin.settings.azureSpeechEndpoint === 'string' ? plugin.settings.azureSpeechEndpoint.trim() : '',
         region: typeof plugin.settings.azureSpeechRegion === 'string' ? plugin.settings.azureSpeechRegion.trim() : '',
     });

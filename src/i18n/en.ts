@@ -133,11 +133,13 @@ export const en: Translations = {
                 whisperDeploymentPlaceholder: "whisper",
                 defaultModel: "Default model",
                 defaultModelDesc: "Used for tagging, summarization, chat, and general tasks.",
-                modelSonnet: "Claude Sonnet 5 (fast, recommended)",
-                modelOpus: "Claude Opus 5 (powerful, slower)",
+                modelSonnet55: "Claude Sonnet 5.5 (fast, recommended)",
+                modelOpus55: "Claude Opus 5.5 (powerful, slower)",
+                modelSonnet: "Claude Sonnet 5",
+                modelOpus: "Claude Opus 5",
                 modelCustom: "Custom deployment name…",
                 customModelName: "Custom Claude deployment name",
-                customModelNameDesc: "Your Azure deployment name for Claude, if it doesn't match either preset above (Azure lets you name a deployment anything when you create it).",
+                customModelNameDesc: "Your Azure deployment name for Claude, if it doesn't match any preset above (Azure lets you name a deployment anything when you create it).",
                 customModelNamePlaceholder: "e.g. my-claude-deployment",
                 configTransfer: "Share Azure config with your team",
                 configTransferDesc: "Copy every setting on this screen (endpoints, routing, deployment names, RPM overrides, default model, Speech region/voice) as one JSON blob a teammate can paste in below — never includes your API key, they still enter their own.",
@@ -298,7 +300,7 @@ export const en: Translations = {
             azureFastModel: "Fast tagging deployment (Azure)",
             azureFastModelDesc: "Optional. Route high-volume tagging through a cheaper/faster Azure deployment (e.g. a nano model). Blank = use your main model. Enter the deployment name exactly as configured in Azure.",
             azureFastModelOpenAIPlaceholder: "gpt-5.4-nano",
-            azureFastModelClaudePlaceholder: "claude-haiku-4-5"
+            azureFastModelClaudePlaceholder: "my-fast-claude-deployment"
         },
         minutes: {
             title: "Meeting minutes",

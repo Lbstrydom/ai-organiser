@@ -49,14 +49,20 @@ describe('resolveAzureSpeechCredential (plan D9)', () => {
         });
         const r = await resolveAzureSpeechCredential(plugin);
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.value.key).toBe('SPEECH-KEY');
+        if (r.ok) {
+            expect(r.value.key).toBe('SPEECH-KEY');
+            expect(r.value.source).toBe('dedicated');
+        }
     });
 
     it('falls back to the shared Foundry key when no dedicated secret', async () => {
         const plugin = makePlugin({ secrets: { [PLUGIN_SECRET_IDS.AZURE_AI_FOUNDRY]: 'FOUNDRY-KEY' } });
         const r = await resolveAzureSpeechCredential(plugin);
         expect(r.ok).toBe(true);
-        if (r.ok) expect(r.value.key).toBe('FOUNDRY-KEY');
+        if (r.ok) {
+            expect(r.value.key).toBe('FOUNDRY-KEY');
+            expect(r.value.source).toBe('foundry');
+        }
     });
 
     it('regression: still resolves the native Foundry key when gateway mode is on (2026-09-10)', async () => {
