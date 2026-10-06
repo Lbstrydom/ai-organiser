@@ -1,6 +1,6 @@
 # Project Status Log
 
-## 2026-10-06 — Azure API Management gateway advice (local only, not released)
+## 2026-10-06 — Azure API Management gateway advice (released as 1.0.30)
 
 Field-caught 2026-10-05: a colleague set the OpenAI endpoint to an APIM host
 (`*.azure-api.net`) and left the defaults. Chat/embeddings 404'd (default model-based
@@ -16,8 +16,7 @@ uses a named deployment.
 - **UI**: an Azure-settings banner with *Apply recommended settings* / *Dismiss*
   (`azureGatewayAdviceDismissed`), plus the same one-click hint under a failed connection
   test. A non-gateway endpoint gets nothing — byte-identical when not applicable.
-- Committed locally on `feat/azure-gateway-advice` and built into the dev vault only. Not
-  pushed, not released (version still 1.0.29) — the team's store install stays untouched.
+- Shipped as 1.0.30 (PR + tag, release workflow publishes the assets).
 
 Verified: tsc, lint (0 errors), 6783 tests pass. The one failure is
 `tests/bench/newsletterRepetition` (reads local vault briefs: 35 stories vs the >50 it
