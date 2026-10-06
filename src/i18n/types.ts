@@ -181,6 +181,16 @@ export interface Translations {
                 embeddingsDeploymentDesc: string;
                 claudeViaGateway: string;
                 claudeViaGatewayDesc: string;
+                gatewayAdviceTitle: string;
+                gatewayAdviceIntro: string;
+                gatewayFixRouting: string;
+                gatewayFixClaude: string;
+                gatewayFixChatDeployment: string;
+                gatewayFixEmbeddingsDeployment: string;
+                gatewayAdviceApply: string;
+                gatewayAdviceDismiss: string;
+                gatewayAdviceApplied: string;
+                gatewayAdviceTestHint: string;
                 mainProviderChoice: string;
                 mainProviderChoiceDesc: string;
                 providerAzureClaude: string;

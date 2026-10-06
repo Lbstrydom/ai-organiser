@@ -1,5 +1,28 @@
 # Project Status Log
 
+## 2026-10-06 — Azure API Management gateway advice (local only, not released)
+
+Field-caught 2026-10-05: a colleague set the OpenAI endpoint to an APIM host
+(`*.azure-api.net`) and left the defaults. Chat/embeddings 404'd (default model-based
+routing calls `/openai/v1/...`, which a gateway publishing only named-deployment routes
+does not expose) and Claude / Claude web search were "unauthorized" (Claude went to the
+native Foundry host with the APIM subscription key). Whisper connected because it always
+uses a named deployment.
+
+- **Advice, not automation**: `services/azure/gatewayAdvisor.ts` (pure) detects an
+  `*.azure-api.net` OpenAI endpoint and lists the outstanding fixes — deployment-based
+  routing, "route Claude through the OpenAI endpoint", and chat/embeddings deployment names
+  seeded from the user's own model fields when blank (never overwritten, never invented).
+- **UI**: an Azure-settings banner with *Apply recommended settings* / *Dismiss*
+  (`azureGatewayAdviceDismissed`), plus the same one-click hint under a failed connection
+  test. A non-gateway endpoint gets nothing — byte-identical when not applicable.
+- Committed locally on `feat/azure-gateway-advice` and built into the dev vault only. Not
+  pushed, not released (version still 1.0.29) — the team's store install stays untouched.
+
+Verified: tsc, lint (0 errors), 6783 tests pass. The one failure is
+`tests/bench/newsletterRepetition` (reads local vault briefs: 35 stories vs the >50 it
+expects; unrelated). Not verified: the banner rendering in a real Obsidian session.
+
 ## 2026-10-05 — 1.0.28 rejected by the community review bot (jsPDF script loader); fixed in 1.0.29
 
 The store scan of 1.0.28 failed with a blocking "Code creates script elements at

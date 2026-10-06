@@ -3,6 +3,7 @@ import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL, buildProviderOptions } from '../../services/adapters/providerRegistry';
 import { getAzureModelPresets } from '../../core/modelCatalog';
+import { adviseGatewaySettings, applyGatewayFixes, type GatewayFix } from '../../services/azure/gatewayAdvisor';
 import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
 import { claudeSupportsAdaptiveThinking } from '../../services/adapters/modelCapabilities';
 import {
@@ -253,6 +254,8 @@ export class LLMSettingsSection extends BaseSettingSection {
                     this.plugin.settings.azureOpenAIEndpoint = value;
                     void this.plugin.saveSettings();
                 }));
+
+        this.renderGatewayAdviceBanner();
 
         new Setting(this.containerEl)
             .setName(az.whisperDeployment)
@@ -705,6 +708,66 @@ export class LLMSettingsSection extends BaseSettingSection {
                 text: `${s.ok ? '✓' : '✗'} ${label}: ${s.message}`,
             });
         }
+
+        // A failed check against an API Management gateway left on the defaults is
+        // the common first-run failure — point at the one-click fix right here.
+        if (report.surfaces.some(r => !r.ok) && adviseGatewaySettings(this.plugin.settings).length > 0) {
+            const hint = container.createDiv({ cls: 'ai-organiser-azure-test-row' });
+            hint.createSpan({ text: `${az.gatewayAdviceTestHint} ` });
+            new ButtonComponent(hint)
+                .setButtonText(az.gatewayAdviceApply)
+                .onClick(() => { void this.applyGatewayAdvice(); });
+        }
+    }
+
+    private gatewayFixLabel(fix: GatewayFix): string {
+        const az = this.plugin.t.settings.llm.azure;
+        switch (fix) {
+            case 'routing': return az.gatewayFixRouting;
+            case 'claude-gateway': return az.gatewayFixClaude;
+            case 'chat-deployment': return az.gatewayFixChatDeployment;
+            case 'embeddings-deployment': return az.gatewayFixEmbeddingsDeployment;
+        }
+    }
+
+    /** One-click apply of the API Management gateway recommendations. */
+    private async applyGatewayAdvice(): Promise<void> {
+        applyGatewayFixes(this.plugin.settings);
+        await this.plugin.saveSettings();
+        new Notice(this.plugin.t.settings.llm.azure.gatewayAdviceApplied);
+        this.settingTab.display();
+    }
+
+    /**
+     * Advice, not automation: when the OpenAI endpoint is an `*.azure-api.net`
+     * gateway and the settings are still at the defaults that break behind one,
+     * list the recommended changes with an apply button (and a dismiss, for a
+     * gateway that already works the way it is).
+     */
+    private renderGatewayAdviceBanner(): void {
+        const s = this.plugin.settings;
+        if (s.azureGatewayAdviceDismissed) return;
+        const fixes = adviseGatewaySettings(s);
+        if (fixes.length === 0) return;
+        const az = this.plugin.t.settings.llm.azure;
+
+        const box = this.containerEl.createDiv({ cls: 'ai-organiser-azure-banner ai-organiser-azure-gateway-advice' });
+        box.createEl('strong', { text: az.gatewayAdviceTitle });
+        box.createEl('p', { text: az.gatewayAdviceIntro });
+        const list = box.createEl('ul');
+        for (const fix of fixes) list.createEl('li', { text: this.gatewayFixLabel(fix) });
+        const actions = box.createDiv({ cls: 'ai-organiser-azure-gateway-actions' });
+        new ButtonComponent(actions)
+            .setButtonText(az.gatewayAdviceApply)
+            .setCta()
+            .onClick(() => { void this.applyGatewayAdvice(); });
+        new ButtonComponent(actions)
+            .setButtonText(az.gatewayAdviceDismiss)
+            .onClick(() => {
+                s.azureGatewayAdviceDismissed = true;
+                void this.plugin.saveSettings();
+                this.settingTab.display();
+            });
     }
 
     private createServiceTypeDropdown(): void {
