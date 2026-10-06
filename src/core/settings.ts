@@ -495,6 +495,8 @@ export interface AIOrganiserSettings {
      *  Foundry resource only recognizes the OpenAI-style key header on its
      *  Anthropic passthrough route (some APIM-style setups do). */
     azureClaudeViaOpenAIGateway: boolean;
+    /** User dismissed the API Management gateway advice banner (Azure settings). */
+    azureGatewayAdviceDismissed: boolean;
     /** Deployment-qualified paths (whisper + chat/embeddings) carry a DATED api-version;
      *  pin here when the resource is on an older/newer API surface. `embeddings` falls
      *  back to `chat` when unset, so an existing single pin keeps working. */
@@ -920,6 +922,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureRoutingMode: 'model-based',
     azureDeployments: {},
     azureClaudeViaOpenAIGateway: false,
+    azureGatewayAdviceDismissed: false,
     azureApiVersionOverride: {},
     azureCapabilities: {},   // seeded from observable state by migrateOldSettings; empty → defaultModeFor at resolve time
     // Azure AI Speech — public-safe empty defaults; no behaviour change when unset (plan #18).
@@ -1578,6 +1581,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     if (typeof s.azureClaudeViaOpenAIGateway !== 'boolean') {
         s.azureClaudeViaOpenAIGateway = DEFAULT_SETTINGS.azureClaudeViaOpenAIGateway;
     }
+    if (typeof s.azureGatewayAdviceDismissed !== 'boolean') s.azureGatewayAdviceDismissed = false;
     if (typeof s.azureDeployments !== 'object' || s.azureDeployments === null) {
         s.azureDeployments = { ...DEFAULT_SETTINGS.azureDeployments };
     }
