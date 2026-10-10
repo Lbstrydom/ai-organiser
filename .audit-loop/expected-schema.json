@@ -3777,6 +3777,146 @@
       ]
     },
     {
+      "table_name": "fleet_events",
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "event_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "repo_name",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "verb",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "mode",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "outcome",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "exit_code",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 8
+        },
+        {
+          "column_name": "duration_ms",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 9
+        },
+        {
+          "column_name": "session_id",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 10
+        },
+        {
+          "column_name": "reason_class",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 11
+        },
+        {
+          "column_name": "tool_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 12
+        },
+        {
+          "column_name": "detail",
+          "data_type": "jsonb",
+          "is_nullable": "NO",
+          "column_default": "'{}'::jsonb",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 13
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 14
+        },
+        {
+          "column_name": "recorded_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 15
+        }
+      ]
+    },
+    {
       "table_name": "friction_log",
       "columns": [
         {
@@ -11829,6 +11969,36 @@
       "definition": "PRIMARY KEY (duplicate_finding_id)"
     },
     {
+      "table_name": "fleet_events",
+      "constraint_name": "fleet_events_duration_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((duration_ms >= 0))"
+    },
+    {
+      "table_name": "fleet_events",
+      "constraint_name": "fleet_events_event_id_uniq",
+      "constraint_type": "UNIQUE",
+      "definition": "UNIQUE (event_id)"
+    },
+    {
+      "table_name": "fleet_events",
+      "constraint_name": "fleet_events_outcome_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((outcome = ANY (ARRAY['ok'::text, 'refused'::text, 'pending'::text, 'error'::text, 'argv'::text])))"
+    },
+    {
+      "table_name": "fleet_events",
+      "constraint_name": "fleet_events_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "fleet_events",
+      "constraint_name": "fleet_events_repo_id_fkey",
+      "constraint_type": "FOREIGN KEY",
+      "definition": "FOREIGN KEY (repo_id) REFERENCES audit_repos(id) ON DELETE CASCADE"
+    },
+    {
       "table_name": "friction_log",
       "constraint_name": "friction_log_audit_run_id_fkey",
       "constraint_type": "FOREIGN KEY",
@@ -11994,7 +12164,7 @@
       "table_name": "model_eval_runs",
       "constraint_name": "model_eval_runs_status_check",
       "constraint_type": "CHECK",
-      "definition": "CHECK ((status = ANY (ARRAY['completed'::text, 'failed_preflight'::text, 'failed_egress'::text, 'failed_provider'::text, 'running'::text, 'pending_shadow'::text])))"
+      "definition": "CHECK ((status = ANY (ARRAY['completed'::text, 'failed_preflight'::text, 'failed_egress'::text, 'failed_provider'::text, 'stopped_budget'::text, 'running'::text, 'pending_shadow'::text])))"
     },
     {
       "table_name": "model_eval_runs",
@@ -13313,6 +13483,26 @@
       "indexdef": "CREATE UNIQUE INDEX finding_equivalence_pkey ON public.finding_equivalence USING btree (duplicate_finding_id)"
     },
     {
+      "tablename": "fleet_events",
+      "indexname": "fleet_events_event_id_uniq",
+      "indexdef": "CREATE UNIQUE INDEX fleet_events_event_id_uniq ON public.fleet_events USING btree (event_id)"
+    },
+    {
+      "tablename": "fleet_events",
+      "indexname": "fleet_events_pkey",
+      "indexdef": "CREATE UNIQUE INDEX fleet_events_pkey ON public.fleet_events USING btree (id)"
+    },
+    {
+      "tablename": "fleet_events",
+      "indexname": "idx_fleet_events_repo_created",
+      "indexdef": "CREATE INDEX idx_fleet_events_repo_created ON public.fleet_events USING btree (repo_id, created_at DESC)"
+    },
+    {
+      "tablename": "fleet_events",
+      "indexname": "idx_fleet_events_repo_session",
+      "indexdef": "CREATE INDEX idx_fleet_events_repo_session ON public.fleet_events USING btree (repo_id, session_id) WHERE (session_id IS NOT NULL)"
+    },
+    {
       "tablename": "friction_log",
       "indexname": "friction_log_audit_run_id_idx",
       "indexdef": "CREATE INDEX friction_log_audit_run_id_idx ON public.friction_log USING btree (audit_run_id)"
@@ -14169,7 +14359,7 @@
     },
     {
       "extension_name": "vector",
-      "version": "0.8.6"
+      "version": "0.8.7"
     }
   ],
   "grants": [
@@ -14346,6 +14536,11 @@
     {
       "grantee": "postgres",
       "object": "public.finding_equivalence",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.fleet_events",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
     {
@@ -14797,6 +14992,11 @@
     },
     {
       "object_name": "finding_equivalence",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "fleet_events",
       "object_kind": "r",
       "owner": "postgres"
     },
