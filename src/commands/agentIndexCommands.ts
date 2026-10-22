@@ -10,6 +10,7 @@ import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok } from '../core/result';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
+import { isFeatureEnabled } from '../services/featureService';
 import {
     buildAgentIndex,
     buildAgentInstructions,
@@ -56,6 +57,11 @@ export async function runCheck(plugin: AIOrganiserPlugin): Promise<void> {
     const r = res.value;
     if (r.missing) { new Notice(t.checkMissing, 6000); return; }
     if (r.fresh) { new Notice(t.checkFresh, 5000); return; }
+    if (!r.added.length && !r.removed.length && !r.changed.length && !r.scopeChanged) {
+        // Nothing differs, yet the check cannot vouch for the index: say so rather than "up to date".
+        new Notice(t.checkIncomplete, 8000);
+        return;
+    }
     const parts = [t.checkStale.replace('{added}', String(r.added.length)).replace('{removed}', String(r.removed.length)).replace('{changed}', String(r.changed.length))];
     if (r.scopeChanged) parts.push(t.checkScopeChanged);
     new Notice(parts.join(' '), 8000);
@@ -155,6 +161,8 @@ function registerAutoRebuild(plugin: AIOrganiserPlugin): void {
         if (timer !== null) window.clearTimeout(timer);
         timer = window.setTimeout(() => {
             timer = null;
+            // Turned off (or the feature disabled) while the build was waiting: do nothing.
+            if (plugin.settings.agentIndexAutoRebuild !== 'on-change' || !isFeatureEnabled(plugin.settings, 'agent-index')) return;
             void buildAgentIndex(plugin);
         }, REBUILD_DEBOUNCE_MS);
     };

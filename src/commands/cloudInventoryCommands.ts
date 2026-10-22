@@ -7,6 +7,7 @@
  * is written. The secret is stored the moment the user copies the script, because deploying Google
  * code cannot be undone by cancelling; reopening the setup reuses the same secret.
  */
+import { logger } from '../utils/logger';
 import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
@@ -58,6 +59,16 @@ function newPairId(): string {
     return `p${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 }
 
+/** Run a detached task from a button or command; a thrown error becomes a notice, never an unhandled rejection. */
+function detach(plugin: AIOrganiserPlugin, task: () => Promise<void>, onFail?: (message: string) => void): void {
+    task().catch((e: unknown) => {
+        logger.error('CloudInventory', 'Task failed', e);
+        const message = formatGuidance(describeError(plugin.t, 'unknown'));
+        if (onFail) onFail(message);
+        else new Notice(message, 8000);
+    });
+}
+
 // ─── Refresh / check ─────────────────────────────────────────────────────────
 
 function confirmAppend(plugin: AIOrganiserPlugin): (path: string) => Promise<boolean> {
@@ -79,7 +90,12 @@ function confirmAppend(plugin: AIOrganiserPlugin): (path: string) => Promise<boo
 }
 
 async function buildDeps(plugin: AIOrganiserPlugin): Promise<Result<RefreshDeps>> {
-    const secret = await getInventorySecret(plugin);
+    let secret: string | null = null;
+    try {
+        secret = await getInventorySecret(plugin);
+    } catch (e) {
+        logger.error('CloudInventory', 'Secret storage unavailable', e);
+    }
     if (!secret) return err('no-secret');
     const v = validateScriptUrl(plugin.settings.cloudInventoryScriptUrl);
     if (!v.ok) return err(v.error);
@@ -203,11 +219,11 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
                     el.createEl('p', { text: c.scriptIntro });
                     for (const line of [c.scriptStep1, c.scriptStep2, c.scriptStep3, c.scriptStep4, c.scriptStep5]) el.createEl('p', { text: line });
                     new Setting(el).addButton((b) => b.setButtonText(c.copyScript).setCta().onClick(() => {
-                        void (async () => {
+                        detach(plugin, async () => {
                             const { secret, created } = await ensureInventorySecret(plugin);
                             await navigator.clipboard.writeText(buildInventoryScript({ secret, rootFolderIds: roots() }));
                             new Notice(c.scriptCopied + (created ? ` ${c.secretCreated}` : ''), 8000);
-                        })();
+                        });
                     }));
                 },
             },
@@ -226,7 +242,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
                     const line = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     line.setText(draft.connectionLine);
                     new Setting(el).addButton((b) => b.setButtonText(c.testConnection).onClick(() => {
-                        void (async () => {
+                        detach(plugin, async () => {
                             line.setText(c.testing);
                             const secret = await getInventorySecret(plugin);
                             const urlOk = validateScriptUrl(draft.scriptUrl);
@@ -243,7 +259,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
                             draft.connection = toTestResult(key, res.value, new Date().toISOString());
                             draft.connectionLine = res.value.folderName ? c.connected.replace('{folder}', res.value.folderName) : c.connectedNoFolder;
                             line.setText(draft.connectionLine);
-                        })();
+                        }, (message) => { draft.connectionLine = message; line.setText(message); });
                     }));
                 },
             },
@@ -256,7 +272,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
                     const box = el.createEl('pre', { cls: 'ai-organiser-inventory-preview' });
                     box.setText(draft.previewText || '');
                     new Setting(el).addButton((b) => b.setButtonText(c.previewButton).onClick(() => {
-                        void (async () => {
+                        detach(plugin, async () => {
                             box.setText(c.previewLoading);
                             const secret = await getInventorySecret(plugin);
                             if (!secret) { box.setText(formatGuidance(describeError(t, 'no-secret'))); return; }
@@ -266,7 +282,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
                             if (!planned.ok) { box.setText(formatGuidance(describeError(t, planned.error))); return; }
                             draft.previewText = planned.value.block.split('\n').slice(0, 24).join('\n');
                             box.setText(draft.previewText);
-                        })();
+                        }, (message) => box.setText(message));
                     }));
                     new Setting(el).setName(c.createHub).addToggle((tg) => tg.setValue(draft.createNow).onChange((v) => { draft.createNow = v; }));
                 },
@@ -277,13 +293,12 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
             const existing = s.cloudInventoryPairs.find((p) => p.driveFolderId === pair.driveFolderId && p.vaultFolder === pair.vaultFolder);
             if (!existing) s.cloudInventoryPairs = [...s.cloudInventoryPairs, pair];
             s.cloudInventoryScriptUrl = draft.scriptUrl;
-            s.cloudInventoryLastTest = draft.connection
-                ? { ...draft.connection, configHash: inventoryConfigKey(draft.scriptUrl, s.cloudInventoryPairs) }
-                : null;
+            const finalKey = inventoryConfigKey(draft.scriptUrl, s.cloudInventoryPairs);
+            s.cloudInventoryLastTest = draft.connection && draft.connection.configHash === finalKey ? draft.connection : null;
             s.featureSetupCompletedAt['cloud-inventory'] = new Date().toISOString();
             await plugin.saveSettings();
             onDone?.();
-            if (draft.createNow) void runRefresh(plugin);
+            if (draft.createNow) detach(plugin, () => runRefresh(plugin));
             return ok(undefined);
         },
     }).open();
@@ -291,7 +306,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
 
 export function registerCloudInventoryCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'refresh-cloud-inventories', name: t.commands.refreshCloudInventories, icon: 'refresh-cw', callback: () => { void runRefresh(plugin); } });
-    plugin.addCommand({ id: 'check-cloud-inventories', name: t.commands.checkCloudInventories, icon: 'list-checks', callback: () => { void runCheck(plugin); } });
+    plugin.addCommand({ id: 'refresh-cloud-inventories', name: t.commands.refreshCloudInventories, icon: 'refresh-cw', callback: () => { detach(plugin, () => runRefresh(plugin)); } });
+    plugin.addCommand({ id: 'check-cloud-inventories', name: t.commands.checkCloudInventories, icon: 'list-checks', callback: () => { detach(plugin, () => runCheck(plugin)); } });
     plugin.addCommand({ id: 'setup-cloud-inventory', name: t.commands.setupCloudInventory, icon: 'cloud', callback: () => openCloudInventorySetup(plugin) });
 }

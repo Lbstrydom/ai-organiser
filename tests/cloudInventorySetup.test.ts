@@ -11,8 +11,8 @@ vi.mock('../src/services/noteEdit/applyNoteEdit', () => ({
 	},
 }));
 
-import { hubNotePath, refreshPair, checkPair, testConnection, inventoryConfigKey, approvedRoots, toTestResult } from '../src/services/cloudInventory/cloudInventoryService';
-import { evaluateSetup } from '../src/core/setupState';
+import { decodeListPage, hubNotePath, refreshPair, checkPair, testConnection, inventoryConfigKey, approvedRoots, toTestResult } from '../src/services/cloudInventory/cloudInventoryService';
+import { evaluateSetup, toFolderSet } from '../src/core/setupState';
 import { DEFAULT_SETTINGS, migrateOldSettings, type CloudInventoryPair } from '../src/core/settings';
 import { en } from '../src/i18n/en';
 import { rootsHashOf } from '../src/services/cloudInventory/scriptTemplate';
@@ -152,6 +152,45 @@ describe('refreshPair', () => {
 	});
 });
 
+describe('refreshPair consent', () => {
+	it('stops when the note gained a block after the user was asked', async () => {
+		const NOTE = 'Projects/Garden — Drive.md';
+		const { plugin, vault } = makePlugin({ notes: { [NOTE]: '# Mine\n' } });
+		const res = await refreshPair(plugin, pair(), {
+			list: async () => listing(['a.pdf']),
+			confirmAppend: async () => {
+				// The note changes while the dialog is open: it now already holds a block for this pair.
+				vault.set(NOTE, vault.get(NOTE)! + '\n' + [
+					'<!-- aio:drive-inventory pair=p1 folder=' + ID + ' -->',
+					'<!-- /aio:drive-inventory pair=p1 folder=' + ID + ' -->',
+				].join('\n') + '\n');
+				return true;
+			},
+		});
+		expect(res).toEqual({ ok: false, error: 'baseline-changed' });
+	});
+});
+
+describe('decodeListPage', () => {
+	it('accepts a well-formed page, including a valid empty one', () => {
+		expect(decodeListPage({ files: [], folders: [], nextPageToken: null })).toEqual({ ok: true, value: { files: [], folders: [], nextPageToken: null } });
+		const page = decodeListPage({ files: [{ id: 'a', name: 'A', mimeType: 'x', size: '5' }], folders: [{ id: 'f', name: 'F' }], nextPageToken: 't' });
+		expect(page.ok && page.value.nextPageToken).toBe('t');
+	});
+
+	it.each([
+		['an empty object', {}],
+		['no folders', { files: [] }],
+		['non-array files', { files: {}, folders: [] }],
+		['a file without an id', { files: [{ name: 'A', mimeType: 'x' }], folders: [] }],
+		['a folder without a name', { files: [], folders: [{ id: 'f' }] }],
+		['a numeric token', { files: [], folders: [], nextPageToken: 5 }],
+		['null', null],
+	])('rejects %s as a bad response', (_n, value) => {
+		expect(decodeListPage(value)).toEqual({ ok: false, error: 'script-bad-response' });
+	});
+});
+
 describe('checkPair', () => {
 	it('reports a change without writing', async () => {
 		const { plugin, vault } = makePlugin();
@@ -225,6 +264,19 @@ describe('setup state for the Drive inventory', () => {
 		expect(evaluateSetup('cloud-inventory', s2, { configHash: key(s2), connection: passed }).reason).toBe('connection-stale');
 		expect(approvedRoots(s2.cloudInventoryPairs)).toEqual([ID, 'AnotherFolder_2']);
 	});
+
+	it('needs attention when a pair vault folder no longer exists', () => {
+		const s = configured();
+		const passed = toTestResult(key(s), { scriptVersion: 1, rootsHash: 'r', folderName: null }, 'T');
+		const obs = { configHash: key(s), connection: passed };
+		expect(evaluateSetup('cloud-inventory', s, { ...obs, existingFolders: toFolderSet(['Other']) })).toEqual({ state: 'needs-attention', reason: 'missing-folder' });
+		expect(evaluateSetup('cloud-inventory', s, { ...obs, existingFolders: toFolderSet(['projects/garden']) }).state).toBe('ready');
+	});
+
+	it('a duplicate pair does not change the configuration key', () => {
+		const s = configured();
+		expect(inventoryConfigKey(s.cloudInventoryScriptUrl, [pair(), pair({ id: 'p9' })])).toBe(key(s));
+	});
 });
 
 describe('settings migration for the inventory', () => {
@@ -243,6 +295,16 @@ describe('settings migration for the inventory', () => {
 		expect(out.cloudInventoryMaxFiles).toBe(3000);
 		expect(out.cloudInventoryDeadlineMinutes).toBe(30);
 		expect(out.cloudInventoryLastTest).toMatchObject({ ok: true, configHash: 'k' });
+	});
+
+	it('drops a pair with no vault folder instead of guessing the vault root', () => {
+		const out = migrateOldSettings({ cloudInventoryPairs: [{ id: 'x', driveFolderId: ID }, pair({ id: 'ok' })] }) as Record<string, unknown>;
+		expect((out.cloudInventoryPairs as CloudInventoryPair[]).map((p) => p.id)).toEqual(['ok']);
+	});
+
+	it('keeps a lone folder string as one include folder', () => {
+		const out = migrateOldSettings({ agentIndexIncludeFolders: ' Projects ' }) as Record<string, unknown>;
+		expect(out.agentIndexIncludeFolders).toEqual(['Projects']);
 	});
 
 	it('is idempotent and defaults an invalid test result to null', () => {

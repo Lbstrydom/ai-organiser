@@ -3843,6 +3843,7 @@ export const en: Translations = {
         buildDoneStale: "Agent index built, but notes changed while it was being written. Build again to refresh it.",
         checkFresh: "The agent index is up to date.",
         checkStale: "Out of date: {added} added, {removed} removed, {changed} changed.",
+        checkIncomplete: "Could not confirm the agent index is up to date: some notes could not be read or changed during the check. Run the check again.",
         checkScopeChanged: "Your folder settings changed since it was built.",
         checkMissing: "There is no agent index yet. Build one first.",
         instructionsCopied: "Agent instructions copied. Paste them into CLAUDE.md or AGENTS.md.",

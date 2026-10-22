@@ -85,6 +85,16 @@ describe('findOwnedBlock', () => {
 		expect(res.ok && res.value && text.slice(res.value.start, res.value.end)).toBe(block);
 	});
 
+	it('does not treat markers shown in a fenced code example as a block', () => {
+		const example = '```\n' + block + '\n```';
+		expect(findOwnedBlock(example, 'p1', 'F1')).toEqual({ ok: true, value: null });
+		const real = `${example}\n\n${block}`;
+		const found = findOwnedBlock(real, 'p1', 'F1');
+		expect(found.ok && found.value && real.slice(found.value.start, found.value.end)).toBe(block);
+		const replaced = replaceBlock(example, block, 'p1', 'F1');
+		expect(replaced.ok && replaced.value.startsWith(example)).toBe(true); // the example is preserved
+	});
+
 	it('ignores another pair\'s block', () => {
 		const other = renderBlock({ pairId: 'p2', folderId: 'F2', listing: { files: [], completeness: 'complete' }, meta, labels });
 		expect(findOwnedBlock(`${other}\n${block}`, 'p1', 'F1').ok).toBe(true);

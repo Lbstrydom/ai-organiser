@@ -3697,6 +3697,7 @@ export interface Translations {
         buildDoneStale: string;
         checkFresh: string;
         checkStale: string;
+        checkIncomplete: string;
         checkScopeChanged: string;
         checkMissing: string;
         instructionsCopied: string;

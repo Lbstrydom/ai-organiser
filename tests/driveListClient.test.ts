@@ -61,7 +61,28 @@ describe('listDriveTree', () => {
 		const fetchPage = async (): Promise<Result<ListPage>> => { calls++; return ok({ files: [], folders: [], nextPageToken: 'same' }); };
 		const res = await listDriveTree({ rootFolderId: 'r', fetchPage, limits });
 		expect(calls).toBeLessThan(5);
-		expect(res.status).toBe('complete');
+		expect(res.status).toBe('truncated'); // an unfinished folder is never reported as complete
+	});
+
+	it('turns a rejecting request into a failed listing instead of throwing', async () => {
+		const fetchPage = async (): Promise<Result<ListPage>> => { throw new Error('boom'); };
+		const res = await listDriveTree({ rootFolderId: 'root', fetchPage, limits });
+		expect(res).toMatchObject({ status: 'failed', error: 'script-network', files: [] });
+	});
+
+	it('stops requesting once the file budget is spent', async () => {
+		const log: string[] = [];
+		const wide: Tree = { root: { files: ['a.pdf', 'b.pdf'], folders: Array.from({ length: 6 }, (_, i) => [`c${i}`, `C${i}`] as [string, string]) } };
+		for (let i = 0; i < 6; i++) wide[`c${i}`] = { files: ['x.pdf'] };
+		const res = await listDriveTree({ rootFolderId: 'root', fetchPage: fakeFetch(wide, log), limits: { ...limits, maxFiles: 2 } });
+		expect(res.status).toBe('truncated');
+		expect(log).toEqual(['root:']);
+	});
+
+	it('does not wait for an in-flight request past the deadline', async () => {
+		const fetchPage = () => new Promise<Result<ListPage>>(() => { /* never answers */ });
+		const res = await listDriveTree({ rootFolderId: 'root', fetchPage, limits: { ...limits, deadlineMs: 20 } });
+		expect(res.status).toBe('truncated');
 	});
 
 	it('marks the listing truncated when the folder limit is hit, never complete', async () => {

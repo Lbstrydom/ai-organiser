@@ -19,7 +19,8 @@ function makeAdapter(initial: Record<string, string> = {}) {
 	const ops: string[] = [];
 	let failOn: string | null = null;
 	const adapter = {
-		exists: async (p: string) => files.has(p),
+		// A folder exists when any stored file lives under it.
+		exists: async (p: string) => files.has(p) || [...files.keys()].some((k) => k.startsWith(p + '/')),
 		read: async (p: string) => { if (!files.has(p)) throw new Error('missing'); return files.get(p)!; },
 		write: async (p: string, d: string) => { ops.push(`write ${p}`); files.set(p, d); },
 		rename: async (a: string, b: string) => {

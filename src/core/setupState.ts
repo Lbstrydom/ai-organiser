@@ -125,7 +125,7 @@ export const SETUP_SPECS: Readonly<Partial<Record<SetupId, SetupSpec>>> = {
     },
     'cloud-inventory': {
         required: ['cloudInventoryScriptUrl', 'cloudInventoryPairs'],
-        folderKeys: [],
+        folderKeys: ['cloudInventoryPairs'],
         needsCompletionMarker: true,
         needsConnection: true,
     },
@@ -155,7 +155,13 @@ function folderValues(settings: SettingsLike, keys: readonly string[]): string[]
     for (const key of keys) {
         const value = settings[key];
         if (typeof value === 'string' && value.trim() !== '') out.push(value);
-        else if (Array.isArray(value)) out.push(...value.filter((v): v is string => typeof v === 'string' && v.trim() !== ''));
+        else if (Array.isArray(value)) {
+            for (const v of value) {
+                // Folder lists hold strings; pair lists hold objects that name their vault folder.
+                const folder = typeof v === 'string' ? v : (v && typeof v === 'object' ? (v as { vaultFolder?: unknown }).vaultFolder : undefined);
+                if (typeof folder === 'string' && folder.trim() !== '') out.push(folder);
+            }
+        }
     }
     return out;
 }

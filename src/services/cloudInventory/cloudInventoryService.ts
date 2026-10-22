@@ -37,7 +37,7 @@ import {
 
 /** A stable string that changes whenever the script link or any approved folder changes. */
 export function inventoryConfigKey(url: string, pairs: readonly CloudInventoryPair[]): string {
-    return JSON.stringify({ url: url.trim(), roots: pairs.map((p) => p.driveFolderId).sort() });
+    return JSON.stringify({ url: url.trim(), roots: [...new Set(pairs.map((p) => p.driveFolderId))].sort() });
 }
 
 export function approvedRoots(pairs: readonly CloudInventoryPair[]): string[] {
@@ -157,16 +157,47 @@ export function toTestResult(configKey: string, report: ConnectionReport | null,
         : { ok: false, configHash: configKey, at: nowIso };
 }
 
+const isText = (v: unknown): v is string => typeof v === 'string' && v !== '';
+
+/** Decode one `list` answer. A missing or mistyped collection is a bad response, never an empty folder. */
+export function decodeListPage(value: unknown): Result<ListPage> {
+    const body = (typeof value === 'object' && value !== null ? value : {}) as Record<string, unknown>;
+    const { files, folders, nextPageToken } = body;
+    if (!Array.isArray(files) || !Array.isArray(folders)) return err('script-bad-response');
+    if (nextPageToken !== undefined && nextPageToken !== null && !isText(nextPageToken)) return err('script-bad-response');
+    const outFiles: ListPage['files'] = [];
+    for (const raw of files) {
+        const f = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+        if (!isText(f.id) || typeof f.name !== 'string' || typeof f.mimeType !== 'string') return err('script-bad-response');
+        outFiles.push({
+            id: f.id,
+            name: f.name,
+            mimeType: f.mimeType,
+            size: typeof f.size === 'number' || typeof f.size === 'string' ? f.size : undefined,
+            modifiedTime: typeof f.modifiedTime === 'string' ? f.modifiedTime : undefined,
+            md5Checksum: typeof f.md5Checksum === 'string' ? f.md5Checksum : undefined,
+            sha256Checksum: typeof f.sha256Checksum === 'string' ? f.sha256Checksum : undefined,
+        });
+    }
+    const outFolders: ListPage['folders'] = [];
+    for (const raw of folders) {
+        const f = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+        if (!isText(f.id) || typeof f.name !== 'string') return err('script-bad-response');
+        outFolders.push({ id: f.id, name: f.name });
+    }
+    return ok({ files: outFiles, folders: outFolders, nextPageToken: isText(nextPageToken) ? nextPageToken : null });
+}
+
 export function makeFetchPage(url: string, secret: string, signal?: AbortSignal) {
     return async (folderId: string, pageToken: string | null): Promise<Result<ListPage>> => {
-        const res = await callScript<{ files?: ListPage['files']; folders?: ListPage['folders']; nextPageToken?: string | null }>({
+        const res = await callScript<unknown>({
             url,
             secret,
             body: { op: 'list', folderId, pageToken },
             signal,
         });
         if (!res.ok) return err(res.error);
-        return ok({ files: res.value.files ?? [], folders: res.value.folders ?? [], nextPageToken: res.value.nextPageToken ?? null });
+        return decodeListPage(res.value);
     };
 }
 
@@ -241,15 +272,21 @@ export async function refreshPair(plugin: AIOrganiserPlugin, pair: CloudInventor
         if (next === current) return ok(base); // byte-identical: nothing to write
 
         const hasBlock = findOwnedBlock(current, pair.id, pair.driveFolderId);
+        let appendAgreed = false;
         if (hasBlock.ok && hasBlock.value === null) {
-            const agreed = deps.confirmAppend ? await deps.confirmAppend(path) : false;
-            if (!agreed) return ok({ ...base, state: 'declined' });
+            appendAgreed = deps.confirmAppend ? await deps.confirmAppend(path) : false;
+            if (!appendAgreed) return ok({ ...base, state: 'declined' });
         }
         const written = await applyNoteEdit(plugin, {
             kind: 'composite',
             filePath: path,
             baseline: current,
             recompute: (latest) => {
+                // The note may have changed while the user was asked: consent covers appending a
+                // block to the note they saw, and a block that now exists or vanished is a new case.
+                const now = findOwnedBlock(latest, pair.id, pair.driveFolderId);
+                if (!now.ok) return err(now.error);
+                if ((now.value === null) !== appendAgreed) return err('baseline-changed');
                 const replaced = replaceBlock(latest, planned.value.block, pair.id, pair.driveFolderId);
                 return replaced.ok ? ok({ content: replaced.value }) : err(replaced.error);
             },

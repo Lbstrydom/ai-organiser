@@ -17,7 +17,7 @@ export function parseDriveFolderInput(input: string): Result<string> {
         return err('drive-link-invalid');
     }
     if (url.protocol !== 'https:' || url.hostname !== 'drive.google.com') return err('drive-link-invalid');
-    const fromPath = /\/folders\/([A-Za-z0-9_-]+)/.exec(url.pathname);
+    const fromPath = /\/folders\/([^/]+)/.exec(url.pathname);
     const candidate = fromPath ? fromPath[1] : url.searchParams.get('id');
     return candidate && DRIVE_FOLDER_ID_PATTERN.test(candidate) ? ok(candidate) : err('drive-link-invalid');
 }

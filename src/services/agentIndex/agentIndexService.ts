@@ -244,7 +244,11 @@ export function planOutput(rawPath: string, protectedFolders: readonly string[])
  */
 export async function recoverPublication(adapter: DataAdapter, plan: OutputPlan, runningBuildId?: string): Promise<{ unrecognised: string[] }> {
     const unrecognised: string[] = [];
-    const folderListing = await adapter.list(plan.folder || '/').catch(() => ({ files: [] as string[], folders: [] as string[] }));
+    // A folder that does not exist yet has nothing to recover; a listing that fails on an existing
+    // folder must not read as "empty", or a foreign file could be missed.
+    const folderListing = !plan.folder || (await adapter.exists(plan.folder))
+        ? await adapter.list(plan.folder || '/')
+        : { files: [] as string[], folders: [] as string[] };
     const siblings = folderListing.files.filter((f) => f.startsWith(plan.tmpPrefix) || f === plan.prev);
 
     const currentLine = (await adapter.exists(plan.path)) ? await firstLine(adapter, plan.path) : null;
@@ -320,26 +324,40 @@ function newBuildId(): string {
 export function buildAgentIndex(plugin: AIOrganiserPlugin): Promise<Result<BuildSummary>> {
     return serialised(async () => {
         try {
-            const settings = plugin.settings;
-            const planned = planOutput(settings.agentIndexOutputPath, settings.protectedFolders);
-            if (!planned.ok) return err(planned.error);
-            const plan = planned.value;
-            const config = scopeConfigFromSettings(settings);
             const app = plugin.app;
+            const snapshot = () => {
+                const s = plugin.settings;
+                const config = scopeConfigFromSettings(s);
+                return {
+                    planned: planOutput(s.agentIndexOutputPath, s.protectedFolders),
+                    config,
+                    key: JSON.stringify([s.agentIndexOutputPath, s.protectedFolders, canonicalScopeJson(config)]),
+                };
+            };
+            const plans = new Map<string, OutputPlan>();
+            let snap = snapshot();
+            if (!snap.planned.ok) return err(snap.planned.error);
 
             let records: RawRecord[] = [];
             let unreadable = 0;
             let stale = true;
             for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-                const files = scopedFiles(app, config);
-                const before = fingerprint(files) + JSON.stringify(canonicalScopeJson(config));
-                const collected = await collectRecords(app, files, config);
+                snap = snapshot();
+                if (!snap.planned.ok) return err(snap.planned.error);
+                plans.set(snap.key, snap.planned.value);
+                const files = scopedFiles(app, snap.config);
+                const before = fingerprint(files);
+                const collected = await collectRecords(app, files, snap.config);
                 records = collected.records;
                 unreadable = collected.unreadable;
-                const after = fingerprint(scopedFiles(app, config)) + JSON.stringify(canonicalScopeJson(scopeConfigFromSettings(plugin.settings)));
-                if (before === after) { stale = false; break; }
+                if (snapshot().key === snap.key && fingerprint(scopedFiles(app, snap.config)) === before) { stale = false; break; }
             }
             if (unreadable > 0) stale = true;
+            // Settings that moved during the build mean the content was made for a policy that is gone.
+            if (snapshot().key !== snap.key) return err('baseline-changed');
+            const plan = plans.get(snap.key);
+            if (!plan) return err('output-path-invalid');
+            const config = snap.config;
 
             const buildId = newBuildId();
             const content = projectIndex(records, projectionScope(config), {
@@ -373,6 +391,10 @@ export interface CheckReport {
     fresh: boolean;
     scopeChanged: boolean;
     missing: boolean;
+    /** Notes that could not be read; the check cannot vouch for them */
+    unreadable: number;
+    /** The vault changed while the check was reading it */
+    unstable: boolean;
 }
 
 interface HeaderFile { path: string; mtime: number; size: number; sha256: string }
@@ -384,7 +406,7 @@ export async function checkAgentIndex(plugin: AIOrganiserPlugin): Promise<Result
         if (!planned.ok) return err(planned.error);
         const adapter = plugin.app.vault.adapter;
         if (!(await adapter.exists(planned.value.path))) {
-            return ok({ added: [], removed: [], changed: [], fresh: false, scopeChanged: false, missing: true });
+            return ok({ added: [], removed: [], changed: [], fresh: false, scopeChanged: false, missing: true, unreadable: 0, unstable: false });
         }
         const text = await adapter.read(planned.value.path);
         const newline = text.indexOf('\n');
@@ -392,14 +414,17 @@ export async function checkAgentIndex(plugin: AIOrganiserPlugin): Promise<Result
         if (!isSignedFor(headerLine, planned.value.path)) return err('output-not-ours');
         const header = JSON.parse(headerLine) as { scopeHash?: string; files?: HeaderFile[] };
         const config = scopeConfigFromSettings(plugin.settings);
-        const { records } = await collectRecords(plugin.app, scopedFiles(plugin.app, config), config);
+        const files = scopedFiles(plugin.app, config);
+        const before = fingerprint(files);
+        const { records, unreadable } = await collectRecords(plugin.app, files, config);
+        const unstable = fingerprint(scopedFiles(plugin.app, config)) !== before;
         const indexed = new Map((header.files ?? []).map((f) => [f.path, f]));
         const now = new Map(records.map((r) => [r.path, r]));
         const added = [...now.keys()].filter((p) => !indexed.has(p)).sort();
         const removed = [...indexed.keys()].filter((p) => !now.has(p)).sort();
         const changed = [...now.keys()].filter((p) => indexed.has(p) && indexed.get(p)!.sha256 !== now.get(p)!.sha256).sort();
         const scopeChanged = header.scopeHash !== (await scopeHashOf(config));
-        return ok({ added, removed, changed, fresh: !scopeChanged && !added.length && !removed.length && !changed.length, scopeChanged, missing: false });
+        return ok({ added, removed, changed, fresh: !unstable && unreadable === 0 && !scopeChanged && !added.length && !removed.length && !changed.length, scopeChanged, missing: false, unreadable, unstable });
     } catch (e) {
         logger.error('AgentIndex', 'Check failed', e);
         return err('scan-incomplete');

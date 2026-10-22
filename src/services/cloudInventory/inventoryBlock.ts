@@ -16,6 +16,7 @@
  *    `listed`; `listed` stays unchanged while the content hash does.
  */
 import { Result, ok, err } from '../../core/result';
+import { nonBodyLines } from '../../utils/markdownRegions';
 
 export type Completeness = 'complete' | 'truncated';
 
@@ -165,13 +166,18 @@ export function findOwnedBlock(text: string, pairId: string, folderId: string): 
     const end = endMarker(pairId, folderId);
     const starts: number[] = [];
     const ends: number[] = [];
-    for (let i = text.indexOf(start); i !== -1; i = text.indexOf(start, i + start.length)) starts.push(i);
-    for (let i = text.indexOf(end); i !== -1; i = text.indexOf(end, i + end.length)) ends.push(i);
+    // Search a copy with fenced code and frontmatter blanked out (same offsets), so a marker shown as
+    // an example in a code block is never mistaken for, or replaced as, a managed block.
+    const lines = text.split('\n');
+    const hidden = nonBodyLines(lines);
+    const visible = lines.map((l, i) => (hidden[i] ? l.replace(/[^\r]/g, ' ') : l)).join('\n');
+    for (let i = visible.indexOf(start); i !== -1; i = visible.indexOf(start, i + start.length)) starts.push(i);
+    for (let i = visible.indexOf(end); i !== -1; i = visible.indexOf(end, i + end.length)) ends.push(i);
     if (starts.length === 0 && ends.length === 0) return ok(null);
     if (starts.length !== 1 || ends.length !== 1) return err('marker-conflict');
     if (ends[0] < starts[0]) return err('marker-conflict');
     // A start marker for ANY pair/folder inside this block means nesting.
-    const inner = text.slice(starts[0] + start.length, ends[0]);
+    const inner = visible.slice(starts[0] + start.length, ends[0]);
     if (inner.includes(START_PREFIX) || inner.includes(END_PREFIX)) return err('marker-conflict');
     const stop = ends[0] + end.length;
     return ok({ start: starts[0], end: stop, text: text.slice(starts[0], stop) });

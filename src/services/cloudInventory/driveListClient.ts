@@ -10,7 +10,7 @@
  *  - a listing that hit a limit is `truncated` and one that failed is `failed`; neither is ever
  *    presented as complete.
  */
-import { Result } from '../../core/result';
+import { Result, err } from '../../core/result';
 import type { InventoryFile } from './inventoryBlock';
 
 /** One page of the script's `list` answer. */
@@ -70,22 +70,45 @@ export async function listDriveTree(options: ListTreeOptions): Promise<TreeListi
     const visited = new Set<string>([options.rootFolderId]);
     const files: InventoryFile[] = [];
     let truncated = false;
+    /** Set when the file or time budget is spent: no worker starts more work. */
+    let halted = false;
     let failure: string | null = null;
     let foldersVisited = 0;
     const concurrency = Math.max(1, Math.floor(limits.concurrency ?? 2));
 
-    const stop = (): boolean => failure !== null || options.signal?.aborted === true;
+    const stop = (): boolean => failure !== null || halted || options.signal?.aborted === true;
+
+    /** One page request that can neither throw nor outlive the traversal deadline. */
+    const request = async (folderId: string, token: string | null): Promise<Result<ListPage> | 'timeout'> => {
+        let timer: number | null = null;
+        const timeout = new Promise<'timeout'>((resolve) => {
+            timer = window.setTimeout(() => resolve('timeout'), Math.max(0, deadline - now()));
+        });
+        try {
+            const call = (async (): Promise<Result<ListPage>> => {
+                try {
+                    return await fetchPage(folderId, token);
+                } catch {
+                    return err('script-network');
+                }
+            })();
+            return await Promise.race([call, timeout]);
+        } finally {
+            if (timer !== null) window.clearTimeout(timer);
+        }
+    };
 
     const visit = async (folder: { id: string; path: string }): Promise<void> => {
         let token: string | null = null;
         const tokens = new Set<string>();
         do {
             if (stop()) return;
-            if (now() > deadline) { truncated = true; return; }
-            const res: Result<ListPage> = await fetchPage(folder.id, token);
+            if (now() > deadline) { truncated = true; halted = true; return; }
+            const res = await request(folder.id, token);
+            if (res === 'timeout') { truncated = true; halted = true; return; }
             if (!res.ok) { failure = res.error; return; }
             for (const f of res.value.files) {
-                if (files.length >= limits.maxFiles) { truncated = true; return; }
+                if (files.length >= limits.maxFiles) { truncated = true; halted = true; return; }
                 files.push({
                     id: f.id,
                     name: f.name,
@@ -104,7 +127,8 @@ export async function listDriveTree(options: ListTreeOptions): Promise<TreeListi
                 queue.push({ id: sub.id, path: folder.path ? `${folder.path}/${sub.name}` : sub.name });
             }
             const next: string | null = res.value.nextPageToken;
-            if (next && tokens.has(next)) return; // a repeated token would loop forever: abort this folder
+            if (next && files.length >= limits.maxFiles) { truncated = true; halted = true; return; }
+            if (next && tokens.has(next)) { truncated = true; return; } // a repeated token would loop forever: the folder is incomplete
             if (next) tokens.add(next);
             token = next;
         } while (token);
@@ -115,6 +139,8 @@ export async function listDriveTree(options: ListTreeOptions): Promise<TreeListi
     const loop = async (): Promise<void> => {
         for (;;) {
             if (stop()) return;
+            // The file budget is spent and folders are still waiting: what they hold is not listed.
+            if (files.length >= limits.maxFiles && queue.length > 0) { truncated = true; halted = true; return; }
             const folder = queue.shift();
             if (!folder) {
                 if (active === 0) return;

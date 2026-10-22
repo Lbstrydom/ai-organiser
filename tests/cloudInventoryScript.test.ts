@@ -84,6 +84,7 @@ describe('parseDriveFolderInput', () => {
 		'', 'short', 'https://example.com/drive/folders/' + ID, 'http://drive.google.com/drive/folders/' + ID,
 		'https://drive.google.com.evil.com/drive/folders/' + ID, 'https://drive.google.com/drive/my-drive', 'javascript:alert(1)',
 		'https://drive.google.com/file/d/' + ID + '/view',
+		'https://drive.google.com/drive/folders/' + ID + '..%2Fevil', 'https://drive.google.com/drive/folders/' + ID + '!bad',
 	])('refuses %s', (input) => {
 		expect(parseDriveFolderInput(input)).toEqual({ ok: false, error: 'drive-link-invalid' });
 	});

@@ -70,7 +70,7 @@ describe('agent index off path', () => {
 		const out = migrateOldSettings({
 			agentIndexOutputPath: '   ',
 			agentIndexAutoRebuild: 'sometimes',
-			agentIndexIncludeFolders: 'not-a-list',
+			agentIndexIncludeFolders: 42,
 			agentIndexIncludeAliases: 'yes',
 		}) as Record<string, unknown>;
 		expect(out.agentIndexOutputPath).toBe(DEFAULT_SETTINGS.agentIndexOutputPath);

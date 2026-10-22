@@ -1411,8 +1411,11 @@ export const DRIVE_FOLDER_ID_PATTERN = /^[A-Za-z0-9_-]{10,}$/;
  * an invalid entry is dropped, never repaired by guessing.
  */
 export function migrateAgentIndexAndInventorySettings(old: Record<string, unknown>): void {
-    const strings = (value: unknown): string[] =>
-        Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : [];
+    const strings = (value: unknown): string[] => {
+        // A lone string is one folder, never "nothing": dropping it would widen an include list to the whole vault.
+        if (typeof value === 'string') return value.trim() === '' ? [] : [value.trim()];
+        return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : [];
+    };
     const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
     const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
         if (typeof value !== 'number' && typeof value !== 'string') return fallback;
@@ -1440,10 +1443,12 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
         const r = p as Record<string, unknown>;
         if (typeof r.id !== 'string' || r.id === '' || seen.has(r.id)) return [];
         if (typeof r.driveFolderId !== 'string' || !DRIVE_FOLDER_ID_PATTERN.test(r.driveFolderId)) return [];
+        // An empty string is the vault root; anything that is not a string is not a destination at all.
+        if (typeof r.vaultFolder !== 'string') return [];
         seen.add(r.id);
         return [{
             id: r.id,
-            vaultFolder: typeof r.vaultFolder === 'string' ? r.vaultFolder : '',
+            vaultFolder: r.vaultFolder,
             driveFolderId: r.driveFolderId,
             label: typeof r.label === 'string' && r.label.trim() !== '' ? r.label.trim() : undefined,
             placement: r.placement === 'inside' ? 'inside' : 'beside',
