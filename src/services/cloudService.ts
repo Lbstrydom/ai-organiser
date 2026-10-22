@@ -1,9 +1,12 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, GenerateTagsOptions, LanguageCode } from './types';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
 import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLatestModel } from './adapters/modelCapabilities';
+import { buildClaudeCachedPrompt } from './adapters/claudePromptCache';
+import { joinPromptParts } from './prompts/promptParts';
+import { logLlmUsage } from './llm/llmUsageLog';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
 import { getModelOutputLimit } from './tokenLimits';
@@ -140,7 +143,34 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return null;
     }
 
-    private async makeRequest(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
+    /**
+     * Request body for the tagging path. An adapter that implements
+     * `formatCachedRequest` (Claude, Azure Claude) receives the split so the
+     * stable head can be cached; every other adapter gets the joined text via
+     * `formatRequest`, so a provider that doesn't understand the split can never
+     * drop the prefix. Used for both the send and the Azure TPM fail-fast size
+     * check, so the body that is measured is the body that is sent.
+     */
+    private buildTagRequestBody(prompt: string, opts?: GenerateTagsOptions): Record<string, unknown> {
+        const prefix = opts?.stablePrefix;
+        if (prefix && this.adapter.formatCachedRequest) {
+            return this.adapter.formatCachedRequest(prompt, prefix);
+        }
+        return this.adapter.formatRequest(joinPromptParts(prefix, prompt));
+    }
+
+    /** Debug-log the cache-relevant token counts of a parsed response body. */
+    private logResponseUsage(label: string, data: unknown): void {
+        const body = data as { usage?: unknown; model?: string } | null | undefined;
+        logLlmUsage(
+            label,
+            this.adapterType,
+            body?.model ?? this.adapter['config']?.modelName ?? this.modelName,
+            body?.usage,
+        );
+    }
+
+    private async makeRequest(prompt: string, timeoutMs: number, opts?: GenerateTagsOptions): Promise<import('obsidian').RequestUrlResponse> {
         try {
             const validationError = this.validateCloudConfig();
             if (validationError) {
@@ -151,7 +181,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 url: this.adapter.getEndpoint(),
                 method: 'POST',
                 headers: this.adapter.getHeaders(),
-                body: JSON.stringify(this.adapter.formatRequest(prompt)),
+                body: JSON.stringify(this.buildTagRequestBody(prompt, opts)),
                 throw: false
             }, timeoutMs);
             return response;
@@ -407,9 +437,10 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         timeoutMs: number,
         attempt: number,
         setLastError: (e: Error) => void,
+        opts?: GenerateTagsOptions,
     ): Promise<import('obsidian').RequestUrlResponse | null> {
         try {
-            const response = await this.makeRequest(prompt, timeoutMs);
+            const response = await this.makeRequest(prompt, timeoutMs, opts);
             if (response.status >= 200 && response.status < 300) return response;
 
             // Debug log the raw response on non-2xx. Critical when the
@@ -426,7 +457,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 // Azure >TPM fail-fast (throws AzureRateLimitError → propagated as
                 // non-retriable below) + dimension-aware backoff.
                 if (this.isAzureAdapter()) {
-                    this.azureTpmFailFast(response, JSON.stringify(this.adapter.formatRequest(prompt)));
+                    this.azureTpmFailFast(response, JSON.stringify(this.buildTagRequestBody(prompt, opts)));
                 }
                 const waitMs = this.isAzureAdapter()
                     ? this.azureBackoffMs(response, attempt)
@@ -447,12 +478,12 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         }
     }
 
-    private async makeRequestWithRetry(prompt: string, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
+    private async makeRequestWithRetry(prompt: string, timeoutMs: number, opts?: GenerateTagsOptions): Promise<import('obsidian').RequestUrlResponse> {
         let lastError: Error | null = null;
         const setLastError = (e: Error): void => { lastError = e; };
 
         for (let i = 0; i < this.MAX_RETRIES; i++) {
-            const response = await this.tryOneRequest(prompt, timeoutMs, i, setLastError);
+            const response = await this.tryOneRequest(prompt, timeoutMs, i, setLastError, opts);
             if (response) return response;
             if (i < this.MAX_RETRIES - 1) {
                 await new Promise(resolve => window.setTimeout(resolve, this.RETRY_DELAY * Math.pow(2, i)));
@@ -549,10 +580,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
     /**
      * Sends a request to the LLM service and returns the response
      * @param prompt - The prompt to send
+     * @param options - Optional cacheable `stablePrefix` and log label
      * @returns Promise resolving to the response
      */
-    protected async sendRequest(prompt: string): Promise<string> {
-        const response = await this.makeRequestWithRetry(prompt, this.getRequestTimeoutMs());
+    protected async sendRequest(prompt: string, options?: GenerateTagsOptions): Promise<string> {
+        const response = await this.makeRequestWithRetry(prompt, this.getRequestTimeoutMs(), options);
 
         if (response.status < 200 || response.status >= 300) {
             const responseText = response.text;
@@ -567,6 +599,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const responseText = response.text;
         try {
             const data = JSON.parse(responseText);
+            this.logResponseUsage(options?.label ?? 'tagging', data);
             // Try to get the completion content based on adapter or standard format
             const content = this.adapter.parseResponseContent(data);
             if (!content) {
@@ -612,8 +645,9 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @returns Promise resolving to the response content
      */
     /** Parse the raw text from a successful summarize response, throwing on empty/malformed content. */
-    private parseSummarizeResponseText(responseText: string): string {
+    private parseSummarizeResponseText(responseText: string, label: string): string {
         const data = JSON.parse(responseText);
+        this.logResponseUsage(label, data);
         logger.debug('LLM', 'Summarize response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data);
         logger.debug('LLM', 'Summarize response preview:', responseText.substring(0, 300));
         const content = this.adapter.parseResponseContent(data);
@@ -703,7 +737,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         const responseText = response.text;
         try {
-            return this.parseSummarizeResponseText(responseText);
+            return this.parseSummarizeResponseText(responseText, options?.label ?? 'chat');
         } catch (error) {
             if (error instanceof Error) throw error;
             throw new Error(`Failed to parse response: ${responseText.substring(0, 100)}...`);
@@ -723,9 +757,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // caching; concatenate `stablePrefix` onto the user prompt so callers
         // can pass the split prompt uniformly. Claude path handles
         // `stablePrefix` natively via `cache_control` blocks.
-        const effectivePrompt = options?.stablePrefix
-            ? `${options.stablePrefix}\n\n${prompt}`
-            : prompt;
+        const effectivePrompt = joinPromptParts(options?.stablePrefix, prompt);
 
         // Use the stored adapter type for reliable detection.
         // AZURE: azure-claude uses the native Anthropic wire format (it talks to
@@ -824,12 +856,12 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * - disableThinking: skip adaptive thinking entirely (for structured extraction)
      * - maxTokens: override the default token budget
      * - When thinking is active and no explicit maxTokens, uses 64K default
-     * - stablePrefix: when large enough to clear Anthropic's per-model minimum,
-     *   emitted as a second `system` content block with `cache_control:
-     *   {type: 'ephemeral'}` so repeated calls sharing the prefix read at
-     *   0.1x. Below the threshold, it falls back to plain concatenation
-     *   (no cache_control) to avoid paying the 1.25x write penalty for a
-     *   prefix Anthropic would silently refuse to cache.
+     * - stablePrefix: when the model's documented cache minimum is known and the
+     *   prefix clears it, emitted as a second `system` content block with
+     *   `cache_control: {type: 'ephemeral'}` so repeated calls sharing the
+     *   prefix read at 0.1x. Otherwise (below the minimum, or an undocumented
+     *   model) it falls back to plain concatenation with no cache_control —
+     *   see `buildClaudeCachedPrompt`.
      */
     private buildClaudeSummarizeBody(prompt: string, systemPrompt: string, options?: SummarizeOptions): Record<string, unknown> {
         const serviceModel = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim()) || PROVIDER_DEFAULT_MODEL[this.adapterType];
@@ -866,7 +898,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const modelMaxOut = getModelOutputLimit(this.adapterType, modelName);
         if (maxTokens > modelMaxOut) maxTokens = modelMaxOut;
 
-        const { systemField, userContent } = this.buildClaudeSystemAndUser(
+        const { systemField, userContent } = buildClaudeCachedPrompt(
             systemPrompt,
             prompt,
             modelName,
@@ -889,57 +921,6 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         }
 
         return body;
-    }
-
-    /**
-     * Decide how to package the system prompt + optional cacheable stable
-     * prefix for the Claude Messages API. Returns the value to assign to
-     * `system` and the string to put in the user message.
-     *
-     * Three cases:
-     *  1. No stablePrefix → identity behaviour (string system, prompt as-is).
-     *  2. stablePrefix below threshold → concatenate prefix into user
-     *     content; no cache_control. Avoids the 1.25x write penalty on
-     *     prefixes Anthropic would silently refuse to cache.
-     *  3. stablePrefix above threshold → emit it as a second `system`
-     *     content block with `cache_control: { type: 'ephemeral' }`.
-     *     User message carries only volatile content.
-     */
-    private buildClaudeSystemAndUser(
-        systemPrompt: string,
-        prompt: string,
-        modelName: string,
-        stablePrefix: string | undefined,
-    ): { systemField: string | Array<Record<string, unknown>>; userContent: string } {
-        if (!stablePrefix) {
-            return { systemField: systemPrompt, userContent: prompt };
-        }
-
-        // Anthropic per-model minimums: Sonnet/Opus 1024 tokens, Haiku 2048.
-        // Use 4 chars/token as a conservative estimate. Below the threshold,
-        // the cache_control marker is silently ignored AND we still pay the
-        // 1.25x write surcharge — so fall back to concatenation.
-        const isHaiku = /haiku/i.test(modelName);
-        const minChars = isHaiku ? 8192 : 4096;
-
-        if (stablePrefix.length < minChars) {
-            return {
-                systemField: systemPrompt,
-                userContent: `${stablePrefix}\n\n${prompt}`,
-            };
-        }
-
-        return {
-            systemField: [
-                { type: 'text', text: systemPrompt },
-                {
-                    type: 'text',
-                    text: stablePrefix,
-                    cache_control: { type: 'ephemeral' },
-                },
-            ],
-            userContent: prompt,
-        };
     }
 
     /**
@@ -1011,6 +992,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             }
 
             const data = JSON.parse(response.text);
+            this.logResponseUsage('multimodal', data);
             const content = this.adapter.parseResponseContent(data);
 
             if (!content) {
@@ -1096,7 +1078,9 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             throw new Error('Streaming not supported by this adapter');
         }
 
-        const { url, headers, body } = this.adapter.formatStreamingRequest!(prompt);
+        // The streaming request builders take a single prompt string, so a
+        // `stablePrefix` is joined in rather than silently dropped.
+        const { url, headers, body } = this.adapter.formatStreamingRequest!(joinPromptParts(options?.stablePrefix, prompt));
 
         // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
         const doFetch = (): Promise<Response> => window.fetch(url, {

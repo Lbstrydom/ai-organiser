@@ -17,7 +17,7 @@ import { App } from 'obsidian';
 
 const mockApp = {} as App;
 
-const makeClaudeService = (modelName = 'claude-sonnet-4-7') =>
+const makeClaudeService = (modelName = 'claude-sonnet-4-6') =>
     new CloudLLMService(
         {
             type: 'claude' as AdapterType,
@@ -52,8 +52,8 @@ describe('Claude prompt caching — stablePrefix', () => {
     });
 
     describe('stablePrefix below threshold', () => {
-        it('Sonnet under 4096 chars → concatenates onto user, no cache_control', () => {
-            const service = makeClaudeService('claude-sonnet-4-7');
+        it('Sonnet 4.6 under 4096 chars (1024-token minimum) → concatenates onto user, no cache_control', () => {
+            const service = makeClaudeService('claude-sonnet-4-6');
             const shortPrefix = 'A'.repeat(2000); // below 4096
             const body = (service as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
                 .buildSummarizeRequestBody('user content', { stablePrefix: shortPrefix });
@@ -64,9 +64,9 @@ describe('Claude prompt caching — stablePrefix', () => {
             expect(serialised).not.toContain('cache_control');
         });
 
-        it('Haiku under 8192 chars → concatenates onto user, no cache_control', () => {
+        it('Haiku 4.5 under 16384 chars (4096-token minimum) → concatenates onto user, no cache_control', () => {
             const service = makeClaudeService('claude-haiku-4-5');
-            // 5000 chars: above Sonnet threshold (4096) but below Haiku (8192)
+            // 5000 chars: above Sonnet 4.6's minimum (4096) but below Haiku 4.5's (16384)
             const mediumPrefix = 'B'.repeat(5000);
             const body = (service as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
                 .buildSummarizeRequestBody('volatile', { stablePrefix: mediumPrefix });
@@ -78,9 +78,36 @@ describe('Claude prompt caching — stablePrefix', () => {
         });
     });
 
+    describe('model minimums are per-model, from the documented table', () => {
+        const body = (model: string, prefix: string) =>
+            (makeClaudeService(model) as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
+                .buildSummarizeRequestBody('v', { stablePrefix: prefix });
+
+        it('Sonnet 5.5 (512-token minimum) caches a 2048-char prefix', () => {
+            expect(Array.isArray(body('claude-sonnet-5-5', 'S'.repeat(2048)).system)).toBe(true);
+        });
+
+        it('Sonnet 5.5 does not cache a 2047-char prefix', () => {
+            const b = body('claude-sonnet-5-5', 'S'.repeat(2047));
+            expect(typeof b.system).toBe('string');
+            expect(JSON.stringify(b)).not.toContain('cache_control');
+        });
+
+        it('an undocumented model id never caches, however long the prefix', () => {
+            for (const model of ['claude-sonnet-4-7', 'claude-opus-6', 'sonnet-prod']) {
+                const b = body(model, 'U'.repeat(100_000));
+                expect(typeof b.system).toBe('string');
+                expect(JSON.stringify(b)).not.toContain('cache_control');
+                expect(b.messages[0].content).toBe(`${'U'.repeat(100_000)}
+
+v`);
+            }
+        });
+    });
+
     describe('stablePrefix above threshold — cache_control emitted', () => {
-        it('Sonnet at 4096+ chars → system becomes array with cache_control on prefix block', () => {
-            const service = makeClaudeService('claude-sonnet-4-7');
+        it('Sonnet 4.6 at 4096+ chars → system becomes array with cache_control on prefix block', () => {
+            const service = makeClaudeService('claude-sonnet-4-6');
             const longPrefix = 'C'.repeat(5000); // above Sonnet threshold (4096)
             const body = (service as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
                 .buildSummarizeRequestBody('volatile chunk', { stablePrefix: longPrefix });
@@ -101,9 +128,9 @@ describe('Claude prompt caching — stablePrefix', () => {
             expect(body.messages[0].content).toBe('volatile chunk');
         });
 
-        it('Haiku at 8192+ chars → cache_control emitted', () => {
+        it('Haiku 4.5 at 16384+ chars → cache_control emitted', () => {
             const service = makeClaudeService('claude-haiku-4-5');
-            const longPrefix = 'D'.repeat(9000); // above Haiku threshold (8192)
+            const longPrefix = 'D'.repeat(17000); // above Haiku 4.5 threshold (16384)
             const body = (service as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
                 .buildSummarizeRequestBody('volatile', { stablePrefix: longPrefix });
 
@@ -114,7 +141,7 @@ describe('Claude prompt caching — stablePrefix', () => {
         });
 
         it('preserves max_tokens override when caching is active', () => {
-            const service = makeClaudeService('claude-sonnet-4-7');
+            const service = makeClaudeService('claude-sonnet-4-6');
             const longPrefix = 'X'.repeat(5000);
             const body = (service as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
                 .buildSummarizeRequestBody('v', { stablePrefix: longPrefix, maxTokens: 12288 });
@@ -189,7 +216,7 @@ describe('Claude prompt caching — stablePrefix', () => {
 
     describe('idempotence — same prefix produces byte-identical system field', () => {
         it('two calls with the same stablePrefix yield equal system arrays', () => {
-            const service = makeClaudeService('claude-sonnet-4-7');
+            const service = makeClaudeService('claude-sonnet-4-6');
             const prefix = 'idempotent-'.repeat(500); // ~5500 chars, above threshold
             const body1 = (service as unknown as { buildSummarizeRequestBody(p: string, o?: unknown): ClaudeBody })
                 .buildSummarizeRequestBody('first chunk', { stablePrefix: prefix });

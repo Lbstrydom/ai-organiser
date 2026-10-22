@@ -1,6 +1,7 @@
 import { LanguageCode } from '../types';
 import { LanguageUtils } from '../../utils/languageUtils';
 import { FolderContext } from '../../utils/folderContextUtils';
+import { PromptParts, joinPromptParts } from './promptParts';
 
 /**
  * Builds a taxonomy-based tagging prompt
@@ -13,13 +14,13 @@ import { FolderContext } from '../../utils/folderContextUtils';
  * @param folderContext - Optional folder context to constrain suggestions
  * @returns Formatted prompt string
  */
-export function buildTaxonomyTagPrompt(
+export function buildTaxonomyTagPromptParts(
     content: string,
     taxonomyPrompt: string,
     maxTags: number = 5,
     language?: LanguageCode | 'default',
     folderContext?: FolderContext
-): string {
+): PromptParts {
     let langInstructions = '';
 
     // Prepare language instructions if needed
@@ -101,7 +102,7 @@ IMPORTANT CONSTRAINTS:
 }`;
     }
 
-    return `${langInstructions}${folderScopeInstructions}<task>
+    const stablePrefix = `${langInstructions}${folderScopeInstructions}<task>
 You are a knowledge organizer. Analyze the document and:
 1. Assign tags using a structured 3-level taxonomy
 2. Suggest a descriptive title for the note
@@ -128,9 +129,11 @@ The tagging system uses THREE levels:
    - Use kebab-case format
 </taxonomy_structure>
 
-${taxonomyPrompt}
+${taxonomyPrompt}`;
 
-<document_content>
+    // Everything above is identical for every note in a batch (language, folder
+    // scope, taxonomy, max tags); everything below carries the note.
+    const prompt = `<document_content>
 ${content}
 </document_content>
 
@@ -165,6 +168,23 @@ ${folderExample}
 
 Return ONLY the JSON object, no additional text or explanation.
 </output_format>`;
+
+    return { stablePrefix, prompt };
+}
+
+/**
+ * Single-string form of {@link buildTaxonomyTagPromptParts} — the stable head
+ * and the note prompt joined, byte-identical to the pre-split prompt.
+ */
+export function buildTaxonomyTagPrompt(
+    content: string,
+    taxonomyPrompt: string,
+    maxTags: number = 5,
+    language?: LanguageCode | 'default',
+    folderContext?: FolderContext
+): string {
+    const parts = buildTaxonomyTagPromptParts(content, taxonomyPrompt, maxTags, language, folderContext);
+    return joinPromptParts(parts.stablePrefix, parts.prompt);
 }
 
 /**

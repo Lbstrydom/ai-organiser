@@ -180,6 +180,15 @@ export abstract class BaseAdapter extends BaseLLMService {
      */
     public formatSummarizeRequest?(prompt: string): Record<string, unknown>;
 
+    /**
+     * Formats the tagging request with a cacheable instruction head kept apart
+     * from the per-note prompt. Implement ONLY if the provider can use the
+     * split (Claude's `cache_control`). When absent, `CloudLLMService` sends
+     * `formatRequest(stablePrefix + "\n\n" + prompt)`, so an adapter that
+     * ignores the split can never lose the prefix.
+     */
+    public formatCachedRequest?(prompt: string, stablePrefix: string): Record<string, unknown>;
+
     /** Whether this adapter supports SSE streaming. Default: false. */
     supportsStreaming?(): boolean;
 

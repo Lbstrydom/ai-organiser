@@ -9,7 +9,8 @@ import {
     SecretStorageService,
     BasesService
 } from './services';
-import { buildTaxonomyTagPrompt } from './services/prompts/tagPrompts';
+import { buildTaxonomyTagPromptParts } from './services/prompts/tagPrompts';
+import { joinPromptParts } from './services/prompts/promptParts';
 import { VisionService } from './services/visionService';
 import { PdfService } from './services/pdfService';
 import { DocumentExtractionService } from './services/documentExtractionService';
@@ -1662,7 +1663,8 @@ export default class AIOrganiserPlugin extends Plugin {
                     const content = await this.app.vault.read(file);
                     if (!content.trim()) { processed++; controller.recordProgress(processed); statusBar.update(processed, files.length, Date.now() - startedAt); continue; }
 
-                    const result = await this.analyzeAndTagNote(file, content);
+                    // A batch of 2+ notes repeats the same instruction head within the cache TTL.
+                    const result = await this.analyzeAndTagNote(file, content, { cacheTagPrefix: files.length >= 2 });
 
                     if (result.success) { successful++; }
                     this.handleTagUpdateResult(result, true);
@@ -1737,7 +1739,12 @@ export default class AIOrganiserPlugin extends Plugin {
     public async analyzeAndTagNote(
         file: TFile,
         contentOrAnalysis: string | LLMResponse,
-        options?: { folderScope?: string; onProgress?: (phase: string) => void }
+        options?: {
+            folderScope?: string;
+            onProgress?: (phase: string) => void;
+            /** Send the batch-stable instruction head as a cacheable prefix. Set by multi-note batches only; a one-off tag would pay the cache-write premium for nothing. */
+            cacheTagPrefix?: boolean;
+        }
     ): Promise<TagOperationResult> {
         const onProgress = options?.onProgress;
         try {
@@ -1765,7 +1772,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 }
 
                 // Build the prompt with optional folder context
-                const prompt = buildTaxonomyTagPrompt(
+                const parts = buildTaxonomyTagPromptParts(
                     content,
                     taxonomyPrompt,
                     this.settings.maxTags,
@@ -1777,7 +1784,9 @@ export default class AIOrganiserPlugin extends Plugin {
                 // Get tags from LLM — routed through the Azure fast/triage
                 // deployment when configured (Phase 3), else the main service.
                 const taggingService = await this.getTaggingService();
-                const response = await withBusyIndicator(this, () => taggingService.generateTags(prompt));
+                const response = await withBusyIndicator(this, () => options?.cacheTagPrefix
+                    ? taggingService.generateTags(parts.prompt, { stablePrefix: parts.stablePrefix, label: 'tagging' })
+                    : taggingService.generateTags(joinPromptParts(parts.stablePrefix, parts.prompt), { label: 'tagging' }));
 
                 if (!response.success || !response.tags) {
                     return { success: false, message: response.error || 'Failed to generate tags' };
