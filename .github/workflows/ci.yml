@@ -42,12 +42,14 @@ jobs:
       - name: Lint (Obsidian review-bot rules)
         run: npm run lint
 
-      - name: Type-check, unit tests and integration checks
-        run: npm run test:all
-
-      # Production build; esbuild.config.mjs runs scripts/verify-build.mjs inside it.
+      # Production build first: main.js is gitignored, and the integration checks in
+      # test:all assert that the build produced it. esbuild.config.mjs runs
+      # scripts/verify-build.mjs inside this step.
       - name: Production build
         run: npm run build:quick
+
+      - name: Type-check, unit tests and integration checks
+        run: npm run test:all
 
       # Re-run the submission invariants standalone so their output is visible in the log:
       # no script-element creation, no "manifest.json" literal, manifest/package/versions agree.
