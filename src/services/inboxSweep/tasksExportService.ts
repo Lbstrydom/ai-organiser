@@ -72,8 +72,8 @@ export interface ExportDeps extends Endpoint {
     listId: string;
     /** Re-run the guard on the item's current source note */
     checkSource(task: ApprovedTask): Promise<SourceCheck>;
-    /** Persist the record after every batch */
-    persist(record: ApprovalRecord): Promise<void>;
+    /** Persist the record after every batch. A failure stops the export: what was sent is not durably known. */
+    persist(record: ApprovalRecord): Promise<Result<void>>;
     maxPasses?: number;
 }
 
@@ -130,7 +130,8 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
             if (!results) { summary.error = 'script-bad-response'; return { record, summary: finalise(record, summary) }; }
             record = applyExportResults(record, results);
             retried += results.filter((r) => r.status === 'retry').length;
-            await deps.persist(record);
+            const persisted = await deps.persist(record);
+            if (!persisted.ok) { summary.error = persisted.error; return { record, summary: finalise(record, summary) }; }
         }
         if (retried === 0) break;
     }

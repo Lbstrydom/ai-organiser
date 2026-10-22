@@ -31,8 +31,13 @@ export function promptText(note: GuardedSnapshot, maxChars: number): { text: str
     return note.text.length > maxChars ? { text: note.text.slice(0, maxChars), truncated: true } : { text: note.text, truncated: false };
 }
 
+/** The note text with any closing tag of the box it sits in neutralised, so it cannot end the box early. */
+export function fenceNoteText(text: string): string {
+    return text.replace(/<\s*\/\s*note\s*>/gi, '‹/note›').replace(/<\s*note\s*>/gi, '‹note›');
+}
+
 export function buildSweepPrompt(note: GuardedSnapshot, maxChars: number): string {
-    const { text } = promptText(note, maxChars);
+    const text = fenceNoteText(promptText(note, maxChars).text);
     const contexts = (VALID_GTD_CONTEXTS as readonly string[]).join(', ');
     return [
         '<task>',
@@ -83,14 +88,18 @@ export interface ParsedSweep {
     items: SweepItem[];
     /** Items dropped for being malformed or for evidence that is not in the note */
     dropped: number;
+    /** The answer was not usable (no JSON, or not the expected shape): not the same as "found nothing" */
+    malformed: boolean;
 }
 
 /** Turn the model's answer into verified items. Never throws; an unusable answer yields no items. */
 export function parseSweepResponse(raw: string, source: string): ParsedSweep {
     const json = extractJson(raw);
-    if (!json || typeof json !== 'object') return { items: [], dropped: 0 };
+    if (!json || typeof json !== 'object') return { items: [], dropped: 0, malformed: true };
     const root = json as { gtd_processing?: unknown };
     const gtd = (root.gtd_processing && typeof root.gtd_processing === 'object' ? root.gtd_processing : json) as Record<string, unknown>;
+    // At least one of the four lists must be present, even if empty.
+    if (!['next_actions', 'waiting_for', 'projects', 'someday_maybe'].some((k) => Array.isArray(gtd[k]))) return { items: [], dropped: 0, malformed: true };
     const items: SweepItem[] = [];
     let dropped = 0;
     const lists: Array<[SweepItemKind, unknown]> = [
@@ -111,5 +120,5 @@ export function parseSweepResponse(raw: string, source: string): ParsedSweep {
             items.push({ kind, text, context, waitingOn: kind === 'waiting_for' ? asText(e.waiting_on, 80) || undefined : undefined, evidence });
         }
     }
-    return { items, dropped };
+    return { items, dropped, malformed: false };
 }

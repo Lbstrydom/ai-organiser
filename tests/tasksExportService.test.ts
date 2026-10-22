@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { classifyTasksScript, exportApproved, fetchTaskLists, pingTasksScript, type ExportDeps, type SourceCheck } from '../src/services/inboxSweep/tasksExportService';
+import { ok as okResult, err as errResult } from '../src/core/result';
 import { markReported, newApproval, type ApprovalRecord } from '../src/services/inboxSweep/sweepLedger';
 import { approvedListHashOf } from '../src/services/inboxSweep/tasksScriptTemplate';
 import type { ScriptTransport } from '../src/services/appsScriptClient';
@@ -20,7 +21,7 @@ function deps(over: Partial<ExportDeps> = {}): ExportDeps & { saved: ApprovalRec
 		secret: 'S',
 		listId: 'ListId_42',
 		checkSource: async () => 'ok',
-		persist: async (r) => { saved.push(r); },
+		persist: async (r) => { saved.push(r); return okResult(undefined); },
 		saved,
 		...over,
 	};
@@ -130,6 +131,16 @@ describe('exportApproved', () => {
 		const out = await exportApproved(record(2), deps({ transport }));
 		expect(out.record.tasks.map((t) => [t.state, t.error])).toEqual([['failed', 'conflict'], ['failed', 'export-failed']]);
 		expect(out.summary.failed).toBe(2);
+	});
+
+	it('stops, and says why, when the record cannot be saved', async () => {
+		const transport: ScriptTransport = async ({ body }) => {
+			const req = JSON.parse(body);
+			return { status: 200, text: JSON.stringify({ ok: true, results: req.tasks.map((t: { exportId: string }) => ({ exportId: t.exportId, status: 'created' })) }) };
+		};
+		const out = await exportApproved(record(60), deps({ transport, persist: async () => errResult('write-failed') }));
+		expect(out.summary.error).toBe('write-failed');
+		expect(out.record.tasks.filter((t) => t.state === 'exported')).toHaveLength(25); // no batch after the failed save
 	});
 
 	it('sends nothing when nothing is exportable, and stops when cancelled', async () => {

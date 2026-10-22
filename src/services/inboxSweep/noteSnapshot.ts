@@ -19,11 +19,26 @@ export interface NoteSnapshot {
 }
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n(?:---|\.\.\.)\s*(?:\r?\n|$)/;
+/** A note that opens a frontmatter block, whether or not it closes it properly */
+const FRONTMATTER_OPEN = /^---[ \t]*\r?\n/;
 
-function flatten(value: unknown): string[] {
+/** Limits on how much metadata is read, so a hostile or accidental alias explosion cannot stall a sweep. */
+const MAX_DEPTH = 6;
+const MAX_NODES = 2000;
+const MAX_VALUES = 500;
+
+class MetadataTooLarge extends Error {}
+
+/** Flatten a metadata value to strings within an explicit depth, node and output budget. */
+function flatten(value: unknown, budget: { nodes: number; values: number }, depth = 0): string[] {
+    if (++budget.nodes > MAX_NODES || depth > MAX_DEPTH) throw new MetadataTooLarge();
     if (value === null || value === undefined) return [];
-    if (Array.isArray(value)) return value.flatMap(flatten);
-    return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? [String(value)] : [];
+    if (Array.isArray(value)) return value.flatMap((v) => flatten(v, budget, depth + 1));
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        if (++budget.values > MAX_VALUES) throw new MetadataTooLarge();
+        return [String(value)];
+    }
+    return [];
 }
 
 export function normaliseTag(tag: string): string {
@@ -33,17 +48,21 @@ export function normaliseTag(tag: string): string {
 /** Parse tags and properties out of note text. Pure; malformed frontmatter yields none (and the guard treats the note as readable). */
 export function parseSnapshotMetadata(text: string): { tags: string[]; properties: Record<string, string[]>; frontmatterOk: boolean } {
     const tags = new Set<string>();
-    const properties: Record<string, string[]> = {};
+    // A dictionary with no prototype: a property called `constructor` is an ordinary key.
+    const properties: Record<string, string[]> = Object.create(null) as Record<string, string[]>;
     let frontmatterOk = true;
     const match = FRONTMATTER.exec(text);
     let body = text;
+    // A block that opens but never closes is not "no frontmatter": the exclusion metadata may be in it.
+    if (!match && FRONTMATTER_OPEN.test(text)) frontmatterOk = false;
     if (match) {
         body = text.slice(match[0].length);
         try {
             const parsed = yaml.load(match[1]);
             if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+                const budget = { nodes: 0, values: 0 };
                 for (const [key, value] of Object.entries(parsed as Record<string, unknown>)) {
-                    const values = flatten(value);
+                    const values = flatten(value, budget);
                     properties[key.toLowerCase()] = values;
                     if (key.toLowerCase() === 'tags' || key.toLowerCase() === 'tag') for (const v of values) for (const part of v.split(/[\s,]+/)) if (part) tags.add(normaliseTag(part));
                 }
@@ -51,6 +70,7 @@ export function parseSnapshotMetadata(text: string): { tags: string[]; propertie
                 frontmatterOk = false;
             }
         } catch {
+            // Malformed YAML, or metadata over the budget: either way the exclusion data cannot be trusted.
             frontmatterOk = false;
         }
     }

@@ -71,6 +71,19 @@ function replaceRecord(plugin: AIOrganiserPlugin, record: ApprovalRecord): void 
     else list[i] = record;
 }
 
+/**
+ * Save a record durably. The live settings only keep the new state when the save succeeded; on
+ * failure they are put back, so recovery decisions (which read the live settings) never rest on a
+ * checkpoint that was not written.
+ */
+async function saveRecord(plugin: AIOrganiserPlugin, record: ApprovalRecord): Promise<Result<void>> {
+    const before = [...plugin.settings.sweepApprovals];
+    replaceRecord(plugin, record);
+    const saved = await save(plugin);
+    if (!saved.ok) plugin.settings.sweepApprovals = before;
+    return saved;
+}
+
 // ─── Report note ────────────────────────────────────────────────────────────
 
 async function writeSection(plugin: AIOrganiserPlugin, record: ApprovalRecord): Promise<Result<void>> {
@@ -122,6 +135,16 @@ export interface CommitOutcome {
 
 /** Steps 1 to 3 for a freshly reviewed run. */
 export async function commitReview(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
+    try {
+        return await commitReviewUnsafe(plugin, input);
+    } catch (e) {
+        logger.error('Sweep', 'Commit failed', e);
+        const record = newApproval({ runId: newRunId(), now: new Date().toISOString(), reportPath: plugin.settings.sweepReportPath, tasks: input.tasks, dispositions: input.dispositions });
+        return { record, stoppedAt: 'persist', error: 'write-failed' };
+    }
+}
+
+async function commitReviewUnsafe(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
     const path = validateReportPath(plugin.settings.sweepReportPath, plugin.settings.protectedFolders);
     const runId = newRunId();
     let record = newApproval({
@@ -136,49 +159,61 @@ export async function commitReview(plugin: AIOrganiserPlugin, input: CommitInput
     if (!path.ok && input.tasks.length > 0) return { record, stoppedAt: 'persist', error: path.error };
 
     // 1. persist before anything else: edited proposals cannot be regenerated
-    replaceRecord(plugin, record);
-    const saved = await save(plugin);
+    const saved = await saveRecord(plugin, record);
     if (!saved.ok) return { record, stoppedAt: 'persist', error: saved.error };
     return finishRecord(plugin, record);
 }
 
-/** Steps 2 and 3, repeatable. Used by the first commit and by recovery. */
+/** Steps 2 and 3, repeatable. Used by the first commit and by recovery. Never throws. */
 export async function finishRecord(plugin: AIOrganiserPlugin, start: ApprovalRecord): Promise<CommitOutcome> {
     let record = start;
-    if (!record.reportDone) {
-        const existing = plugin.app.vault.getAbstractFileByPath(record.reportPath);
-        let state: 'done' | 'redo' | 'conflict' = 'redo';
-        if (existing instanceof TFile) {
-            state = reconcileReport(await plugin.app.vault.read(existing), record.runId, record.tasks.map((t) => t.id));
+    let stage: 'report' | 'ledger' = 'report';
+    try {
+        if (!record.reportDone) {
+            const existing = plugin.app.vault.getAbstractFileByPath(record.reportPath);
+            let state: 'done' | 'redo' | 'conflict' = 'redo';
+            if (existing instanceof TFile) {
+                state = reconcileReport(await plugin.app.vault.read(existing), record.runId, record.tasks.map((t) => t.id));
+            }
+            if (state === 'conflict') return { record, stoppedAt: 'report', error: 'sweep-report-conflict' };
+            if (state === 'redo') {
+                const written = await writeSection(plugin, record);
+                if (!written.ok) return { record, stoppedAt: 'report', error: written.error };
+            }
+            const next = markReported(record);
+            const saved = await saveRecord(plugin, next);
+            if (!saved.ok) return { record, stoppedAt: 'report', error: saved.error };
+            record = next;
         }
-        if (state === 'conflict') return { record, stoppedAt: 'report', error: 'sweep-report-conflict' };
-        if (state === 'redo') {
-            const written = await writeSection(plugin, record);
-            if (!written.ok) return { record, stoppedAt: 'report', error: written.error };
+        if (!record.ledgerDone) {
+            stage = 'ledger';
+            const next = { ...record, ledgerDone: true };
+            const ledgerBefore = plugin.settings.sweepLedger;
+            plugin.settings.sweepLedger = applyDispositions(ledgerBefore, record, new Date().toISOString());
+            const saved = await saveRecord(plugin, next);
+            if (!saved.ok) { plugin.settings.sweepLedger = ledgerBefore; return { record, stoppedAt: 'ledger', error: saved.error }; }
+            record = next;
         }
-        record = markReported(record);
-        replaceRecord(plugin, record);
-        const saved = await save(plugin);
-        if (!saved.ok) return { record, stoppedAt: 'report', error: saved.error };
+        return { record };
+    } catch (e) {
+        logger.error('Sweep', 'Could not finish the approval record', e);
+        return { record, stoppedAt: stage, error: 'write-failed' };
     }
-    if (!record.ledgerDone) {
-        plugin.settings.sweepLedger = applyDispositions(plugin.settings.sweepLedger, record, new Date().toISOString());
-        record = { ...record, ledgerDone: true };
-        replaceRecord(plugin, record);
-        const saved = await save(plugin);
-        if (!saved.ok) return { record, stoppedAt: 'ledger', error: saved.error };
-    }
-    return { record };
 }
 
 /** After a crash or an offline moment: finish every unfinished record. Returns the first problem found. */
 export async function repairApprovals(plugin: AIOrganiserPlugin): Promise<{ repaired: number; error?: string; path?: string }> {
     let repaired = 0;
-    for (const record of [...plugin.settings.sweepApprovals]) {
-        if (record.reportDone && record.ledgerDone) continue;
-        const out = await finishRecord(plugin, record);
-        if (out.error) return { repaired, error: out.error, path: record.reportPath };
-        repaired++;
+    try {
+        for (const record of [...plugin.settings.sweepApprovals]) {
+            if (record.reportDone && record.ledgerDone) continue;
+            const out = await finishRecord(plugin, record);
+            if (out.error) return { repaired, error: out.error, path: record.reportPath };
+            repaired++;
+        }
+    } catch (e) {
+        logger.error('Sweep', 'Repair failed', e);
+        return { repaired, error: 'write-failed' };
     }
     return { repaired };
 }
@@ -227,16 +262,17 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
             signal,
             listId: s.tasksListId,
             checkSource: (task) => checkSource(plugin, task.sourcePath, task.sourceHash),
-            persist: async (r) => { replaceRecord(plugin, r); await save(plugin); },
+            persist: (r) => saveRecord(plugin, r),
         });
-        replaceRecord(plugin, out.record);
         total.exported += out.summary.exported;
         total.failed += out.summary.failed;
         total.pending += out.summary.pending;
         total.blocked.push(...out.summary.blocked);
         if (out.summary.error) { total.error = out.summary.error; break; }
     }
+    const beforePrune = s.sweepApprovals;
     s.sweepApprovals = pruneApprovals(s.sweepApprovals);
-    await save(plugin);
+    const finalSave = await save(plugin);
+    if (!finalSave.ok) { s.sweepApprovals = beforePrune; return err(finalSave.error); }
     return ok(total);
 }

@@ -77,7 +77,7 @@ export function exclusionReason(path: string, text: unknown, policy: SweepPolicy
     for (const entry of policy.excludedProperties) {
         const prop = parseProperty(entry);
         if (!prop) continue;
-        if ((meta.properties[prop.key] ?? []).some((v) => v.trim().toLowerCase() === prop.value)) return 'property';
+        if ((Object.hasOwn(meta.properties, prop.key) ? meta.properties[prop.key] : []).some((v) => v.trim().toLowerCase() === prop.value)) return 'property';
     }
     const lower = text.toLowerCase();
     if (policy.excludedTerms.some((term) => term.trim() !== '' && lower.includes(term.trim().toLowerCase()))) return 'term';

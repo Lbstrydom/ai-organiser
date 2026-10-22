@@ -3843,7 +3843,7 @@ export const en: Translations = {
         "drive-not-synced": { message: "Google Drive has not finished uploading the copy yet.", nextStep: "Wait for Drive for desktop to finish syncing, then resume the offload." },
         "remote-ambiguous": { message: "Drive shows more than one file that matches the copy.", nextStep: "Remove the duplicate in Google Drive, then resume the offload." },
         "source-missing": { message: "The original file is no longer in the vault.", nextStep: "If you moved or deleted it yourself, stop this offload from the resume window." },
-        "journal-not-ours": { message: "The offload record file was changed by something else.", nextStep: "Move that file out of the plugin folder, then start again." },
+        "journal-not-ours": { message: "The offload record file was changed by something else, and it may describe an unfinished offload.", nextStep: "Do not delete it. Copy it somewhere safe and check your Drive folder and your notes before starting another offload." },
         "invalid-transition": { message: "The offload cannot go to that step right now.", nextStep: "Open the resume window to see where it stands." },
         "referrer-conflict": { message: "One or more notes changed while their links were being updated.", nextStep: "Open the resume window to review them, then resume." },
         "node-missing": { message: "A canvas card could not be found.", nextStep: "Plan the offload again." },

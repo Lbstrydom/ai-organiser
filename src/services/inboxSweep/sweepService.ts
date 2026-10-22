@@ -65,12 +65,23 @@ export async function estimateSweep(deps: SweepDeps, options: Pick<SweepOptions,
     return { notes, chars };
 }
 
+/** A policy and its revision that were the same before and after the revision was computed. */
+async function coherentPolicy(deps: SweepDeps): Promise<{ policy: SweepPolicy; revision: string }> {
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const policy = deps.policy();
+        const revision = await policyRevisionOf(policy);
+        if (JSON.stringify(deps.policy()) === JSON.stringify(policy)) return { policy, revision };
+    }
+    // Settings keep changing: use the latest and let the pre-call check catch any difference.
+    const policy = deps.policy();
+    return { policy, revision: await policyRevisionOf(policy) };
+}
+
 /** Capture and judge one note against the policy as it is right now. */
 async function capture(deps: SweepDeps, path: string): Promise<{ result: ReturnType<typeof guardSnapshot>; hash: string } | null> {
     const text = await deps.readText(path);
     if (text === null) return null;
-    const policy = deps.policy();
-    const revision = await policyRevisionOf(policy);
+    const { policy, revision } = await coherentPolicy(deps);
     const snap = await buildSnapshot(path, text, revision);
     return { result: guardSnapshot(snap, policy, revision), hash: snap.contentHash };
 }
@@ -91,10 +102,10 @@ export async function runSweep(deps: SweepDeps, options: SweepOptions): Promise<
 
         // Immediately before the call: the policy and the path must be what they were when it was judged.
         let guarded: GuardedSnapshot = judged.result.snapshot;
-        const policy = deps.policy();
-        const revision = await policyRevisionOf(policy);
+        const { policy, revision } = await coherentPolicy(deps);
         const here = deps.currentPath ? deps.currentPath(path) : path;
-        if (!here || !stillAllowed(guarded, policy, revision, here)) {
+        // Judged against a policy that is identical now and when its revision was computed.
+        if (!here || JSON.stringify(deps.policy()) !== JSON.stringify(policy) || !stillAllowed(guarded, policy, revision, here)) {
             judged = await capture(deps, here ?? path);
             if (!judged) { out.failed++; continue; }
             if (!judged.result.allowed) { out.excluded[judged.result.reason] = (out.excluded[judged.result.reason] ?? 0) + 1; continue; }
@@ -109,6 +120,8 @@ export async function runSweep(deps: SweepDeps, options: SweepOptions): Promise<
             continue;
         }
         const parsed = parseSweepResponse(answer.value, promptText(guarded, options.maxChars).text);
+        // An answer we cannot read is a failure for this note, never "nothing to do": it stays unswept.
+        if (parsed.malformed) { out.failed++; continue; }
         out.notes.push({ path: guarded.path, contentHash: guarded.contentHash, items: parsed.items, dropped: parsed.dropped, truncated });
     }
     return out.cancelled && out.notes.length === 0 && out.failed === 0 ? err('cancelled') : ok(out);

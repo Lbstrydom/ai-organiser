@@ -113,7 +113,7 @@ export function buildInventoryScript(config: InventoryScriptConfig): string {
         'function doPost(e) {',
         '  try {',
         '    var req = JSON.parse((e && e.postData && e.postData.contents) || "{}");',
-        '    if (!req || req.secret !== CONFIG.SECRET) return fail_("auth", "The secret does not match.");',
+        '    if (!CONFIG.SECRET || !req || req.secret !== CONFIG.SECRET) return fail_("auth", "The secret does not match.");',
         '    if (req.op === "ping") {',
         '      var info = null;',
         '      if (req.folderId && isApproved_(req.folderId)) {',

@@ -157,7 +157,9 @@ function review(plugin: AIOrganiserPlugin, notes: NoteProposals[]): Promise<void
     return new Promise<void>((resolve) => {
         new InboxSweepReviewModal(plugin.app, plugin, notes, (result: CommitInput | null) => {
             if (!result) { resolve(); return; }
-            void commit(plugin, result).finally(resolve);
+            commit(plugin, result)
+                .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); })
+                .finally(resolve);
         }).open();
     });
 }
@@ -292,17 +294,32 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
             },
         ],
         onFinish: async (): Promise<Result<void>> => {
+            // Validate first, change nothing until everything is known to be usable.
+            const path = validateReportPath(draft.report, s.protectedFolders);
+            if (!path.ok) return err(path.error);
+            const before = {
+                inbox: s.sweepInboxFolders, excludedFolders: s.sweepExcludedFolders, tags: s.sweepExcludedTags, props: s.sweepExcludedProperties,
+                terms: s.sweepExcludedTerms, nothing: s.sweepNothingToExclude, report: s.sweepReportPath, done: s.featureSetupCompletedAt['inbox-sweep'],
+            };
             s.sweepInboxFolders = draft.inbox;
             s.sweepExcludedFolders = draft.excludedFolders;
             s.sweepExcludedTags = lines(draft.tags).map((x) => x.replace(/^#/, ''));
             s.sweepExcludedProperties = lines(draft.properties);
             s.sweepExcludedTerms = lines(draft.terms);
             s.sweepNothingToExclude = exclusionCount() === 0 && draft.nothing;
-            const path = validateReportPath(draft.report, s.protectedFolders);
-            if (!path.ok) return err(path.error);
             s.sweepReportPath = path.value;
             s.featureSetupCompletedAt['inbox-sweep'] = new Date().toISOString();
-            await plugin.saveSettings();
+            try {
+                await plugin.saveSettings();
+            } catch (e) {
+                // Not saved: put the live settings back so they never differ from what is on disk.
+                logger.error('Sweep', 'Could not save the sweep setup', e);
+                s.sweepInboxFolders = before.inbox; s.sweepExcludedFolders = before.excludedFolders; s.sweepExcludedTags = before.tags;
+                s.sweepExcludedProperties = before.props; s.sweepExcludedTerms = before.terms; s.sweepNothingToExclude = before.nothing;
+                s.sweepReportPath = before.report;
+                if (before.done === undefined) delete s.featureSetupCompletedAt['inbox-sweep']; else s.featureSetupCompletedAt['inbox-sweep'] = before.done;
+                return err('write-failed');
+            }
             onDone?.();
             return ok(undefined);
         },
@@ -446,13 +463,21 @@ function registerRenameTracking(plugin: AIOrganiserPlugin): void {
         const s = plugin.settings;
         const ledger = renameLedger(s.sweepLedger, oldPath, file.path);
         const approvals = renameApprovals(s.sweepApprovals, oldPath, file.path);
-        if (!ledger.changed && !approvals.changed && normalisePath(s.sweepReportPath) !== normalisePath(oldPath)) return;
+        const oldNorm = normalisePath(oldPath);
+        const moved = (f: string): string => (isInsideOrEqual(normalisePath(f), oldNorm) ? normalisePath(file.path) + normalisePath(f).slice(oldNorm.length) : f);
+        const inbox = s.sweepInboxFolders.map(moved);
+        const excluded = s.sweepExcludedFolders.map(moved);
+        const reportMoved = normalisePath(s.sweepReportPath) === oldNorm;
+        // Every rename-sensitive setting is looked at on its own before deciding nothing changed.
+        const changed = ledger.changed || approvals.changed || reportMoved
+            || inbox.some((f, i) => f !== s.sweepInboxFolders[i]) || excluded.some((f, i) => f !== s.sweepExcludedFolders[i]);
+        if (!changed) return;
         // The live data is remapped immediately; saving happens in order afterwards.
         s.sweepLedger = ledger.ledger;
         s.sweepApprovals = approvals.records;
-        if (normalisePath(s.sweepReportPath) === normalisePath(oldPath)) s.sweepReportPath = file.path;
-        s.sweepInboxFolders = s.sweepInboxFolders.map((f) => (isInsideOrEqual(normalisePath(f), normalisePath(oldPath)) ? normalisePath(file.path) + normalisePath(f).slice(normalisePath(oldPath).length) : f));
-        s.sweepExcludedFolders = s.sweepExcludedFolders.map((f) => (isInsideOrEqual(normalisePath(f), normalisePath(oldPath)) ? normalisePath(file.path) + normalisePath(f).slice(normalisePath(oldPath).length) : f));
+        s.sweepInboxFolders = inbox;
+        s.sweepExcludedFolders = excluded;
+        if (reportMoved) s.sweepReportPath = file.path;
         void plugin.saveSettings().catch((e: unknown) => logger.error('Sweep', 'Could not save a renamed sweep path', e));
     }));
 }

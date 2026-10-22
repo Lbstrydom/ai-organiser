@@ -110,6 +110,58 @@ describe('commitReview (the outbox)', () => {
 	});
 });
 
+describe('durability: the live settings only keep what was saved', () => {
+	it('puts the approvals back when the first save fails, so recovery never reads an unsaved checkpoint', async () => {
+		const h = makePlugin();
+		h.failNextSaves(1);
+		const out = await commitReview(h.plugin, input());
+		expect(out.stoppedAt).toBe('persist');
+		expect(h.settings.sweepApprovals).toEqual([]);
+		expect(await repairApprovals(h.plugin)).toEqual({ repaired: 0 }); // nothing to repair: nothing was recorded
+		expect(h.vault.has('Inbox sweep report.md')).toBe(false);
+	});
+
+	it('keeps the report step undone when its checkpoint cannot be saved, and finishes it next time without a second section', async () => {
+		const h = makePlugin();
+		const flaky = h.plugin as unknown as { saveSettings: () => Promise<void> };
+		const real = flaky.saveSettings;
+		let calls = 0;
+		flaky.saveSettings = async () => { if (++calls === 2) throw new Error('disk full'); return real(); }; // 1: record, 2: reported checkpoint
+		const out = await commitReview(h.plugin, input());
+		expect(out).toMatchObject({ stoppedAt: 'report', error: 'write-failed' });
+		expect(h.settings.sweepApprovals[0]).toMatchObject({ reportDone: false });
+		const report = h.vault.get('Inbox sweep report.md')!;
+		expect(findSection(report, out.record.runId)).toMatchObject({ state: 'ok' });
+		flaky.saveSettings = real;
+		expect(await repairApprovals(h.plugin)).toEqual({ repaired: 1 });
+		expect(h.vault.get('Inbox sweep report.md')).toBe(report); // the section was found, not written again
+		expect(h.settings.sweepApprovals[0]).toMatchObject({ reportDone: true, ledgerDone: true });
+	});
+
+	it('does not mark notes swept when the ledger checkpoint cannot be saved', async () => {
+		const h = makePlugin();
+		const flaky = h.plugin as unknown as { saveSettings: () => Promise<void> };
+		const real = flaky.saveSettings;
+		let calls = 0;
+		flaky.saveSettings = async () => { if (++calls === 3) throw new Error('disk full'); return real(); }; // 3: the ledger step
+		const out = await commitReview(h.plugin, input());
+		expect(out).toMatchObject({ stoppedAt: 'ledger', error: 'write-failed' });
+		expect(h.settings.sweepLedger).toEqual({});
+		flaky.saveSettings = real;
+		await repairApprovals(h.plugin);
+		expect(Object.keys(h.settings.sweepLedger)).toEqual(['Inbox/n0.md']);
+	});
+
+	it('returns a typed failure, never a rejection, when the report cannot be read', async () => {
+		const h = makePlugin({}, { 'Inbox sweep report.md': 'x' });
+		const vault = (h.plugin as unknown as { app: { vault: { read: () => Promise<string> } } }).app.vault;
+		vault.read = async () => { throw new Error('permission denied'); };
+		const out = await commitReview(h.plugin, input());
+		expect(out.error).toBeDefined();
+		expect(h.settings.sweepApprovals[0]).toMatchObject({ reportDone: false });
+	});
+});
+
 describe('recovery', () => {
 	async function crashedAfterPersist(h: ReturnType<typeof makePlugin>): Promise<ApprovalRecord> {
 		const rec = newApproval({ runId: 'run-crash12', now: '2026-10-22T00:00:00Z', reportPath: 'Inbox sweep report.md', tasks: input().tasks, dispositions: input().dispositions });
@@ -240,11 +292,15 @@ describe('settings migration for the sweep', () => {
 		expect(out.sweepMaxNotes).toBe(1);
 		expect(out.sweepMaxChars).toBe(12000);
 		expect(Object.keys(out.sweepLedger as object)).toEqual(['Inbox/a.md']);
-		const approvals = out.sweepApprovals as ApprovalRecord[];
-		expect(approvals).toHaveLength(1);
-		expect(approvals[0].tasks).toHaveLength(1);
-		expect(approvals[0].dispositions).toHaveLength(1);
+		// The record with an unusable task and disposition is dropped as a whole, not kept in halves.
+		expect(out.sweepApprovals as ApprovalRecord[]).toEqual([]);
 		expect(out.tasksLastTest).toBeNull();
+	});
+
+	it('keeps a complete record intact', () => {
+		const rec = { runId: 'run-1', createdAt: 'T', reportPath: 'R.md', reportDone: false, ledgerDone: false, tasks: [{ id: 'aio-1', text: 't', context: '', sourcePath: 'a', sourceHash: 'h', state: 'reported' }], dispositions: [{ sourcePath: 'a', sourceHash: 'h', markSwept: true }] };
+		const out = migrateOldSettings({ sweepApprovals: [rec] }) as Record<string, unknown>;
+		expect((out.sweepApprovals as ApprovalRecord[])[0]).toMatchObject({ runId: 'run-1', tasks: [{ id: 'aio-1' }], dispositions: [{ sourcePath: 'a' }] });
 	});
 
 	it('is idempotent', () => {

@@ -163,8 +163,13 @@ type SettingsLike = Record<string, unknown>;
 function isNonEmpty(value: unknown): boolean {
     if (typeof value === 'string') return value.trim() !== '';
     if (Array.isArray(value)) {
-        // A folder entry that normalises to nothing (for example "/") is not an entry.
-        return value.some((v) => (typeof v === 'string' ? normalisePath(v).trim() !== '' : v !== undefined && v !== null));
+        // A folder entry that normalises to nothing (for example "/") is not an entry. A pair counts only
+        // when it names a vault folder (the empty string is the vault root), the same test folderValues uses.
+        return value.some((v) => {
+            if (typeof v === 'string') return normalisePath(v).trim() !== '';
+            if (v && typeof v === 'object') return typeof (v as { vaultFolder?: unknown }).vaultFolder === 'string';
+            return false;
+        });
     }
     return value !== undefined && value !== null;
 }

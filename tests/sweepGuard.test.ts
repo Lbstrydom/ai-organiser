@@ -100,6 +100,32 @@ describe('guardSnapshot and revisions', () => {
 	});
 });
 
+describe('fail-closed metadata', () => {
+	const p = policy({ excludedTags: ['private'] });
+
+	it('treats a frontmatter block that never closes as unreadable, so its tags cannot slip past', () => {
+		expect(exclusionReason('a.md', '---\ntags: [private]\ntitle: x\nbody that never closes the block', p)).toBe('unreadable');
+		expect(exclusionReason('a.md', '---\r\ntags: [private]\r\nno end', p)).toBe('unreadable');
+		expect(exclusionReason('a.md', '--- not frontmatter\nplain', p)).toBeNull();
+		expect(exclusionReason('a.md', 'Text\n---\nhorizontal rule only', p)).toBeNull();
+	});
+
+	it('treats metadata that expands past its budget as unreadable instead of hanging', () => {
+		const bomb = ['---', 'a: &a [x, x, x, x, x, x, x, x, x, x]', 'b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]', 'c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]', 'd: &d [*c, *c, *c, *c, *c, *c, *c, *c, *c, *c]', 'e: [*d, *d, *d, *d, *d, *d, *d, *d, *d, *d]', '---', 'body'].join('\n');
+		const start = Date.now();
+		expect(exclusionReason('a.md', bomb, policy())).toBe('unreadable');
+		expect(Date.now() - start).toBeLessThan(2000);
+		expect(parseSnapshotMetadata('---\nk: [' + Array.from({ length: 600 }, (_, i) => `v${i}`).join(',') + ']\n---\n').frontmatterOk).toBe(false);
+	});
+
+	it('looks up properties by their own keys only', () => {
+		const props = policy({ excludedProperties: ['constructor: x', 'toString: y', '__proto__: z'] });
+		expect(exclusionReason('a.md', '---\ntitle: ok\n---\nbody', props)).toBeNull();
+		expect(exclusionReason('a.md', '---\nconstructor: x\n---\nbody', props)).toBe('property');
+		expect(parseSnapshotMetadata('---\nconstructor: x\n---\n').properties.constructor).toEqual(['x']);
+	});
+});
+
 describe('parseSnapshotMetadata', () => {
 	it('reads tags and properties from the same text', () => {
 		const m = parseSnapshotMetadata('---\ntags: [a, "#b"]\nclient: Acme\nlist: [x, y]\n---\nbody #inline');

@@ -1580,8 +1580,20 @@ export function migrateUpkeepSettings(old: Record<string, unknown>): void {
     old.upkeepRunOnMobile = old.upkeepRunOnMobile === true;
     old.upkeepRunCapSeconds = num(old.upkeepRunCapSeconds, d.upkeepRunCapSeconds, 10, 900);
     const last = old.upkeepLastRun as Record<string, unknown> | null | undefined;
-    old.upkeepLastRun = last && typeof last === 'object' && typeof last.startedAt === 'string' && typeof last.endedAt === 'number' && Array.isArray(last.outcomes) && typeof last.status === 'string' && ['ok', 'partial', 'failed'].includes(last.status)
-        ? last
+    const taskNames = ['agentIndex', 'inventories', 'attachments'];
+    const taskStatuses = ['ok', 'skipped', 'failed', 'cancelled'];
+    const outcomes = last && Array.isArray(last.outcomes)
+        ? last.outcomes.map((o) => {
+            const x = o as Record<string, unknown> | null;
+            return x && typeof x === 'object' && typeof x.task === 'string' && taskNames.includes(x.task) && typeof x.status === 'string' && taskStatuses.includes(x.status)
+                ? { task: x.task, status: x.status, reason: typeof x.reason === 'string' ? x.reason : undefined, counts: x.counts && typeof x.counts === 'object' ? x.counts : {}, omitted: typeof x.omitted === 'number' ? x.omitted : 0 }
+                : null;
+        })
+        : [];
+    // Rebuild the record from validated parts; one bad outcome discards the whole saved run.
+    old.upkeepLastRun = last && typeof last === 'object' && typeof last.startedAt === 'string' && typeof last.endedAt === 'number' && typeof last.durationMs === 'number'
+        && typeof last.status === 'string' && ['ok', 'partial', 'failed'].includes(last.status) && outcomes.length === (last.outcomes as unknown[]).length && outcomes.every(Boolean)
+        ? { startedAt: last.startedAt, endedAt: last.endedAt, durationMs: last.durationMs, trigger: last.trigger === 'scheduled' ? 'scheduled' : last.trigger === 'preview' ? 'preview' : 'manual', status: last.status, outcomes, totals: last.totals && typeof last.totals === 'object' ? last.totals : {} }
         : null;
     const kept = old.upkeepLastProposals as Record<string, unknown> | null | undefined;
     old.upkeepLastProposals = kept && typeof kept === 'object' && Array.isArray(kept.items) && typeof kept.omitted === 'number'
@@ -1629,15 +1641,20 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
         for (const raw of old.sweepApprovals) {
             const r = raw as Record<string, unknown> | null;
             if (!r || typeof r.runId !== 'string' || typeof r.createdAt !== 'string' || typeof r.reportPath !== 'string' || !Array.isArray(r.tasks) || !Array.isArray(r.dispositions)) continue;
-            const tasks = r.tasks.flatMap((t): ApprovalRecord['tasks'] => {
+            const rawTasks = r.tasks as unknown[];
+            const rawDispositions = r.dispositions as unknown[];
+            const tasks = rawTasks.flatMap((t): ApprovalRecord['tasks'] => {
                 const x = t as Record<string, unknown> | null;
                 if (!x || typeof x.id !== 'string' || typeof x.text !== 'string' || typeof x.sourcePath !== 'string' || typeof x.sourceHash !== 'string' || typeof x.state !== 'string' || !states.includes(x.state)) return [];
                 return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined }];
             });
-            const dispositions = r.dispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
+            const dispositions = rawDispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
                 const x = dd as Record<string, unknown> | null;
                 return x && typeof x.sourcePath === 'string' && typeof x.sourceHash === 'string' && typeof x.markSwept === 'boolean' ? [{ sourcePath: x.sourcePath, sourceHash: x.sourceHash, markSwept: x.markSwept }] : [];
             });
+            // A record is one unit: if any task or disposition is unusable, none of it can be trusted, and
+            // half a record (tasks without their dispositions, or the reverse) would corrupt recovery.
+            if (tasks.length !== rawTasks.length || dispositions.length !== rawDispositions.length) continue;
             approvals.push({ runId: r.runId, createdAt: r.createdAt, reportPath: r.reportPath, listId: typeof r.listId === 'string' ? r.listId : undefined, tasks, dispositions, reportDone: r.reportDone === true, ledgerDone: r.ledgerDone === true });
         }
     }
