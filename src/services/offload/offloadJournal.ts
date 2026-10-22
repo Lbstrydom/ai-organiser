@@ -137,8 +137,12 @@ export class JournalStore {
         }
     }
 
-    /** Replace the journal with `records` (temp file, then rename). */
-    async save(records: readonly OffloadRecord[]): Promise<Result<void>> {
+    /** Replace the journal with `records` (temp file, then rename). Runs one at a time with every other write. */
+    save(records: readonly OffloadRecord[]): Promise<Result<void>> {
+        return this.serialised(() => this.write(records));
+    }
+
+    private async write(records: readonly OffloadRecord[]): Promise<Result<void>> {
         try {
             if (await this.adapter.exists(this.path)) {
                 // Never replace something that is not our journal.
@@ -150,7 +154,7 @@ export class JournalStore {
                 await this.adapter.remove(this.prev);
             }
             const body: JournalFile = { generator: JOURNAL_GENERATOR, path: this.path, version: 1, signature: await sign(this.path, records), records: [...records] };
-            const tmp = this.tmp(Date.now().toString(36));
+            const tmp = this.tmp(`${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
             await this.adapter.write(tmp, JSON.stringify(body));
             const had = await this.adapter.exists(this.path);
             try {
@@ -175,7 +179,7 @@ export class JournalStore {
             if (!all.ok) return err(all.error);
             const next = all.value.filter((r) => r.opId !== record.opId);
             next.push(record);
-            return this.save(next);
+            return this.write(next);
         });
     }
 

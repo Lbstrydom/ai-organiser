@@ -29,8 +29,20 @@ export function journalPath(plugin: AIOrganiserPlugin): string {
     return `${plugin.manifest.dir ?? `${plugin.app.vault.configDir}/plugins/${plugin.manifest.id}`}/offload-journal.json`;
 }
 
+/**
+ * One store per adapter and path: the store serialises its read-modify-write cycles, so every caller
+ * has to share the same instance for two operations never to overwrite each other's update.
+ */
+const stores = new WeakMap<object, Map<string, JournalStore>>();
+
 export function journalStore(plugin: AIOrganiserPlugin): JournalStore {
-    return new JournalStore(plugin.app.vault.adapter, journalPath(plugin));
+    const adapter = plugin.app.vault.adapter;
+    const path = journalPath(plugin);
+    let byPath = stores.get(adapter);
+    if (!byPath) { byPath = new Map(); stores.set(adapter, byPath); }
+    let store = byPath.get(path);
+    if (!store) { store = new JournalStore(adapter, path); byPath.set(path, store); }
+    return store;
 }
 
 /** True when offload can be offered at all: feature on, desktop, Node available, and a local Drive folder is set. */

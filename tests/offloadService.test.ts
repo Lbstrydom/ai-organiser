@@ -408,9 +408,12 @@ describe('hardening', () => {
 		const approved = await toApproved(h);
 		let seen: { size: number; mtimeMs: number } | null = null;
 		const real = h.deps.trash;
-		h.deps.trash = async (p, expected) => { seen = expected; return real(p, expected); };
+		let onDisk = -1;
+		h.deps.trash = async (p, expected) => { seen = expected; onDisk = fs.statSync(h.srcAbs).mtimeMs; return real(p, expected); };
 		await continueOffload(h.deps, approved);
-		expect(seen).toEqual({ size: DATA.length, mtimeMs: 0 });
+		// The barrier's own fingerprint, not the planning value (which this harness records as 0).
+		expect(seen).toEqual({ size: DATA.length, mtimeMs: onDisk });
+		expect(onDisk).not.toBe(0);
 	});
 
 	it('a failure keeps the progress that was already saved', async () => {

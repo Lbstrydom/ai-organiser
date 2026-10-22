@@ -311,7 +311,10 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
             if (!existing) s.cloudInventoryPairs = [...s.cloudInventoryPairs, pair];
             s.cloudInventoryScriptUrl = draft.scriptUrl;
             const finalKey = inventoryConfigKey(draft.scriptUrl, s.cloudInventoryPairs);
-            s.cloudInventoryLastTest = draft.connection && draft.connection.configHash === finalKey ? draft.connection : null;
+            // A test made in this wizard counts if it matches the final configuration; otherwise an earlier test
+            // that still matches it stays (reviewing an unchanged setup must not make it look unverified).
+            const fresh = draft.connection && draft.connection.configHash === finalKey ? draft.connection : null;
+            s.cloudInventoryLastTest = fresh ?? (s.cloudInventoryLastTest?.configHash === finalKey ? s.cloudInventoryLastTest : null);
             s.featureSetupCompletedAt['cloud-inventory'] = new Date().toISOString();
             await plugin.saveSettings();
             onDone?.();

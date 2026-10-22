@@ -51,7 +51,7 @@ export interface PlannedReferrer {
     kind: ReferrerKind;
     /** sha256 of the referrer text when the plan was made */
     baselineHash: string;
-    occurrences: Array<Pick<Occurrence, 'kind' | 'start' | 'end' | 'original' | 'display' | 'subpath' | 'nodeId'>>;
+    occurrences: Array<Pick<Occurrence, 'kind' | 'start' | 'end' | 'original' | 'display' | 'displayIsMarkdown' | 'subpath' | 'nodeId'>>;
 }
 
 export interface CopyPlan {
@@ -90,7 +90,7 @@ export async function buildCopyPlan(input: CopyPlanInput): Promise<Result<CopyPl
             path: r.path,
             kind: r.kind,
             baselineHash: await textHash(r.text),
-            occurrences: r.occurrences.map((o) => ({ kind: o.kind, start: o.start, end: o.end, original: o.original, display: o.display, subpath: o.subpath, nodeId: o.nodeId })),
+            occurrences: r.occurrences.map((o) => ({ kind: o.kind, start: o.start, end: o.end, original: o.original, display: o.display, displayIsMarkdown: o.displayIsMarkdown, subpath: o.subpath, nodeId: o.nodeId })),
         });
     }
     const name = input.source.path.slice(input.source.path.lastIndexOf('/') + 1);

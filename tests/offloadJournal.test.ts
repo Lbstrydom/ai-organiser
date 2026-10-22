@@ -92,6 +92,17 @@ describe('JournalStore', () => {
 		expect(all.ok && all.value.map((r) => r.opId).sort()).toEqual(['op1', 'op2', 'op3']);
 	});
 
+	it('serialises plain saves too, so two writers never share a temporary file', async () => {
+		const h = makeAdapter();
+		const store = new JournalStore(h.adapter as never, PATH);
+		const a = newRecord(copy, 'T');
+		const b = newRecord({ ...copy, opId: 'op2' }, 'T');
+		const [x, y] = await Promise.all([store.save([a]), store.save([a, b])]);
+		expect(x.ok && y.ok).toBe(true);
+		const all = await store.load();
+		expect(all.ok && all.value.map((r) => r.opId)).toEqual(['op1', 'op2']); // the later save won, whole
+	});
+
 	it('leaves an unrelated file in the previous-version slot alone', async () => {
 		const h = makeAdapter();
 		const store = new JournalStore(h.adapter as never, PATH);

@@ -127,6 +127,16 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
     }
 }
 
+/** True when both paths name the same file (same device and inode), or either cannot be told apart safely. */
+async function isSameFile(deps: NodeDeps, a: string, b: string): Promise<boolean> {
+    try {
+        const [x, y] = await Promise.all([deps.fs.promises.stat(a), deps.fs.promises.stat(b)]);
+        return x.dev === y.dev && x.ino === y.ino && x.ino !== 0;
+    } catch {
+        return true; // fail closed: if identity cannot be established, do not treat the file as an independent copy
+    }
+}
+
 /**
  * Place `src` (whose fingerprint is known) into the mount folder under `wantedName`, following the
  * non-overwriting policy. The destination is hashed after the copy and compared with the source hash.
@@ -151,6 +161,9 @@ export async function placeFile(
             else return err('copy-failed');
         }
         if (exists) {
+            // A "copy" that is the source itself (same file, or a link to it) is not a second copy: trashing the
+            // source afterwards would delete the only one.
+            if (await isSameFile(deps, src, dest.value)) return err('dest-conflict');
             const hashed = await hashStream(deps, dest.value, options);
             if (!hashed.ok) return err(hashed.error);
             if (hashed.value.sha256 === expected.sha256 && hashed.value.bytes === expected.size) {

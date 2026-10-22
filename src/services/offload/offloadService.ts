@@ -221,12 +221,15 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
     // The vault is watched from the start of the check until the moment the file is trashed, so a
     // reference added while the checkpoint is being saved invalidates the decision too.
     let result: ReturnType<typeof evaluateBarrier> = { ok: false, reason: 'vault-changed' };
+    // The identity the barrier itself just verified; the trash is handed this, not the one from planning.
+    let verified: { size: number; mtimeMs: number } | null = null;
     for (let attempt = 0; attempt < 3; attempt++) {
         const watch = deps.watch();
         let stopped = false;
         const stop = (): number => { if (stopped) return 0; stopped = true; return watch.stop(); };
         try {
         const finger = await deps.fingerprint(sourceAbsolute(deps, copy.source.path), deps.options);
+        verified = finger.ok ? { size: finger.value.size, mtimeMs: finger.value.mtimeMs } : null;
         const listing = await deps.listFolder(copy.driveFolderId);
         const stillThere = listing.ok && record.remote
             ? matchRemote(listing.value, { name: record.remote.name, size: record.remote.size, sha256: record.remote.sha256 }, copy.driveFolderId)
@@ -262,7 +265,8 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
     }
     if (!result.ok) return hold(deps, record, barrierCode(result.reason), 'blocked');
 
-    const trashed = await deps.trash(copy.source.path, { size: copy.source.size, mtimeMs: copy.source.mtimeMs });
+    if (!verified) return hold(deps, record, 'file-changed', 'blocked');
+    const trashed = await deps.trash(copy.source.path, verified);
     // Whatever the trash reported, only the vault decides: the file must really be gone.
     if (deps.exists(copy.source.path)) return hold(deps, record, trashed.ok ? 'trash-failed' : trashed.error, 'blocked');
     return finish(deps, record);

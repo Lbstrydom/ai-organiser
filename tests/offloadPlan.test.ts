@@ -33,6 +33,12 @@ function referrer(path: string, text: string, kind: 'md' | 'canvas' = 'md') {
 describe('buildCopyPlan', () => {
 	const base = { opId: 'op1', now: 'T', source, pair: pair(), protectedFolders: [] as string[] };
 
+	it('keeps the markdown-label marker, so the rewrite does not escape the label a second time', async () => {
+		const plan = await buildCopyPlan({ ...base, referrers: [referrer('Notes/a.md', '[a\\_b](Big.pdf)')] });
+		if (!plan.ok) throw new Error(plan.error);
+		expect(plan.value.referrers[0].occurrences[0].displayIsMarkdown).toBe(true);
+	});
+
 	it('records the referrers with hashes and spans, and skips notes with no reference', async () => {
 		const plan = await buildCopyPlan({ ...base, referrers: [referrer('Notes/a.md', 'see ![[Big.pdf]]'), referrer('Notes/b.md', 'nothing')] });
 		expect(plan.ok).toBe(true);

@@ -94,6 +94,15 @@ describe('placeFile', () => {
 		expect(res).toMatchObject({ ok: true, value: { reused: true, destName: 'Big.pdf' } });
 	});
 
+	it('does not count the source itself, or a hard link to it, as an independent copy', async () => {
+		const here = fs.realpathSync(vault);
+		expect(await placeFile(deps, here, src, 'Big.pdf', expectedOf(data))).toEqual({ ok: false, error: 'dest-conflict' });
+		expect(fs.existsSync(src)).toBe(true);
+		const root = fs.realpathSync(mount);
+		fs.linkSync(src, path.join(root, 'Big.pdf'));
+		expect(await placeFile(deps, root, src, 'Big.pdf', expectedOf(data))).toEqual({ ok: false, error: 'dest-conflict' });
+	});
+
 	it('never overwrites a different file: it writes a hash-suffixed name', async () => {
 		const root = fs.realpathSync(mount);
 		fs.writeFileSync(path.join(root, 'Big.pdf'), 'someone else\'s file');
