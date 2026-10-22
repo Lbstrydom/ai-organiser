@@ -5,10 +5,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import {
 	RELEASE_LABEL,
-	versionFingerprint,
+	fingerprint,
 	findVersionChanges,
 	hasReleaseLabel,
 	parseLabels,
+	parseLabelsJson,
 	evaluate,
 	parseArgs,
 	main,
@@ -19,50 +20,77 @@ const pkg = (version: string, extra: Record<string, unknown> = {}) => JSON.strin
 const versions = (map: Record<string, string>) => JSON.stringify(map);
 const lock = (version: string) => JSON.stringify({ name: 'x', version, packages: { '': { name: 'x', version } } });
 
-const baseTexts = () => ({
+const baseTexts = (): Record<string, string | null> => ({
 	'manifest.json': manifest('1.0.30'),
 	'package.json': pkg('1.0.30'),
 	'versions.json': versions({ '1.0.30': '1.11.4' }),
 	'package-lock.json': lock('1.0.30'),
 });
 
-describe('versionFingerprint', () => {
-	it('returns null for an absent file and flags unparseable JSON', () => {
-		expect(versionFingerprint('manifest.json', null)).toBeNull();
-		expect(versionFingerprint('manifest.json', '{ not json')).toBe('<unparseable>');
-		expect(versionFingerprint('manifest.json', 'null')).toBe('<unparseable>');
+const verdictFor = (head: Record<string, string | null>, labels: string[], base = baseTexts()) =>
+	evaluate({ ...findVersionChanges(base, head), labels });
+
+describe('fingerprint: explicit outcomes, never a comparable stand-in for a failure', () => {
+	it('reports an absent file as absent', () => {
+		expect(fingerprint('manifest.json', null)).toEqual({ state: 'absent' });
+		expect(fingerprint('manifest.json', undefined)).toEqual({ state: 'absent' });
+	});
+
+	it.each([
+		['not JSON', '{ not json'],
+		['JSON null', 'null'],
+		['a JSON array', '[]'],
+		['a number', '42'],
+	])('flags %s as invalid', (_name, text) => {
+		expect(fingerprint('manifest.json', text).state).toBe('invalid');
+		expect(fingerprint('versions.json', text).state).toBe('invalid');
+	});
+
+	it('flags a manifest or package.json with no usable version as invalid', () => {
+		expect(fingerprint('manifest.json', JSON.stringify({ id: 'x' })).state).toBe('invalid');
+		expect(fingerprint('package.json', JSON.stringify({ version: 3 })).state).toBe('invalid');
+		expect(fingerprint('package.json', JSON.stringify({ version: '' })).state).toBe('invalid');
+	});
+
+	it('flags a versions.json with a non-string value, and a lockfile whose root is the wrong shape', () => {
+		expect(fingerprint('versions.json', JSON.stringify({ '1.0.0': 5 })).state).toBe('invalid');
+		expect(fingerprint('package-lock.json', JSON.stringify({ version: '1', packages: { '': 'nope' } })).state).toBe('invalid');
+		expect(fingerprint('package-lock.json', JSON.stringify({ version: '1', packages: { '': { version: 2 } } })).state).toBe('invalid');
+	});
+
+	it('accepts a version-1 lockfile that has no packages map', () => {
+		expect(fingerprint('package-lock.json', JSON.stringify({ version: '1.0.30' })).state).toBe('ok');
 	});
 
 	it('ignores fields other than the version', () => {
-		expect(versionFingerprint('package.json', pkg('1.0.30', { dependencies: { a: '1' } }))).toBe(
-			versionFingerprint('package.json', pkg('1.0.30', { dependencies: { a: '2', b: '1' } })),
-		);
+		const a = fingerprint('package.json', pkg('1.0.30', { dependencies: { a: '1' } }));
+		const b = fingerprint('package.json', pkg('1.0.30', { dependencies: { a: '2', b: '1' } }));
+		expect(a).toEqual(b);
 	});
 
 	it('treats any versions.json entry change as a version change, regardless of key order', () => {
-		const a = versionFingerprint('versions.json', versions({ '1.0.29': '1.11.4', '1.0.30': '1.11.4' }));
-		const reordered = versionFingerprint('versions.json', versions({ '1.0.30': '1.11.4', '1.0.29': '1.11.4' }));
-		const added = versionFingerprint('versions.json', versions({ '1.0.29': '1.11.4', '1.0.30': '1.11.4', '1.0.31': '1.11.4' }));
-		expect(a).toBe(reordered);
-		expect(a).not.toBe(added);
+		const a = fingerprint('versions.json', versions({ '1.0.29': '1.11.4', '1.0.30': '1.11.4' }));
+		const reordered = fingerprint('versions.json', versions({ '1.0.30': '1.11.4', '1.0.29': '1.11.4' }));
+		const added = fingerprint('versions.json', versions({ '1.0.29': '1.11.4', '1.0.30': '1.11.4', '1.0.31': '1.11.4' }));
+		expect(a).toEqual(reordered);
+		expect(a).not.toEqual(added);
 	});
 
 	it('reads both the top-level and the root-package version in package-lock.json', () => {
 		const text = JSON.stringify({ version: '1.0.30', packages: { '': { version: '1.0.31' } } });
-		expect(versionFingerprint('package-lock.json', text)).toContain('1.0.31');
+		const fp = fingerprint('package-lock.json', text);
+		expect(fp.state === 'ok' && fp.value).toContain('1.0.31');
 	});
 });
 
-describe('findVersionChanges and evaluate: both directions', () => {
+describe('verdicts: both directions', () => {
 	it('passes when nothing guarded changed, with no label', () => {
-		const changes = findVersionChanges(baseTexts(), baseTexts());
-		expect(changes).toEqual([]);
-		expect(evaluate({ changes, labels: [] }).ok).toBe(true);
+		expect(verdictFor(baseTexts(), []).ok).toBe(true);
 	});
 
 	it('passes an ordinary change to package.json that leaves the version alone', () => {
 		const head = { ...baseTexts(), 'package.json': pkg('1.0.30', { devDependencies: { y: '1' } }) };
-		expect(evaluate({ changes: findVersionChanges(baseTexts(), head), labels: [] }).ok).toBe(true);
+		expect(verdictFor(head, []).ok).toBe(true);
 	});
 
 	it.each([
@@ -72,7 +100,7 @@ describe('findVersionChanges and evaluate: both directions', () => {
 		['package-lock.json', lock('1.0.31')],
 	])('fails a non-release PR that bumps the version in %s', (file, text) => {
 		const head = { ...baseTexts(), [file]: text };
-		const changes = findVersionChanges(baseTexts(), head);
+		const changes = findVersionChanges(baseTexts(), head).changes;
 		const verdict = evaluate({ changes, labels: ['bug', 'docs'] });
 		expect(changes.map((c) => c.file)).toEqual([file]);
 		expect(verdict.ok).toBe(false);
@@ -82,33 +110,65 @@ describe('findVersionChanges and evaluate: both directions', () => {
 
 	it('passes the same bump when the PR carries the release label (case-insensitive, trimmed)', () => {
 		const head = { ...baseTexts(), 'manifest.json': manifest('1.0.31'), 'package.json': pkg('1.0.31') };
-		const changes = findVersionChanges(baseTexts(), head);
-		expect(evaluate({ changes, labels: ['Release'] }).ok).toBe(true);
-		expect(evaluate({ changes, labels: [' release '] }).ok).toBe(true);
+		expect(verdictFor(head, ['Release']).ok).toBe(true);
+		expect(verdictFor(head, [' release ']).ok).toBe(true);
 	});
 
 	it('does not accept a look-alike label or a branch-style name', () => {
 		const head = { ...baseTexts(), 'manifest.json': manifest('1.0.31') };
-		const changes = findVersionChanges(baseTexts(), head);
-		expect(evaluate({ changes, labels: ['releases', 'pre-release', 'release/1.0.31'] }).ok).toBe(false);
+		expect(verdictFor(head, ['releases', 'pre-release', 'release/1.0.31']).ok).toBe(false);
 	});
 
-	it('fails closed when a guarded file becomes unparseable', () => {
+	it('flags a guarded file that is added or removed as a change', () => {
+		const head = { ...baseTexts(), 'versions.json': null };
+		expect(findVersionChanges(baseTexts(), head).changes.map((c) => c.file)).toEqual(['versions.json']);
+	});
+});
+
+describe('malformed input fails closed, whatever the label says', () => {
+	it('fails a valid-to-malformed change without the label, and WITH the release label', () => {
 		const head = { ...baseTexts(), 'manifest.json': '{ broken' };
-		expect(evaluate({ changes: findVersionChanges(baseTexts(), head), labels: [] }).ok).toBe(false);
+		expect(verdictFor(head, []).ok).toBe(false);
+		const withLabel = verdictFor(head, ['release']);
+		expect(withLabel.ok).toBe(false);
+		expect(withLabel.invalidInput).toBe(true);
 	});
 
-	it('flags a guarded file that is added or removed', () => {
-		const head = { ...baseTexts(), 'versions.json': null as unknown as string };
-		expect(findVersionChanges(baseTexts(), head).map((c) => c.file)).toEqual(['versions.json']);
+	it('fails when the base and the head are both malformed, even if they differ', () => {
+		const base = { ...baseTexts(), 'package.json': '{ one' };
+		const head = { ...baseTexts(), 'package.json': '{ two' };
+		const verdict = verdictFor(head, ['release'], base);
+		expect(verdict.ok).toBe(false);
+		expect(verdict.reason).toContain('package.json');
+	});
+
+	it('names each side that could not be compared', () => {
+		const base = { ...baseTexts(), 'versions.json': '[]' };
+		const head = { ...baseTexts(), 'manifest.json': '[]' };
+		const { invalid } = findVersionChanges(base, head);
+		expect(invalid.map((i) => `${i.file}:${i.side}`)).toEqual(['manifest.json:head', 'versions.json:base']);
 	});
 });
 
 describe('labels and arguments', () => {
-	it('parses a comma list and drops blanks', () => {
+	it('parses a comma list for local use and drops blanks', () => {
 		expect(parseLabels('a, b ,,c')).toEqual(['a', 'b', 'c']);
 		expect(parseLabels(undefined)).toEqual([]);
 		expect(hasReleaseLabel(['x', 'RELEASE'])).toBe(true);
+	});
+
+	it('keeps a label that contains a comma as ONE label when read from JSON', () => {
+		const parsed = parseLabelsJson(JSON.stringify(['docs,release']));
+		expect(parsed).toEqual({ ok: true, labels: ['docs,release'] });
+		expect(parsed.ok && hasReleaseLabel(parsed.labels)).toBe(false);
+	});
+
+	it('rejects labels that are not a JSON array of strings, and treats empty as no labels', () => {
+		expect(parseLabelsJson('not json').ok).toBe(false);
+		expect(parseLabelsJson('{"a":1}').ok).toBe(false);
+		expect(parseLabelsJson('[1,2]').ok).toBe(false);
+		expect(parseLabelsJson('')).toEqual({ ok: true, labels: [] });
+		expect(parseLabelsJson(undefined)).toEqual({ ok: true, labels: [] });
 	});
 
 	it('requires both refs and rejects unknown flags', () => {
@@ -120,6 +180,9 @@ describe('labels and arguments', () => {
 
 describe('main against a real git repository', () => {
 	let dir: string;
+	let out: string[];
+	let err: string[];
+	const io = () => ({ out: (l: string) => out.push(l), err: (l: string) => err.push(l) });
 	const git = (...args: string[]) =>
 		execFileSync('git', ['-c', 'user.email=t@example.test', '-c', 'user.name=t', '-c', 'commit.gpgsign=false', ...args], {
 			cwd: dir,
@@ -133,22 +196,16 @@ describe('main against a real git repository', () => {
 		git('commit', '-q', '-m', msg);
 		return git('rev-parse', 'HEAD');
 	};
-	const silence = () => {
-		const log = console.log;
-		const err = console.error;
-		console.log = () => undefined;
-		console.error = () => undefined;
-		return () => {
-			console.log = log;
-			console.error = err;
-		};
-	};
+	const run = (base: string, head: string, env: Record<string, string> = {}, extra: string[] = []) =>
+		main(['--base', base, '--head', head, ...extra], env, dir, io());
 
 	beforeEach(() => {
 		dir = mkdtempSync(join(tmpdir(), 'version-guard-'));
+		out = [];
+		err = [];
 		// An empty template keeps a developer's global git template hooks out of the temporary repository.
 		git('init', '-q', '--template=', '-b', 'main');
-		writeAll(baseTexts());
+		writeAll(baseTexts() as Record<string, string>);
 	});
 	afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
@@ -157,26 +214,35 @@ describe('main against a real git repository', () => {
 		git('switch', '-q', '-c', 'feature');
 		writeAll({ 'manifest.json': manifest('1.0.31'), 'package.json': pkg('1.0.31') });
 		const head = commitAll('bump');
-		const restore = silence();
-		try {
-			expect(main(['--base', base, '--head', head], { PR_LABELS: 'bug' }, dir)).toBe(1);
-		} finally {
-			restore();
-		}
+		expect(run(base, head, { PR_LABELS_JSON: JSON.stringify(['bug']) })).toBe(1);
+		expect(err.join('\n')).toContain('manifest.json');
 	});
 
-	it('passes the same branch when the release label is present (flag or environment)', () => {
+	it('passes the same branch when the release label is present (JSON from CI, or the local flag)', () => {
 		const base = commitAll('base');
 		git('switch', '-q', '-c', 'release-branch');
 		writeAll({ 'manifest.json': manifest('1.0.31'), 'package.json': pkg('1.0.31') });
 		const head = commitAll('bump');
-		const restore = silence();
-		try {
-			expect(main(['--base', base, '--head', head, '--labels', 'release'], {}, dir)).toBe(0);
-			expect(main(['--base', base, '--head', head], { PR_LABELS: 'docs,release' }, dir)).toBe(0);
-		} finally {
-			restore();
-		}
+		expect(run(base, head, { PR_LABELS_JSON: JSON.stringify(['docs', 'release']) })).toBe(0);
+		expect(run(base, head, {}, ['--labels', 'release'])).toBe(0);
+		expect(out.join('\n')).toContain('release PR');
+	});
+
+	it('does not let a label named "docs,release" stand in for the release label', () => {
+		const base = commitAll('base');
+		git('switch', '-q', '-c', 'sneaky');
+		writeAll({ 'manifest.json': manifest('1.0.31') });
+		const head = commitAll('bump');
+		expect(run(base, head, { PR_LABELS_JSON: JSON.stringify(['docs,release']) })).toBe(1);
+	});
+
+	it('fails closed (exit 2) on malformed label JSON and on a malformed manifest, even with the release label', () => {
+		const base = commitAll('base');
+		git('switch', '-q', '-c', 'broken');
+		writeAll({ 'manifest.json': '{ broken' });
+		const head = commitAll('break the manifest');
+		expect(run(base, head, { PR_LABELS_JSON: JSON.stringify(['release']) })).toBe(2);
+		expect(run(base, head, { PR_LABELS_JSON: 'not json' })).toBe(2);
 	});
 
 	it('passes a branch with no version change', () => {
@@ -184,12 +250,8 @@ describe('main against a real git repository', () => {
 		git('switch', '-q', '-c', 'docs');
 		writeFileSync(join(dir, 'README.md'), 'hello');
 		const head = commitAll('docs');
-		const restore = silence();
-		try {
-			expect(main(['--base', base, '--head', head], {}, dir)).toBe(0);
-		} finally {
-			restore();
-		}
+		expect(run(base, head)).toBe(0);
+		expect(out.join('\n')).toContain('OK');
 	});
 
 	it('does not blame a PR for a version bump that landed on the base after it branched', () => {
@@ -201,22 +263,12 @@ describe('main against a real git repository', () => {
 		writeAll({ 'manifest.json': manifest('1.0.31') });
 		const newBase = commitAll('release landed on main');
 		expect(root).not.toBe(newBase);
-		const restore = silence();
-		try {
-			expect(main(['--base', newBase, '--head', head], {}, dir)).toBe(0);
-		} finally {
-			restore();
-		}
+		expect(run(newBase, head)).toBe(0);
 	});
 
-	it('fails closed (exit 2) when a ref cannot be resolved', () => {
+	it('fails closed (exit 2) when a ref cannot be resolved or an argument is missing', () => {
 		commitAll('base');
-		const restore = silence();
-		try {
-			expect(main(['--base', 'does-not-exist', '--head', 'HEAD'], {}, dir)).toBe(2);
-			expect(main(['--base', 'HEAD'], {}, dir)).toBe(2);
-		} finally {
-			restore();
-		}
+		expect(run('does-not-exist', 'HEAD')).toBe(2);
+		expect(main(['--base', 'HEAD'], {}, dir, io())).toBe(2);
 	});
 });

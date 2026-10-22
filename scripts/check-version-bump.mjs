@@ -8,13 +8,18 @@
  * unless the PR carries the `release` label (a maintainer-only action on a public repository, so an
  * outside contributor cannot exempt their own PR).
  *
+ * TRUST: in CI this file runs from the BASE branch (the workflow uses pull_request_target and never
+ * checks out the PR head), and the PR's files are only ever read as git data through `git show`. A PR
+ * can therefore not replace the validator that judges it.
+ *
  * Pure decision functions are exported for tests; `main` does the git I/O.
  *
  * Usage: node scripts/check-version-bump.mjs --base <sha> --head <sha> [--labels "a,b"]
- *   Labels may also come from the PR_LABELS environment variable (preferred in CI: label names are
- *   user-controlled text and must never be interpolated into a shell command).
- * Exit: 0 ok, 1 a guarded version changed without the release label, 2 bad arguments or a git failure
- *   (fail closed: if the comparison cannot be made, the check does not pass).
+ *   Labels come from --labels (a human-friendly comma list, for local use) or, in CI, from the
+ *   PR_LABELS_JSON environment variable: a JSON array of label names, because a label name may itself
+ *   contain a comma and a delimiter-joined string would change which labels the PR appears to carry.
+ * Exit: 0 ok, 1 a guarded version changed without the release label, 2 bad arguments, malformed
+ *   input or a git failure (fail closed: if the comparison cannot be made, the check does not pass).
  */
 
 import { execFileSync } from 'node:child_process';
@@ -23,43 +28,68 @@ import { pathToFileURL } from 'node:url';
 export const RELEASE_LABEL = 'release';
 export const GUARDED_FILES = Object.freeze(['manifest.json', 'versions.json', 'package.json', 'package-lock.json']);
 
-/** What counts as "the version" of each guarded file, as a comparable string; null when absent. */
-export function versionFingerprint(file, text) {
-	if (text === null || text === undefined) return null;
+const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const nonEmptyString = (v) => typeof v === 'string' && v.length > 0;
+
+/**
+ * What counts as "the version" of each guarded file, as an explicit outcome:
+ *   { state: 'absent' }                  the file does not exist at that revision
+ *   { state: 'ok', value }               a comparable string
+ *   { state: 'invalid', reason }         malformed or not the expected shape: never comparable
+ */
+export function fingerprint(file, text) {
+	if (text === null || text === undefined) return { state: 'absent' };
 	let json;
 	try {
 		json = JSON.parse(text);
-	} catch {
-		return '<unparseable>';
+	} catch (e) {
+		return { state: 'invalid', reason: `not valid JSON (${e.message})` };
 	}
-	if (json === null || typeof json !== 'object') return '<unparseable>';
+	if (!isPlainObject(json)) return { state: 'invalid', reason: 'not a JSON object' };
+
 	if (file === 'versions.json') {
 		// A version -> minAppVersion history map: any added, removed or changed entry is a version change.
-		const sorted = Object.keys(json).sort().map((k) => [k, json[k]]);
-		return JSON.stringify(sorted);
+		const entries = Object.keys(json).sort().map((k) => [k, json[k]]);
+		if (!entries.every(([, v]) => typeof v === 'string')) return { state: 'invalid', reason: 'a value is not a string' };
+		return { state: 'ok', value: JSON.stringify(entries) };
 	}
+	if (!nonEmptyString(json.version)) return { state: 'invalid', reason: 'missing or non-string "version"' };
 	if (file === 'package-lock.json') {
-		const root = json.packages && json.packages[''] ? json.packages[''].version : undefined;
-		return JSON.stringify({ version: json.version, root });
+		const rootPkg = isPlainObject(json.packages) ? json.packages[''] : undefined;
+		if (rootPkg !== undefined && !isPlainObject(rootPkg)) return { state: 'invalid', reason: 'packages[""] is not an object' };
+		if (rootPkg && rootPkg.version !== undefined && typeof rootPkg.version !== 'string') {
+			return { state: 'invalid', reason: 'packages[""].version is not a string' };
+		}
+		return { state: 'ok', value: JSON.stringify({ version: json.version, root: rootPkg ? rootPkg.version : undefined }) };
 	}
-	return JSON.stringify({ version: json.version });
+	return { state: 'ok', value: JSON.stringify({ version: json.version }) };
 }
 
-/** Compare file texts at the base and at the head; returns the guarded files whose version changed. */
+/**
+ * Compare file texts at the base and at the head. Returns the guarded files whose version changed and,
+ * separately, any file that could not be compared at all (never folded into "unchanged").
+ */
 export function findVersionChanges(baseTexts, headTexts) {
 	const changes = [];
+	const invalid = [];
 	for (const file of GUARDED_FILES) {
-		const from = versionFingerprint(file, baseTexts[file]);
-		const to = versionFingerprint(file, headTexts[file]);
-		if (from !== to) changes.push({ file, from, to });
+		const from = fingerprint(file, baseTexts[file]);
+		const to = fingerprint(file, headTexts[file]);
+		if (from.state === 'invalid') invalid.push({ file, side: 'base', reason: from.reason });
+		if (to.state === 'invalid') invalid.push({ file, side: 'head', reason: to.reason });
+		if (from.state === 'invalid' || to.state === 'invalid') continue;
+		const a = from.state === 'ok' ? from.value : null;
+		const b = to.state === 'ok' ? to.value : null;
+		if (a !== b) changes.push({ file, from: a, to: b });
 	}
-	return changes;
+	return { changes, invalid };
 }
 
 export function hasReleaseLabel(labels) {
 	return labels.some((l) => l.trim().toLowerCase() === RELEASE_LABEL);
 }
 
+/** Human-friendly comma list for local use. Do not use it for CI: see parseLabelsJson. */
 export function parseLabels(raw) {
 	return (raw ?? '')
 		.split(',')
@@ -67,8 +97,30 @@ export function parseLabels(raw) {
 		.filter((l) => l.length > 0);
 }
 
-/** The verdict for a pull request: ok when nothing guarded changed, or the release label is present. */
-export function evaluate({ changes, labels }) {
+/** CI transport: a JSON array of strings. Anything else is rejected, never guessed at. */
+export function parseLabelsJson(raw) {
+	if (raw === undefined || raw === null || raw === '') return { ok: true, labels: [] };
+	let json;
+	try {
+		json = JSON.parse(raw);
+	} catch {
+		return { ok: false, reason: 'PR_LABELS_JSON is not valid JSON' };
+	}
+	if (!Array.isArray(json) || !json.every((l) => typeof l === 'string')) {
+		return { ok: false, reason: 'PR_LABELS_JSON must be a JSON array of strings' };
+	}
+	return { ok: true, labels: json };
+}
+
+/**
+ * The verdict for a pull request. A file that could not be compared fails regardless of the label:
+ * the release exemption only ever applies to a comparison that was actually made.
+ */
+export function evaluate({ changes, invalid = [], labels }) {
+	if (invalid.length > 0) {
+		const list = invalid.map((i) => `${i.file} at the ${i.side}: ${i.reason}`).join('; ');
+		return { ok: false, invalidInput: true, reason: `Cannot compare the release version, so the check fails closed: ${list}.` };
+	}
 	if (changes.length === 0) return { ok: true, reason: 'no release version changed' };
 	if (hasReleaseLabel(labels)) {
 		return { ok: true, reason: `release PR (label "${RELEASE_LABEL}"): ${changes.map((c) => c.file).join(', ')} may change` };
@@ -111,17 +163,32 @@ export function parseArgs(argv) {
 	return out;
 }
 
-export function main(argv, env = process.env, cwd = process.cwd()) {
+const defaultIo = {
+	out: (line) => process.stdout.write(`${line}\n`),
+	err: (line) => process.stderr.write(`${line}\n`),
+};
+
+export function main(argv, env = process.env, cwd = process.cwd(), io = defaultIo) {
 	let args;
 	try {
 		args = parseArgs(argv);
 	} catch (e) {
-		console.error(`check-version-bump: ${e.message}`);
+		io.err(`check-version-bump: ${e.message}`);
 		return 2;
 	}
-	const labels = parseLabels(args.labels !== undefined ? args.labels : env.PR_LABELS);
-	let baseTexts = {};
-	let headTexts = {};
+	let labels;
+	if (args.labels !== undefined) {
+		labels = parseLabels(args.labels);
+	} else {
+		const parsed = parseLabelsJson(env.PR_LABELS_JSON);
+		if (!parsed.ok) {
+			io.err(`check-version-bump: ${parsed.reason}`);
+			return 2;
+		}
+		labels = parsed.labels;
+	}
+	const baseTexts = {};
+	const headTexts = {};
 	try {
 		// Compare against the merge base so changes that landed on the base branch after this PR branched are not blamed on it.
 		const mergeBase = git(['merge-base', args.base, args.head], cwd).trim();
@@ -130,16 +197,16 @@ export function main(argv, env = process.env, cwd = process.cwd()) {
 			headTexts[file] = readFileAtRef(args.head, file, cwd);
 		}
 	} catch (e) {
-		console.error(`check-version-bump: could not compare ${args.base} and ${args.head}: ${e.message}`);
+		io.err(`check-version-bump: could not compare ${args.base} and ${args.head}: ${e.message}`);
 		return 2;
 	}
-	const verdict = evaluate({ changes: findVersionChanges(baseTexts, headTexts), labels });
+	const verdict = evaluate({ ...findVersionChanges(baseTexts, headTexts), labels });
 	if (verdict.ok) {
-		console.log(`check-version-bump: OK (${verdict.reason})`);
+		io.out(`check-version-bump: OK (${verdict.reason})`);
 		return 0;
 	}
-	console.error(`check-version-bump: FAIL\n${verdict.reason}`);
-	return 1;
+	io.err(`check-version-bump: FAIL\n${verdict.reason}`);
+	return verdict.invalidInput ? 2 : 1;
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {

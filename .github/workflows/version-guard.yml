@@ -4,11 +4,18 @@ name: Release version guard
 # request that changes the release version in manifest.json, versions.json, package.json or
 # package-lock.json unless a maintainer has put the `release` label on it.
 #
+# TRUST BOUNDARY. This uses pull_request_target on purpose: the workflow definition and the guard
+# script both come from the BASE branch, so a pull request cannot edit the validator that judges it
+# (with plain pull_request, a PR could replace the script, or this file, with one that always passes).
+# That is only safe because nothing from the PR head is ever executed: the head is fetched as git
+# objects and read with `git show`. Do NOT add a step that checks out the PR head, installs its
+# dependencies or runs a script from it. Permissions stay read-only and no secrets are used.
+#
 # It is its own workflow, not a job in ci.yml, because it must re-run when a label is added or
 # removed (types: labeled / unlabeled), and ci.yml's two-minute build and test run should not.
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - main
     types: [opened, synchronize, reopened, labeled, unlabeled]
@@ -27,20 +34,27 @@ jobs:
     timeout-minutes: 5
 
     steps:
+      # pull_request_target checks out the BASE branch by default: this is the trusted guard.
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
+          persist-credentials: false
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
           node-version: "22"
 
-      # Label names are user-controlled text: they reach the script through the environment,
-      # never through string interpolation into the command.
+      - name: Fetch the pull request head as data only
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head:refs/remotes/origin/pr-head"
+
+      # Label names are user-controlled text: they reach the script through the environment as a JSON
+      # array (a label name may contain a comma), never through interpolation into the command.
       - name: Fail if the version changed without the release label
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: node scripts/check-version-bump.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
