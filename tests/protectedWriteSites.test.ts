@@ -37,7 +37,7 @@ interface Entry {
 
 const MANIFEST: Record<string, Entry> = {
 	// ── The seam and the guarded user-note writers ──────────────────────────────────────────
-	'src/services/noteEdit/noteWritePort.ts': { count: 2, cls: 'guarded', exempt: 2, reason: 'the seam; asserts writability before any editor or vault write' },
+	'src/services/noteEdit/noteWritePort.ts': { count: 2, cls: 'guarded', exempt: 1, reason: 'the seam; asserts writability before any editor or vault write' },
 	'src/utils/tagUtils.ts': { count: 6, cls: 'guarded', exempt: 3, reason: 'tag writers guard at entry; saveAllTags guards its target; the rest is the tags output file' },
 	'src/utils/frontmatterUtils.ts': { count: 1, cls: 'guarded', reason: 'updateAIOMetadata guards before processFrontMatter' },
 	'src/utils/editorUtils.ts': { count: 4, cls: 'guarded', reason: 'editor helpers call guardActiveNote' },

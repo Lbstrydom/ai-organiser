@@ -137,6 +137,11 @@ export async function syncEmbed(
     try {
         if (typeof v.process === 'function') {
             await v.process(file, (latest) => {
+                // Protection decided again inside the locked callback.
+                if (!assertWritableActive('modify', file.path).ok) {
+                    conflictDetected = true;
+                    return latest;
+                }
                 if (latest !== content) {
                     // Underlying file changed between our read and the lock-protected
                     // re-read. Mark conflict so we can return EMBED_FAILED below

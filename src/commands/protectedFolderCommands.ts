@@ -37,7 +37,19 @@ export function outputConflicts(plugin: AIOrganiserPlugin, protectedFolders: rea
  * Save a new protected list. Refused (nothing changes) when a plugin output folder would end up
  * inside a protected folder or the other way round; the error text names the folder.
  */
-export async function applyProtectedFolders(plugin: AIOrganiserPlugin, next: readonly string[]): Promise<Result<void>> {
+let updateChain: Promise<unknown> = Promise.resolve();
+
+/**
+ * Updates run one at a time, so a failed save can only roll back state that is still its own:
+ * an overlapping update waits its turn instead of racing it.
+ */
+export function applyProtectedFolders(plugin: AIOrganiserPlugin, next: readonly string[]): Promise<Result<void>> {
+    const run = updateChain.then(() => applyProtectedFoldersNow(plugin, next));
+    updateChain = run.catch(() => undefined);
+    return run;
+}
+
+async function applyProtectedFoldersNow(plugin: AIOrganiserPlugin, next: readonly string[]): Promise<Result<void>> {
     const list = resolveProtectedFolders(next);
     const conflicts = outputConflicts(plugin, list);
     if (conflicts.length > 0) {
@@ -183,8 +195,8 @@ function addMenuItems(plugin: AIOrganiserPlugin, menu: Menu, file: TAbstractFile
             void (async () => {
                 if (already) {
                     const next = plugin.settings.protectedFolders.filter((f) => normalisePath(f).toLowerCase() !== normalisePath(file.path).toLowerCase());
-                    await applyProtectedFolders(plugin, next);
-                    new Notice(t.noLongerProtected.replace('{folder}', file.path), 4000);
+                    const res = await applyProtectedFolders(plugin, next);
+                    new Notice(res.ok ? t.noLongerProtected.replace('{folder}', file.path) : res.error, res.ok ? 4000 : 8000);
                     return;
                 }
                 const res = await applyProtectedFolders(plugin, [...plugin.settings.protectedFolders, file.path]);

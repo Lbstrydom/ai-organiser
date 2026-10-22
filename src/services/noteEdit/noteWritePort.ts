@@ -116,13 +116,21 @@ function writeViaEditor(editor: Editor, apply: ApplyFn): Result<ApplyOutcome> {
  * `vault.process` API (Obsidian 1.4+) which re-reads under the vault lock; falls
  * back to read+modify on older versions.
  */
-async function writeViaVault(app: App, file: TFile, apply: ApplyFn): Promise<Result<ApplyOutcome>> {
+async function writeViaVault(
+    app: App,
+    file: TFile,
+    apply: ApplyFn,
+    protectedFolders?: ProtectedSource,
+): Promise<Result<ApplyOutcome>> {
     const v = app.vault as VaultWithProcess;
     let outcome: ApplyOutcome | null = null;
 
     try {
         if (typeof v.process === 'function') {
             await v.process(file, (latest) => {
+                // Protection is decided again inside the locked callback, against the file's CURRENT path.
+                const allowed = assertWritable(protectedFolders, 'modify', file.path);
+                if (!allowed.ok) throw new AbortWriteError(allowed.error);
                 const res = apply(latest);
                 if (!res.ok) {
                     // Abort by throwing — returning `latest` unchanged would still
@@ -136,6 +144,8 @@ async function writeViaVault(app: App, file: TFile, apply: ApplyFn): Promise<Res
             // Legacy fallback: read+modify. Minor TOCTOU window vs `vault.process`,
             // but the only option on pre-1.4 Obsidian.
             const latest = await app.vault.read(file);
+            const allowedNow = assertWritable(protectedFolders, 'modify', file.path);
+            if (!allowedNow.ok) return err(allowedNow.error);
             const res = apply(latest);
             if (!res.ok) return res;
             outcome = res.value;
@@ -172,7 +182,7 @@ export async function writeNote(
         if (editor) {
             return writeViaEditor(editor, apply);
         }
-        return await writeViaVault(app, file, apply);
+        return await writeViaVault(app, file, apply, protectedFolders);
     } catch (e) {
         // Contract: every outcome is a typed Result, never a throw.
         logger.error('NoteEdit', 'unexpected write failure', e);

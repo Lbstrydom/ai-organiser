@@ -59,7 +59,14 @@ export class SetupFlow {
         try {
             const valid = await this.validateCurrent();
             if (!valid.ok) return valid;
-            const saved = await this.onFinish();
+            // Closing the dialog while validation was pending must still stop the save.
+            if (this.cancelledFlag) return err('invalid-state');
+            let saved: Result<void>;
+            try {
+                saved = await this.onFinish();
+            } catch {
+                saved = err('write-failed');
+            }
             if (saved.ok) this.finished = true;
             return saved;
         } finally {

@@ -141,13 +141,12 @@ export async function revalidate(
     port: AttachmentVaultPort,
     input: RevalidationInput,
 ): Promise<Result<Map<string, Eligibility>>> {
-    const ready = port.isResolved() || (await port.waitResolved(input.waitMs ?? 5000));
-    if (!ready) return err('metadata-not-ready');
-
     // The graph is rebuilt from async reads, so the vault can move underneath it. Rebuild until
     // the referrer set is identical before and after; give up (fail closed) after three tries.
     for (let attempt = 0; attempt < 3; attempt++) {
         port.beginAttempt?.();
+        const ready = port.isResolved() || (await port.waitResolved(input.waitMs ?? 5000));
+        if (!ready) return err('metadata-not-ready');
         const before = referrerSignature(port.listReferrers());
         const built = await buildEligibility(port, input);
         if (referrerSignature(port.listReferrers()) === before) return ok(built);

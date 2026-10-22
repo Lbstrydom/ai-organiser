@@ -131,7 +131,10 @@ type SettingsLike = Record<string, unknown>;
 
 function isNonEmpty(value: unknown): boolean {
     if (typeof value === 'string') return value.trim() !== '';
-    if (Array.isArray(value)) return value.some((v) => (typeof v === 'string' ? v.trim() !== '' : v !== undefined && v !== null));
+    if (Array.isArray(value)) {
+        // A folder entry that normalises to nothing (for example "/") is not an entry.
+        return value.some((v) => (typeof v === 'string' ? normalisePath(v).trim() !== '' : v !== undefined && v !== null));
+    }
     return value !== undefined && value !== null;
 }
 

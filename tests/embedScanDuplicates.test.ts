@@ -128,12 +128,15 @@ describe('analyseDuplicates', () => {
 	});
 
 	it('returns an error result, not "no duplicates", when hashing is unavailable', async () => {
-		const subtle = Object.getOwnPropertyDescriptor(globalThis.crypto, 'subtle');
+		// `subtle` may be inherited from Crypto.prototype, so remember whether we had our own property.
+		const own = Object.getOwnPropertyDescriptor(globalThis.crypto, 'subtle');
 		Object.defineProperty(globalThis.crypto, 'subtle', { value: undefined, configurable: true });
 		try {
 			expect(await analyseDuplicates(files, port(contents), { maxBytes: 50 })).toEqual({ ok: false, error: 'scan-incomplete' });
 		} finally {
-			if (subtle) Object.defineProperty(globalThis.crypto, 'subtle', subtle);
+			if (own) Object.defineProperty(globalThis.crypto, 'subtle', own);
+			else delete (globalThis.crypto as { subtle?: unknown }).subtle;
 		}
+		expect(typeof crypto.subtle.digest).toBe('function');
 	});
 });

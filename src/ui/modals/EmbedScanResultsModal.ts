@@ -879,7 +879,7 @@ export class EmbedScanResultsModal extends Modal {
         const checking = new Notice(es.revalidating, 0);
         const checked = await this.checkSafe(selected);
         checking.hide();
-        if (!checked) return;
+        if (!checked || this.closed) return;
         const { safe, kept } = checked;
         if (kept.length > 0) {
             for (const f of kept) this.selectedPaths.delete(f.path);

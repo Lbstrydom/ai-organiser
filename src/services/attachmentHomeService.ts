@@ -16,6 +16,7 @@ import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
 import { isProtectedPath } from '../core/protectedPaths';
 import { getPluginManagedFolders } from '../core/settings';
+import { isFeatureEnabled } from './featureService';
 import { applyNoteEdit, type CompositeTarget } from './noteEdit/applyNoteEdit';
 import type { ApplyOutcome } from './noteEdit/noteWritePort';
 
@@ -157,7 +158,7 @@ export function createHomeContext(
     const excluded = (settings.excludedFolders ?? []).map((f) => f.toLowerCase());
     const external = !['ollama', 'local-onnx'].includes(settings.embeddingProvider);
     const search = plugin.vectorStoreService;
-    const semanticOn = !!search && !!plugin.vectorStore && settings.enableSemanticSearch !== false;
+    const semanticOn = !!search && !!plugin.vectorStore && isFeatureEnabled(settings, 'semantic-search');
     return {
         protectedFolders: settings.protectedFolders,
         markdownPaths: () => plugin.app.vault.getMarkdownFiles().map((f) => f.path),
@@ -218,6 +219,21 @@ export function nonBodyLines(lines: readonly string[]): boolean[] {
     return out;
 }
 
+/** True when the last line is still inside an open fenced code block. */
+function endsInsideFence(lines: readonly string[]): boolean {
+    let fence: { ch: string; len: number } | null = null;
+    const start = lines.length > 0 && lines[0].trim() === '---' ? lines.findIndex((l, i) => i > 0 && (l.trim() === '---' || l.trim() === '...')) + 1 : 0;
+    for (let i = Math.max(0, start); i < lines.length; i++) {
+        const m = lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+        if (!fence) {
+            if (m && !(m[1][0] === '`' && m[2].includes('`'))) fence = { ch: m[1][0], len: m[1].length };
+            continue;
+        }
+        if (m && m[1][0] === fence.ch && m[1].length >= fence.len && m[2].trim() === '') fence = null;
+    }
+    return fence !== null;
+}
+
 /** Link text of every wiki link or embed in `text` (alias and subpath removed), outside code and frontmatter. */
 function wikiLinkTargets(text: string): string[] {
     const targets: string[] = [];
@@ -225,7 +241,9 @@ function wikiLinkTargets(text: string): string[] {
     const skip = nonBodyLines(lines);
     for (let i = 0; i < lines.length; i++) {
         if (skip[i]) continue;
-        for (const m of lines[i].matchAll(/!?\[\[([^\]]+)\]\]/g)) {
+        // Inline code spans are not links.
+        const visible = lines[i].replace(/(`+)[^`]*?\1/g, '');
+        for (const m of visible.matchAll(/!?\[\[([^\]]+)\]\]/g)) {
             targets.push(m[1].split('|')[0].split('#')[0].trim());
         }
     }
@@ -262,6 +280,9 @@ export function appendAttachmentLink(
     const lines = current.split('\n');
     // Headings inside frontmatter or fenced code blocks are not headings.
     const fencedLine = nonBodyLines(lines);
+    // A fence that never closes swallows the rest of the note: appending there would put the link
+    // inside the code block, so refuse rather than write something that does not read as a link.
+    if (lines.length > 0 && endsInsideFence(lines)) return err('link-failed');
     const headingRe = new RegExp(`^(#{1,6})\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*#*\\s*$`, 'i');
     const start = lines.findIndex((l, i) => !fencedLine[i] && headingRe.test(l));
     if (start === -1) {

@@ -252,6 +252,25 @@ export function parseCanvasFileRefs(text: string): Result<CanvasFileRef[]> {
     return ok(refs);
 }
 
+/** The text of every `text` node of a canvas (these can contain `![[file]]` links like any note). */
+export function parseCanvasTextNodes(text: string): string[] {
+    let data: unknown;
+    try {
+        data = JSON.parse(text);
+    } catch {
+        return [];
+    }
+    const nodes = data && typeof data === 'object' ? (data as { nodes?: unknown }).nodes : undefined;
+    if (!Array.isArray(nodes)) return [];
+    const out: string[] = [];
+    for (const node of nodes) {
+        if (!node || typeof node !== 'object') continue;
+        const n = node as { type?: unknown; text?: unknown; id?: unknown };
+        if (n.type === 'text' && typeof n.text === 'string') out.push(n.text);
+    }
+    return out;
+}
+
 /** True when the path has a non-markdown extension (a link to a note has none or `.md`). */
 function pointsAtNonMarkdown(normalized: string): boolean {
     const ext = getExtensionFromPath(normalized);
@@ -277,6 +296,17 @@ export function collectOccurrences(
             const occ: StoredOccurrence = { referrerPath, kind: 'canvas', linktext: ref.file, lineNumber: 0 };
             occurrences.push(occ);
             embedded.set(occ, { path: ref.file, lineNumber: 0, isEmbedded: true, originalText: ref.nodeId });
+        }
+        // Text nodes hold Markdown: a link or embed in one references the file just like in a note.
+        for (const nodeText of parseCanvasTextNodes(text)) {
+            for (const raw of nodeText.split('\n').flatMap((line) => extractReferencesFromLine(line, 0))) {
+                if (isExternalUrl(raw.path)) continue;
+                const normalized = normalizeEmbedPath(raw.path);
+                if (!normalized || !pointsAtNonMarkdown(normalized)) continue;
+                const occ: StoredOccurrence = { referrerPath, kind: 'canvas', linktext: normalized, lineNumber: 0 };
+                occurrences.push(occ);
+                embedded.set(occ, { path: normalized, lineNumber: 0, isEmbedded: raw.isEmbedded, originalText: 'text node' });
+            }
         }
         return { occurrences, embedded };
     }
