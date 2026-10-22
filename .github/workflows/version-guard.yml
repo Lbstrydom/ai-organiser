@@ -1,0 +1,46 @@
+name: Release version guard
+
+# Releases are batched and only the owner decides (AGENTS.md, "Releasing"). This fails a pull
+# request that changes the release version in manifest.json, versions.json, package.json or
+# package-lock.json unless a maintainer has put the `release` label on it.
+#
+# It is its own workflow, not a job in ci.yml, because it must re-run when a label is added or
+# removed (types: labeled / unlabeled), and ci.yml's two-minute build and test run should not.
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: version-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Release-version guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+
+      # Label names are user-controlled text: they reach the script through the environment,
+      # never through string interpolation into the command.
+      - name: Fail if the version changed without the release label
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: node scripts/check-version-bump.mjs --base "$BASE_SHA" --head "$HEAD_SHA"
