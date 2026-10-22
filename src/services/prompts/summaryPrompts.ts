@@ -5,6 +5,8 @@
  * The personaPrompt field should be passed directly from the caller.
  */
 
+import { PromptParts, joinPromptParts } from './promptParts';
+
 export interface SummaryPromptOptions {
   length: 'brief' | 'standard' | 'detailed';
   language?: string;
@@ -81,16 +83,30 @@ const LINK_HANDLING_COMBINE = `<link_handling>
  * companion content is a persona-specific feature (Study dual-output).
  */
 export function buildSummaryPrompt(options: SummaryPromptOptions): string {
+  const parts = buildSummaryPromptParts(options);
+  return joinPromptParts(parts.stablePrefix, parts.prompt);
+}
+
+/**
+ * The summary prompt split for prompt caching. With a persona, the injection
+ * guard and the persona text are identical for every chunk of a run and ride as
+ * `stablePrefix`; the requirements (language, user context incl. the per-chunk
+ * "previous context"), chunk position, companion block and `CONTENT_PLACEHOLDER`
+ * stay in `prompt`. Without a persona the fixed head is too small to cache, so
+ * the whole prompt is returned unsplit. `joinPromptParts` of the result is
+ * byte-identical to the single-string prompt.
+ */
+export function buildSummaryPromptParts(options: SummaryPromptOptions): PromptParts {
   if (options.personaPrompt) {
-    return buildPersonaPrompt(options.personaPrompt, options);
+    return buildPersonaPromptParts(options.personaPrompt, options);
   }
 
   // Fallback to basic prompt if no persona prompt provided
   // (includeCompanion is intentionally ignored here — companion requires a persona)
-  return buildBasicPrompt(options);
+  return { prompt: buildBasicPrompt(options) };
 }
 
-function buildPersonaPrompt(personaPrompt: string, options: SummaryPromptOptions): string {
+function buildPersonaPromptParts(personaPrompt: string, options: SummaryPromptOptions): PromptParts {
   const companionBlock = options.includeCompanion ? `
 
 <companion_instructions>
@@ -101,11 +117,11 @@ Then write a narrative "Explain Like a Friend" companion — restate the materia
 
   const chunkContext = buildChunkContextBlock(options);
 
-  return `${CRITICAL_INSTRUCTIONS_DOCUMENT}
+  return {
+    stablePrefix: `${CRITICAL_INSTRUCTIONS_DOCUMENT}
 
-${personaPrompt}
-
-<additional_requirements>
+${personaPrompt}`,
+    prompt: `<additional_requirements>
 - ${LENGTH_INSTRUCTIONS[options.length]}
 ${options.language ? `- Write the summary in ${options.language}.` : '- Write the summary in the same language as the source content.'}
 ${options.userContext ? `- User focus: ${options.userContext}` : ''}
@@ -115,7 +131,8 @@ ${LINK_HANDLING_DOCUMENT}${companionBlock}${chunkContext}
 
 <document_content>
 CONTENT_PLACEHOLDER
-</document_content>`;
+</document_content>`,
+  };
 }
 
 function buildBasicPrompt(options: SummaryPromptOptions): string {

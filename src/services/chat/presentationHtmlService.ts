@@ -184,10 +184,15 @@ export async function refineDeckIr(
     // refine ("no JSON found"), exactly like generation. cloudService clamps to the model.
     const maxTokens = storyboardMaxTokens(options.currentDeck.slides.length);
     try {
-        const first = await summarizeText(context, `${systemPrompt}\n\n${userPrompt}`, {
+        // The IR system prompt is identical across every refine / polish round of a
+        // session (language only), so it rides as a cacheable `stablePrefix`; the
+        // joined text is the same `${systemPrompt}\n\n${userPrompt}` as before.
+        const first = await summarizeText(context, userPrompt, {
             timeoutMs: REFINEMENT_HARD_BUDGET_MS,
             signal: options.signal,
             maxTokens,
+            stablePrefix: systemPrompt,
+            label: 'presentation-refine',
         });
         if (options.signal?.aborted) return err('Aborted');
         if (!first.success || !first.content) {
@@ -200,10 +205,12 @@ export async function refineDeckIr(
         if (options.signal?.aborted) return err('Aborted');
         logger.warn('Presentation', `IR refine validation failed, repairing: ${parsed.error}`);
         const repairPrompt = buildIrRepairPrompt(first.content, parsed.error);
-        const retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
+        const retry = await summarizeText(context, repairPrompt, {
             timeoutMs: REFINEMENT_HARD_BUDGET_MS,
             signal: options.signal,
             maxTokens,
+            stablePrefix: systemPrompt,
+            label: 'presentation-refine',
         });
         if (options.signal?.aborted) return err('Aborted');
         if (!retry.success || !retry.content) return err(parsed.error);
