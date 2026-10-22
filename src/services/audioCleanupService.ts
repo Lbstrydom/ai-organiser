@@ -89,6 +89,10 @@ async function replaceWithCompressed(
     transcriptionResult: Pick<TranscriptionResult, 'compressedData' | 'originalSizeBytes'>
 ): Promise<void> {
     if (!transcriptionResult.compressedData) return;
+    if (!assertWritable(plugin.settings, 'modify', file.path).ok) {
+        new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+        return;
+    }
 
     try {
         const { replaceAudioFile } = await import('./audioCompressionService');

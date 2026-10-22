@@ -323,12 +323,15 @@ export async function linkToNote(
 ): Promise<Result<{ changed: boolean }>> {
     const note = plugin.app.vault.getAbstractFileByPath(notePath);
     if (!(note instanceof TFile)) return err('target-missing');
+    if (!(plugin.app.vault.getAbstractFileByPath(attachmentPath) instanceof TFile)) return err('target-missing');
     let baseline: string;
     try {
         baseline = await plugin.app.vault.read(note);
     } catch {
         return err('target-missing');
     }
+    // The file may have been moved or deleted while the note was being read.
+    if (!(plugin.app.vault.getAbstractFileByPath(attachmentPath) instanceof TFile)) return err('target-missing');
     // Resolve existing links from the destination note's own position (same-named files elsewhere do not count).
     const resolve = (linktext: string): string | null =>
         plugin.app.metadataCache.getFirstLinkpathDest(linktext, notePath)?.path ?? null;

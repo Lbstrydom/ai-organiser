@@ -47,6 +47,7 @@ export class SetupFlow {
         if (this.finished || this.cancelledFlag || this.isLast) return err('invalid-state');
         const res = await this.validateCurrent();
         if (!res.ok) return res;
+        if (this.cancelledFlag) return err('invalid-state'); // closed while the check was pending
         this.index++;
         return ok(undefined);
     }

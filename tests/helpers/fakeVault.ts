@@ -33,7 +33,13 @@ export function makeFakeApp(specs: Record<string, FakeFileSpec | string>) {
 		if (exact) return exact;
 		const withMd = [...files.values()].find((f) => f.path.toLowerCase() === lower + '.md');
 		if (withMd) return withMd;
-		const tail = [...files.values()].filter((f) => f.path.toLowerCase().endsWith('/' + lower) || f.name.toLowerCase() === lower);
+		const tail = [...files.values()].filter(
+			(f) =>
+				f.path.toLowerCase().endsWith('/' + lower) ||
+				f.name.toLowerCase() === lower ||
+				// extensionless note names resolve to the note, wherever it sits
+				(f.extension === 'md' && (f.path.toLowerCase().endsWith('/' + lower + '.md') || f.name.toLowerCase() === lower + '.md')),
+		);
 		return tail[0] ?? null;
 	};
 

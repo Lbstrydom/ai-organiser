@@ -80,7 +80,9 @@ export class GuidedSetupModal extends Modal {
             this.addButton(buttons, this.t.setup.back, () => { this.flow.back(); void this.draw(); });
         }
         this.addButton(buttons, this.t.setup.cancel, () => this.close());
-        if (this.flow.isLast) {
+        if (renderFailed) {
+            // Nothing to advance on: Back and Cancel stay available.
+        } else if (this.flow.isLast) {
             this.addButton(buttons, this.t.setup.finish, () => { void this.finish(); }, true);
         } else {
             this.addButton(buttons, this.t.setup.next, () => { void this.next(); }, true);

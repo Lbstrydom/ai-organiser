@@ -51,9 +51,12 @@ function enqueueProtectionUpdate<T>(job: () => Promise<T>): Promise<T> {
  * an overlapping update waits its turn instead of racing it. `alsoSet` changes other settings in
  * the SAME save (for example the setup-completed time), so the pair is stored together or not at all.
  */
+/** The new list, or a function that derives it from the list that is current when the update runs. */
+export type ProtectedListUpdate = readonly string[] | ((current: readonly string[]) => readonly string[]);
+
 export function applyProtectedFolders(
     plugin: AIOrganiserPlugin,
-    next: readonly string[],
+    next: ProtectedListUpdate,
     alsoSet?: (settings: AIOrganiserPlugin['settings']) => void,
 ): Promise<Result<void>> {
     return enqueueProtectionUpdate(() => applyProtectedFoldersNow(plugin, next, alsoSet));
@@ -61,10 +64,11 @@ export function applyProtectedFolders(
 
 async function applyProtectedFoldersNow(
     plugin: AIOrganiserPlugin,
-    next: readonly string[],
+    next: ProtectedListUpdate,
     alsoSet?: (settings: AIOrganiserPlugin['settings']) => void,
 ): Promise<Result<void>> {
-    const list = resolveProtectedFolders(next);
+    // Derive from the state that is current NOW, so queued updates never overwrite each other.
+    const list = resolveProtectedFolders(typeof next === 'function' ? next(plugin.settings.protectedFolders) : next);
     const conflicts = outputConflicts(plugin, list);
     if (conflicts.length > 0) {
         return err(plugin.t.protectedFolders.outputRefused.replace('{label}', conflicts[0].label));
@@ -212,12 +216,12 @@ function addMenuItems(plugin: AIOrganiserPlugin, menu: Menu, file: TAbstractFile
         .onClick(() => {
             void (async () => {
                 if (already) {
-                    const next = plugin.settings.protectedFolders.filter((f) => normalisePath(f).toLowerCase() !== normalisePath(file.path).toLowerCase());
-                    const res = await applyProtectedFolders(plugin, next);
+                    const res = await applyProtectedFolders(plugin, (current) =>
+                        current.filter((f) => normalisePath(f).toLowerCase() !== normalisePath(file.path).toLowerCase()));
                     new Notice(res.ok ? t.noLongerProtected.replace('{folder}', file.path) : res.error, res.ok ? 4000 : 8000);
                     return;
                 }
-                const res = await applyProtectedFolders(plugin, [...plugin.settings.protectedFolders, file.path]);
+                const res = await applyProtectedFolders(plugin, (current) => [...current, file.path]);
                 if (!res.ok) {
                     new Notice(res.error, 8000);
                     return;
@@ -247,17 +251,16 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
 
     plugin.registerEvent(plugin.app.vault.on('rename', (file, oldPath) => {
         if (!(file instanceof TFolder)) return;
-        // Protection must follow the folder, so this is not refused for output-folder overlap; it
-        // still waits its turn behind any update in flight and starts from the latest list.
+        // Protection must follow the folder, so the LIVE list is remapped immediately: there is no
+        // window in which the moved folder is unprotected. Persisting waits its turn in the queue.
+        const res = rewriteOnRename(plugin.settings.protectedFolders, oldPath, file.path);
+        if (!res.changed) return;
+        plugin.settings.protectedFolders = res.list;
         void enqueueProtectionUpdate(async () => {
-            const res = rewriteOnRename(plugin.settings.protectedFolders, oldPath, file.path);
-            if (!res.changed) return;
-            const previous = plugin.settings.protectedFolders;
-            plugin.settings.protectedFolders = res.list;
             try {
                 await plugin.saveSettings();
             } catch (e) {
-                plugin.settings.protectedFolders = previous;
+                // The live list stays remapped (safer than reverting to a path that no longer exists).
                 logger.error('Protected', 'Could not save a renamed protected folder', e);
             }
         });

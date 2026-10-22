@@ -72,6 +72,11 @@ export async function processCompanionOutput(
 
         const content = frontmatter + companionContent;
 
+        // Protection may have changed while the folder and file name were prepared.
+        if (!assertWritableActive('create', filePath).ok) {
+            new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+            return null;
+        }
         await vault.create(filePath, content);
         new Notice(plugin.t.messages.companionCreated);
 

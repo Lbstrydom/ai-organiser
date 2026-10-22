@@ -162,6 +162,8 @@ export class EmbedScanResultsModal extends Modal {
     private toolsCleanups: (() => void)[] = [];
     /** Listeners of the re-rendered regions (rows, banner, toolbar); disposed before every render. */
     private renderCleanups: (() => void)[] = [];
+    /** Listeners of the selection toolbar, which is rebuilt more often than the rest. */
+    private toolbarCleanups: (() => void)[] = [];
 
     private filters: FilterState = {
         searchQuery: '',
@@ -778,6 +780,9 @@ export class EmbedScanResultsModal extends Modal {
     // ─── Selection toolbar ─────────────────────────────────────────────────
 
     private updateSelectionToolbar(): void {
+        // The toolbar is rebuilt on every checkbox change: dispose its listeners each time.
+        for (const dispose of this.toolbarCleanups) dispose();
+        this.toolbarCleanups = [];
         this.selectionToolbar.empty();
         const count = this.selectedPaths.size;
 
@@ -802,7 +807,7 @@ export class EmbedScanResultsModal extends Modal {
             text: allSelected ? embedScan.deselectAll : embedScan.selectAll,
             cls: 'ai-organiser-embed-scan-selection-btn',
         });
-        this.renderCleanups.push(listen(toggleBtn, 'click', () => {
+        this.toolbarCleanups.push(listen(toggleBtn, 'click', () => {
             if (allSelected) {
                 for (const p of allVisible) this.selectedPaths.delete(p);
             } else {
@@ -819,7 +824,7 @@ export class EmbedScanResultsModal extends Modal {
         const deleteIcon = deleteBtn.createSpan();
         setIcon(deleteIcon, 'trash-2');
         deleteBtn.prepend(deleteIcon);
-        this.renderCleanups.push(listen(deleteBtn, 'click', () => this.showDeleteConfirmation()));
+        this.toolbarCleanups.push(listen(deleteBtn, 'click', () => this.showDeleteConfirmation()));
     }
 
     /** Returns paths of all currently visible (filtered) targets + orphans that have a vault file */
@@ -1152,6 +1157,8 @@ export class EmbedScanResultsModal extends Modal {
             e.stopPropagation();
             void this.loadSuggestion(file);
         }));
+        // Enter / Space on the button must not also activate the row it sits in.
+        this.renderCleanups.push(listen(btn, 'keydown', (e) => { e.stopPropagation(); }));
         if (!state) return;
         const panel = list.createDiv({ cls: 'ai-organiser-embed-scan-suggestions' });
         row.after(panel);
@@ -1236,6 +1243,8 @@ export class EmbedScanResultsModal extends Modal {
         this.toolsCleanups = [];
         for (const dispose of this.renderCleanups) dispose();
         this.renderCleanups = [];
+        for (const dispose of this.toolbarCleanups) dispose();
+        this.toolbarCleanups = [];
         this.duplicateAbort?.abort();
         for (const ref of this.vaultRefs) this.app.vault.offref(ref);
         this.vaultRefs = [];

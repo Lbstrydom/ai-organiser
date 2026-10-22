@@ -108,6 +108,7 @@ export class SelectionService {
         if (!assertWritableActive('modify', file.path).ok) return hasSelectionTag;
 
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+            if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
             // Initialize tags array if needed
             if (!frontmatter.tags) {
                 frontmatter.tags = [];
@@ -146,6 +147,7 @@ export class SelectionService {
         for (const file of files) {
             if (!assertWritableActive('modify', file.path).ok) { skippedProtected.push(file.path); continue; }
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
                 if (frontmatter.tags) {
                     if (typeof frontmatter.tags === 'string') {
                         frontmatter.tags = [frontmatter.tags];
@@ -178,6 +180,7 @@ export class SelectionService {
         for (const file of files) {
             if (!assertWritableActive('modify', file.path).ok) { skippedProtected.push(file.path); continue; }
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
                 // Replace selection tag with archive tag
                 if (frontmatter.tags) {
                     if (typeof frontmatter.tags === 'string') {

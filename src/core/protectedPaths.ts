@@ -89,6 +89,8 @@ export function isProtectedPath(source: ProtectedSource, path: string): boolean 
 function isTargetProtected(folders: readonly string[], target: WriteTarget): boolean {
     if (folders.some((f) => isInsideOrEqual(target.path, f))) return true;
     if (target.folder) {
+        // The vault root ('') contains every folder, so a folder operation on it touches them all.
+        if (normalisePath(target.path) === '') return folders.length > 0;
         return folders.some((f) => isInsideOrEqual(f, target.path));
     }
     return false;
