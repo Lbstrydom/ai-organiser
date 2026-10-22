@@ -94,7 +94,7 @@ async function clearTagsForCurrentFolder(plugin: AIOrganiserPlugin): Promise<voi
 }
 
 async function clearTagsForVault(plugin: AIOrganiserPlugin): Promise<void> {
-    await plugin.clearAllNotesTags();
+    if (!(await plugin.clearAllNotesTags())) return; // declined, nothing allowed or failed: leave the open note alone
     const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
     if (activeView?.editor) {
         ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);

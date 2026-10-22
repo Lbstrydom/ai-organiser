@@ -40,14 +40,14 @@ describe('vault-wide clear tags', () => {
 	const file = (path: string) => ({ path });
 	let confirmText: string | null;
 
-	function makePlugin(protectedFolders: string[], files: { path: string }[], confirmed = true) {
+	function makePlugin(protectedFolders: string[], files: { path: string }[], confirmed = true, failing = false) {
 		const cleared: string[][] = [];
 		confirmText = null;
 		const plugin = new AIOrganiserPlugin(new App() as never, { id: 'test', version: '1', name: 'T', author: 'T', minAppVersion: '0', description: 'T' } as never);
 		plugin.settings = { ...DEFAULT_SETTINGS, protectedFolders };
 		plugin.getNonExcludedMarkdownFiles = () => files as never;
 		plugin.showConfirmationDialog = (async (text: string) => { confirmText = text; return confirmed; }) as never;
-		(plugin as unknown as { tagOperations: unknown }).tagOperations = { clearDirectoryTags: async (list: { path: string }[]) => { cleared.push(list.map((f) => f.path)); } };
+		(plugin as unknown as { tagOperations: unknown }).tagOperations = { clearDirectoryTags: async (list: { path: string }[]) => { cleared.push(list.map((f) => f.path)); return { success: failing ? false : true, processed: list.length, successCount: failing ? 0 : list.length, errors: [] }; } };
 		return { plugin, cleared };
 	}
 
@@ -55,7 +55,7 @@ describe('vault-wide clear tags', () => {
 
 	it('counts a protected note as left unchanged, never as cleared, in the question and the result', async () => {
 		const { plugin, cleared } = makePlugin(['Course'], [file('Notes/a.md'), file('Notes/b.md'), file('Course/Lecture 2.md')]);
-		await plugin.clearAllNotesTags();
+		expect(await plugin.clearAllNotesTags()).toBe(true);
 		expect(confirmText).toContain('Remove all tags from 2 notes?');
 		expect(confirmText).toContain('1 note in protected folders will be left unchanged.');
 		expect(cleared).toEqual([['Notes/a.md', 'Notes/b.md']]);
@@ -78,9 +78,15 @@ describe('vault-wide clear tags', () => {
 		expect(mockNotices.at(-1)).toBe(en.messages.clearTagsAllProtected);
 	});
 
-	it('does nothing when the person declines', async () => {
+	it('does nothing when the person declines, and says so to the caller', async () => {
 		const { plugin, cleared } = makePlugin(['Course'], [file('Notes/a.md'), file('Course/x.md')], false);
-		await plugin.clearAllNotesTags();
+		expect(await plugin.clearAllNotesTags()).toBe(false);
 		expect(cleared).toEqual([]);
+	});
+
+	it('reports a failed clear as failed, not as cleared', async () => {
+		const { plugin } = makePlugin([], [file('Notes/a.md')], true, true);
+		expect(await plugin.clearAllNotesTags()).toBe(false);
+		expect(mockNotices.at(-1)).toBe(en.messages.failedToClearVaultTags);
 	});
 });

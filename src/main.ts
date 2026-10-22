@@ -1573,26 +1573,34 @@ export default class AIOrganiserPlugin extends Plugin {
         return TagUtils.getNonExcludedMarkdownFiles(this.app, this.getEffectiveExcludedFolders(), folder);
     }
 
-    public async clearAllNotesTags(): Promise<void> {
+    /** True when tags were cleared. False when nothing was (declined, nothing allowed, or the clearing failed). */
+    public async clearAllNotesTags(): Promise<boolean> {
         const m = this.t.messages;
         const { writable, protectedOut } = splitByProtection(this.settings.protectedFolders, this.getNonExcludedMarkdownFiles());
         if (writable.length === 0) {
             new Notice(m.clearTagsAllProtected, 6000);
-            return;
+            return false;
         }
         const note = (template: string) => (protectedOut.length > 0 ? plural(template, protectedOut.length) : '');
         if (await this.showConfirmationDialog(
             [plural(m.clearTagsAllNotesConfirm, writable.length), note(m.clearTagsProtectedConfirm)].filter(Boolean).join(' ')
         )) {
             try {
-                await this.tagOperations.clearDirectoryTags(writable);
+                const result = await this.tagOperations.clearDirectoryTags(writable);
+                if (!result.success) {
+                    new Notice(m.failedToClearVaultTags, 4000);
+                    return false;
+                }
                 new Notice(protectedOut.length > 0
-                    ? [plural(m.tagsClearedFrom, writable.length), note(m.clearTagsProtectedResult)].join('. ')
+                    ? [plural(m.tagsClearedFrom, result.successCount), note(m.clearTagsProtectedResult)].join('. ')
                     : m.successfullyClearedAllVault, protectedOut.length > 0 ? 6000 : 3000);
+                return true;
             } catch {
-                new Notice(this.t.messages.failedToClearVaultTags, 4000);
+                new Notice(m.failedToClearVaultTags, 4000);
+                return false;
             }
         }
+        return false;
     }
 
     public async clearNoteTags(): Promise<void> {

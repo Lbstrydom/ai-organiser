@@ -412,10 +412,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // One-shot: cleared after consumption so a later display() doesn't
         // re-scroll. Uses scrollIntoView with {block: 'start'} so the
         // section header is visible at the top of the panel.
-        if (!this.pendingScrollToSubSection && keepScrollTop > 0) {
-            containerEl.scrollTop = keepScrollTop;
-            window.requestAnimationFrame(() => { containerEl.scrollTop = keepScrollTop; });
-        }
+        if (!this.pendingScrollToSubSection && keepScrollTop > 0) containerEl.scrollTop = keepScrollTop;
         if (this.pendingScrollToSubSection) {
             const id = this.pendingScrollToSubSection;
             this.pendingScrollToSubSection = null;

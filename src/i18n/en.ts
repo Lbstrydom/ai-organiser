@@ -3855,6 +3855,7 @@ export const en: Translations = {
         "instructions-conflict": { message: "The instructions block in the file has damaged or duplicate markers.", nextStep: "Open the file, fix or remove the damaged block, then try again." },
         "no-secret": { message: "There is no secret stored for the script yet.", nextStep: "Open the setup window and copy the script to create one." },
         "mount-invalid": { message: "The local Drive folder is not set, or it is not a full folder path.", nextStep: "Enter the full path of the matching folder inside Google Drive for desktop, in the Drive folder inventory settings." },
+        "mount-vault-unverified": { message: "The vault folder could not be checked, so the Drive folder cannot be confirmed to be outside it.", nextStep: "Try again, and check that the vault folder is available on this computer." },
         "mount-inside-vault": { message: "That folder is inside your vault (or contains it), so offloading there would not free any space.", nextStep: "Choose the matching folder inside Google Drive for desktop, outside your vault." },
         "mount-missing": { message: "The local Drive folder was not found.", nextStep: "Check that Google Drive for desktop is running and that the folder path is correct." },
         "name-invalid": { message: "This file name cannot be used in the Drive folder.", nextStep: "Rename the file in your vault, then try again." },

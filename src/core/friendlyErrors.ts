@@ -91,6 +91,7 @@ export const GUIDANCE_CODES = [
     'mount-invalid',
     'mount-missing',
     'mount-inside-vault',
+    'mount-vault-unverified',
     'name-invalid',
     'dest-conflict',
     'copy-failed',

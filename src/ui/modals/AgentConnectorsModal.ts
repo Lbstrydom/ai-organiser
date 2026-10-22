@@ -56,7 +56,7 @@ export class AgentConnectorsModal extends Modal {
     private stopListening: (() => void) | null = null;
     private closed = false;
     /** Connector files found in the folder when the guide opened, so a finished setup is shown again. */
-    private existing: { folder: string; files: ConnectorFilePaths | null } | null = null;
+    private existing: { folder: string; files: ConnectorFilePaths | null; error: string | null } | null = null;
     private probing: string | null = null;
 
     constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly onExport: () => Promise<Result<string | null>>) {
@@ -204,6 +204,7 @@ export class AgentConnectorsModal extends Modal {
         const found = this.existing !== null && folder.ok && this.existing.folder === folder.value ? this.existing.files : null;
         const files = created.status === 'done' ? created.value : created.status === 'idle' ? found : null;
         if (folder.ok) this.probeExistingFiles(folder.value);
+        if (this.existing?.error && folder.ok && this.existing.folder === folder.value && created.status === 'idle') this.failure(createRow, this.existing.error);
         if (files !== null && base.ok) {
             createRow.createEl('p', { text: t.filesDone.replace('{bundle}', files.bundle).replace('{server}', files.server), cls: 'setting-item-description' });
             this.renderReadOnlyInstall(el, files, base.value, platform);
@@ -220,7 +221,7 @@ export class AgentConnectorsModal extends Modal {
         void findExistingConnectorFiles(this.plugin).then((res) => {
             if (this.closed || this.probing !== folder) return;
             this.probing = null;
-            this.existing = { folder, files: res.ok ? res.value : null };
+            this.existing = { folder, files: res.ok ? res.value : null, error: res.ok ? null : res.error };
             this.render();
         }, (e: unknown) => {
             this.probing = null;
