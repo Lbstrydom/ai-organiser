@@ -20,7 +20,8 @@ export type SetupId =
     | 'cloud-inventory'
     | 'cloud-offload'
     | 'inbox-sweep'
-    | 'google-tasks';
+    | 'google-tasks'
+    | 'vault-upkeep';
 
 export type SetupState = 'not-set-up' | 'ready' | 'needs-attention';
 
@@ -128,6 +129,12 @@ export const SETUP_SPECS: Readonly<Partial<Record<SetupId, SetupSpec>>> = {
         folderKeys: ['cloudInventoryPairs'],
         needsCompletionMarker: true,
         needsConnection: true,
+    },
+    'vault-upkeep': {
+        required: [],
+        folderKeys: ['upkeepReportFolder'],
+        needsCompletionMarker: true,
+        needsConnection: false,
     },
     'inbox-sweep': {
         required: ['sweepInboxFolders', 'sweepReportPath'],

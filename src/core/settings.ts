@@ -7,6 +7,7 @@ import { FEATURE_REGISTRY, type FeatureId } from './features';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
+import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -450,6 +451,23 @@ export interface AIOrganiserSettings {
     cloudInventoryLastChecked: Record<string, string>;
     /** The last "Test connection" result, tied to the configuration it tested. */
     cloudInventoryLastTest: CloudInventoryTestResult | null;
+
+    // === VAULT UPKEEP ===
+    upkeepInterval: 'off' | 'hourly' | 'daily' | 'weekly' | 'custom';
+    upkeepCustomMinutes: number;
+    upkeepTasks: { agentIndex: boolean; inventories: boolean; attachments: boolean };
+    /** Rebuild the agent index automatically when it is stale (the only automatic write) */
+    upkeepAutoRefreshIndex: boolean;
+    upkeepIncludeDuplicates: boolean;
+    /** Folder for the optional saved report note; empty = the vault root */
+    upkeepReportFolder: string;
+    upkeepRunOnMobile: boolean;
+    upkeepRunCapSeconds: number;
+    upkeepLastRun: (RunSummary & { endedAt: number }) | null;
+    upkeepLastProposals: { items: Proposal[]; omitted: number } | null;
+    upkeepFailures: number;
+    /** Fingerprint of the last set of proposals announced, so an unchanged backlog is not announced again */
+    upkeepLastNotified: string;
 
     // === INBOX SWEEP (F6) ===
     /** Folders whose notes are swept (notes that changed since they were last swept) */
@@ -992,6 +1010,18 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     cloudInventoryDeadlineMinutes: 3,
     cloudInventoryLastChecked: {},
     cloudInventoryLastTest: null,
+    upkeepInterval: 'off',
+    upkeepCustomMinutes: 1440,
+    upkeepTasks: { agentIndex: false, inventories: false, attachments: false },
+    upkeepAutoRefreshIndex: false,
+    upkeepIncludeDuplicates: false,
+    upkeepReportFolder: '',
+    upkeepRunOnMobile: false,
+    upkeepRunCapSeconds: 120,
+    upkeepLastRun: null,
+    upkeepLastProposals: null,
+    upkeepFailures: 0,
+    upkeepLastNotified: '',
     sweepInboxFolders: [],
     sweepExcludedFolders: [],
     sweepExcludedTags: [],
@@ -1442,6 +1472,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateProtectedAndAttachmentSettings(oldSettings);
     migrateAgentIndexAndInventorySettings(oldSettings);
     migrateSweepSettings(oldSettings);
+    migrateUpkeepSettings(oldSettings);
 
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
@@ -1528,6 +1559,36 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
                 rootsHash: typeof test.rootsHash === 'string' ? test.rootsHash : undefined,
             }
             : null;
+}
+
+/** Coerce the vault upkeep settings to valid shapes. Order-safe and idempotent. */
+export function migrateUpkeepSettings(old: Record<string, unknown>): void {
+    const d = DEFAULT_SETTINGS;
+    const intervals = ['off', 'hourly', 'daily', 'weekly', 'custom'];
+    old.upkeepInterval = typeof old.upkeepInterval === 'string' && intervals.includes(old.upkeepInterval) ? old.upkeepInterval : d.upkeepInterval;
+    const num = (v: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof v !== 'number' && typeof v !== 'string') return fallback;
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    old.upkeepCustomMinutes = num(old.upkeepCustomMinutes, d.upkeepCustomMinutes, 15, 10080);
+    const t = (old.upkeepTasks && typeof old.upkeepTasks === 'object' ? old.upkeepTasks : {}) as Record<string, unknown>;
+    old.upkeepTasks = { agentIndex: t.agentIndex === true, inventories: t.inventories === true, attachments: t.attachments === true };
+    old.upkeepAutoRefreshIndex = old.upkeepAutoRefreshIndex === true;
+    old.upkeepIncludeDuplicates = old.upkeepIncludeDuplicates === true;
+    old.upkeepReportFolder = typeof old.upkeepReportFolder === 'string' ? old.upkeepReportFolder.trim() : '';
+    old.upkeepRunOnMobile = old.upkeepRunOnMobile === true;
+    old.upkeepRunCapSeconds = num(old.upkeepRunCapSeconds, d.upkeepRunCapSeconds, 10, 900);
+    const last = old.upkeepLastRun as Record<string, unknown> | null | undefined;
+    old.upkeepLastRun = last && typeof last === 'object' && typeof last.startedAt === 'string' && typeof last.endedAt === 'number' && Array.isArray(last.outcomes) && typeof last.status === 'string' && ['ok', 'partial', 'failed'].includes(last.status)
+        ? last
+        : null;
+    const kept = old.upkeepLastProposals as Record<string, unknown> | null | undefined;
+    old.upkeepLastProposals = kept && typeof kept === 'object' && Array.isArray(kept.items) && typeof kept.omitted === 'number'
+        ? { items: kept.items.filter((p) => p && typeof p === 'object' && typeof (p as { kind?: unknown }).kind === 'string').slice(0, 200), omitted: Math.max(0, Math.floor(kept.omitted)) }
+        : null;
+    old.upkeepFailures = num(old.upkeepFailures, 0, 0, 100);
+    old.upkeepLastNotified = typeof old.upkeepLastNotified === 'string' ? old.upkeepLastNotified : '';
 }
 
 /**

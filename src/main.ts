@@ -46,6 +46,7 @@ import { isAzureMode } from './services/azure/endpointResolver';
 import { ProviderProfile, resolveProviderProfile } from './services/providerProfile';
 import { NullLLMService } from './services/llm/nullLLMService';
 import { ForegroundGate } from './services/foregroundGate';
+import { UpkeepController } from './services/upkeep/upkeepRuntime';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
 import { EmbeddingQueue, GenericEmbeddingQueue } from './services/vector/embeddingQueue';
 import { PdfHandlePool } from './services/pdf/pdfHandlePool';
@@ -151,6 +152,9 @@ export default class AIOrganiserPlugin extends Plugin {
     public mermaidChangeDetector = new MermaidChangeDetector();
     public narrationJobs = new NarrationJobRegistry();
     private newsletterFetchTimer: number | null = null;
+    /** The vault upkeep scheduler; created only while the feature is on */
+    public upkeep: UpkeepController | null = null;
+    private lastUpkeepKey = '';
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     public newsletterSeenIds: string[] = [];
@@ -314,6 +318,7 @@ export default class AIOrganiserPlugin extends Plugin {
         if (newsletterSettingsChanged) {
             this.startNewsletterScheduler();
         }
+        this.syncUpkeep();
         this.lastNewsletterConfig = {
             // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
             enabled: isFeatureEnabled(this.settings, 'newsletter'),
@@ -1108,6 +1113,8 @@ export default class AIOrganiserPlugin extends Plugin {
         registerCommands(this);
         registerProtectedFolders(this);
         this.startNewsletterScheduler();
+        // Vault upkeep starts once the workspace is ready, so an overdue run never slows start-up.
+        this.app.workspace.onLayoutReady(() => this.syncUpkeep());
 
         // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
         // a small playback-speed toolbar (0.75×…2×). Obsidian's default
@@ -1310,6 +1317,23 @@ export default class AIOrganiserPlugin extends Plugin {
         this.newsletterFetchTimer = window.setInterval(() => void this.runScheduledNewsletterFetch(), intervalMs);
     }
 
+    /** Create, restart or stop the vault upkeep scheduler to match the settings. Idempotent. */
+    public syncUpkeep(): void {
+        const on = isFeatureEnabled(this.settings, 'vault-upkeep');
+        const key = JSON.stringify([on, this.settings.upkeepInterval, this.settings.upkeepCustomMinutes]);
+        if (key === this.lastUpkeepKey) return;
+        this.lastUpkeepKey = key;
+        if (!on) { this.upkeep?.stop(); return; }
+        this.ensureUpkeep()?.start();
+    }
+
+    /** The scheduler, created on first use while the feature is on; null while it is off. */
+    public ensureUpkeep(): UpkeepController | null {
+        if (!isFeatureEnabled(this.settings, 'vault-upkeep')) return null;
+        this.upkeep ??= new UpkeepController(this);
+        return this.upkeep;
+    }
+
     public stopNewsletterScheduler(): void {
         if (this.newsletterFetchTimer !== null) {
             window.clearInterval(this.newsletterFetchTimer);
@@ -1362,6 +1386,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public onunload(): void {
         unregisterProtectedFolders();
         this.stopNewsletterScheduler();
+        this.upkeep?.stop();
         this.narrationJobs.abortAll();
         // Clear pending attachment-modify debounce timers (audit H9 — no leaked timers/work
         // after unload). The vault event handlers themselves are auto-unregistered by Obsidian.

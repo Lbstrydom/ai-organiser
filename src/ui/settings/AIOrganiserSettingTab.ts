@@ -32,6 +32,7 @@ import { AgentIndexSettingsSection } from './AgentIndexSettingsSection';
 import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
 import { InboxSweepSettingsSection } from './InboxSweepSettingsSection';
 import { GoogleTasksSettingsSection } from './GoogleTasksSettingsSection';
+import { VaultUpkeepSettingsSection } from './VaultUpkeepSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
@@ -342,6 +343,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-google-tasks', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-google-tasks', this.plugin.t.googleTasks.sectionTitle, 'list-checks');
                 new GoogleTasksSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-vault-upkeep', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-vault-upkeep', this.plugin.t.vaultUpkeep.sectionTitle, 'broom');
+                new VaultUpkeepSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-export', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-export', t.export?.title || 'Document Export', 'file-output');

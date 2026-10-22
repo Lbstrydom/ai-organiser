@@ -284,6 +284,12 @@ Repo-wide rules that bind *every* subsystem are in
 | Inbox sweep | Pre-LLM fail-closed exclusion guard, evidence-verified extraction, review-first approval, durable outbox and owned report sections | Changing what may reach the model, the prompt, or the commit order |
 | Google Tasks export | One-way, idempotent export of approved tasks through the user's own script locked to one list | Changing the script template, the export batches or the setup bootstrap |
 
+### [Vault Upkeep](docs/features/vault-upkeep.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Vault upkeep sweep | Optional single-flight scheduler that proposes (stale index, differing Drive inventories, attachment findings); runs never write a note | Changing the scheduler, the tasks, the review, or anything that could write during a run |
+
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 
 | Subsystem | What it is | Read it when |

@@ -29,6 +29,7 @@ import { registerOneDriveLinkCommands } from './oneDriveLinkCommands';
 import { registerAgentIndexCommands } from './agentIndexCommands';
 import { registerCloudInventoryCommands } from './cloudInventoryCommands';
 import { registerOffloadCommands } from './offloadCommands';
+import { registerUpkeepCommands } from './upkeepCommands';
 import { registerGoogleTasksCommands, registerInboxSweepCommands } from './inboxSweepCommands';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
@@ -76,6 +77,7 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     'agent-index': [registerAgentIndexCommands],
     'cloud-inventory': [registerCloudInventoryCommands],
     'cloud-offload': [registerOffloadCommands],
+    'vault-upkeep': [registerUpkeepCommands],
     'inbox-sweep': [registerInboxSweepCommands],
     'google-tasks-export': [registerGoogleTasksCommands],
 };

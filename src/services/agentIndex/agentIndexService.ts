@@ -142,10 +142,12 @@ export async function collectRecords(
     app: App,
     files: readonly TFile[],
     config: IndexScopeConfig,
+    signal?: AbortSignal,
 ): Promise<{ records: RawRecord[]; unreadable: number }> {
     const records: RawRecord[] = [];
     let unreadable = 0;
     for (const file of files) {
+        if (signal?.aborted) break;
         let text: string;
         const mtimeBefore = file.stat.mtime;
         try {
@@ -401,8 +403,9 @@ export interface CheckReport {
 interface HeaderFile { path: string; mtime: number; size: number; sha256: string }
 
 /** Compare the published index with the vault right now. Authoritative: re-hashes every scoped note. */
-export async function checkAgentIndex(plugin: AIOrganiserPlugin): Promise<Result<CheckReport>> {
+export async function checkAgentIndex(plugin: AIOrganiserPlugin, options: { signal?: AbortSignal } = {}): Promise<Result<CheckReport>> {
     try {
+        if (options.signal?.aborted) return err('cancelled');
         const planned = planOutput(plugin.settings.agentIndexOutputPath, plugin.settings.protectedFolders);
         if (!planned.ok) return err(planned.error);
         const adapter = plugin.app.vault.adapter;
@@ -417,7 +420,8 @@ export async function checkAgentIndex(plugin: AIOrganiserPlugin): Promise<Result
         const config = scopeConfigFromSettings(plugin.settings);
         const files = scopedFiles(plugin.app, config);
         const before = fingerprint(files);
-        const { records, unreadable } = await collectRecords(plugin.app, files, config);
+        const { records, unreadable } = await collectRecords(plugin.app, files, config, options.signal);
+        if (options.signal?.aborted) return err('cancelled');
         const unstable = fingerprint(scopedFiles(plugin.app, config)) !== before;
         const indexed = new Map((header.files ?? []).map((f) => [f.path, f]));
         const now = new Map(records.map((r) => [r.path, r]));

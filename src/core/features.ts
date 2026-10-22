@@ -53,7 +53,8 @@ export type FeatureId =
     | 'cloud-inventory'
     | 'cloud-offload'
     | 'inbox-sweep'
-    | 'google-tasks-export';
+    | 'google-tasks-export'
+    | 'vault-upkeep';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -155,6 +156,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     { id: 'inbox-sweep', labelKey: 'features.inbox-sweep.label', descKey: 'features.inbox-sweep.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
     // One-way export of approved sweep tasks to the user's own Google Tasks list through their own Apps Script.
     { id: 'google-tasks-export', labelKey: 'features.google-tasks-export.label', descKey: 'features.google-tasks-export.desc', stage: 'refine', boundary: ['external-account'], requires: ['inbox-sweep'], defaultOn: false },
+    // Vault upkeep: an optional scheduler that PROPOSES (index, Drive inventories, attachments) and never changes your notes.
+    { id: 'vault-upkeep', labelKey: 'features.vault-upkeep.label', descKey: 'features.vault-upkeep.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'cloud-offload', labelKey: 'features.cloud-offload.label', descKey: 'features.cloud-offload.desc', stage: 'maintain', requires: ['cloud-inventory'], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
 
@@ -195,6 +198,7 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-cloud-inventory': 'cloud-inventory',
     'sub-inbox-sweep': 'inbox-sweep',
     'sub-google-tasks': 'google-tasks-export',
+    'sub-vault-upkeep': 'vault-upkeep',
 });
 
 /**

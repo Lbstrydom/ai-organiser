@@ -64,6 +64,14 @@ export const GUIDANCE_CODES = [
     'tasks-no-list',
     'tasks-not-ready',
     'script-tasks-off',
+    // Vault upkeep
+    'upkeep-running',
+    'upkeep-feature-off',
+    'upkeep-no-tasks',
+    'upkeep-report-invalid',
+    'upkeep-report-not-ours',
+    'upkeep-task-failed',
+    'upkeep-task-unavailable',
     // Agent instructions
     'instructions-path-invalid',
     'instructions-conflict',
