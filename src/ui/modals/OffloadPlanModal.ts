@@ -159,6 +159,8 @@ export class OffloadPlanModal extends Modal {
         if (!outcome) { el.empty(); el.createEl('p', { text: this.guidance('write-failed') }); this.addClose(el); return; }
         if (outcome.error) { el.empty(); el.createEl('p', { text: this.guidance(outcome.error) }); this.addClose(el); return; }
         await this.show(outcome.record, outcome.waiting);
+        // The operation moved on but its progress could not be written down: say so, so a later restart is not a surprise.
+        if (outcome.persistError) this.body().createEl('p', { text: this.guidance(outcome.persistError), cls: 'mod-warning' });
     }
 
     private async show(record: OffloadRecord, waiting?: AdvanceOutcome['waiting']): Promise<void> {
@@ -250,12 +252,18 @@ export class OffloadPlanModal extends Modal {
     private addStop(buttons: HTMLElement, record: OffloadRecord): void {
         const stop = buttons.createEl('button', { text: this.o.stopButton });
         this.cleanups.push(listen(stop, 'click', () => {
+            if (this.busy) return;
             void (async () => {
                 const deps = this.deps();
                 if (!deps) return;
-                const res = await abortOffload(deps, record);
-                new Notice(res.ok ? this.o.stopped : this.guidance(res.error), 6000);
-                this.close();
+                this.busy = true;
+                try {
+                    const res = await abortOffload(deps, record);
+                    new Notice(res.ok ? this.o.stopped : this.guidance(res.error), 6000);
+                    this.close();
+                } finally {
+                    this.busy = false;
+                }
             })();
         }));
     }

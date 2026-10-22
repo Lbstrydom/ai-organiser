@@ -1,8 +1,8 @@
-import { Notice, Platform, Setting } from 'obsidian';
+import { Notice, Platform, Setting, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
-import { evaluateSetup } from '../../core/setupState';
+import { evaluateSetup, toFolderSet } from '../../core/setupState';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { validateScriptUrl } from '../../services/appsScriptClient';
@@ -57,6 +57,8 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
             evaluation: evaluateSetup('cloud-inventory', s, {
                 configHash: inventoryConfigKey(s.cloudInventoryScriptUrl, s.cloudInventoryPairs),
                 connection: s.cloudInventoryLastTest,
+                // A paired vault folder that no longer exists is a setup problem, as it is for vault upkeep.
+                existingFolders: toFolderSet(this.plugin.app.vault.getAllLoadedFiles().filter((f): f is TFolder => f instanceof TFolder).map((f) => f.path)),
             }),
             onOpen: () => openCloudInventorySetup(this.plugin, () => this.settingTab.display()),
         });
