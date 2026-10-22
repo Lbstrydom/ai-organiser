@@ -290,6 +290,12 @@ Repo-wide rules that bind *every* subsystem are in
 |---|---|---|
 | Vault upkeep sweep | Optional single-flight scheduler that proposes (stale index, differing Drive inventories, attachment findings); runs never write a note | Changing the scheduler, the tasks, the review, or anything that could write during a run |
 
+### [Agent Connectors](docs/features/agent-connectors.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Connect an AI app | Guides for Claude Desktop, Codex and command-line agents that state what each route enforces; a chat-project vault map built from the index scope; the plugin never edits another app's config | Changing a guide, a snippet, the export, or any claim about what is enforced |
+
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 
 | Subsystem | What it is | Read it when |

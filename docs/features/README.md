@@ -20,6 +20,7 @@ between its `SKILL.md` and its `references/`.
 | [cloud-inventory.md](cloud-inventory.md) | Drive folder inventory: the user's own Apps Script, the shared Apps Script client, owned-block hub notes |
 | [inbox-sweep.md](inbox-sweep.md) | Inbox sweep (exclusion guard, extraction, review, outbox, report) and the Google Tasks export |
 | [vault-upkeep.md](vault-upkeep.md) | Vault upkeep sweep: interval job, proposing checks, review and report |
+| [agent-connectors.md](agent-connectors.md) | Connect an AI app: route guides with plain statements of what is enforced, read-only scoped connector, chat-project vault map |
 | [content-pipeline.md](content-pipeline.md) | Document extraction, chunking, digitisation, translate/integrate, export, the `applyNoteEdit` write seam, reviewed edits |
 | [platform.md](platform.md) | ProgressReporter, feature toggles, workflow-stage taxonomy, the settings UI map, command picker architecture |
 

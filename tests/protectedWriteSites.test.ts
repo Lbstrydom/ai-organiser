@@ -67,6 +67,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/cloudInventory/cloudInventoryService.ts': { count: 2, cls: 'guarded', reason: 'hub note creation asserts writability first; updates go through applyNoteEdit' },
 	'src/services/inboxSweep/sweepCommit.ts': { count: 2, cls: 'guarded', reason: 'the report note is created after assertWritable and validateReportPath; updates go through applyNoteEdit' },
 	'src/services/agentIndex/agentInstructionsWriter.ts': { count: 2, cls: 'guarded', reason: 'the file is created only after validateInstructionsPath and a writability check; updates go through applyNoteEdit' },
+	'src/services/agentConnectors/connectorRuntime.ts': { count: 3, cls: 'guarded', reason: 'the export is written only into the chosen visible folder after connectorFolderPath and a writability check, creates its folder, replaces only files that carry its marker, and trashes only superseded parts of its own' },
 	'src/services/upkeep/upkeepReport.ts': { count: 2, cls: 'guarded', reason: 'the report is created only after reportPathFor and a writability check, and replaced only over its own signed file through applyNoteEdit' },
 	'src/services/canvas/canvasWritePort.ts': { count: 1, cls: 'guarded', reason: 'the only code that edits an existing canvas; asserts writability of the canvas path before vault.process' },
 	'src/services/offload/offloadRuntime.ts': { count: 1, cls: 'guarded', reason: 'the final trash asserts writability of the source file first; note edits go through applyNoteEdit and canvas edits through the canvas write port' },

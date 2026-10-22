@@ -180,7 +180,7 @@ export async function collectRecords(
     return { records, unreadable, unreadablePaths };
 }
 
-function scopedFiles(app: App, config: IndexScopeConfig): TFile[] {
+export function scopedFiles(app: App, config: IndexScopeConfig): TFile[] {
     return app.vault.getMarkdownFiles().filter((f) => isInIndexScope(f.path, config)).sort((a, b) => (a.path < b.path ? -1 : 1));
 }
 

@@ -72,6 +72,14 @@ export const GUIDANCE_CODES = [
     'upkeep-report-not-ours',
     'upkeep-task-failed',
     'upkeep-task-unavailable',
+    // Agent connectors
+    'connector-folder-missing',
+    'connector-folder-invalid',
+    'connector-file-not-ours',
+    'connector-needs-desktop',
+    'connector-node-missing',
+    'connector-vault-path-unavailable',
+    'export-nothing-in-scope',
     // Agent instructions
     'instructions-path-invalid',
     'instructions-conflict',

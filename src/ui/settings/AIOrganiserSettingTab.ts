@@ -33,6 +33,7 @@ import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
 import { InboxSweepSettingsSection } from './InboxSweepSettingsSection';
 import { GoogleTasksSettingsSection } from './GoogleTasksSettingsSection';
 import { VaultUpkeepSettingsSection } from './VaultUpkeepSettingsSection';
+import { AgentConnectorsSettingsSection } from './AgentConnectorsSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
@@ -294,6 +295,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-agent-index', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-agent-index', this.plugin.t.agentIndex.sectionTitle, 'list-tree');
                 new AgentIndexSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-agent-connectors', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-agent-connectors', this.plugin.t.agentConnectors.sectionTitle, 'plug-zap');
+                new AgentConnectorsSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-research', async () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-research', t.research?.title || 'Research Assistant', 'telescope');

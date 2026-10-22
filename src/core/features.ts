@@ -54,7 +54,8 @@ export type FeatureId =
     | 'cloud-offload'
     | 'inbox-sweep'
     | 'google-tasks-export'
-    | 'vault-upkeep';
+    | 'vault-upkeep'
+    | 'agent-connectors';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -157,6 +158,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     // One-way export of approved sweep tasks to the user's own Google Tasks list through their own Apps Script.
     { id: 'google-tasks-export', labelKey: 'features.google-tasks-export.label', descKey: 'features.google-tasks-export.desc', stage: 'refine', boundary: ['external-account'], requires: ['inbox-sweep'], defaultOn: false },
     // Vault upkeep: an optional scheduler that PROPOSES (index, Drive inventories, attachments) and never changes your notes.
+    // Connect an AI app: guided help for Claude Desktop, Codex and command-line agents, plus a vault map for chat projects.
+    { id: 'agent-connectors', labelKey: 'features.agent-connectors.label', descKey: 'features.agent-connectors.desc', stage: 'find', requires: ['agent-index'], defaultOn: false },
     { id: 'vault-upkeep', labelKey: 'features.vault-upkeep.label', descKey: 'features.vault-upkeep.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'cloud-offload', labelKey: 'features.cloud-offload.label', descKey: 'features.cloud-offload.desc', stage: 'maintain', requires: ['cloud-inventory'], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
@@ -199,6 +202,7 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-inbox-sweep': 'inbox-sweep',
     'sub-google-tasks': 'google-tasks-export',
     'sub-vault-upkeep': 'vault-upkeep',
+    'sub-agent-connectors': 'agent-connectors',
 });
 
 /**
