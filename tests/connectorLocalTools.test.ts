@@ -65,26 +65,44 @@ describe('checkNodeInstalled', () => {
 });
 
 describe('openTerminalInVault', () => {
-	it('opens a console on Windows with the vault as the working directory, never in a command string', () => {
+	it('opens a console on Windows with the vault as the working directory, never in a command string', async () => {
 		const f = fakeSpawner({});
+		const t = timers();
 		const vault = 'C:\\Users\\Sam Smith\\My "Vault" & more';
-		expect(openTerminalInVault(f.spawn, 'win32', vault)).toEqual({ ok: true, value: undefined });
+		expect(await openTerminalInVault(f.spawn, 'win32', vault, { set: t.set, clear: t.clear })).toEqual({ ok: true, value: undefined });
 		expect(f.calls).toEqual([{ command: 'cmd.exe', args: ['/c', 'start', 'cmd.exe', '/K'], options: { cwd: vault, detached: true, stdio: 'ignore', windowsHide: false } }]);
 		expect(f.unref).toBe(1);
 	});
 
-	it('passes the vault as one argument on macOS', () => {
+	it('passes the vault as one argument on macOS', async () => {
 		const f = fakeSpawner({});
+		const t = timers();
 		const vault = '/Users/sam/My Vault; rm -rf ~';
-		expect(openTerminalInVault(f.spawn, 'darwin', vault).ok).toBe(true);
+		expect((await openTerminalInVault(f.spawn, 'darwin', vault, { set: t.set, clear: t.clear })).ok).toBe(true);
 		expect(f.calls[0]).toMatchObject({ command: 'open', args: ['-a', 'Terminal', vault] });
 	});
 
-	it('is not offered elsewhere, refuses unusable paths and never throws', () => {
+	it('reports a launcher that fails, instead of claiming success', async () => {
+		const t = timers();
+		expect(await openTerminalInVault(fakeSpawner({ error: true }).spawn, 'darwin', '/v', { set: t.set, clear: t.clear })).toEqual({ ok: false, error: 'connector-needs-desktop' });
+		expect(await openTerminalInVault(fakeSpawner({ code: 1 }).spawn, 'win32', 'C:\\v', { set: t.set, clear: t.clear })).toEqual({ ok: false, error: 'connector-needs-desktop' });
+	});
+
+	it('takes a launcher that stays silent as started once the short wait ends', async () => {
+		const t = timers();
+		const pending = openTerminalInVault(fakeSpawner({ silent: true }).spawn, 'darwin', '/v', { set: t.set, clear: t.clear });
+		t.fire();
+		expect(await pending).toEqual({ ok: true, value: undefined });
+	});
+
+	it('is not offered elsewhere, refuses unusable paths and never throws', async () => {
 		const f = fakeSpawner({});
-		expect(openTerminalInVault(f.spawn, 'linux', '/v')).toEqual({ ok: false, error: 'connector-needs-desktop' });
-		expect(openTerminalInVault(f.spawn, 'win32', '')).toEqual({ ok: false, error: 'connector-vault-path-unavailable' });
+		const t = timers();
+		const tm = { set: t.set, clear: t.clear };
+		expect(await openTerminalInVault(f.spawn, 'linux', '/v', tm)).toEqual({ ok: false, error: 'connector-needs-desktop' });
+		expect(await openTerminalInVault(f.spawn, 'win32', '', tm)).toEqual({ ok: false, error: 'connector-vault-path-unavailable' });
+		expect(await openTerminalInVault(f.spawn, 'win32', 'relative/folder', tm)).toEqual({ ok: false, error: 'connector-vault-path-unavailable' });
 		expect(f.calls).toHaveLength(0);
-		expect(openTerminalInVault(fakeSpawner({ throws: true }).spawn, 'darwin', '/v')).toEqual({ ok: false, error: 'connector-needs-desktop' });
+		expect(await openTerminalInVault(fakeSpawner({ throws: true }).spawn, 'darwin', '/v', tm)).toEqual({ ok: false, error: 'connector-needs-desktop' });
 	});
 });

@@ -55,9 +55,11 @@ export function claudeDesktopLogPath(platform: ConnectorPlatform): string | null
 
 const MAX_PATH_CHARS = 1024;
 
-/** A vault path is usable in a snippet when it is a plain, absolute-looking string without control characters. */
+/** A vault path is usable in a snippet when it is an absolute path without control characters. */
 export function validateVaultPath(raw: string): Result<string> {
     if (typeof raw !== 'string' || raw.trim() === '' || raw.length > MAX_PATH_CHARS) return err('connector-vault-path-unavailable');
+    // POSIX root, a drive letter, or a network share: anything else would be read relative to an unknown folder.
+    if (!/^(\/|[A-Za-z]:[\\/]|\\\\)/.test(raw)) return err('connector-vault-path-unavailable');
     // eslint-disable-next-line no-control-regex -- rejecting control characters is the point
     if (/[\u0000-\u001f\u007f]/.test(raw)) return err('connector-vault-path-unavailable');
     return ok(raw);

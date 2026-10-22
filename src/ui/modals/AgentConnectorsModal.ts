@@ -1,7 +1,7 @@
 import { App, Modal, Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
-import { Result, ok } from '../../core/result';
+import { Result, ok, err } from '../../core/result';
 import { buildAgentInstructions } from '../../services/agentIndex/agentInstructions';
 import {
     buildClaudeDesktopFilesystemConfig,
@@ -161,8 +161,21 @@ export class AgentConnectorsModal extends Modal {
         const input = folderRow.createEl('input', { type: 'text', value: s.agentConnectorFolder, attr: { placeholder: t.folderPlaceholder, 'aria-label': t.folderName } });
         const save = folderRow.createEl('button', { text: t.saveFolder });
         save.addEventListener('click', () => {
+            const previous = s.agentConnectorFolder;
             s.agentConnectorFolder = input.value.trim();
-            void this.plugin.saveSettings().then(() => this.render());
+            void this.plugin.saveSettings().then(
+                () => {
+                    // Results made for another folder no longer describe this one.
+                    if (previous !== s.agentConnectorFolder) { this.ops.reset('files'); this.ops.reset('selftest'); }
+                    this.render();
+                },
+                (e: unknown) => {
+                    s.agentConnectorFolder = previous;
+                    logger.error('Connector', 'Could not save the folder', e);
+                    new Notice(formatGuidance(describeError(this.plugin.t, 'write-failed')), 8000);
+                    this.render();
+                },
+            );
         });
         const folder = connectorFolderPath(s.agentConnectorFolder, s.protectedFolders);
         if (!folder.ok && s.agentConnectorFolder.trim() !== '') this.failure(folderRow, folder.error);
@@ -186,7 +199,7 @@ export class AgentConnectorsModal extends Modal {
         } else if (created.status !== 'done') {
             el.createEl('p', { text: t.roStop, cls: 'setting-item-description' });
         }
-        this.docs(el, [[t.docClaudeServers, CONNECTOR_DOCS.claudeDesktopExtensions], [t.docCodexMcp, CONNECTOR_DOCS.codexMcp], [t.docNode, CONNECTOR_DOCS.nodejs]]);
+        this.docs(el, [[t.docClaudeExtensions, CONNECTOR_DOCS.claudeDesktopExtensions], [t.docCodexMcp, CONNECTOR_DOCS.codexMcp], [t.docNode, CONNECTOR_DOCS.nodejs]]);
     }
 
     private renderReadOnlyInstall(el: HTMLElement, files: ConnectorFilePaths, vaultPath: string, platform: ConnectorPlatform): void {
@@ -346,13 +359,13 @@ export class AgentConnectorsModal extends Modal {
         b.disabled = this.ops.isBusy('terminal');
         b.addEventListener('click', () => {
             const spawn = nodeSpawner();
-            void this.ops.run('terminal', () => {
+            void this.ops.run('terminal', async (): Promise<Result<null>> => {
                 const base = vaultBasePath(this.plugin);
-                if (!base.ok) return Promise.resolve(base);
-                if (!spawn) return Promise.resolve({ ok: false as const, error: 'connector-needs-desktop' });
-                const res = openTerminalInVault(spawn, platform, base.value);
-                return Promise.resolve(res.ok ? { ok: true as const, value: null } : res);
-            }, { limitMs: 4000, timeoutError: 'connector-needs-desktop' }).catch((e: unknown) => logger.error('Connector', 'Terminal failed', e));
+                if (!base.ok) return base;
+                if (!spawn) return err('connector-needs-desktop');
+                const res = await openTerminalInVault(spawn, platform, base.value, { set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) });
+                return res.ok ? ok(null) : res;
+            }, { limitMs: 6000, timeoutError: 'connector-needs-desktop' }).catch((e: unknown) => logger.error('Connector', 'Terminal failed', e));
         });
         if (state.status === 'done') row.createEl('p', { text: t.terminalOpened, cls: 'setting-item-description' });
         else if (state.status === 'failed') this.failure(row, state.error);

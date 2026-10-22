@@ -162,3 +162,45 @@ describe('ScopePublisher', () => {
 		expect(results.map((r) => (r.ok ? r.value : r.error)).sort()).toEqual(['published', 'unchanged', 'unchanged']);
 	});
 });
+
+describe('ScopePublisher: trust the content, not the label', () => {
+	it('corrects a file whose stored revision matches but whose permissions were widened by hand', async () => {
+		const m = memoryAdapter();
+		const { p } = publisher(() => settings({ agentIndexExcludeFolders: ['Private'] }), m.adapter as never);
+		await p.sync();
+		const doc = parseScopeDocument(m.files.get(CONNECTOR_SCOPE_PATH)!)!;
+		m.files.set(CONNECTOR_SCOPE_PATH, JSON.stringify({ ...doc, excludeFolders: [] })); // same revision label, wider access
+		expect(await p.sync()).toEqual({ ok: true, value: 'published' });
+		expect(parseScopeDocument(m.files.get(CONNECTOR_SCOPE_PATH)!)!.excludeFolders).toEqual(['Private']);
+	});
+
+	it('does not bring back an enabled backup when the wanted state is off', async () => {
+		const m = memoryAdapter();
+		let flags: Record<string, boolean> = { 'agent-index': true, 'agent-connectors': true };
+		const { p } = publisher(() => settings({}, flags), m.adapter as never);
+		await p.sync();
+		m.files.set(`${CONNECTOR_SCOPE_PATH}.aio-prev`, m.files.get(CONNECTOR_SCOPE_PATH)!);
+		m.files.delete(CONNECTOR_SCOPE_PATH); // died between the two renames, with access still granted in the backup
+		flags = { 'agent-index': true, 'agent-connectors': false };
+		expect(await p.sync()).toMatchObject({ ok: true });
+		const now = m.files.get(CONNECTOR_SCOPE_PATH);
+		expect(now === undefined || parseScopeDocument(now)!.disabled).toBe(true); // never the enabled backup
+	});
+
+	it('leaves a foreign file in the backup slot alone and reports the failure', async () => {
+		const m = memoryAdapter();
+		m.files.set(`${CONNECTOR_SCOPE_PATH}.aio-prev`, 'user backup');
+		const { p, stale } = publisher(() => settings(), m.adapter as never);
+		expect((await p.sync()).ok).toBe(false);
+		expect(m.files.get(`${CONNECTOR_SCOPE_PATH}.aio-prev`)).toBe('user backup');
+		expect(stale.at(-1)).toBe(true);
+	});
+
+	it('marks a foreign scope file as a visible failure', async () => {
+		const m = memoryAdapter();
+		m.files.set(CONNECTOR_SCOPE_PATH, '{"somebody":"else"}');
+		const { p, stale } = publisher(() => settings(), m.adapter as never);
+		expect((await p.sync()).ok).toBe(false);
+		expect(stale.at(-1)).toBe(true);
+	});
+});

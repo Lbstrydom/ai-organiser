@@ -179,12 +179,12 @@ describe('reading: scope and containment', () => {
 		expect((await c.call('read_note', {})).isError).toBe(true);
 	});
 
-	it('refuses a folder link (junction or symlink) that leads into an excluded folder, and does not list it', async () => {
+	it('refuses a folder link (junction or symlink) that leads into an excluded folder, and does not list it', async (ctx) => {
 		const dirLink = path.join(vault.root, 'Notes', 'LinkedDir');
 		try {
 			fs.symlinkSync(path.join(vault.root, 'Private'), dirLink, 'junction');
 		} catch {
-			return; // this system does not let the test create links
+			ctx.skip(); // reported as skipped, never as passed: this system does not let the test create links
 		}
 		try {
 			const c = open();
@@ -201,12 +201,12 @@ describe('reading: scope and containment', () => {
 		}
 	});
 
-	it('refuses a file symlink that points at an excluded note, when the system lets the test make one', async () => {
+	it('refuses a file symlink that points at an excluded note, when the system lets the test make one', async (ctx) => {
 		const link = path.join(vault.root, 'Notes', 'Linked.md');
 		try {
 			fs.symlinkSync(path.join(vault.root, 'Private', 'Diary.md'), link);
 		} catch {
-			return;
+			ctx.skip();
 		}
 		try {
 			const c = open();
@@ -287,6 +287,20 @@ describe('search and listing', () => {
 		const multi = await c.call('search_notes', { query: 'soil care' });
 		expect(multi.text.join('\n')).toContain('Notes/Garden.md'); // every word matched, in title, path, tag or heading
 		expect((await c.call('search_notes', { query: 'zzzz' })).text).toEqual(['No notes matched.']);
+	});
+
+	it('does not let out-of-scope records use up the result slots', async () => {
+		const many = Array.from({ length: 30 }, (_, i) => ({ path: `Private/Match ${i}.md`, tags: ['zebra', 'zebra', 'zebra'] }));
+		vault.writeIndex([...many, { path: 'Notes/Garden.md', tags: ['zebra'] }], '.ai-organiser/crowded.jsonl');
+		vault.writeScope({ exclude: ['Private'], protectedFolders: ['Course'], indexPath: '.ai-organiser/crowded.jsonl' });
+		try {
+			const c = open();
+			await c.initialize();
+			const r = await c.call('search_notes', { query: 'zebra', limit: 1 });
+			expect(r.text.join('\n')).toContain('Notes/Garden.md');
+		} finally {
+			vault.writeScope({ exclude: ['Private'], protectedFolders: ['Course'] });
+		}
 	});
 
 	it('validates arguments with clear messages', async () => {

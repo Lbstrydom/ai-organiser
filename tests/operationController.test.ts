@@ -74,6 +74,33 @@ describe('OperationController', () => {
 		expect(h.controller.state('a')).toEqual({ status: 'failed', error: 'timed-out' });
 	});
 
+	it('keeps a timed-out job in its group until the job really ends', async () => {
+		const h = harness();
+		const d = deferred<ReturnType<typeof ok<string>>>();
+		const run = h.controller.run('export', () => d.promise, { ...opts, group: 'writes' });
+		h.fire();
+		expect(h.controller.state('export')).toEqual({ status: 'failed', error: 'timed-out' });
+		expect(h.controller.isBusy('create-files', 'writes')).toBe(true); // the writer is still going
+		expect(await h.controller.run('create-files', async () => ok(1), { ...opts, group: 'writes' })).toBe(false);
+		d.resolve(ok('late'));
+		await run;
+		expect(h.controller.isBusy('create-files', 'writes')).toBe(false);
+		expect(await h.controller.run('create-files', async () => ok(1), { ...opts, group: 'writes' })).toBe(true);
+	});
+
+	it('forgets a finished result on reset, but not one that is still running', async () => {
+		const h = harness();
+		await h.controller.run('files', async () => ok('v'), opts);
+		h.controller.reset('files');
+		expect(h.controller.state('files')).toEqual({ status: 'idle' });
+		const d = deferred<ReturnType<typeof ok<string>>>();
+		const run = h.controller.run('files', () => d.promise, opts);
+		h.controller.reset('files');
+		expect(h.controller.state('files')).toEqual({ status: 'running' });
+		d.resolve(ok('x'));
+		await run;
+	});
+
 	it('turns a throwing job into a failure and survives a throwing listener', async () => {
 		const h = harness();
 		const seen: string[] = [];
@@ -81,6 +108,6 @@ describe('OperationController', () => {
 		h.controller.onChange(() => seen.push(h.controller.state('a').status));
 		await h.controller.run('a', async () => { throw new Error('boom'); }, opts);
 		expect(h.controller.state('a')).toEqual({ status: 'failed', error: 'timed-out' });
-		expect(seen).toEqual(['running', 'failed']);
+		expect(seen).toEqual(['running', 'failed', 'failed']); // the second is the release after the job ended
 	});
 });

@@ -77,6 +77,7 @@ export const GUIDANCE_CODES = [
     'connector-folder-invalid',
     'connector-scope-write-failed',
     'connector-test-failed',
+    'connector-feature-off',
     'connector-file-not-ours',
     'connector-needs-desktop',
     'connector-node-missing',

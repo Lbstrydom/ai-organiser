@@ -159,6 +159,8 @@ export default class AIOrganiserPlugin extends Plugin {
     private lastUpkeepKey = '';
     /** Keeps the read-only connector's scope file true to the settings (created on first use) */
     private connectorScope: ScopePublisher | null = null;
+    /** The stale flag as last saved to disk (null = not yet known); a failed save never counts as saved */
+    private connectorStalePersisted: boolean | null = null;
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     public newsletterSeenIds: string[] = [];
@@ -1335,15 +1337,21 @@ export default class AIOrganiserPlugin extends Plugin {
             settings: () => this.settings,
             now: () => new Date().toISOString(),
             setStale: async (stale) => {
-                if (this.settings.agentConnectorScopeStale === stale) return;
+                if (this.connectorStalePersisted === stale) return;
+                const previous = this.settings.agentConnectorScopeStale;
                 this.settings.agentConnectorScopeStale = stale;
-                await saveSettingsData(this, this.settings);
+                try {
+                    await saveSettingsData(this, this.settings);
+                    this.connectorStalePersisted = stale;
+                } catch (e) {
+                    this.settings.agentConnectorScopeStale = previous;
+                    throw e;
+                }
+                // One notice per healthy-to-stale change, decided where the change is committed.
+                if (stale && !previous) new Notice(formatGuidance(describeError(this.t, 'connector-scope-write-failed')), 12000);
             },
         });
-        const wasStale = this.settings.agentConnectorScopeStale;
-        void this.connectorScope.sync().then((res) => {
-            if (!res.ok && !wasStale) new Notice(formatGuidance(describeError(this.t, res.error)), 12000);
-        });
+        void this.connectorScope.sync();
     }
 
     /** Create, restart or stop the vault upkeep scheduler to match the settings. Idempotent. */

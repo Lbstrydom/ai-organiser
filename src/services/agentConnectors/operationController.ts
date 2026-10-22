@@ -21,6 +21,8 @@ export interface OperationTimers {
 export class OperationController {
     private readonly states = new Map<string, OperationState<unknown>>();
     private readonly groups = new Map<string, string>();
+    /** Jobs that have started and not yet ended, whatever their shown state is. A timed-out job is still here. */
+    private readonly inflight = new Set<string>();
     private readonly listeners = new Set<() => void>();
 
     constructor(private readonly timers: OperationTimers) {}
@@ -34,14 +36,19 @@ export class OperationController {
         return (this.states.get(id) as OperationState<T> | undefined) ?? { status: 'idle' };
     }
 
-    /** True while this action, or any other action in the same group, is running. */
+    /** True while this action, or any other action in the same group, still has a job running (even one that timed out). */
     isBusy(id: string, group?: string): boolean {
-        for (const [other, state] of this.states) {
-            if (state.status !== 'running') continue;
+        for (const other of this.inflight) {
             if (other === id) return true;
             if (group !== undefined && this.groups.get(other) === group) return true;
         }
         return false;
+    }
+
+    /** Forget a finished action's result (for example when the context it belonged to changed). */
+    reset(id: string): void {
+        if (this.inflight.has(id)) return;
+        if (this.states.delete(id)) this.emit();
     }
 
     /**
@@ -51,6 +58,7 @@ export class OperationController {
     async run<T>(id: string, job: () => Promise<Result<T>>, options: { group?: string; limitMs: number; timeoutError: string }): Promise<boolean> {
         if (this.isBusy(id, options.group)) return false;
         this.states.set(id, { status: 'running' });
+        this.inflight.add(id);
         if (options.group !== undefined) this.groups.set(id, options.group);
         this.emit();
         let settled = false;
@@ -67,6 +75,10 @@ export class OperationController {
             settle(result.ok ? { status: 'done', value: result.value } : { status: 'failed', error: result.error });
         } catch {
             settle({ status: 'failed', error: options.timeoutError });
+        } finally {
+            // Only now, when the job has really ended, is its place in the group released.
+            this.inflight.delete(id);
+            this.emit();
         }
         return true;
     }

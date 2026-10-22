@@ -152,9 +152,17 @@ async function readChecked(resolved, maxBytes) {
     const again = await realNative(resolved.abs);
     if (again !== resolved.real) throw new Refusal('changed');
     const buffer = Buffer.alloc(Math.min(st.size, maxBytes) + 1);
-    const read = await fd.read(buffer, 0, buffer.length, 0);
-    if (read.bytesRead > maxBytes) throw new Refusal('too-large');
-    return { text: buffer.toString('utf8', 0, read.bytesRead), bytes: read.bytesRead, mtimeMs: st.mtimeMs };
+    let total = 0;
+    while (total < buffer.length) {
+      const read = await fd.read(buffer, total, buffer.length - total, total);
+      if (read.bytesRead === 0) break;
+      total += read.bytesRead;
+    }
+    if (total > maxBytes) throw new Refusal('too-large');
+    // A file that changed while it was being read is not a complete answer.
+    const after = await fd.stat();
+    if (after.size !== st.size || after.mtimeMs !== st.mtimeMs || total !== st.size) throw new Refusal('changed');
+    return { text: buffer.toString('utf8', 0, total), bytes: total, mtimeMs: st.mtimeMs };
   } finally {
     await fd.close();
   }
@@ -255,6 +263,8 @@ async function toolSearch(args, ctx) {
   if (!index.ok) return errorResult(index.message);
   const scored = [];
   for (const rec of index.records) {
+    // Out-of-scope records never compete for the limited result slots.
+    if (!scopeAllows(rec.path, ctx.scope)) continue;
     let total = 0;
     let all = true;
     for (const t of tokens) {
@@ -429,12 +439,19 @@ async function handle(msg) {
 // ---- stdio: one JSON message per line, one request at a time, with back-pressure --------------
 
 let writing = Promise.resolve();
+let pendingOut = 0;
 function send(obj) {
   const line = JSON.stringify(obj) + '\n';
+  pendingOut++;
+  // A client that keeps asking while it does not read the answers is not read from until it catches up.
+  if (pendingOut > 128) process.stdin.pause();
   writing = writing.then(function () {
     return new Promise(function (resolve) {
       if (process.stdout.write(line)) resolve(); else process.stdout.once('drain', resolve);
     });
+  }).then(function () {
+    pendingOut--;
+    if (pendingOut < 64) process.stdin.resume();
   });
   return writing;
 }

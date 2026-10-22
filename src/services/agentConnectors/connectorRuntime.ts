@@ -10,6 +10,7 @@ import { Result, ok, err } from '../../core/result';
 import { assertWritable, normalisePath, type ProtectedSource } from '../../core/protectedPaths';
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
 import { collectRecords, projectionScope, scopedFiles, scopeConfigFromSettings, scopeHashOf } from '../agentIndex/agentIndexService';
+import { isFeatureEnabled } from '../featureService';
 import { logger } from '../../utils/logger';
 import { buildChatExport, CHAT_EXPORT_INSTRUCTIONS, CHAT_EXPORT_NAME_PATTERN, isOwnExport } from './chatExport';
 import { validateVaultPath } from './connectorGuides';
@@ -59,18 +60,27 @@ export interface ExportSummary {
 /**
  * Write the vault map. Reads the same notes the index reads (the one scope function), writes only into
  * the chosen folder, replaces only files that carry the export marker, and never touches note text.
- * Never throws.
+ *
+ * Nothing is written until every destination is known to be free or ours, and the scope, the folder,
+ * the protected list and the feature switch are checked again right before writing and again before
+ * any superseded part is trashed. Never throws.
  */
 export async function exportChatProject(plugin: AIOrganiserPlugin, options: { expectedRevision?: string } = {}): Promise<Result<ExportSummary>> {
     try {
         const s = plugin.settings;
+        if (!isFeatureEnabled(s, 'agent-connectors')) return err('connector-feature-off');
         const folder = connectorFolderPath(s.agentConnectorFolder, s.protectedFolders);
         if (!folder.ok) return err(folder.error);
 
+        // The scope this export is made for. The confirmation the person gave was for the same one.
+        const startRevision = await exportRevision(plugin);
+        if (options.expectedRevision !== undefined && startRevision !== options.expectedRevision) return err('baseline-changed');
+        /** True while nothing that authorises this export has changed. */
+        const unchanged = async (): Promise<boolean> =>
+            isFeatureEnabled(plugin.settings, 'agent-connectors') && (await exportRevision(plugin)) === startRevision;
+
         const config = scopeConfigFromSettings(s);
         const collected = await collectRecords(plugin.app, scopedFiles(plugin.app, config), config);
-        // The confirmation the person gave was for one scope and folder; if either moved, write nothing.
-        if (options.expectedRevision !== undefined && (await exportRevision(plugin)) !== options.expectedRevision) return err('baseline-changed');
         const built = buildChatExport({
             records: collected.records,
             scope: projectionScope(config),
@@ -80,37 +90,47 @@ export async function exportChatProject(plugin: AIOrganiserPlugin, options: { ex
         if (built.notes === 0) return err('export-nothing-in-scope');
 
         const vault = plugin.app.vault;
-        const written: string[] = [];
+        // Every destination first: a foreign file at part 3 must not leave parts 1 and 2 already replaced.
+        const targets: Array<{ path: string; text: string; existing: TFile | null; baseline: string }> = [];
         for (const part of built.parts) {
             const path = `${folder.value}/${part.name}`;
-            // Checked again here, after the reads above: settings may have changed while they ran.
-            const again = connectorFolderPath(plugin.settings.agentConnectorFolder, plugin.settings.protectedFolders);
-            if (!again.ok || again.value !== folder.value) return err('baseline-changed');
             if (!assertWritable(plugin.settings.protectedFolders, 'create', path).ok) return err('protected-path');
             const existing = vault.getAbstractFileByPath(path);
-            if (!existing) {
-                await ensureFolder(plugin, folder.value);
-                if (!assertWritable(plugin.settings.protectedFolders, 'create', path).ok) return err('protected-path');
-                if (vault.getAbstractFileByPath(path)) return err('connector-file-not-ours');
-                await vault.create(path, part.text);
-            } else {
-                if (!(existing instanceof TFile)) return err('connector-file-not-ours');
-                const baseline = await vault.read(existing);
-                if (!isOwnExport(baseline)) return err('connector-file-not-ours');
-                const res = await applyNoteEdit(plugin, { kind: 'full-replace', filePath: path, baseline, nextContent: part.text }, { review: false });
-                if (!res.ok) return err(res.error);
-            }
-            written.push(path);
+            if (existing === null) { targets.push({ path, text: part.text, existing: null, baseline: '' }); continue; }
+            if (!(existing instanceof TFile)) return err('connector-file-not-ours');
+            const baseline = await vault.read(existing);
+            if (!isOwnExport(baseline)) return err('connector-file-not-ours');
+            targets.push({ path, text: part.text, existing, baseline });
         }
 
-        // Parts left over from a larger earlier export: only our own, only by name pattern and marker.
+        if (!(await unchanged())) return err('baseline-changed');
+        const written: string[] = [];
+        for (const target of targets) {
+            if (!(await unchanged())) return err('baseline-changed');
+            if (!assertWritable(plugin.settings.protectedFolders, 'create', target.path).ok) return err('protected-path');
+            if (target.existing === null) {
+                await ensureFolder(plugin, folder.value);
+                if (!assertWritable(plugin.settings.protectedFolders, 'create', target.path).ok) return err('protected-path');
+                if (vault.getAbstractFileByPath(target.path)) return err('connector-file-not-ours');
+                await vault.create(target.path, target.text);
+            } else {
+                const res = await applyNoteEdit(plugin, { kind: 'full-replace', filePath: target.path, baseline: target.baseline, nextContent: target.text }, { review: false });
+                if (!res.ok) return err(res.error);
+            }
+            written.push(target.path);
+        }
+
+        // Parts left over from a larger earlier export: only our own, only by name pattern and marker,
+        // and only while everything that authorised this export still holds.
         let removed = 0;
         const dir = vault.getAbstractFileByPath(folder.value);
         if (dir instanceof TFolder) {
             for (const child of [...dir.children]) {
                 if (!(child instanceof TFile) || !CHAT_EXPORT_NAME_PATTERN.test(child.name) || written.includes(child.path)) continue;
-                if (!assertWritable(plugin.settings.protectedFolders, 'delete', child.path).ok) continue;
                 if (!isOwnExport(await vault.read(child))) continue;
+                // Checked after the read, immediately before the trash.
+                if (!(await unchanged())) return err('baseline-changed');
+                if (!assertWritable(plugin.settings.protectedFolders, 'delete', child.path).ok) continue;
                 await plugin.app.fileManager.trashFile(child);
                 removed++;
             }

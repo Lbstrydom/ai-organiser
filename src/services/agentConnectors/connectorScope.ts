@@ -96,6 +96,16 @@ const PREV = `${CONNECTOR_SCOPE_PATH}.aio-prev`;
 const TMP = (id: string): string => `${CONNECTOR_SCOPE_PATH}.aio-${id}.tmp`;
 const FOLDER = CONNECTOR_SCOPE_PATH.slice(0, CONNECTOR_SCOPE_PATH.lastIndexOf('/'));
 
+const sortedList = (list: readonly string[]): string => JSON.stringify([...list].sort());
+
+/** Same permissions, judged from the content itself: a stored revision is a label, not proof. */
+function sameScope(a: ScopeDocument, b: ScopeDocument): boolean {
+  return a.disabled === b.disabled && a.indexPath === b.indexPath
+    && sortedList(a.includeFolders) === sortedList(b.includeFolders)
+    && sortedList(a.excludeFolders) === sortedList(b.excludeFolders)
+    && sortedList(a.protectedFolders) === sortedList(b.protectedFolders);
+}
+
 async function readOurs(adapter: PublishAdapter, path: string): Promise<Result<ScopeDocument | null>> {
     if (!(await adapter.exists(path))) return ok(null);
     const doc = parseScopeDocument(await adapter.read(path));
@@ -126,17 +136,22 @@ export class ScopePublisher {
                 await this.deps.setStale(true);
                 return err('connector-scope-write-failed');
             }
-            // Put an interrupted earlier publication right first.
-            if (assertWritable(this.deps.settings().protectedFolders, 'modify', CONNECTOR_SCOPE_PATH).ok && !(await adapter.exists(CONNECTOR_SCOPE_PATH)) && (await adapter.exists(PREV))) {
+            // Put an interrupted earlier publication right first, but never bring back permissions the
+            // settings no longer grant: when the wanted state is "off", the backup is not restored.
+            if (!wanted.value.disabled && assertWritable(this.deps.settings().protectedFolders, 'modify', CONNECTOR_SCOPE_PATH).ok && !(await adapter.exists(CONNECTOR_SCOPE_PATH)) && (await adapter.exists(PREV))) {
                 if (parseScopeDocument(await adapter.read(PREV))) await adapter.rename(PREV, CONNECTOR_SCOPE_PATH);
             }
             const current = await readOurs(adapter, CONNECTOR_SCOPE_PATH);
-            if (!current.ok) return err(current.error); // a foreign file: never overwritten, never silently ignored
+            if (!current.ok) {
+                // A foreign file: never overwritten, and never silently ignored.
+                await this.deps.setStale(true);
+                return err(current.error);
+            }
             if (current.value === null && wanted.value.disabled) {
                 await this.deps.setStale(false);
                 return ok('skipped'); // never enabled: nothing to revoke, nothing written
             }
-            if (current.value && current.value.revision === wanted.value.revision) {
+            if (current.value && sameScope(current.value, wanted.value)) {
                 await this.deps.setStale(false);
                 return ok('unchanged');
             }
@@ -158,12 +173,16 @@ export class ScopePublisher {
         const { adapter } = this.deps;
         if (!assertWritable(this.deps.settings().protectedFolders, 'create', CONNECTOR_SCOPE_PATH).ok) return err('connector-scope-write-failed');
         if (!(await adapter.exists(FOLDER))) await adapter.mkdir(FOLDER);
+        // The backup slot is only ever cleared when what is in it is ours.
+        if (await adapter.exists(PREV)) {
+            if (!parseScopeDocument(await adapter.read(PREV))) return err('connector-file-not-ours');
+            await adapter.remove(PREV);
+        }
         const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
         const tmp = TMP(id);
         await adapter.write(tmp, JSON.stringify(doc));
         const had = await adapter.exists(CONNECTOR_SCOPE_PATH);
         try {
-            if (await adapter.exists(PREV)) await adapter.remove(PREV);
             if (had) await adapter.rename(CONNECTOR_SCOPE_PATH, PREV);
             await adapter.rename(tmp, CONNECTOR_SCOPE_PATH);
         } catch (e) {

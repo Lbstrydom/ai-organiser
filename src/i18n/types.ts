@@ -3889,6 +3889,7 @@ export interface Translations {
         terminalOpened: string;
         docsHeading: string;
         docClaudeServers: string;
+        docClaudeExtensions: string;
         docClaudeCode: string;
         docCodexMcp: string;
         docCodexAgents: string;

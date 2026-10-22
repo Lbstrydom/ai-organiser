@@ -45,7 +45,7 @@ interface Harness {
 function makePlugin(notes: Record<string, string>, over: Record<string, unknown> = {}, existing: Record<string, string> = {}): Harness {
 	const vault = new Map<string, string>(Object.entries(existing));
 	const trashed: string[] = [];
-	const settings = { ...structuredClone(DEFAULT_SETTINGS), agentConnectorFolder: 'AI connectors', ...over } as Record<string, unknown>;
+	const settings = { ...structuredClone(DEFAULT_SETTINGS), agentConnectorFolder: 'AI connectors', featureFlags: { 'agent-index': true, 'agent-connectors': true }, ...over } as Record<string, unknown>;
 	const folders = new Set<string>();
 	const fileFor = (path: string): TFile => {
 		const f = new TFile();
@@ -88,6 +88,39 @@ function makePlugin(notes: Record<string, string>, over: Record<string, unknown>
 }
 
 describe('exportChatProject', () => {
+	it('does nothing while the feature is off', async () => {
+		const h = makePlugin({ 'Notes/A.md': 'x' }, { featureFlags: {} });
+		expect(await exportChatProject(h.plugin)).toEqual({ ok: false, error: 'connector-feature-off' });
+		expect(h.vault.size).toBe(0);
+	});
+
+	it('writes no part at all when one destination is foreign', async () => {
+		const many = Object.fromEntries(Array.from({ length: 12000 }, (_, i) => [`Notes/Long note title number ${i} for the split.md`, 'x']));
+		const probe = makePlugin(many);
+		const first = await exportChatProject(probe.plugin);
+		if (!first.ok || first.value.paths.length < 2) throw new Error('the probe needs a multi-part export');
+		const second = first.value.paths[1];
+		const h = makePlugin(many, {}, { [second]: '# Not an export\n' });
+		expect(await exportChatProject(h.plugin)).toEqual({ ok: false, error: 'connector-file-not-ours' });
+		expect([...h.vault.keys()]).toEqual([second]); // part 1 was not written first
+	});
+
+	it('does not trash a superseded part once the scope changed', async () => {
+		const dir = 'AI connectors';
+		const h = makePlugin(notes, {}, { [`${dir}/AI Organiser vault map (part 2 of 2).md`]: `${CHAT_EXPORT_MARKER}\nold\n` });
+		const vault = (h.plugin as unknown as { app: { vault: { read: (f: { path: string }) => Promise<string> } } }).app.vault;
+		const original = vault.read;
+		// While the old part is being read, the person changes what is excluded.
+		vault.read = async (f: { path: string }) => {
+			const text = await original(f);
+			if (f.path.includes('part 2')) h.settings.agentIndexExcludeFolders = ['Notes'];
+			return text;
+		};
+		expect(await exportChatProject(h.plugin)).toEqual({ ok: false, error: 'baseline-changed' });
+		expect(h.trashed).toEqual([]);
+	});
+
+
 	const notes = { 'Notes/Garden.md': '# Garden\nsecret body text', 'Notes/Soil.md': 'x', 'Private/Diary.md': 'private body' };
 
 	it('writes one file into the chosen folder, with no note text and no excluded note', async () => {

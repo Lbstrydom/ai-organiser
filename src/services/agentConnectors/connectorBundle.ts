@@ -9,7 +9,7 @@
  */
 import { Result, ok, err } from '../../core/result';
 import { buildZip, readZipComment, type ZipEntry } from '../../utils/zipStore';
-import { CONNECTOR_SERVER_MARKER, CONNECTOR_SERVER_SOURCE } from './connectorServerSource';
+import { CONNECTOR_SERVER_SOURCE } from './connectorServerSource';
 import { CONNECTOR_ENTRY_NAME, validateVaultPath } from './connectorGuides';
 
 export const CONNECTOR_BUNDLE_FILE = 'ai-organiser-vault-connector.mcpb';
@@ -70,12 +70,13 @@ export function buildConnectorBundle(pluginVersion: string): Uint8Array {
     return buildZip(entries, CONNECTOR_BUNDLE_COMMENT);
 }
 
-export const isOwnBundle = (bytes: Uint8Array): boolean => readZipComment(bytes) === CONNECTOR_BUNDLE_COMMENT;
+/** Any version of our bundle counts as ours, so a newer plugin can replace an older one. */
+export const isOwnBundle = (bytes: Uint8Array): boolean => (readZipComment(bytes) ?? '').startsWith('ai-organiser/connector-bundle');
 
 /** True when text is a server file we wrote (first line carries the marker). */
 export function isOwnServerFile(text: string): boolean {
     const nl = text.indexOf('\n');
-    return (nl === -1 ? text : text.slice(0, nl)).trim() === CONNECTOR_SERVER_MARKER;
+    return (nl === -1 ? text : text.slice(0, nl)).trim().startsWith('// ai-organiser/connector-server');
 }
 
 export const buildServerFileText = (): string => CONNECTOR_SERVER_SOURCE;

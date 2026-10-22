@@ -65,3 +65,29 @@ describe('saveConnectorFiles', () => {
 		expect([...h.files.keys()].sort()).toEqual([BUNDLE, SERVER].sort());
 	});
 });
+
+describe('saveConnectorFiles: nothing is half done', () => {
+	it('replaces neither file when the second target is foreign, even though the first is its own', async () => {
+		const ownBundle = buildZip([{ name: 'x', data: new Uint8Array() }], 'ai-organiser/connector-bundle v1');
+		const h = makePlugin({}, { [BUNDLE]: ownBundle, [SERVER]: 'console.log("mine")' });
+		expect(await saveConnectorFiles(h.plugin, '1.2.3')).toEqual({ ok: false, error: 'connector-file-not-ours' });
+		expect(h.files.get(BUNDLE)).toBe(ownBundle); // untouched: no new bytes were published first
+		expect(h.files.get(SERVER)).toBe('console.log("mine")');
+	});
+
+	it('does not clobber a user file that happens to sit in the staging or backup slot', async () => {
+		const h = makePlugin({}, { [`${SERVER}.aio-tmp`]: 'user data', [`${SERVER}.aio-prev`]: 'user backup', [SERVER]: '// ai-organiser/connector-server v1 protocol 2026-07-28,2025-11-25\nold' });
+		expect(await saveConnectorFiles(h.plugin, '1.2.3')).toEqual({ ok: false, error: 'connector-file-not-ours' });
+		expect(h.files.get(`${SERVER}.aio-tmp`)).toBe('user data');
+		expect(h.files.get(`${SERVER}.aio-prev`)).toBe('user backup');
+		const free = makePlugin({}, { [`${SERVER}.aio-tmp`]: 'user data' });
+		expect((await saveConnectorFiles(free.plugin, '1.2.3')).ok).toBe(true);
+		expect(free.files.get(`${SERVER}.aio-tmp`)).toBe('user data'); // staging used a different, unique name
+	});
+
+	it('recognises an earlier version of its own files as its own', async () => {
+		const old = makePlugin({}, { [SERVER]: '// ai-organiser/connector-server v0 protocol 2025-11-25\nold', [BUNDLE]: buildZip([{ name: 'x', data: new Uint8Array() }], 'ai-organiser/connector-bundle v0') });
+		expect((await saveConnectorFiles(old.plugin, '1.2.3')).ok).toBe(true);
+		expect(old.files.get(SERVER)).toBe(CONNECTOR_SERVER_SOURCE);
+	});
+});

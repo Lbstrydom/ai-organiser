@@ -12,6 +12,7 @@ export interface SpawnedChild {
     stdin?: { write(data: string): unknown; end(): unknown; on?(event: 'error', cb: () => void): unknown } | null;
     on(event: 'error', cb: (e: Error) => void): void;
     on(event: 'close', cb: (code: number | null) => void): void;
+    on(event: 'spawn', cb: () => void): void;
     kill?(): void;
     unref?(): void;
 }
@@ -66,28 +67,44 @@ export function nodeMeetsMinimum(version: string, minimumMajor = 18): boolean {
     return m !== null && Number(m[1]) >= minimumMajor;
 }
 
+const LAUNCH_WAIT_MS = 1500;
+
 /**
  * Open a terminal in the vault folder: Windows and macOS only. The only value ever passed on is the
  * vault's own base path, as an argument or as the working directory, never inside a command string.
+ * Resolves when the launcher reports that it started, or fails with the launcher's own error; a
+ * launcher that says nothing within a moment is taken as started (it is detached from us).
  */
-export function openTerminalInVault(spawn: Spawner, platform: ConnectorPlatform, vaultPath: string): Result<void> {
+export function openTerminalInVault(
+    spawn: Spawner,
+    platform: ConnectorPlatform,
+    vaultPath: string,
+    timers: { set(fn: () => void, ms: number): number; clear(id: number): void },
+): Promise<Result<void>> {
     const valid = validateVaultPath(vaultPath);
-    if (!valid.ok) return err(valid.error);
-    try {
-        if (platform === 'win32') {
-            const child = spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/K'], { cwd: valid.value, detached: true, stdio: 'ignore', windowsHide: false });
-            child.on('error', () => undefined);
-            child.unref?.();
-            return ok(undefined);
+    if (!valid.ok) return Promise.resolve(err(valid.error));
+    if (platform !== 'win32' && platform !== 'darwin') return Promise.resolve(err('connector-needs-desktop'));
+    return new Promise((resolve) => {
+        let settled = false;
+        let child: SpawnedChild | null = null;
+        const finish = (result: Result<void>): void => {
+            if (settled) return;
+            settled = true;
+            timers.clear(timer);
+            if (result.ok) { try { child?.unref?.(); } catch { /* already detached */ } }
+            resolve(result);
+        };
+        const timer = timers.set(() => finish(ok(undefined)), LAUNCH_WAIT_MS);
+        try {
+            child = platform === 'win32'
+                ? spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/K'], { cwd: valid.value, detached: true, stdio: 'ignore', windowsHide: false })
+                : spawn('open', ['-a', 'Terminal', valid.value], { detached: true, stdio: 'ignore' });
+            child.on('error', () => finish(err('connector-needs-desktop')));
+            child.on('spawn', () => finish(ok(undefined)));
+            // The launcher exits non-zero when it could not open a window.
+            child.on('close', (code) => finish(code === 0 || code === null ? ok(undefined) : err('connector-needs-desktop')));
+        } catch {
+            finish(err('connector-needs-desktop'));
         }
-        if (platform === 'darwin') {
-            const child = spawn('open', ['-a', 'Terminal', valid.value], { detached: true, stdio: 'ignore' });
-            child.on('error', () => undefined);
-            child.unref?.();
-            return ok(undefined);
-        }
-        return err('connector-needs-desktop');
-    } catch {
-        return err('connector-needs-desktop');
-    }
+    });
 }
