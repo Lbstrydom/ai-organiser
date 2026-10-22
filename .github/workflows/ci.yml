@@ -1,0 +1,79 @@
+name: CI
+
+# Runs the checks the maintainer runs before pushing, on every pull request, so a green PR
+# means lint (including the Obsidian review-bot rules), type-check, the unit suite, a
+# production build and the Obsidian submission invariants all passed.
+# Deliberately NOT triggered by tag pushes: release.yml owns that path.
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Lint, tests, build and Obsidian submission checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # eslint-plugin-obsidianmd with the same ruleset the community review bot runs
+      # (sentence case, no-unsupported-api against minAppVersion, no-static-styles, ...).
+      # Errors fail the job; warnings are the disclosed, accepted baseline.
+      - name: Lint (Obsidian review-bot rules)
+        run: npm run lint
+
+      - name: Type-check, unit tests and integration checks
+        run: npm run test:all
+
+      # Production build; esbuild.config.mjs runs scripts/verify-build.mjs inside it.
+      - name: Production build
+        run: npm run build:quick
+
+      # Re-run the submission invariants standalone so their output is visible in the log:
+      # no script-element creation, no "manifest.json" literal, manifest/package/versions agree.
+      - name: Obsidian submission invariants (built bundle)
+        run: npm run verify:build
+
+      - name: Obsidian manifest checks
+        run: |
+          node -e '
+            const m = require("./manifest.json");
+            const problems = [];
+            for (const k of ["id", "name", "version", "minAppVersion", "description", "author"]) {
+              if (typeof m[k] !== "string" || !m[k].trim()) problems.push("manifest.json: missing or empty " + k);
+            }
+            if (typeof m.isDesktopOnly !== "boolean") problems.push("manifest.json: isDesktopOnly must be a boolean");
+            if (/obsidian/i.test(m.id || "")) problems.push("manifest.json: id must not contain \"obsidian\"");
+            if (!/^[a-z0-9-]+$/.test(m.id || "")) problems.push("manifest.json: id must be lowercase letters, digits and hyphens");
+            if (!/^\d+\.\d+\.\d+$/.test(m.version || "")) problems.push("manifest.json: version must be x.y.z");
+            if (!/^\d+\.\d+\.\d+$/.test(m.minAppVersion || "")) problems.push("manifest.json: minAppVersion must be x.y.z");
+            if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
+            console.log("manifest.json OK: " + m.id + " " + m.version + " (min Obsidian " + m.minAppVersion + ")");
+          '
+
+      - name: Required release files exist
+        run: |
+          for f in main.js manifest.json styles.css versions.json LICENSE README.md; do
+            test -s "$f" || { echo "missing or empty: $f"; exit 1; }
+          done
+          echo "release files present"
