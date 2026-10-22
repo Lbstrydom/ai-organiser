@@ -32,7 +32,7 @@ afterEach(() => {
 });
 
 const cacheLines = (): string[] =>
-    debugSpy.mock.calls.map(c => String(c[0])).filter(l => l.includes('[Cache]'));
+    (debugSpy.mock.calls as unknown[][]).map((c) => String(c[0])).filter((l) => l.includes('[Cache]'));
 
 describe('logLlmUsage', () => {
     it('logs the Anthropic usage shape with label, provider and model', () => {
