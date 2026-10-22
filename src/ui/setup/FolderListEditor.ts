@@ -10,6 +10,7 @@ import { App, Setting, TFile, TFolder, type TextComponent } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import { normalisePath } from '../../core/protectedPaths';
 import { FolderSuggest } from '../settings/components/FolderSuggest';
+import { plural } from '../../utils/plural';
 
 /** Add a folder to the list. Ignores empty input and duplicates (case-insensitive). */
 export function addFolderToList(list: readonly string[], folder: string): { list: string[]; added: boolean } {
@@ -118,7 +119,7 @@ export class FolderListEditor {
             const exists = folderExists(app, folder);
             const row = new Setting(listEl).setName(folder);
             row.setDesc(exists
-                ? t.setup.folderCount.replace('{count}', String(countNotesInFolder(app, folder)))
+                ? plural(t.setup.folderCount, countNotesInFolder(app, folder))
                 : t.setup.folderMissingWarning);
             if (!exists) row.settingEl.addClass('ai-organiser-folder-missing');
             row.addExtraButton((btn) => btn

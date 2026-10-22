@@ -7,7 +7,7 @@ import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok } from '../core/result';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
-import { availability, previewUpkeep } from '../services/upkeep/upkeepRuntime';
+import { availability, previewUpkeep, unavailableReason } from '../services/upkeep/upkeepRuntime';
 import { reviewCount } from '../services/upkeep/upkeepService';
 import type { TaskName } from '../services/upkeep/upkeepTasks';
 import type { IntervalChoice } from '../services/upkeep/intervalJob';
@@ -45,7 +45,7 @@ export function openUpkeepSetup(plugin: AIOrganiserPlugin, onDone?: () => void):
     const s = plugin.settings;
     const can = availability(plugin);
     const draft = {
-        interval: (s.upkeepInterval === 'off' && !s.featureSetupCompletedAt['vault-upkeep'] ? 'daily' : s.upkeepInterval) as IntervalChoice,
+        interval: s.upkeepInterval as IntervalChoice, // never switches on a schedule the person did not pick
         minutes: s.upkeepCustomMinutes,
         // Preselect the checks whose feature is on; the user can only choose what can run.
         tasks: {
@@ -79,7 +79,7 @@ export function openUpkeepSetup(plugin: AIOrganiserPlugin, onDone?: () => void):
                     for (const task of ['agentIndex', 'inventories', 'attachments'] as const) {
                         const row = new Setting(el).setName(taskLabel[task]);
                         if (!can[task]) {
-                            row.setDesc(c.taskUnavailable.replace('{feature}', featureLabel[task]));
+                            row.setDesc((unavailableReason(plugin, task) === 'needs-setup' ? c.taskNeedsSetup : c.taskUnavailable).replace('{feature}', featureLabel[task]));
                             row.addToggle((tg) => tg.setValue(false).setDisabled(true));
                         } else {
                             if (task === 'inventories') row.setDesc(c.taskInventoriesNote);
@@ -94,6 +94,8 @@ export function openUpkeepSetup(plugin: AIOrganiserPlugin, onDone?: () => void):
                 title: c.stepPreview,
                 render: async (el) => {
                     el.createEl('p', { text: c.previewHelp });
+                    const whenLabel: Record<IntervalChoice, string> = { off: c.intervalOff, hourly: c.intervalHourly, daily: c.intervalDaily, weekly: c.intervalWeekly, custom: c.intervalCustom };
+                    el.createEl('p', { text: c.previewSchedule.replace('{when}', whenLabel[draft.interval].toLowerCase()), cls: 'setting-item-description' });
                     if (draft.tasks.inventories) el.createEl('p', { text: c.previewNetwork, cls: 'setting-item-description' });
                     const box = el.createDiv({ attr: { role: 'status' } });
                     box.setText(c.previewWorking);

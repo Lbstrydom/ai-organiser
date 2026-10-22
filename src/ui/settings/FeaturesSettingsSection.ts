@@ -24,6 +24,9 @@ import {
  */
 export class FeaturesSettingsSection extends BaseSettingSection {
     display(): void {
+        if (this.plugin.featureReloadPending) {
+            this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-reload-pending', text: this.plugin.t.features.reloadPending, attr: { role: 'status' } });
+        }
         for (const group of projectSettingsGroups(FEATURE_REGISTRY)) {
             this.createSectionHeader(
                 settingsGroupLabel(group, this.plugin.t),

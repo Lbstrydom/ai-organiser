@@ -43,6 +43,7 @@ import {
     classifyExtension,
 } from '../../services/embedScanService';
 import { listen } from '../utils/domUtils';
+import { plural } from '../../utils/plural';
 
 // ─── Sort options ────────────────────────────────────────────────────────────
 
@@ -208,7 +209,7 @@ export class EmbedScanResultsModal extends Modal {
         const parts: string[] = [];
         for (const reason of e.reasons) {
             switch (reason) {
-                case 'still-referenced': parts.push(es.reasonReferenced.replace('{count}', String(e.referenceCount))); break;
+                case 'still-referenced': parts.push(plural(es.reasonReferenced, e.referenceCount)); break;
                 case 'ambiguous-reference': parts.push(es.reasonAmbiguous); break;
                 case 'canvas-unreadable': parts.push(es.reasonCanvas); break;
                 case 'scan-incomplete': parts.push(es.reasonIncomplete); break;
@@ -418,15 +419,17 @@ export class EmbedScanResultsModal extends Modal {
         this.summaryEl.empty();
         const embedScan = this.t.embedScan;
         this.summaryEl.createSpan({
-            text: embedScan.scannedNotes
-                .replace('{count}', String(this.scanResult.notesScanned)),
+            text: plural(embedScan.scannedNotes, this.scanResult.notesScanned),
         });
         const totalSize = this.scanResult.targets.reduce((sum, t) => sum + t.sizeBytes, 0);
         this.summaryEl.createSpan({ text: ' · ' });
         this.summaryEl.createSpan({
-            text: embedScan.totalFiles
-                .replace('{count}', String(this.scanResult.targets.length)),
+            text: plural(embedScan.totalFiles, this.scanResult.targets.length),
         });
+        if (this.scanResult.possiblyOrphaned.length > 0) {
+            this.summaryEl.createSpan({ text: ' · ' });
+            this.summaryEl.createSpan({ text: plural(embedScan.summaryUnused, this.scanResult.possiblyOrphaned.length) });
+        }
         this.summaryEl.createSpan({ text: ' · ' });
         this.summaryEl.createSpan({
             text: embedScan.totalSize
@@ -747,7 +750,7 @@ export class EmbedScanResultsModal extends Modal {
         const summaryIcon = summary.createSpan({ cls: 'ai-organiser-embed-scan-orphan-icon' });
         setIcon(summaryIcon, 'alert-triangle');
         summary.createSpan({
-            text: `${embedScan.possiblyOrphanedTitle} (${embedScan.orphanCount.replace('{count}', String(filteredOrphans.length))})`,
+            text: `${embedScan.possiblyOrphanedTitle} (${plural(embedScan.orphanCount, filteredOrphans.length)})`,
         });
 
         const disclaimer = details.createDiv({ cls: 'ai-organiser-embed-scan-orphan-disclaimer' });
@@ -913,7 +916,7 @@ export class EmbedScanResultsModal extends Modal {
         const { safe, kept } = checked;
         if (kept.length > 0) {
             for (const f of kept) this.selectedPaths.delete(f.path);
-            new Notice(es.keptNotice.replace('{count}', String(kept.length)), 8000);
+            new Notice(plural(es.keptNotice, kept.length), 8000);
             this.stale = true;
             this.applyFiltersAndRender();
         }
@@ -950,7 +953,7 @@ export class EmbedScanResultsModal extends Modal {
         if (!checked) return;
         if (checked.kept.length > 0) {
             for (const f of checked.kept) this.selectedPaths.delete(f.path);
-            new Notice(embedScan.keptNotice.replace('{count}', String(checked.kept.length)), 8000);
+            new Notice(plural(embedScan.keptNotice, checked.kept.length), 8000);
             this.stale = true;
         }
         const files = checked.safe;
@@ -972,7 +975,7 @@ export class EmbedScanResultsModal extends Modal {
         }
 
         if (deletedCount > 0) {
-            new Notice(embedScan.deleteSuccess.replace('{count}', String(deletedCount)));
+            new Notice(plural(embedScan.deleteSuccess, deletedCount));
         }
 
         // Re-render with updated data
@@ -1114,8 +1117,8 @@ export class EmbedScanResultsModal extends Modal {
             if (result.cancelled) lines.push(es.duplicatesStopped);
             lines.push(result.groups.length === 0
                 ? es.duplicatesNone
-                : es.duplicatesFound.replace('{count}', String(result.groups.length)));
-            if (result.notAnalysed.length > 0) lines.push(es.duplicatesSkipped.replace('{count}', String(result.notAnalysed.length)));
+                : plural(es.duplicatesFound, result.groups.length));
+            if (result.notAnalysed.length > 0) lines.push(plural(es.duplicatesSkipped, result.notAnalysed.length));
             this.toolsEl.createDiv({ cls: 'ai-organiser-embed-scan-duplicate-summary', text: lines.join(' '), attr: { role: 'status' } });
         }
     }
@@ -1340,7 +1343,7 @@ class DeleteConfirmModal extends Modal {
 
         // Title
         contentEl.createEl('h3', {
-            text: embedScan.deleteConfirmTitle.replace('{count}', String(this.files.length)),
+            text: plural(embedScan.deleteConfirmTitle, this.files.length),
         });
 
         // Message

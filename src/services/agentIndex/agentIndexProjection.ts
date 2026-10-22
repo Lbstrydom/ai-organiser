@@ -184,7 +184,9 @@ export function canonicalScopeJson(config: {
     includeHeadings: boolean;
     frontmatterKeys: readonly string[];
     exportUnresolvedLinks: boolean;
+    protectedFolders?: readonly string[];
 }): string {
+    const protectedFolders = sortedUnique((config.protectedFolders ?? []).map((f) => f.toLowerCase()));
     return JSON.stringify({
         includeFolders: sortedUnique(config.includeFolders.map((f) => f.toLowerCase())),
         excludeFolders: sortedUnique(config.excludeFolders.map((f) => f.toLowerCase())),
@@ -192,5 +194,7 @@ export function canonicalScopeJson(config: {
         includeHeadings: config.includeHeadings,
         frontmatterKeys: sortedUnique(config.frontmatterKeys),
         exportUnresolvedLinks: config.exportUnresolvedLinks,
+        // Present only when something is protected, so a vault with none keeps its existing hash.
+        ...(protectedFolders.length > 0 ? { protectedFolders } : {}),
     });
 }

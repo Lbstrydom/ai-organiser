@@ -17,7 +17,7 @@ vi.mock('../src/services/cloudInventory/cloudInventoryService', () => ({
 vi.mock('../src/services/embedScanService', () => ({ scanNotes: mocks.scanNotes }));
 vi.mock('../src/services/attachmentDuplicateService', () => ({ analyseDuplicates: mocks.analyseDuplicates }));
 
-import { UpkeepController, availability, previewUpkeep, snapshotConfig } from '../src/services/upkeep/upkeepRuntime';
+import { UpkeepController, availability, previewUpkeep, snapshotConfig, unavailableReason } from '../src/services/upkeep/upkeepRuntime';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import type { JobClock } from '../src/services/upkeep/intervalJob';
 import { en } from '../src/i18n/en';
@@ -96,6 +96,19 @@ describe('availability and the config snapshot', () => {
 		expect(availability(noPair.plugin).inventories).toBe(false);
 		const badUrl = makePlugin({ cloudInventoryScriptUrl: 'https://evil.example.com/x' });
 		expect(availability(badUrl.plugin).inventories).toBe(false);
+	});
+
+	it('says which step is missing: the feature is off, or the feature is on but not set up', () => {
+		const ok = makePlugin();
+		expect(unavailableReason(ok.plugin, 'inventories')).toBeNull();
+		const off = makePlugin({ featureFlags: { 'vault-upkeep': true } });
+		expect(unavailableReason(off.plugin, 'inventories')).toBe('feature-off');
+		expect(unavailableReason(off.plugin, 'agentIndex')).toBe('feature-off');
+		const noPair = makePlugin({ cloudInventoryPairs: [] });
+		expect(unavailableReason(noPair.plugin, 'inventories')).toBe('needs-setup');
+		const badUrl = makePlugin({ cloudInventoryScriptUrl: 'https://evil.example.com/x' });
+		expect(unavailableReason(badUrl.plugin, 'inventories')).toBe('needs-setup');
+		expect(unavailableReason(noPair.plugin, 'agentIndex')).toBeNull();
 	});
 
 	it('copies the selections so later edits cannot change a running snapshot', () => {

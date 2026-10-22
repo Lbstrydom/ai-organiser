@@ -24,6 +24,7 @@ import { applyInstructions, previewInstructions } from '../services/agentIndex/a
 import { AgentInstructionsPreviewModal } from '../ui/modals/AgentInstructionsPreviewModal';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { FolderListEditor } from '../ui/setup/FolderListEditor';
+import { plural } from '../utils/plural';
 
 const REBUILD_DEBOUNCE_MS = 10_000;
 
@@ -44,7 +45,7 @@ export async function runBuild(plugin: AIOrganiserPlugin): Promise<void> {
     new Notice(
         res.value.stale
             ? t.buildDoneStale
-            : t.buildDone.replace('{notes}', String(res.value.notes)).replace('{excluded}', String(res.value.excluded)),
+            : plural(t.buildDone, res.value.notes, 'notes').replace('{excluded}', String(res.value.excluded)),
         6000,
     );
 }

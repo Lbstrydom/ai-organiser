@@ -10,6 +10,7 @@ import { approvedRoots, inventoryConfigKey, testConnection, toTestResult } from 
 import { getInventorySecret, openCloudInventorySetup, runRefresh } from '../../commands/cloudInventoryCommands';
 import { isFeatureEnabled } from '../../services/featureService';
 import { checkMountFolder } from '../../services/offload/localMount';
+import { basePath } from '../../services/offload/offloadRuntime';
 import { nodeDeps } from '../../services/offload/fingerprint';
 
 /**
@@ -38,7 +39,7 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
             .addButton((b) => b.setButtonText(o.checkFolder).onClick(() => {
                 void (async () => {
                     const deps = nodeDeps();
-                    const res = deps ? await checkMountFolder(deps, pair.localMountFolder ?? '') : null;
+                    const res = deps ? await checkMountFolder(deps, pair.localMountFolder ?? '', basePath(this.plugin) ?? undefined) : null;
                     status.setText(res?.ok ? o.folderOk : formatGuidance(describeError(this.plugin.t, res ? res.error : 'mount-invalid')));
                 })();
             }));
@@ -78,7 +79,7 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
                 }));
             if (Platform.isDesktopApp && isFeatureEnabled(s, 'cloud-offload')) this.renderLocalFolder(pair);
         }
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.addPair).setCta().onClick(() => openCloudInventorySetup(this.plugin, () => this.settingTab.display())))
             .addButton((b) => b.setButtonText(c.refreshAll).onClick(() => { void runRefresh(this.plugin); }));
 
@@ -86,11 +87,19 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
         // A test counts only for the configuration it was made for: changed address or folders mean "not tested".
         const tested = s.cloudInventoryLastTest;
         status.setText(tested?.ok && tested.configHash === inventoryConfigKey(s.cloudInventoryScriptUrl, s.cloudInventoryPairs) ? c.connectedNoFolder : c.notTested);
+        // Said as the link is typed, not only when the connection is tested.
+        let linkProblem: HTMLElement | null = null;
+        const showLinkProblem = (value: string): void => {
+            if (!linkProblem) return;
+            const check = value.trim() === '' ? null : validateScriptUrl(value.trim());
+            linkProblem.setText(check && !check.ok ? formatGuidance(describeError(t, check.error)) : '');
+        };
         new Setting(this.containerEl)
             .setName(c.scriptUrlName)
             .setDesc(c.scriptUrlDesc)
             .addText((tx) => tx.setValue(s.cloudInventoryScriptUrl).onChange((v) => {
                 s.cloudInventoryScriptUrl = v.trim();
+                showLinkProblem(v);
                 void this.plugin.saveSettings();
             }))
             .addButton((b) => b.setButtonText(c.testConnection).onClick(() => {
@@ -109,6 +118,8 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
                     this.settingTab.display(); // the setup badge above reads the same result
                 })();
             }));
+        linkProblem = this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-field-problem', attr: { role: 'alert' } });
+        showLinkProblem(s.cloudInventoryScriptUrl);
 
         const details = this.containerEl.createEl('details', { cls: 'ai-organiser-advanced-group' });
         details.createEl('summary', { text: c.advancedTitle });

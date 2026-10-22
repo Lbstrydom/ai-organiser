@@ -117,7 +117,7 @@ async function copyStage(deps: OffloadDeps, record: OffloadRecord): Promise<Adva
     if (finger.value.sha256 !== copy.source.sha256 || finger.value.size !== copy.source.size) return hold(deps, record, 'file-changed', 'blocked');
     const mount = deps.mountRoot(copy.pairId);
     if (!mount) return hold(deps, record, 'mount-invalid', 'blocked');
-    const root = await checkMountFolder(deps.node, mount);
+    const root = await checkMountFolder(deps.node, mount, deps.vaultBasePath);
     if (!root.ok) return hold(deps, record, root.error, 'blocked');
     const placed = await placeFile(deps.node, root.value, abs, copy.destName, { sha256: copy.source.sha256, size: copy.source.size }, deps.options);
     if (!placed.ok) return hold(deps, record, placed.error, 'blocked');

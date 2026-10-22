@@ -198,6 +198,14 @@ export function isProtectedActive(path: string): boolean {
     return isProtectedPath(activeGetter ? activeGetter() : null, path);
 }
 
+/** Split files into those a write may touch and those inside a protected folder. Order is kept. */
+export function splitByProtection<T extends { path: string }>(source: ProtectedSource, files: readonly T[]): { writable: T[]; protectedOut: T[] } {
+    const writable: T[] = [];
+    const protectedOut: T[] = [];
+    for (const f of files) (isProtectedPath(source, f.path) ? protectedOut : writable).push(f);
+    return { writable, protectedOut };
+}
+
 /** True when at least one folder is protected right now. Guards that cannot establish their target use this to fail closed. */
 export function hasActiveProtection(): boolean {
     return resolveProtectedFolders(activeGetter ? activeGetter() : null).length > 0;

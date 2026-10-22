@@ -9946,3 +9946,32 @@
     gap: 6px;
     margin-top: 8px;
 }
+
+/* Rows of two or three buttons wrap instead of pushing the settings page sideways on a narrow screen. */
+.setting-item.ai-organiser-button-row .setting-item-control {
+    flex-wrap: wrap;
+    justify-content: flex-start;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.setting-item.ai-organiser-button-row .setting-item-control button {
+    white-space: normal;
+    max-width: 100%;
+}
+
+/* Stays on screen after a feature switch, because the transient notice is easy to miss. */
+.ai-organiser-reload-pending {
+    border-left: 3px solid var(--interactive-accent);
+    padding: var(--size-4-2) var(--size-4-3);
+    margin-bottom: var(--size-4-3);
+}
+
+/* An inline problem with a field, in the error colour, empty (and so invisible) when the value is fine. */
+.ai-organiser-field-problem {
+    color: var(--text-error);
+}
+
+.ai-organiser-field-problem:empty {
+    display: none;
+}

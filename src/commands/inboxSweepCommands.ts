@@ -32,6 +32,7 @@ import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { InboxSweepReviewModal } from '../ui/modals/InboxSweepReviewModal';
 import { FolderListEditor } from '../ui/setup/FolderListEditor';
+import { plural } from '../utils/plural';
 
 // ─── Deps over the live vault ───────────────────────────────────────────────
 
@@ -129,7 +130,7 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         if (estimate.notes === 0) { new Notice(t.nothingToSweep, 6000); return; }
         const cloud = plugin.settings.serviceType === 'cloud';
         const body = [
-            t.confirmBody.replace('{notes}', String(estimate.notes)).replace('{chars}', estimate.chars.toLocaleString()),
+            plural(t.confirmBody, estimate.notes, 'notes').replace('{chars}', estimate.chars.toLocaleString()),
             cloud && !privacyNoticeShown ? t.privacyNotice : '',
         ].filter(Boolean).join('\n\n');
         if (!(await confirm(plugin, t.confirmTitle, body))) return;
@@ -145,7 +146,7 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         if (!result.ok) { new Notice(result.error === 'cancelled' ? t.cancelledNotice : formatGuidance(describeError(plugin.t, result.error)), 6000); return; }
         const r = result.value;
         const kept = Object.values(r.excluded).reduce((a, b) => a + (b ?? 0), 0);
-        new Notice(t.summaryNotice.replace('{notes}', String(r.notes.length)).replace('{kept}', String(kept)).replace('{failed}', String(r.failed)), 6000);
+        new Notice(plural(t.summaryNotice, r.notes.length, 'notes').replace('{kept}', String(kept)).replace('{failed}', String(r.failed)), 6000);
         if (r.notes.length === 0) return;
         await review(plugin, r.notes);
     } catch (e) {
@@ -174,7 +175,7 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<vo
         new Notice(out.stoppedAt === 'persist' ? formatGuidance(describeError(plugin.t, out.error)) : t.commitStopped.replace('{reason}', formatGuidance(describeError(plugin.t, out.error))), 10000);
         return;
     }
-    new Notice(input.tasks.length > 0 ? t.addedNotice.replace('{count}', String(input.tasks.length)).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
+    new Notice(input.tasks.length > 0 ? plural(t.addedNotice, input.tasks.length).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
     if (input.tasks.length > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && plugin.settings.tasksListId) {
         await runSendApproved(plugin);
     }

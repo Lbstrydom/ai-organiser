@@ -5,6 +5,7 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { GlobalMemoryService } from '../../services/chat/globalMemoryService';
 import { GlobalMemoryModal } from '../modals/GlobalMemoryModal';
 import { addFolderPicker } from './components/FolderSuggest';
+import { plural } from '../../utils/plural';
 
 export class AIChatSettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
@@ -72,7 +73,7 @@ export class AIChatSettingsSection extends BaseSettingSection {
         const service = new GlobalMemoryService(plugin.app, plugin.settings);
         const items = await service.loadMemory();
         const countDesc = items.length > 0
-            ? t.globalMemoryCount.replace('{count}', String(items.length))
+            ? plural(t.globalMemoryCount, items.length)
             : t.globalMemoryCountEmpty;
 
         new Setting(containerEl)

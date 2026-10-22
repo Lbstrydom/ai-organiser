@@ -24,22 +24,48 @@ export function isSafeFileName(name: string): boolean {
     return true;
 }
 
-/** Confirm the mount folder exists and is a directory. Returns its canonical path. Writes nothing. */
-export async function checkMountFolder(deps: NodeDeps, mountRoot: string): Promise<Result<string>> {
+/** True when either path is the other or sits inside it. Case-insensitive where the separator is a backslash (Windows). */
+function overlaps(deps: NodeDeps, a: string, b: string): boolean {
+    const fold = (p: string): string => (deps.path.sep === String.fromCharCode(92) ? p.toLowerCase() : p);
+    const inside = (child: string, parent: string): boolean => {
+        const rel = deps.path.relative(fold(parent), fold(child));
+        return rel === '' || (!escapesRoot(deps, rel) && !deps.path.isAbsolute(rel));
+    };
+    return inside(a, b) || inside(b, a);
+}
+
+/**
+ * Confirm the mount folder exists, is a directory and is not the vault (or inside it, or around it): offloading
+ * into the vault would move nothing off it. Returns its canonical path. Writes nothing. It cannot tell whether
+ * the folder really is Google Drive for desktop; that stays the person's to check.
+ */
+export async function checkMountFolder(deps: NodeDeps, mountRoot: string, vaultRoot?: string): Promise<Result<string>> {
     const root = mountRoot.trim();
     if (root === '' || !deps.path.isAbsolute(root)) return err('mount-invalid');
     try {
         const real = await deps.fs.promises.realpath(root);
         const stat = await deps.fs.promises.stat(real);
-        return stat.isDirectory() ? ok(real) : err('mount-invalid');
+        if (!stat.isDirectory()) return err('mount-invalid');
+        if (vaultRoot !== undefined && vaultRoot.trim() !== '') {
+            // A vault folder that cannot be resolved leaves the question open, so the answer is no (never a guess from the text of the path).
+            const vault = await deps.fs.promises.realpath(vaultRoot).catch(() => null);
+            if (vault === null) return err('mount-vault-unverified');
+            if (overlaps(deps, real, vault)) return err('mount-inside-vault');
+        }
+        return ok(real);
     } catch {
         return err('mount-missing');
     }
 }
 
+/** True when a relative path climbs out of its root: a leading `..` segment, not a name that merely starts with dots. */
+function escapesRoot(deps: NodeDeps, rel: string): boolean {
+    return rel === '..' || rel.startsWith(`..${deps.path.sep}`);
+}
+
 function contained(deps: NodeDeps, root: string, target: string): boolean {
     const rel = deps.path.relative(root, target);
-    return rel !== '' && !rel.startsWith('..') && !deps.path.isAbsolute(rel);
+    return rel !== '' && !escapesRoot(deps, rel) && !deps.path.isAbsolute(rel);
 }
 
 /** The absolute destination for `fileName` inside the mount root, with containment verified. */

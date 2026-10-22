@@ -8,7 +8,7 @@ import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { evaluateSetup, toFolderSet } from '../../core/setupState';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
-import { availability } from '../../services/upkeep/upkeepRuntime';
+import { availability, unavailableReason } from '../../services/upkeep/upkeepRuntime';
 import { openUpkeepReview, openUpkeepSetup, runUpkeepNow } from '../../commands/upkeepCommands';
 import type { TaskName } from '../../services/upkeep/upkeepTasks';
 
@@ -62,7 +62,7 @@ export class VaultUpkeepSettingsSection extends BaseSettingSection {
         const labels: Record<TaskName, string> = { agentIndex: c.taskAgentIndex, inventories: c.taskInventories, attachments: c.taskAttachments };
         for (const task of ['agentIndex', 'inventories', 'attachments'] as const) {
             const row = new Setting(this.containerEl).setName(labels[task]);
-            if (!can[task]) row.setDesc(c.taskUnavailable.replace('{feature}', features[task]));
+            if (!can[task]) row.setDesc((unavailableReason(this.plugin, task) === 'needs-setup' ? c.taskNeedsSetup : c.taskUnavailable).replace('{feature}', features[task]));
             else if (task === 'inventories') row.setDesc(c.taskInventoriesNote);
             row.addToggle((tg) => tg.setValue(s.upkeepTasks[task]).setDisabled(!can[task]).onChange((v) => { s.upkeepTasks[task] = v; save(); }));
         }
@@ -75,7 +75,7 @@ export class VaultUpkeepSettingsSection extends BaseSettingSection {
             next === null ? c.nextRunOff : c.nextRunLine.replace('{when}', new Date(next).toLocaleString()),
         ].join(' '));
 
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.runNow).setCta().onClick(() => { void runUpkeepNow(this.plugin).then(() => this.settingTab.display()); }))
             .addButton((b) => b.setButtonText(c.openReview).onClick(() => openUpkeepReview(this.plugin)))
             .addButton((b) => b.setButtonText(c.setupButton).onClick(() => openUpkeepSetup(this.plugin, () => this.settingTab.display())));

@@ -13,6 +13,7 @@ import type { SweepItem, SweepItemKind } from '../../services/prompts/sweepPromp
 import type { CommitInput } from '../../services/inboxSweep/sweepCommit';
 import { newTaskId } from '../../services/inboxSweep/sweepCommit';
 import { listen } from '../utils/domUtils';
+import { plural } from '../../utils/plural';
 
 interface Row {
     note: NoteProposals;
@@ -63,7 +64,7 @@ export class InboxSweepReviewModal extends Modal {
         const box = this.contentEl.createDiv({ cls: 'ai-organiser-sweep-note' });
         box.createEl('h4', { text: note.path });
         if (note.truncated) box.createEl('p', { text: t.truncatedNote, cls: 'setting-item-description' });
-        if (note.dropped > 0) box.createEl('p', { text: t.droppedNote.replace('{count}', String(note.dropped)), cls: 'setting-item-description' });
+        if (note.dropped > 0) box.createEl('p', { text: plural(t.droppedNote, note.dropped), cls: 'setting-item-description' });
         if (note.items.length === 0) box.createEl('p', { text: t.noProposals, cls: 'setting-item-description' });
 
         for (const row of this.rows.filter((r) => r.note === note)) {

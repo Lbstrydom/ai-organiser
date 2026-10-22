@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildChatExport, CHAT_EXPORT_MARKER, CHAT_EXPORT_MAX_LINE_BYTES, CHAT_EXPORT_NAME_PATTERN, CHAT_EXPORT_PART_BYTES, isOwnExport } from '../src/services/agentConnectors/chatExport';
-import { includedRecords, type ProjectionScope, type RawRecord } from '../src/services/agentIndex/agentIndexProjection';
-import { isInIndexScope, projectionScope, type IndexScopeConfig } from '../src/services/agentIndex/agentIndexService';
+import { canonicalScopeJson, includedRecords, type ProjectionScope, type RawRecord } from '../src/services/agentIndex/agentIndexProjection';
+import { isInIndexScope, projectionScope, scopeConfigFromSettings, type IndexScopeConfig } from '../src/services/agentIndex/agentIndexService';
+import { DEFAULT_SETTINGS } from '../src/core/settings';
 
 const config: IndexScopeConfig = { includeFolders: [], excludeFolders: ['Private'], includeAliases: false, includeHeadings: false, frontmatterKeys: [], exportUnresolvedLinks: false };
 const scope: ProjectionScope = projectionScope(config);
@@ -33,6 +34,48 @@ describe('buildChatExport', () => {
 		expect(text).not.toContain('.hidden');
 		expect(text).not.toContain('Ghost'); // unresolved links stay out unless the index setting exports them
 		expect(text).toContain('links to excluded notes: [excluded]');
+	});
+
+	describe('protected folders', () => {
+		const settings = { ...DEFAULT_SETTINGS, protectedFolders: ['Course'] } as never;
+		const protectedScope = projectionScope(scopeConfigFromSettings(settings));
+		const course = [
+			rec('Course/Lecture 1.md', { tags: ['exam'] }),
+			rec('Notes/Study plan.md', { links: [{ target: 'Course/Lecture 1.md', text: 'L1' }, { target: 'Notes/Soil.md', text: 'Soil' }] }),
+			rec('Notes/Soil.md', { tags: ['plants'] }),
+		];
+		const exportWith = (sc: ProjectionScope) => buildChatExport({ records: course, scope: sc, instructions: '', generatedAt: 't' });
+
+		it('leaves a protected note out, with its tags and every link to it', () => {
+			const out = exportWith(protectedScope);
+			const text = out.parts[0].text;
+			expect(out.notes).toBe(2);
+			expect(text).not.toContain('Lecture 1');
+			expect(text).not.toContain('exam');
+			expect(text).toContain('- Notes/Soil.md | tags: plants');
+			expect(text).toContain('links: Notes/Soil.md | links to excluded notes: [excluded]');
+		});
+
+		it('still lists the same note when nothing is protected', () => {
+			const out = exportWith(projectionScope(scopeConfigFromSettings({ ...DEFAULT_SETTINGS, protectedFolders: [] } as never)));
+			expect(out.notes).toBe(3);
+			expect(out.parts[0].text).toContain('- Course/Lecture 1.md | tags: exam');
+		});
+
+		it('is the same decision the index and the connector scope make', () => {
+			const cfg = scopeConfigFromSettings(settings);
+			expect(isInIndexScope('Course/Lecture 1.md', cfg)).toBe(false);
+			expect(isInIndexScope('course/Deep/x.md', cfg)).toBe(false);
+			expect(isInIndexScope('Courseware/x.md', cfg)).toBe(true);
+			expect(isInIndexScope('Notes/Soil.md', cfg)).toBe(true);
+			expect(canonicalScopeJson(cfg)).not.toBe(canonicalScopeJson(scopeConfigFromSettings({ ...DEFAULT_SETTINGS, protectedFolders: [] } as never)));
+		});
+
+		it('keeps the scope hash of a vault with no protected folders unchanged', () => {
+			const none = scopeConfigFromSettings({ ...DEFAULT_SETTINGS, protectedFolders: [] } as never);
+			expect(canonicalScopeJson(none)).toBe(canonicalScopeJson({ ...none, protectedFolders: undefined }));
+			expect(canonicalScopeJson(none)).not.toContain('protectedFolders');
+		});
 	});
 
 	it('uses the same scope function as the index for a table of paths', () => {

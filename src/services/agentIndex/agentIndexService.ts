@@ -39,6 +39,8 @@ export interface IndexScopeConfig {
     includeHeadings: boolean;
     frontmatterKeys: readonly string[];
     exportUnresolvedLinks: boolean;
+    /** Folders the plugin never touches. Their notes stay out of the index, the connector and the vault map alike. */
+    protectedFolders?: readonly string[];
 }
 
 export function scopeConfigFromSettings(s: AIOrganiserPlugin['settings']): IndexScopeConfig {
@@ -49,14 +51,16 @@ export function scopeConfigFromSettings(s: AIOrganiserPlugin['settings']): Index
         includeHeadings: s.agentIndexIncludeHeadings,
         frontmatterKeys: s.agentIndexFrontmatterKeys,
         exportUnresolvedLinks: s.agentIndexExportUnresolvedLinks,
+        protectedFolders: resolveProtectedFolders(s.protectedFolders),
     };
 }
 
-/** True when a note belongs in the index: inside an include folder (or any folder when none is set) and outside every exclude folder. */
+/** True when a note belongs in the index: inside an include folder (or any folder when none is set) and outside every exclude and protected folder. */
 export function isInIndexScope(path: string, config: IndexScopeConfig): boolean {
     const norm = normalisePath(path);
     if (norm === '' || norm.startsWith('.')) return false; // hidden / system folders
     if (config.excludeFolders.some((f) => normalisePath(f) !== '' && isInsideOrEqual(norm, f))) return false;
+    if ((config.protectedFolders ?? []).some((f) => normalisePath(f) !== '' && isInsideOrEqual(norm, f))) return false;
     const includes = config.includeFolders.filter((f) => normalisePath(f) !== '');
     return includes.length === 0 || includes.some((f) => isInsideOrEqual(norm, f));
 }

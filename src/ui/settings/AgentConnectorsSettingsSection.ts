@@ -34,7 +34,7 @@ export class AgentConnectorsSettingsSection extends BaseSettingSection {
                 tx.inputEl.addEventListener('blur', check);
             });
 
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.openButton).setCta().onClick(() => openAgentConnectors(this.plugin)))
             .addButton((b) => b.setButtonText(c.exportButton).onClick(() => { void runExportCommand(this.plugin); }));
     }

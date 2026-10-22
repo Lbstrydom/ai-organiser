@@ -44,6 +44,37 @@ describe('checkMountFolder', () => {
 		fs.writeFileSync(file, 'x');
 		expect(await checkMountFolder(deps, file)).toEqual({ ok: false, error: 'mount-invalid' });
 	});
+
+	it('refuses the vault itself, a folder inside it and a folder that contains it, and accepts one outside', async () => {
+		const inside = path.join(vault, 'Attachments');
+		fs.mkdirSync(inside);
+		expect(await checkMountFolder(deps, vault, vault)).toEqual({ ok: false, error: 'mount-inside-vault' });
+		expect(await checkMountFolder(deps, inside, vault)).toEqual({ ok: false, error: 'mount-inside-vault' });
+		expect(await checkMountFolder(deps, tmp, vault)).toEqual({ ok: false, error: 'mount-inside-vault' });
+		const ok = await checkMountFolder(deps, mount, vault);
+		expect(ok.ok).toBe(true);
+	});
+
+	it('does not mistake a folder whose name starts with dots for a way out of the vault', async () => {
+		const dotted = path.join(vault, '..Drive');
+		fs.mkdirSync(dotted);
+		expect(await checkMountFolder(deps, dotted, vault)).toEqual({ ok: false, error: 'mount-inside-vault' });
+	});
+
+	it('says no when the vault folder cannot be resolved, instead of guessing from the text of the path', async () => {
+		expect(await checkMountFolder(deps, mount, path.join(tmp, 'missing-vault'))).toEqual({ ok: false, error: 'mount-vault-unverified' });
+	});
+
+	it('does not mistake a sibling whose name starts like the vault for the vault', async () => {
+		const sibling = path.join(tmp, 'vault-archive');
+		fs.mkdirSync(sibling);
+		expect((await checkMountFolder(deps, sibling, vault)).ok).toBe(true);
+	});
+
+	it('behaves as before when no vault folder is given', async () => {
+		expect((await checkMountFolder(deps, vault)).ok).toBe(true);
+		expect((await checkMountFolder(deps, vault, '')).ok).toBe(true);
+	});
 });
 
 describe('resolveDestination', () => {

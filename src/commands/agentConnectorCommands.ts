@@ -13,6 +13,7 @@ import { connectorFolderPath, exportChatProject, exportRevision } from '../servi
 import { AgentConnectorsModal } from '../ui/modals/AgentConnectorsModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { logger } from '../utils/logger';
+import { plural } from '../utils/plural';
 
 export function openAgentConnectors(plugin: AIOrganiserPlugin): void {
     new AgentConnectorsModal(plugin.app, plugin, () => exportWithConfirmation(plugin)).open();
@@ -52,14 +53,14 @@ export async function exportWithConfirmation(plugin: AIOrganiserPlugin): Promise
     try {
         const preview = await previewExport(plugin);
         if (!preview.ok) return err(preview.error);
-        const agreed = await confirm(plugin, t.chatConfirmTitle, t.chatConfirmBody.replace('{notes}', String(preview.value.notes)));
+        const agreed = await confirm(plugin, t.chatConfirmTitle, plural(t.chatConfirmBody, preview.value.notes, 'notes'));
         if (!agreed) return ok(null);
         const res = await exportChatProject(plugin, { expectedRevision: preview.value.revision });
         if (!res.ok) return err(res.error);
         const folder = connectorFolderPath(plugin.settings.agentConnectorFolder, plugin.settings.protectedFolders);
         const where = folder.ok ? folder.value : plugin.settings.agentConnectorFolder;
-        const lines = [t.chatDone.replace('{files}', filesText(plugin, res.value.paths.length)).replace('{folder}', where).replace('{notes}', String(res.value.notes))];
-        if (res.value.removed > 0) lines.push(t.chatRetired.replace('{count}', String(res.value.removed)));
+        const lines = [plural(t.chatDone, res.value.notes, 'notes').replace('{files}', filesText(plugin, res.value.paths.length)).replace('{folder}', where)];
+        if (res.value.removed > 0) lines.push(plural(t.chatRetired, res.value.removed));
         return ok(lines.join(' '));
     } catch (e) {
         logger.error('Connector', 'Export failed', e);
