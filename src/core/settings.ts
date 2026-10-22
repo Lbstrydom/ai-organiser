@@ -1351,6 +1351,8 @@ export function migrateProtectedAndAttachmentSettings(old: Record<string, unknow
     old.featureSetupCompletedAt = cleaned;
 
     const clampMB = (value: unknown, fallback: number): number => {
+        // Only a number or a numeric string is converted; any other JSON value takes the fallback.
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
         const n = Number(value);
         return Number.isFinite(n) && n > 0 ? Math.min(100_000, Math.max(1, Math.floor(n))) : fallback;
     };

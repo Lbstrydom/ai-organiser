@@ -11,6 +11,8 @@ import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
 import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 import { SearchResult } from '../services/vector/types';
+import { applyNoteEdit } from '../services/noteEdit/applyNoteEdit';
+import { ok } from '../core/result';
 import { assertWritableActive } from '../core/protectedPaths';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 
@@ -641,8 +643,16 @@ class ExportSearchResultsModal extends Modal {
                     new Notice(this.plugin.t.messages.protectedNoteNotModified, 6000);
                     return;
                 }
-                // Read-modify-write inside one atomic transform, so an edit made meanwhile is not overwritten.
-                await this.app.vault.process(note, (existing) => existing + '\n\n' + content);
+                // The canonical write seam: atomic transform, protected-folder check at the commit.
+                // The export dialog is the user's approval, so no second review modal.
+                const baseline = await this.app.vault.read(note);
+                const written = await applyNoteEdit(this.plugin, {
+                    kind: 'composite',
+                    filePath: note.path,
+                    baseline,
+                    recompute: (current) => ok({ content: current + '\n\n' + content }),
+                }, { review: false });
+                if (!written.ok) return;
                 new Notice(t.success.replace('{count}', this.results.length.toString()));
             }
 

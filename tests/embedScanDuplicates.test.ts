@@ -1,7 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { analyseDuplicates, groupBySize, sha256Hex } from '../src/services/attachmentDuplicateService';
+import { analyseDuplicates, groupBySize, sha256Hex, type DuplicateOptions, type DuplicatePort, type DuplicateFile } from '../src/services/attachmentDuplicateService';
 
 const enc = (s: string) => new TextEncoder().encode(s).buffer as ArrayBuffer;
+
+/** Run the analysis and unwrap the Result (the tests below exercise the payload). */
+async function run(files: readonly DuplicateFile[], port: DuplicatePort, options: DuplicateOptions) {
+	const res = await analyseDuplicates(files, port, options);
+	if (!res.ok) throw new Error(`analysis failed: ${res.error}`);
+	return res.value;
+}
 
 function port(contents: Record<string, string>, failing: string[] = []) {
 	const reads: string[] = [];
@@ -40,7 +47,7 @@ describe('analyseDuplicates', () => {
 
 	it('finds byte-identical files and never reads a file with a unique size', async () => {
 		const p = port(contents);
-		const res = await analyseDuplicates(files, p, { maxBytes: 50 });
+		const res = await run(files, p, { maxBytes: 50 });
 		expect(res.groups).toEqual([{ hash: await sha256Hex(enc('xyz')), size: 3, paths: ['a.pdf', 'b.pdf'] }]);
 		expect(p.reads).not.toContain('solo.pdf');
 		expect(res.cancelled).toBe(false);
@@ -48,7 +55,7 @@ describe('analyseDuplicates', () => {
 
 	it('does not hash a file over the cap and labels it not analysed', async () => {
 		const p = port(contents);
-		const res = await analyseDuplicates(files, p, { maxBytes: 50 });
+		const res = await run(files, p, { maxBytes: 50 });
 		expect(res.notAnalysed).toEqual(expect.arrayContaining([
 			{ path: 'big1.bin', reason: 'over-cap' }, { path: 'big2.bin', reason: 'over-cap' },
 		]));
@@ -57,7 +64,7 @@ describe('analyseDuplicates', () => {
 
 	it('labels an unreadable file and carries on', async () => {
 		const p = port(contents, ['a.pdf']);
-		const res = await analyseDuplicates(files, p, { maxBytes: 50 });
+		const res = await run(files, p, { maxBytes: 50 });
 		expect(res.notAnalysed).toContainEqual({ path: 'a.pdf', reason: 'read-failed' });
 		expect(res.groups).toEqual([]); // b.pdf and c.pdf differ
 	});
@@ -75,7 +82,7 @@ describe('analyseDuplicates', () => {
 			},
 		};
 		const seen: number[] = [];
-		await analyseDuplicates(files, slow, { maxBytes: 50, concurrency: 2, onProgress: (done) => seen.push(done) });
+		await run(files, slow, { maxBytes: 50, concurrency: 2, onProgress: (done) => seen.push(done) });
 		expect(peak).toBeLessThanOrEqual(2);
 		expect(seen[seen.length - 1]).toBe(3);
 	});
@@ -88,12 +95,45 @@ describe('analyseDuplicates', () => {
 				return enc(contents[path as keyof typeof contents]);
 			},
 		};
-		const res = await analyseDuplicates(files, p, { maxBytes: 50, concurrency: 1, signal: ctl.signal });
+		const res = await run(files, p, { maxBytes: 50, concurrency: 1, signal: ctl.signal });
 		expect(res.cancelled).toBe(true);
 		expect(res.analysed).toBeLessThan(3);
 	});
 
 	it('handles an empty input', async () => {
-		expect(await analyseDuplicates([], port({}), { maxBytes: 10 })).toEqual({ groups: [], notAnalysed: [], analysed: 0, cancelled: false });
+		expect(await run([], port({}), { maxBytes: 10 })).toEqual({ groups: [], notAnalysed: [], analysed: 0, cancelled: false });
+	});
+
+	it('counts only files that were actually hashed as analysed, and keeps hash failures apart from read failures', async () => {
+		const p = port(contents);
+		const original = crypto.subtle.digest.bind(crypto.subtle);
+		let calls = 0;
+		(crypto.subtle as { digest: typeof crypto.subtle.digest }).digest = (async (...args: Parameters<typeof crypto.subtle.digest>) => {
+			if (++calls === 1) throw new Error('hash backend failed');
+			return original(...args);
+		}) as typeof crypto.subtle.digest;
+		try {
+			const res = await run(files, p, { maxBytes: 50, concurrency: 1 });
+			expect(res.notAnalysed.filter((n) => n.reason === 'hash-failed')).toHaveLength(1);
+			expect(res.notAnalysed.some((n) => n.reason === 'read-failed')).toBe(false);
+			expect(res.analysed).toBe(2);
+		} finally {
+			(crypto.subtle as { digest: typeof crypto.subtle.digest }).digest = original as typeof crypto.subtle.digest;
+		}
+	});
+
+	it('survives a progress callback that throws', async () => {
+		const res = await run(files, port(contents), { maxBytes: 50, onProgress: () => { throw new Error('observer'); } });
+		expect(res.groups).toHaveLength(1);
+	});
+
+	it('returns an error result, not "no duplicates", when hashing is unavailable', async () => {
+		const subtle = Object.getOwnPropertyDescriptor(globalThis.crypto, 'subtle');
+		Object.defineProperty(globalThis.crypto, 'subtle', { value: undefined, configurable: true });
+		try {
+			expect(await analyseDuplicates(files, port(contents), { maxBytes: 50 })).toEqual({ ok: false, error: 'scan-incomplete' });
+		} finally {
+			if (subtle) Object.defineProperty(globalThis.crypto, 'subtle', subtle);
+		}
 	});
 });

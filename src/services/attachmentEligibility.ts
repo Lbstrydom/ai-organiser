@@ -85,6 +85,8 @@ export interface ReferrerInfo {
 
 /** What revalidation needs from the vault. Implemented over Obsidian below; faked in tests. */
 export interface AttachmentVaultPort {
+    /** Called at the start of every revalidation attempt: drop anything cached from an earlier one. */
+    beginAttempt?(): void;
     isResolved(): boolean;
     /** Wait up to `timeoutMs` for Obsidian's link index to settle. Resolves false on timeout. */
     waitResolved(timeoutMs: number): Promise<boolean>;
@@ -145,6 +147,7 @@ export async function revalidate(
     // The graph is rebuilt from async reads, so the vault can move underneath it. Rebuild until
     // the referrer set is identical before and after; give up (fail closed) after three tries.
     for (let attempt = 0; attempt < 3; attempt++) {
+        port.beginAttempt?.();
         const before = referrerSignature(port.listReferrers());
         const built = await buildEligibility(port, input);
         if (referrerSignature(port.listReferrers()) === before) return ok(built);
@@ -241,6 +244,7 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
         return index(linktext);
     };
     return {
+        beginAttempt: () => { index = null; },
         isResolved: () => (app.metadataCache as unknown as { resolved?: boolean }).resolved !== false,
         waitResolved: (timeoutMs) =>
             new Promise<boolean>((resolve) => {

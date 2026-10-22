@@ -141,9 +141,10 @@ export class SelectionService {
      * Clear selection tag from files
      * @param files Files to clear tag from
      */
-    async clearSelection(files: TFile[]): Promise<void> {
+    async clearSelection(files: TFile[]): Promise<{ skippedProtected: string[] }> {
+        const skippedProtected: string[] = [];
         for (const file of files) {
-            if (!assertWritableActive('modify', file.path).ok) continue;
+            if (!assertWritableActive('modify', file.path).ok) { skippedProtected.push(file.path); continue; }
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
                 if (frontmatter.tags) {
                     if (typeof frontmatter.tags === 'string') {
@@ -160,6 +161,7 @@ export class SelectionService {
                 }
             });
         }
+        return { skippedProtected };
     }
 
     /**
@@ -168,12 +170,13 @@ export class SelectionService {
      * @param packId Pack ID to add to metadata
      * @param revision Revision number
      */
-    async archiveSelection(files: TFile[], packId: string, revision: number): Promise<void> {
+    async archiveSelection(files: TFile[], packId: string, revision: number): Promise<{ skippedProtected: string[] }> {
         const archiveTag = 'notebooklm/exported';
         const exportDate = new Date().toISOString();
+        const skippedProtected: string[] = [];
 
         for (const file of files) {
-            if (!assertWritableActive('modify', file.path).ok) continue;
+            if (!assertWritableActive('modify', file.path).ok) { skippedProtected.push(file.path); continue; }
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
                 // Replace selection tag with archive tag
                 if (frontmatter.tags) {
@@ -196,6 +199,7 @@ export class SelectionService {
                 frontmatter.notebooklm_exported_at = exportDate;
             });
         }
+        return { skippedProtected };
     }
 
     /**

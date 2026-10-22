@@ -143,7 +143,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                             menu.addItem((item) => {
                                 item.setTitle(plugin.t.commands.removeHighlight || 'Remove highlight')
                                     .setIcon('eraser')
-                                    .onClick(() => { editor.replaceSelection(stripped); });
+                                    .onClick(() => { if (guardActiveNote(editor)) editor.replaceSelection(stripped); });
                             });
                         }
                     }

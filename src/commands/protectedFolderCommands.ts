@@ -22,6 +22,7 @@ import {
 } from '../core/protectedPaths';
 import { getPluginManagedFolders, OUTPUT_ROOT_SETTING_KEYS } from '../core/settings';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
+import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { FolderListEditor, countNotesInFolder } from '../ui/setup/FolderListEditor';
 import { logger } from '../utils/logger';
 import { installActiveNoteGuard } from '../utils/protectedGuard';
@@ -42,8 +43,17 @@ export async function applyProtectedFolders(plugin: AIOrganiserPlugin, next: rea
     if (conflicts.length > 0) {
         return err(plugin.t.protectedFolders.outputRefused.replace('{label}', conflicts[0].label));
     }
+    // Stage, persist, and put the previous list back if saving fails, so the live settings never
+    // claim a protection that was not stored.
+    const previous = plugin.settings.protectedFolders;
     plugin.settings.protectedFolders = list;
-    await plugin.saveSettings();
+    try {
+        await plugin.saveSettings();
+    } catch (e) {
+        plugin.settings.protectedFolders = previous;
+        logger.error('Protected', 'Could not save protected folders', e);
+        return err(formatGuidance(describeError(plugin.t, 'write-failed')));
+    }
     return ok(undefined);
 }
 
@@ -79,6 +89,14 @@ export function enforceOutputDisjointness(plugin: AIOrganiserPlugin): boolean {
     if (introduced.length === 0) {
         lastGoodOutputRoots = snapshotOutputRoots(plugin.settings);
         knownConflictPaths = new Set(conflicts.map((c) => c.path));
+        return false;
+    }
+    // A collision with unchanged output folders came from the PROTECTED list (for example Obsidian
+    // moved a protected folder). Protection must keep following the folder, so that is accepted,
+    // warned about, and remembered; only an output-folder edit is reverted.
+    if (JSON.stringify(snapshotOutputRoots(plugin.settings)) === JSON.stringify(lastGoodOutputRoots)) {
+        knownConflictPaths = new Set(conflicts.map((c) => c.path));
+        new Notice(plugin.t.protectedFolders.outputOverlap.replace('{label}', introduced[0].label), 10000);
         return false;
     }
     Object.assign(plugin.settings, lastGoodOutputRoots);

@@ -156,6 +156,10 @@ export class EmbedScanResultsModal extends Modal {
     private duplicateAbort: AbortController | null = null;
     private duplicateOf = new Map<string, string[]>();
     private suggestions = new Map<string, SuggestState>();
+    /** Set when the modal closes, so work that finishes later does not touch a dead modal. */
+    private closed = false;
+    /** Listener disposers for the tools row only; replaced on every progress render. */
+    private toolsCleanups: (() => void)[] = [];
 
     private filters: FilterState = {
         searchQuery: '',
@@ -1053,13 +1057,16 @@ export class EmbedScanResultsModal extends Modal {
     // ─── Duplicate analysis (opt-in) ─────────────────────────────────────────
 
     private renderTools(): void {
-        if (!this.toolsEl || !this.ctx) return;
+        if (!this.toolsEl || !this.ctx || this.closed) return;
         const es = this.t.embedScan;
+        // Progress re-renders this row many times: dispose the previous listeners instead of piling them up.
+        for (const dispose of this.toolsCleanups) dispose();
+        this.toolsCleanups = [];
         this.toolsEl.empty();
         const running = this.duplicateProgress !== null;
         if (!running) {
             const btn = this.toolsEl.createEl('button', { text: es.findDuplicates, attr: { type: 'button', 'aria-label': es.findDuplicates } });
-            this.cleanups.push(listen(btn, 'click', () => { void this.runDuplicates(); }));
+            this.toolsCleanups.push(listen(btn, 'click', () => { void this.runDuplicates(); }));
             this.toolsEl.createSpan({ cls: 'setting-item-description', text: es.findDuplicatesHelp });
         } else {
             this.toolsEl.createSpan({
@@ -1068,7 +1075,7 @@ export class EmbedScanResultsModal extends Modal {
                     .replace('{total}', String(this.duplicateProgress!.total)),
             });
             const stop = this.toolsEl.createEl('button', { text: es.duplicatesCancel, attr: { type: 'button' } });
-            this.cleanups.push(listen(stop, 'click', () => this.duplicateAbort?.abort()));
+            this.toolsCleanups.push(listen(stop, 'click', () => this.duplicateAbort?.abort()));
         }
         const result = this.duplicates;
         if (result && !running) {
@@ -1092,7 +1099,7 @@ export class EmbedScanResultsModal extends Modal {
         this.duplicateAbort = new AbortController();
         this.duplicateProgress = { done: 0, total: list.length };
         this.renderTools();
-        const result = await analyseDuplicates(
+        const analysed = await analyseDuplicates(
             list,
             { readBinary: async (path) => {
                 const f = files.get(path);
@@ -1110,6 +1117,13 @@ export class EmbedScanResultsModal extends Modal {
         );
         this.duplicateProgress = null;
         this.duplicateAbort = null;
+        if (this.closed) return;
+        if (!analysed.ok) {
+            new Notice(formatGuidance(describeError(this.t, analysed.error)), 8000);
+            this.renderTools();
+            return;
+        }
+        const result = analysed.value;
         this.duplicates = result;
         this.duplicateOf = new Map();
         for (const group of result.groups) {
@@ -1180,6 +1194,7 @@ export class EmbedScanResultsModal extends Modal {
         this.suggestions.set(file.path, { status: 'loading' });
         this.applyFiltersAndRender();
         const res = await suggestHomes(createHomeContext(plugin, () => this.confirmEgress()), file.path);
+        if (this.closed) return;
         this.suggestions.set(file.path, res.ok ? { status: 'done', suggestion: res.value } : { status: 'error' });
         this.applyFiltersAndRender();
     }
@@ -1212,6 +1227,9 @@ export class EmbedScanResultsModal extends Modal {
     }
 
     onClose(): void {
+        this.closed = true;
+        for (const dispose of this.toolsCleanups) dispose();
+        this.toolsCleanups = [];
         this.duplicateAbort?.abort();
         for (const ref of this.vaultRefs) this.app.vault.offref(ref);
         this.vaultRefs = [];

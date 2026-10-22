@@ -184,14 +184,48 @@ export function createHomeContext(
 
 // ─── Link to note ────────────────────────────────────────────────────────────
 
-/** Link text of every wiki link or embed in `text` (alias and subpath removed), outside code fences. */
+/**
+ * Mark the lines that are not Markdown body: leading YAML frontmatter and fenced code. A fence is
+ * closed only by a fence of the same character that is at least as long as the opening one and has
+ * no text after it (CommonMark), so a `~~~` line inside a backtick fence does not end it.
+ */
+export function nonBodyLines(lines: readonly string[]): boolean[] {
+    const out = new Array<boolean>(lines.length).fill(false);
+    let i = 0;
+    if (lines.length > 0 && lines[0].trim() === '---') {
+        for (let j = 1; j < lines.length; j++) {
+            if (lines[j].trim() === '---' || lines[j].trim() === '...') {
+                for (let k = 0; k <= j; k++) out[k] = true;
+                i = j + 1;
+                break;
+            }
+        }
+    }
+    let fence: { ch: string; len: number } | null = null;
+    for (; i < lines.length; i++) {
+        const m = lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+        if (!fence) {
+            // A backtick fence cannot have a backtick in its info string (that is inline code).
+            if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
+                fence = { ch: m[1][0], len: m[1].length };
+                out[i] = true;
+            }
+            continue;
+        }
+        out[i] = true;
+        if (m && m[1][0] === fence.ch && m[1].length >= fence.len && m[2].trim() === '') fence = null;
+    }
+    return out;
+}
+
+/** Link text of every wiki link or embed in `text` (alias and subpath removed), outside code and frontmatter. */
 function wikiLinkTargets(text: string): string[] {
     const targets: string[] = [];
-    let fenced = false;
-    for (const line of text.split('\n')) {
-        if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
-        if (fenced) continue;
-        for (const m of line.matchAll(/!?\[\[([^\]]+)\]\]/g)) {
+    const lines = text.split('\n');
+    const skip = nonBodyLines(lines);
+    for (let i = 0; i < lines.length; i++) {
+        if (skip[i]) continue;
+        for (const m of lines[i].matchAll(/!?\[\[([^\]]+)\]\]/g)) {
             targets.push(m[1].split('|')[0].split('#')[0].trim());
         }
     }
@@ -226,13 +260,8 @@ export function appendAttachmentLink(
     if (alreadyLinks(current, filePath, resolve)) return ok({ content: current, info: 'already-linked' });
     const link = `![[${filePath}]]`;
     const lines = current.split('\n');
-    // Headings inside fenced code blocks are not headings.
-    const fencedLine = new Array<boolean>(lines.length).fill(false);
-    let inFence = false;
-    for (let i = 0; i < lines.length; i++) {
-        if (/^\s*(```|~~~)/.test(lines[i])) { inFence = !inFence; fencedLine[i] = true; continue; }
-        fencedLine[i] = inFence;
-    }
+    // Headings inside frontmatter or fenced code blocks are not headings.
+    const fencedLine = nonBodyLines(lines);
     const headingRe = new RegExp(`^(#{1,6})\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*#*\\s*$`, 'i');
     const start = lines.findIndex((l, i) => !fencedLine[i] && headingRe.test(l));
     if (start === -1) {

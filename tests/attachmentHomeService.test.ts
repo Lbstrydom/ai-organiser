@@ -6,6 +6,7 @@ import {
 	alreadyLinks,
 	appendAttachmentLink,
 	HOME_QUERY_CHARS,
+	nonBodyLines,
 	type HomeContext,
 } from '../src/services/attachmentHomeService';
 
@@ -212,5 +213,30 @@ describe('appendAttachmentLink', () => {
 	it('treats the heading text literally (no regex surprises)', () => {
 		const res = appendAttachmentLink('x', f, 'Files (new)');
 		expect(res.ok && res.value.content).toContain('## Files (new)');
+	});
+});
+
+describe('nonBodyLines', () => {
+	it('marks YAML frontmatter and fenced code, and nothing else', () => {
+		const lines = ['---', '# comment in frontmatter', 'a: 1', '---', '# Real', '```', '# in fence', '```', 'text'];
+		expect(nonBodyLines(lines)).toEqual([true, true, true, true, false, true, true, true, false]);
+	});
+
+	it('does not close a backtick fence with a tilde fence, or with a shorter fence', () => {
+		const lines = ['````', '~~~', '```', '# still inside', '````', '# outside'];
+		expect(nonBodyLines(lines)).toEqual([true, true, true, true, true, false]);
+	});
+
+	it('does not treat an unterminated frontmatter marker or a backtick info string as a fence', () => {
+		expect(nonBodyLines(['---', 'a', 'b'])).toEqual([false, false, false]);
+		expect(nonBodyLines(['``` inline `code` here', 'text'])).toEqual([false, false]);
+	});
+});
+
+describe('appendAttachmentLink and frontmatter', () => {
+	it('ignores a heading-like comment inside frontmatter', () => {
+		const note = '---\n# Attachments\ntitle: x\n---\nBody\n';
+		const res = appendAttachmentLink(note, 'Docs/a.pdf', 'Attachments');
+		expect(res.ok && res.value.content).toBe('---\n# Attachments\ntitle: x\n---\nBody\n\n## Attachments\n![[Docs/a.pdf]]\n');
 	});
 });

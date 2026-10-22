@@ -42,12 +42,14 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
 
     switch (scope) {
         case 'note': {
+            // A note or a canvas, matching what the scope dialog offers.
             const view = app.workspace.getActiveViewOfType(MarkdownView);
-            if (!view?.file) {
+            const active = view?.file ?? app.workspace.getActiveFile();
+            if (!active || (active.extension !== 'md' && active.extension !== 'canvas')) {
                 new Notice(t.messages.pleaseOpenNote);
                 return;
             }
-            files = [view.file];
+            files = [active];
             break;
         }
         case 'folder': {

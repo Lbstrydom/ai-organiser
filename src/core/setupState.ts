@@ -125,6 +125,8 @@ export const SETUP_SPECS: Readonly<Partial<Record<SetupId, SetupSpec>>> = {
     },
 };
 
+import { normalisePath } from './protectedPaths';
+
 type SettingsLike = Record<string, unknown>;
 
 function isNonEmpty(value: unknown): boolean {
@@ -144,7 +146,8 @@ function folderValues(settings: SettingsLike, keys: readonly string[]): string[]
 }
 
 function normaliseFolder(path: string): string {
-    return path.replaceAll('\\', '/').split('/').filter((s) => s !== '' && s !== '.').join('/').toLowerCase();
+    // The same canonical form protection enforcement uses, so health and enforcement agree.
+    return normalisePath(path).toLowerCase();
 }
 
 /**

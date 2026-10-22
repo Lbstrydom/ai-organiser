@@ -122,21 +122,20 @@ export function rewriteOnRename(
     oldPath: string,
     newPath: string,
 ): { list: string[]; changed: boolean } {
-    const oldKey = key(oldPath);
+    // Compare segment by segment and rewrite by segment count, never by string offset: lower-casing
+    // can change a string's length (some characters expand), so an offset taken from the lower-cased
+    // key is not a valid offset into the original text.
+    const oldSegs = normalisePath(oldPath).split('/').filter(Boolean).map((s) => s.toLowerCase());
     const newNorm = normalisePath(newPath);
     let changed = false;
     const next = list.map((entry) => {
-        const norm = normalisePath(entry);
-        const k = norm.toLowerCase();
-        if (k === oldKey) {
-            changed = true;
-            return newNorm;
+        const segs = normalisePath(entry).split('/').filter(Boolean);
+        if (oldSegs.length === 0 || segs.length < oldSegs.length) return entry;
+        for (let i = 0; i < oldSegs.length; i++) {
+            if (segs[i].toLowerCase() !== oldSegs[i]) return entry;
         }
-        if (k.startsWith(oldKey + '/')) {
-            changed = true;
-            return newNorm + norm.slice(oldKey.length);
-        }
-        return entry;
+        changed = true;
+        return [newNorm, ...segs.slice(oldSegs.length)].filter(Boolean).join('/');
     });
     return { list: next, changed };
 }
@@ -195,4 +194,9 @@ export function assertWritableActive(
 /** True when the active list protects the path. */
 export function isProtectedActive(path: string): boolean {
     return isProtectedPath(activeGetter ? activeGetter() : null, path);
+}
+
+/** True when at least one folder is protected right now. Guards that cannot establish their target use this to fail closed. */
+export function hasActiveProtection(): boolean {
+    return resolveProtectedFolders(activeGetter ? activeGetter() : null).length > 0;
 }

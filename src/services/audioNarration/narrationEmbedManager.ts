@@ -121,6 +121,11 @@ export async function syncEmbed(
         return errFrom<void>(err);
     }
 
+    // Protection may have changed while the note was being read; check again at the commit.
+    if (!assertWritableActive('modify', file.path).ok) {
+        return errFrom<void>(makeError('EMBED_FAILED', 'The note is in a protected folder; the audio link was not added.'));
+    }
+
     // Prefer the transactional `vault.process` API when available (Obsidian
     // 1.4+) — it serialises read+write under the vault's lock. Fall back to
     // `vault.modify` on older versions.

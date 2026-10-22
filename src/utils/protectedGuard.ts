@@ -10,7 +10,7 @@
  * is protected.
  */
 import { Notice, type App, type Editor } from 'obsidian';
-import { assertWritableActive, isProtectedActive } from '../core/protectedPaths';
+import { assertWritableActive, hasActiveProtection, isProtectedActive } from '../core/protectedPaths';
 
 let activePathProvider: (() => string | null) | null = null;
 let editorPathProvider: ((editor: Editor) => string | null) | null = null;
@@ -33,9 +33,12 @@ export function installActiveNoteGuard(
  * note. Fires the "protected" notice and returns false otherwise.
  */
 export function guardActiveNote(editor?: Editor): boolean {
-    const path = (editor && editorPathProvider ? editorPathProvider(editor) : null) ?? activePathProvider?.() ?? null;
-    if (!path) return true;
-    if (assertWritableActive('modify', path).ok) return true;
+    const owned = editor && editorPathProvider ? editorPathProvider(editor) : null;
+    // An editor whose note cannot be identified is refused while any folder is protected: guessing
+    // from whichever note happens to be active could judge the wrong file.
+    const path = owned ?? (editor && editorPathProvider && hasActiveProtection() ? undefined : (activePathProvider?.() ?? null));
+    const allowed = path === undefined ? false : path === null ? true : assertWritableActive('modify', path).ok;
+    if (allowed) return true;
     new Notice(messageProvider ? messageProvider() : 'This note is in a protected folder, so AI Organiser did not change it.', 6000);
     return false;
 }
@@ -46,7 +49,8 @@ export function guardActiveNote(editor?: Editor): boolean {
  */
 export function referrersProtectedActive(app: App, filePath: string): boolean {
     const resolved = (app.metadataCache as unknown as { resolvedLinks?: Record<string, Record<string, number>> }).resolvedLinks;
-    if (!resolved) return false;
+    // No link data means the footprint cannot be established: refuse while anything is protected.
+    if (!resolved) return hasActiveProtection();
     for (const [referrer, targets] of Object.entries(resolved)) {
         if (targets && targets[filePath] && isProtectedActive(referrer)) return true;
     }

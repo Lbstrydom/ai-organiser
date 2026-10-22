@@ -149,6 +149,9 @@ export class SourcePackService {
         signal?: AbortSignal
     ): Promise<ExportResult> {
         const warnings: string[] = [];
+        const noteSkipped = (r: { skippedProtected: string[] }): void => {
+            for (const path of r.skippedProtected) warnings.push(`Left "${path}" unchanged because it is in a protected folder.`);
+        };
         const entries: PackEntry[] = [];
         let totalBytes = 0;
 
@@ -256,11 +259,11 @@ export class SourcePackService {
             // persistent collections. 'clear' / 'archive' are explicit opt-ins.
             onProgress?.(totalItems, totalItems, 'Updating tags...');
             if (this.config.postExportTagAction === 'clear') {
-                await this.selectionService.clearSelection(selection.files);
+                noteSkipped(await this.selectionService.clearSelection(selection.files));
             } else if (this.config.postExportTagAction === 'archive') {
-                await this.selectionService.archiveSelection(
+                noteSkipped(await this.selectionService.archiveSelection(
                     selection.files, packId, manifest.revision
-                );
+                ));
             } // else 'keep' — no-op by design
 
             return {
@@ -351,6 +354,9 @@ export class SourcePackService {
             const entries: PackEntry[] = [];
             let totalBytes = 0;
             const warnings: string[] = [];
+        const noteSkipped = (r: { skippedProtected: string[] }): void => {
+            for (const path of r.skippedProtected) warnings.push(`Left "${path}" unchanged because it is in a protected folder.`);
+        };
             const used = new Set<string>();
             let processedCount = 0;
 
@@ -455,11 +461,11 @@ export class SourcePackService {
 
             onProgress?.(totalItems, totalItems, 'Updating tags...');
             if (this.config.postExportTagAction === 'clear') {
-                await this.selectionService.clearSelection(selection.files);
+                noteSkipped(await this.selectionService.clearSelection(selection.files));
             } else if (this.config.postExportTagAction === 'archive') {
-                await this.selectionService.archiveSelection(
+                noteSkipped(await this.selectionService.archiveSelection(
                     selection.files, packId, manifest.revision
-                );
+                ));
             } // else 'keep' — no-op by design (UX-09)
 
             return {

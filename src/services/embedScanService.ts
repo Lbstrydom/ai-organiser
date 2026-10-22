@@ -350,6 +350,9 @@ export async function scanNotes(
         const isCanvas = sourceFile.extension === 'canvas';
 
         let content: string;
+        // The modified time must describe the revision that was read, so take it before the read and
+        // keep it only if it is unchanged afterwards (otherwise record "unknown" so it is read again).
+        const mtimeBeforeRead = sourceFile.stat.mtime;
         try {
             content = await app.vault.cachedRead(sourceFile);
         } catch {
@@ -362,7 +365,10 @@ export async function scanNotes(
             coverageFailures.push(collected.failure);
             continue;
         }
-        scannedReferrers.push({ path: sourceFile.path, mtime: sourceFile.stat.mtime });
+        scannedReferrers.push({
+            path: sourceFile.path,
+            mtime: sourceFile.stat.mtime === mtimeBeforeRead ? mtimeBeforeRead : -1,
+        });
 
         for (const occ of collected.occurrences) {
             const raw = collected.embedded.get(occ)!;

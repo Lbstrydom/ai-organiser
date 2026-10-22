@@ -23,12 +23,22 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
 type SiteClass = 'guarded' | 'output-root' | 'plugin-data';
-interface Entry { count: number; cls: SiteClass; reason: string }
+interface Entry {
+	count: number;
+	cls: SiteClass;
+	reason: string;
+	/**
+	 * For a `guarded` file: how many of its write sites have NO guard call in the lines just above
+	 * them, because they only touch a plugin output root or sit behind an entry-point guard. Every
+	 * other site must have a guard within `GUARD_WINDOW` lines above it. Default 0.
+	 */
+	exempt?: number;
+}
 
 const MANIFEST: Record<string, Entry> = {
 	// ── The seam and the guarded user-note writers ──────────────────────────────────────────
-	'src/services/noteEdit/noteWritePort.ts': { count: 2, cls: 'guarded', reason: 'the seam; asserts writability before any editor or vault write' },
-	'src/utils/tagUtils.ts': { count: 6, cls: 'guarded', reason: 'tag writers guard at entry; saveAllTags guards its target; the rest is the tags output file' },
+	'src/services/noteEdit/noteWritePort.ts': { count: 2, cls: 'guarded', exempt: 2, reason: 'the seam; asserts writability before any editor or vault write' },
+	'src/utils/tagUtils.ts': { count: 6, cls: 'guarded', exempt: 3, reason: 'tag writers guard at entry; saveAllTags guards its target; the rest is the tags output file' },
 	'src/utils/frontmatterUtils.ts': { count: 1, cls: 'guarded', reason: 'updateAIOMetadata guards before processFrontMatter' },
 	'src/utils/editorUtils.ts': { count: 4, cls: 'guarded', reason: 'editor helpers call guardActiveNote' },
 	'src/utils/noteStructure.ts': { count: 8, cls: 'guarded', reason: 'editor helpers call guardActiveNote' },
@@ -37,11 +47,11 @@ const MANIFEST: Record<string, Entry> = {
 	'src/commands/generateCommands.ts': { count: 1, cls: 'guarded', reason: 'editor write calls guardActiveNote' },
 	'src/commands/highlightCommands.ts': { count: 2, cls: 'guarded', reason: 'selection edits call guardActiveNote' },
 	'src/commands/smartNoteCommands.ts': { count: 2, cls: 'guarded', reason: 'editor insert and new-note create are guarded' },
-	'src/commands/summarizeCommands.ts': { count: 1, cls: 'guarded', reason: 'note edits go through applyNoteEdit; the create is the transcript output file' },
+	'src/commands/summarizeCommands.ts': { count: 1, cls: 'guarded', exempt: 1, reason: 'note edits go through applyNoteEdit; the create is the transcript output file' },
 	'src/ui/modals/MermaidChatModal.ts': { count: 3, cls: 'guarded', reason: 'editor writes call guardActiveNote' },
 	'src/ui/modals/QuickPeekModal.ts': { count: 2, cls: 'guarded', reason: 'editor writes call guardActiveNote' },
-	'src/ui/modals/UnifiedChatModal.ts': { count: 3, cls: 'guarded', reason: 'insert calls guardActiveNote; vault.create is the chat export under the chat output root' },
-	'src/ui/chat/ResearchModeHandler.ts': { count: 5, cls: 'guarded', reason: 'insert calls guardActiveNote; vault.create/modify target the research output note' },
+	'src/ui/modals/UnifiedChatModal.ts': { count: 3, cls: 'guarded', exempt: 1, reason: 'insert calls guardActiveNote; vault.create is the chat export under the chat output root' },
+	'src/ui/chat/ResearchModeHandler.ts': { count: 5, cls: 'guarded', exempt: 2, reason: 'insert calls guardActiveNote; vault.create/modify target the research output note' },
 	'src/main.ts': { count: 3, cls: 'guarded', reason: 'suggested title and folder renames call assertWritable; createFolder is for the suggested folder' },
 	'src/commands/notebookLMCommands.ts': { count: 2, cls: 'guarded', reason: 'selection-tag writes call assertWritable' },
 	'src/services/notebooklm/selectionService.ts': { count: 3, cls: 'guarded', reason: 'selection-tag writes call assertWritableActive' },
@@ -50,7 +60,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/audioCompressionService.ts': { count: 2, cls: 'guarded', reason: 'replaceAudioFile calls assertWritableActive' },
 	'src/services/audioCleanupService.ts': { count: 1, cls: 'guarded', reason: 'deleteAudioFile calls assertWritable' },
 	'src/services/oneDriveEmbedService.ts': { count: 2, cls: 'guarded', reason: 'refresh calls assertWritableActive; the copy-in create writes the OneDrive embed folder' },
-	'src/commands/semanticSearchCommands.ts': { count: 2, cls: 'guarded', reason: 'export-to-note create and append call assertWritableActive' },
+	'src/commands/semanticSearchCommands.ts': { count: 1, cls: 'guarded', reason: 'export-to-note create calls assertWritableActive; the append goes through applyNoteEdit' },
 	'src/utils/companionUtils.ts': { count: 1, cls: 'guarded', reason: 'companion create beside the source calls assertWritableActive' },
 
 	// ── Plugin output roots (validated disjoint from protected folders) ─────────────────────
@@ -106,7 +116,9 @@ const WRITE_API = new RegExp(
 	].join('|'),
 	'g',
 );
-const GUARD = /assertWritable|guardActiveNote|applyNoteEdit|isProtectedActive|writeNote\(/;
+const GUARD = /assertWritable\w*\(|guardActiveNote\(|applyNoteEdit\(|writeNote\(|referrersProtectedActive\(/;
+/** How many lines above a write site a guard call may sit and still count as guarding it. */
+const GUARD_WINDOW = 40;
 
 function walk(dir: string, out: string[] = []): string[] {
 	for (const name of readdirSync(dir)) {
@@ -120,6 +132,34 @@ function walk(dir: string, out: string[] = []): string[] {
 /** Count write-API sites in a source string and whether it contains a guard (used by the negative controls). */
 function analyseSource(text: string): { count: number; guarded: boolean } {
 	return { count: (text.match(WRITE_API) ?? []).length, guarded: GUARD.test(text) };
+}
+
+const isCommentOrImport = (line: string): boolean => /^\s*(\/\/|\*|\/\*|import\s)/.test(line);
+
+/**
+ * Line numbers of write sites that have no guard CALL within `GUARD_WINDOW` lines above them.
+ * Comments and import lines neither count as sites nor as guards, so an unused import or a comment
+ * naming a guard proves nothing.
+ */
+export function unguardedSites(text: string): number[] {
+	const lines = text.split(/\r?\n/);
+	const bad: number[] = [];
+	lines.forEach((line, i) => {
+		if (isCommentOrImport(line) || !new RegExp(WRITE_API.source).test(line)) return;
+		const from = Math.max(0, i - GUARD_WINDOW);
+		const guarded = lines.slice(from, i + 1).some((l) => !isCommentOrImport(l) && GUARD.test(l));
+		if (!guarded) bad.push(i + 1);
+	});
+	return bad;
+}
+
+function scanUnguarded(): Map<string, number[]> {
+	const root = join(__dirname, '..');
+	const result = new Map<string, number[]>();
+	for (const file of walk(join(root, 'src'))) {
+		result.set(relative(root, file).replaceAll('\\', '/'), unguardedSites(readFileSync(file, 'utf8')));
+	}
+	return result;
 }
 
 function scan(): Map<string, { count: number; guarded: boolean }> {
@@ -147,6 +187,21 @@ describe('write-site scanner (negative controls)', () => {
 
 	it('does not count look-alikes such as Map.delete or a bare modify call', () => {
 		expect(analyseSource('cache.delete(k); set.create(x); modify(file);').count).toBe(0);
+	});
+
+	it('requires a guard CALL near each site: a comment, an import or a far-away guard does not count', () => {
+		const guarded = 'assertWritable(s, "modify", p);\nawait vault.modify(f, x);';
+		expect(unguardedSites(guarded)).toEqual([]);
+		expect(unguardedSites('import { assertWritable } from "x";\nawait vault.modify(f, x);')).toEqual([2]);
+		expect(unguardedSites('// assertWritable(p)\nawait vault.modify(f, x);')).toEqual([2]);
+		const far = 'assertWritable(s, "modify", p);\n' + '\n'.repeat(60) + 'await vault.modify(f, x);';
+		expect(unguardedSites(far)).toEqual([62]);
+		expect(unguardedSites('// await vault.modify(f, x);')).toEqual([]);
+	});
+
+	it('removing one guard while another remains in the file is caught', () => {
+		const text = 'assertWritable(a);\nvault.modify(a, x);\n' + '\n'.repeat(60) + 'vault.modify(b, y);';
+		expect(unguardedSites(text)).toEqual([63]);
 	});
 
 	it('recognises a guard and a missing guard', () => {
@@ -180,6 +235,17 @@ describe('protected folders: write-site classification', () => {
 			.filter(([f, e]) => e.cls === 'guarded' && found.get(f) && !found.get(f)!.guarded)
 			.map(([f]) => f);
 		expect(unguarded).toEqual([]);
+	});
+
+	it('has a guard call above every write site of a guarded file, except the declared exempt ones', () => {
+		const unguarded = scanUnguarded();
+		const wrong: string[] = [];
+		for (const [file, entry] of Object.entries(MANIFEST)) {
+			if (entry.cls !== 'guarded') continue;
+			const bad = unguarded.get(file) ?? [];
+			if (bad.length !== (entry.exempt ?? 0)) wrong.push(`${file}: ${bad.length} unguarded site(s) at lines ${bad.join(', ')}, manifest exempts ${entry.exempt ?? 0}`);
+		}
+		expect(wrong).toEqual([]);
 	});
 
 	it('gives every entry a reason', () => {

@@ -7,6 +7,8 @@
  * and the run can be cancelled between files; a cancelled run returns what it found, labelled.
  */
 
+import { Result, ok, err } from '../core/result';
+
 export interface DuplicateFile {
     path: string;
     size: number;
@@ -18,12 +20,12 @@ export interface DuplicateGroup {
     paths: string[];
 }
 
-export type NotAnalysedReason = 'over-cap' | 'read-failed';
+export type NotAnalysedReason = 'over-cap' | 'read-failed' | 'hash-failed';
 
 export interface DuplicateResult {
     groups: DuplicateGroup[];
     notAnalysed: { path: string; reason: NotAnalysedReason }[];
-    /** Files whose hash was computed */
+    /** Files whose hash was actually computed (failures are listed in `notAnalysed`) */
     analysed: number;
     cancelled: boolean;
 }
@@ -61,12 +63,17 @@ export function groupBySize(files: readonly DuplicateFile[]): Map<number, Duplic
     return bySize;
 }
 
-/** Find byte-identical files among `files`. Never throws. */
+/**
+ * Find byte-identical files among `files`. Never throws. A per-file problem is a `notAnalysed`
+ * entry inside a successful result; `Result.err` means the analysis itself cannot run (no hashing
+ * available), so a systemic failure is never reported as "no duplicates".
+ */
 export async function analyseDuplicates(
     files: readonly DuplicateFile[],
     port: DuplicatePort,
     options: DuplicateOptions,
-): Promise<DuplicateResult> {
+): Promise<Result<DuplicateResult>> {
+    if (typeof crypto === 'undefined' || !crypto.subtle) return err('scan-incomplete');
     const candidates = [...groupBySize(files).values()].flat();
     const notAnalysed: DuplicateResult['notAnalysed'] = [];
     const hashable: DuplicateFile[] = [];
@@ -77,6 +84,7 @@ export async function analyseDuplicates(
 
     const hashes = new Map<string, DuplicateFile[]>();
     let done = 0;
+    let hashed = 0;
     let cancelled = false;
     let next = 0;
     const concurrency = Math.max(1, options.concurrency ?? 2);
@@ -90,14 +98,23 @@ export async function analyseDuplicates(
             const index = next++;
             if (index >= hashable.length) return;
             const file = hashable[index];
+            let data: ArrayBuffer | null = null;
             try {
-                const hash = await sha256Hex(await port.readBinary(file.path));
-                const key = `${file.size}:${hash}`;
-                const list = hashes.get(key);
-                if (list) list.push(file);
-                else hashes.set(key, [file]);
+                data = await port.readBinary(file.path);
             } catch {
                 notAnalysed.push({ path: file.path, reason: 'read-failed' });
+            }
+            if (data) {
+                try {
+                    const hash = await sha256Hex(data);
+                    const key = `${file.size}:${hash}`;
+                    const list = hashes.get(key);
+                    if (list) list.push(file);
+                    else hashes.set(key, [file]);
+                    hashed++;
+                } catch {
+                    notAnalysed.push({ path: file.path, reason: 'hash-failed' });
+                }
             }
             done++;
             try {
@@ -116,5 +133,5 @@ export async function analyseDuplicates(
         groups.push({ hash: key.split(':')[1], size: list[0].size, paths: list.map((f) => f.path).sort() });
     }
     groups.sort((a, b) => b.size - a.size || a.paths[0].localeCompare(b.paths[0]));
-    return { groups, notAnalysed, analysed: done, cancelled };
+    return ok({ groups, notAnalysed, analysed: hashed, cancelled });
 }
