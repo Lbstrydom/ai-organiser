@@ -21,6 +21,8 @@ import { CloudLLMService } from '../src/services/cloudService';
 import { LocalLLMService } from '../src/services/localService';
 import { ConfigurationService, DEFAULT_TAXONOMY } from '../src/services/configurationService';
 import { AdapterType } from '../src/services/adapters';
+import { ClaudeAdapter } from '../src/services/adapters/claudeAdapter';
+import { AzureClaudeAdapter } from '../src/services/adapters/azureClaudeAdapter';
 
 const fixture = baseline as Record<string, string>;
 const mockRequestUrl = requestUrl as unknown as ReturnType<typeof vi.fn>;
@@ -216,12 +218,47 @@ describe('summarizeTextStream does not drop a stablePrefix', () => {
         const adapter = (svc as unknown as { adapter: { formatStreamingRequest: unknown } }).adapter;
         const spy = vi.fn(() => ({ url: 'https://x.test', headers: {}, body: {} }));
         adapter.formatStreamingRequest = spy;
+        const hadWindow = Object.prototype.hasOwnProperty.call(globalThis, 'window');
+        const originalWindow = (globalThis as unknown as { window?: unknown }).window;
         (globalThis as unknown as { window: unknown }).window = { fetch: vi.fn().mockRejectedValue(new Error('stop')) };
         try {
             await expect(svc.summarizeTextStream('tail', () => {}, undefined, { stablePrefix: 'HEADER' })).rejects.toThrow('stop');
             expect(spy).toHaveBeenCalledWith('HEADER\n\ntail');
         } finally {
-            delete (globalThis as unknown as { window?: unknown }).window;
+            if (hadWindow) (globalThis as unknown as { window?: unknown }).window = originalWindow;
+            else delete (globalThis as unknown as { window?: unknown }).window;
         }
+    });
+});
+
+// ── Adapter envelope parity (ordinary vs cached tagging request) ────────────
+
+describe.each([
+    ['ClaudeAdapter', ClaudeAdapter],
+    ['AzureClaudeAdapter', AzureClaudeAdapter],
+])('%s tagging request envelope', (_name, Adapter) => {
+    const make = (modelName: string, thinkingMode?: 'standard' | 'adaptive') =>
+        new Adapter({ endpoint: 'https://example.test/v1/messages', apiKey: 'k', modelName, thinkingMode });
+
+    it('below the model minimum, formatCachedRequest equals formatRequest(joined) — incl. adaptive thinking params', () => {
+        for (const thinkingMode of [undefined, 'adaptive'] as const) {
+            const adapter = make('claude-haiku-4-5', thinkingMode);
+            expect(adapter.formatCachedRequest(PROMPT, 'short head'))
+                .toEqual(adapter.formatRequest(joinPromptParts('short head', PROMPT)));
+        }
+    });
+
+    it('an undocumented model equals formatRequest(joined) however long the head', () => {
+        const adapter = make('sonnet-prod');
+        expect(adapter.formatCachedRequest(PROMPT, PREFIX.repeat(40)))
+            .toEqual(adapter.formatRequest(joinPromptParts(PREFIX.repeat(40), PROMPT)));
+    });
+
+    it('above the minimum, only system and the user message differ from the ordinary request', () => {
+        const adapter = make('claude-sonnet-5-5', 'adaptive');
+        const cached = adapter.formatCachedRequest(PROMPT, PREFIX);
+        const plain = adapter.formatRequest(PROMPT);
+        expect({ ...cached, system: undefined }).toEqual({ ...plain, system: undefined });
+        expect(Array.isArray(cached.system)).toBe(true);
     });
 });

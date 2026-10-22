@@ -60,8 +60,17 @@ describe('analyzeAndTagNote', () => {
 
 describe('analyzeAndTagFiles', () => {
     // The batch status bar / long-running-op controller use `window` timers.
-    beforeEach(() => { (globalThis as unknown as { window: unknown }).window = globalThis; });
-    afterEach(() => { delete (globalThis as unknown as { window?: unknown }).window; });
+    let hadWindow = false;
+    let originalWindow: unknown;
+    beforeEach(() => {
+        hadWindow = Object.prototype.hasOwnProperty.call(globalThis, 'window');
+        originalWindow = (globalThis as unknown as { window?: unknown }).window;
+        (globalThis as unknown as { window: unknown }).window = globalThis;
+    });
+    afterEach(() => {
+        if (hadWindow) (globalThis as unknown as { window?: unknown }).window = originalWindow;
+        else delete (globalThis as unknown as { window?: unknown }).window;
+    });
 
     const run = async (count: number): Promise<Array<boolean | undefined>> => {
         const { plugin } = makePlugin();

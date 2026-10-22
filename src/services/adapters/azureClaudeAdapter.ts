@@ -88,12 +88,20 @@ export class AzureClaudeAdapter extends BaseAdapter {
      * Claude requires 'system' as a separate parameter, not in messages array.
      */
     public formatRequest(prompt: string, _language?: string): Record<string, unknown> {
+        return this.buildTagRequest(SYSTEM_PROMPT, prompt);
+    }
+
+    /** The one tagging request envelope: ordinary and cached requests differ only in `system` / user content. */
+    private buildTagRequest(
+        system: string | Array<Record<string, unknown>>,
+        userContent: string,
+    ): Record<string, unknown> {
         const body: Record<string, unknown> = {
             model: this.config.modelName,
             max_tokens: 1024,
-            system: SYSTEM_PROMPT,
+            system,
             messages: [
-                { role: 'user', content: prompt }
+                { role: 'user', content: userContent }
             ]
         };
         return this.applyThinkingParams(body);
@@ -108,15 +116,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
         const { systemField, userContent } = buildClaudeCachedPrompt(
             SYSTEM_PROMPT, prompt, this.config.modelName, stablePrefix,
         );
-        const body: Record<string, unknown> = {
-            model: this.config.modelName,
-            max_tokens: 1024,
-            system: systemField,
-            messages: [
-                { role: 'user', content: userContent }
-            ]
-        };
-        return this.applyThinkingParams(body);
+        return this.buildTagRequest(systemField, userContent);
     }
 
     getMultimodalCapability(): MultimodalCapability {
@@ -230,7 +230,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
         try {
             const parsed = JSON.parse(data);
             if (parsed.type === 'message_start') {
-                logLlmUsage('stream', 'azure-claude', this.config.modelName, parsed.message?.usage);
+                logLlmUsage('stream-start', 'azure-claude', this.config.modelName, parsed.message?.usage);
                 return null;
             }
             if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {

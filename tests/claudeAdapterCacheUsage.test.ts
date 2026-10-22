@@ -69,7 +69,7 @@ describe('ClaudeAdapter — cache usage logging', () => {
 
             expect(result).toBeNull();
             expect(debugSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[Cache] stream claude model=claude-sonnet-4-7 in=500 cache_write=0 cache_read=2800 out=1'),
+                expect.stringContaining('[Cache] stream-start claude model=claude-sonnet-4-7 in=500 cache_write=0 cache_read=2800 out=1'),
                 '',
             );
         });

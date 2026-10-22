@@ -80,6 +80,9 @@ describe('CloudLLMService usage logging', () => {
         apiKey: 'k', modelName: 'claude-sonnet-5-5', language: 'en',
     }, app);
 
+    // Scope: the usage lines this change adds. Other debug logging (e.g. the
+    // raw-response preview in BaseLLMService.generateTags) is existing behaviour,
+    // already gated behind debug mode, and is outside this test.
     const respond = (usage: unknown): void => {
         mockRequestUrl.mockResolvedValue({
             status: 200,
@@ -107,7 +110,7 @@ describe('CloudLLMService usage logging', () => {
         expect(cacheLines()[0]).toContain('[Cache] tagging claude model=claude-sonnet-5-5 in=900 cache_write=850 cache_read=0 out=30');
     });
 
-    it('never puts prompt or response text in any log line', async () => {
+    it('the [Cache] usage lines never contain prompt or response text', async () => {
         respond({ input_tokens: 1, output_tokens: 1 });
         await claude().summarizeText(`prompt with ${SENTINEL}`, { label: 'x' });
         await claude().generateTags(`tag prompt with ${SENTINEL}`, { stablePrefix: `head ${SENTINEL}` });
