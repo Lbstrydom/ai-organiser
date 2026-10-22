@@ -3758,6 +3758,7 @@ export interface Translations {
         refreshFailedFor: string;
         checkDone: string;
         checkNoChange: string;
+        checkIncomplete: string;
         noPairsNotice: string;
         declinedNotice: string;
         appendConfirmTitle: string;

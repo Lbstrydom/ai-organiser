@@ -16,7 +16,7 @@
  *    `listed`; `listed` stays unchanged while the content hash does.
  */
 import { Result, ok, err } from '../../core/result';
-import { nonBodyLines } from '../../utils/markdownRegions';
+import { endsInOpenFence, nonBodyLines } from '../../utils/markdownRegions';
 
 export type Completeness = 'complete' | 'truncated';
 
@@ -188,6 +188,9 @@ export function replaceBlock(text: string, block: string, pairId: string, folder
     const found = findOwnedBlock(text, pairId, folderId);
     if (!found.ok) return found;
     if (found.value === null) {
+        // Appending after an unclosed code fence would put the block inside the example, where it can
+        // never be found again: refuse and let the user fix the note.
+        if (endsInOpenFence(text.split('\n'))) return err('marker-conflict');
         const body = text.replace(/\s+$/, '');
         return ok(`${body === '' ? '' : body + '\n\n'}${block}\n`);
     }

@@ -8,6 +8,19 @@
  * no text after it (CommonMark), so a `~~~` line inside a backtick fence does not end it.
  */
 export function nonBodyLines(lines: readonly string[]): boolean[] {
+    return scanRegions(lines).mask;
+}
+
+/** True when the text ends inside a fenced block that was never closed. */
+export function endsInOpenFence(lines: readonly string[]): boolean {
+    return scanRegions(lines).openFence;
+}
+
+// A fence may sit inside a block quote or a list item, so up to a few indent levels, `>` markers and one list marker
+// may precede it.
+const FENCE_LINE = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/;
+
+function scanRegions(lines: readonly string[]): { mask: boolean[]; openFence: boolean } {
     const out = new Array<boolean>(lines.length).fill(false);
     let i = 0;
     if (lines.length > 0 && lines[0].trim() === '---') {
@@ -21,7 +34,7 @@ export function nonBodyLines(lines: readonly string[]): boolean[] {
     }
     let fence: { ch: string; len: number } | null = null;
     for (; i < lines.length; i++) {
-        const m = lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+        const m = lines[i].match(FENCE_LINE);
         if (!fence) {
             // A backtick fence cannot have a backtick in its info string (that is inline code).
             if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
@@ -33,5 +46,5 @@ export function nonBodyLines(lines: readonly string[]): boolean[] {
         out[i] = true;
         if (m && m[1][0] === fence.ch && m[1].length >= fence.len && m[2].trim() === '') fence = null;
     }
-    return out;
+    return { mask: out, openFence: fence !== null };
 }

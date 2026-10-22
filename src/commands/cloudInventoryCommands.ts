@@ -102,7 +102,8 @@ async function buildDeps(plugin: AIOrganiserPlugin): Promise<Result<RefreshDeps>
     return ok({ list: makeLister(plugin, secret), confirmAppend: confirmAppend(plugin) });
 }
 
-export async function runRefresh(plugin: AIOrganiserPlugin): Promise<void> {
+/** Refresh the pairs in `only` when given; otherwise the hub note being viewed, or every pair. */
+export async function runRefresh(plugin: AIOrganiserPlugin, only?: readonly string[]): Promise<void> {
     const c = plugin.t.cloudInventory;
     const pairs = plugin.settings.cloudInventoryPairs;
     if (pairs.length === 0) { new Notice(c.noPairsNotice, 6000); return; }
@@ -110,8 +111,8 @@ export async function runRefresh(plugin: AIOrganiserPlugin): Promise<void> {
     if (!deps.ok) { new Notice(formatGuidance(describeError(plugin.t, deps.error)), 8000); return; }
     // From inside a hub note, refresh just that note's pair; otherwise refresh all.
     const active = plugin.app.workspace.getActiveFile()?.path;
-    const here = active ? pairs.filter((p) => { const h = hubNotePath(p, plugin.settings.protectedFolders); return h.ok && h.value === active; }) : [];
-    const targets = here.length > 0 ? here : pairs;
+    const here = !only && active ? pairs.filter((p) => { const h = hubNotePath(p, plugin.settings.protectedFolders); return h.ok && h.value === active; }) : [];
+    const targets = only ? pairs.filter((p) => only.includes(p.id)) : here.length > 0 ? here : pairs;
     const working = new Notice(c.testing, 0);
     const counts = { created: 0, updated: 0, unchanged: 0 };
     const seen = new Set<string>();
@@ -149,14 +150,24 @@ export async function runCheck(plugin: AIOrganiserPlugin): Promise<void> {
     if (!deps.ok) { new Notice(formatGuidance(describeError(plugin.t, deps.error)), 8000); return; }
     const working = new Notice(c.testing, 0);
     let changed = 0;
+    let failed = 0;
     try {
         for (const pair of pairs) {
             const res = await checkPair(plugin, pair, deps.value);
-            if (!res.ok) { new Notice(`${c.refreshFailedFor.replace('{pair}', pair.label || pair.vaultFolder || pair.id)} ${formatGuidance(describeError(plugin.t, res.error))}`, 10000); continue; }
+            if (!res.ok) {
+                failed++;
+                new Notice(`${c.refreshFailedFor.replace('{pair}', pair.label || pair.vaultFolder || pair.id)} ${formatGuidance(describeError(plugin.t, res.error))}`, 10000);
+                continue;
+            }
             if (res.value.changed) changed++;
         }
     } finally {
         working.hide();
+    }
+    // A check that could not read some pairs cannot say they are unchanged.
+    if (failed > 0) {
+        new Notice(c.checkIncomplete.replace('{failed}', String(failed)).replace('{total}', String(pairs.length)).replace('{changed}', String(changed)), 8000);
+        return;
     }
     new Notice(changed === 0 ? c.checkNoChange.replace('{total}', String(pairs.length)) : c.checkDone.replace('{changed}', String(changed)).replace('{total}', String(pairs.length)), 6000);
 }
@@ -276,7 +287,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
                             box.setText(c.previewLoading);
                             const secret = await getInventorySecret(plugin);
                             if (!secret) { box.setText(formatGuidance(describeError(t, 'no-secret'))); return; }
-                            const listing = await makeLister(plugin, secret)({ ...draftPair() });
+                            const listing = await makeLister(plugin, secret, undefined, draft.scriptUrl)({ ...draftPair() });
                             if (listing.status === 'failed') { box.setText(formatGuidance(describeError(t, listing.error ?? 'script-drive-error'))); return; }
                             const planned = await planPair(plugin, draftPair(), listing, new Date().toISOString());
                             if (!planned.ok) { box.setText(formatGuidance(describeError(t, planned.error))); return; }
@@ -298,7 +309,10 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
             s.featureSetupCompletedAt['cloud-inventory'] = new Date().toISOString();
             await plugin.saveSettings();
             onDone?.();
-            if (draft.createNow) detach(plugin, () => runRefresh(plugin));
+            if (draft.createNow) {
+                const mine = s.cloudInventoryPairs.find((p) => p.driveFolderId === pair.driveFolderId && p.vaultFolder === pair.vaultFolder);
+                if (mine) detach(plugin, () => runRefresh(plugin, [mine.id]));
+            }
             return ok(undefined);
         },
     }).open();

@@ -47,6 +47,13 @@ describe('buildInventoryScript', () => {
 		expect(JSON.parse(config).SECRET).toBe('a"b\\c\n// x');
 	});
 
+	it('keys cached approvals by the approved roots', () => {
+		expect(script).toContain('cacheKey_');
+		expect(script).not.toContain('"ok:" + folderId');
+		expect(script).not.toContain('"ok:" + f.id');
+		expect(() => new Function(script)).not.toThrow();
+	});
+
 	it('reports a supported minimum no newer than the current version', () => {
 		expect(INVENTORY_SCRIPT_MIN_SUPPORTED).toBeLessThanOrEqual(INVENTORY_SCRIPT_VERSION);
 	});

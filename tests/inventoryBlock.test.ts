@@ -95,6 +95,22 @@ describe('findOwnedBlock', () => {
 		expect(replaced.ok && replaced.value.startsWith(example)).toBe(true); // the example is preserved
 	});
 
+	it('recognises a fenced example inside a list item or quote', () => {
+		const inList = '- item\n  ```\n  ' + startMarker('p1', 'F1') + '\n  ' + endMarker('p1', 'F1') + '\n  ```\n';
+		expect(findOwnedBlock(inList, 'p1', 'F1')).toEqual({ ok: true, value: null });
+		const inQuote = '> ```\n> ' + startMarker('p1', 'F1') + '\n> ```\n';
+		expect(findOwnedBlock(inQuote, 'p1', 'F1')).toEqual({ ok: true, value: null });
+	});
+
+	it('refuses to append after an unclosed fence', () => {
+		const open = '# Hub\n\n```\nexample that never closes\n';
+		expect(replaceBlock(open, block, 'p1', 'F1')).toEqual({ ok: false, error: 'marker-conflict' });
+		const closed = '# Hub\n\n```\nexample\n```\n';
+		const res = replaceBlock(closed, block, 'p1', 'F1');
+		expect(res.ok).toBe(true);
+		if (res.ok) expect(findOwnedBlock(res.value, 'p1', 'F1').ok).toBe(true);
+	});
+
 	it('ignores another pair\'s block', () => {
 		const other = renderBlock({ pairId: 'p2', folderId: 'F2', listing: { files: [], completeness: 'complete' }, meta, labels });
 		expect(findOwnedBlock(`${other}\n${block}`, 'p1', 'F1').ok).toBe(true);

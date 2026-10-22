@@ -321,12 +321,13 @@ export async function checkPair(plugin: AIOrganiserPlugin, pair: CloudInventoryP
 }
 
 /** Build the live listing function from the settings and the stored secret. */
-export function makeLister(plugin: AIOrganiserPlugin, secret: string, signal?: AbortSignal): RefreshDeps['list'] {
+export function makeLister(plugin: AIOrganiserPlugin, secret: string, signal?: AbortSignal, scriptUrl?: string): RefreshDeps['list'] {
     const s = plugin.settings;
+    const url = scriptUrl ?? s.cloudInventoryScriptUrl;
     return (pair) =>
         listDriveTree({
             rootFolderId: pair.driveFolderId,
-            fetchPage: makeFetchPage(s.cloudInventoryScriptUrl, secret, signal),
+            fetchPage: makeFetchPage(url, secret, signal),
             limits: { maxFolders: s.cloudInventoryMaxFolders, maxFiles: s.cloudInventoryMaxFiles, deadlineMs: s.cloudInventoryDeadlineMinutes * 60_000 },
             signal,
         });

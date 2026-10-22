@@ -3904,6 +3904,7 @@ export const en: Translations = {
         refreshFailedFor: "Could not refresh {pair}.",
         checkDone: "Drive differs from the notes for {changed} of {total} pairs.",
         checkNoChange: "All {total} inventories match Drive.",
+        checkIncomplete: "Could not check {failed} of {total} inventories, so the result is incomplete ({changed} changed among the rest). Try again.",
         noPairsNotice: "No folders are paired yet. Open Drive folder inventory in settings to pair one.",
         declinedNotice: "Left {path} unchanged.",
         appendConfirmTitle: "Add the generated section?",
