@@ -183,7 +183,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             const find = cats.find(c => c.id === 'find')!;
             expect(find.commands.map(c => c.id)).toEqual([
                 'chat-with-ai', 'semantic-search', 'find-related', 'insert-related-notes', 'quick-peek',
-                'build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'setup-agent-index',
+                'copy-claude-permissions', 'write-agent-instructions', 'build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'setup-agent-index',
             ]);
         });
     });
@@ -259,18 +259,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 58 (55 unique + 3 cross-listings)', () => {
+        it('total picker rows = 60 (57 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(58);
+            expect(leafCount).toBe(60);
         });
-        it('unique command IDs = 55', () => {
+        it('unique command IDs = 57', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(55);
+            expect(uniqueIds.size).toBe(57);
         });
-        it('alphabetised ai-organiser:* callbacks (55 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (57 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -294,6 +294,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:clear-tags',
                 'ai-organiser:collect-all-tags',
                 'ai-organiser:copy-agent-instructions',
+                'ai-organiser:copy-claude-permissions',
                 'ai-organiser:create-bases-dashboard',
                 'ai-organiser:create-meeting-minutes',
                 'ai-organiser:digitise-image',
@@ -337,8 +338,9 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:upgrade-folder-metadata',
                 'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
+                'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(55);
+            expect(unique.size).toBe(57);
         });
     });
 });

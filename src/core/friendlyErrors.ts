@@ -64,6 +64,9 @@ export const GUIDANCE_CODES = [
     'tasks-no-list',
     'tasks-not-ready',
     'script-tasks-off',
+    // Agent instructions
+    'instructions-path-invalid',
+    'instructions-conflict',
     // Drive offload
     'mount-invalid',
     'mount-missing',

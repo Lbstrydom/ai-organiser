@@ -13,13 +13,15 @@ import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { isFeatureEnabled } from '../services/featureService';
 import {
     buildAgentIndex,
-    buildAgentInstructions,
     checkAgentIndex,
     collectRecords,
     isInIndexScope,
     scopeConfigFromSettings,
     type IndexScopeConfig,
 } from '../services/agentIndex/agentIndexService';
+import { buildAgentInstructions, buildClaudePermissions } from '../services/agentIndex/agentInstructions';
+import { applyInstructions, previewInstructions } from '../services/agentIndex/agentInstructionsWriter';
+import { AgentInstructionsPreviewModal } from '../ui/modals/AgentInstructionsPreviewModal';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { FolderListEditor } from '../ui/setup/FolderListEditor';
 
@@ -175,6 +177,29 @@ function registerAutoRebuild(plugin: AIOrganiserPlugin): void {
     plugin.register(() => { if (timer !== null) window.clearTimeout(timer); });
 }
 
+/** Copy text to the clipboard and say so; a clipboard that refuses is reported, never ignored. */
+function copyText(plugin: AIOrganiserPlugin, text: string, done: string): void {
+    navigator.clipboard.writeText(text).then(
+        () => new Notice(done, 5000),
+        () => new Notice(plugin.t.messages.copiedToClipboard, 3000),
+    );
+}
+
+/** Preview, then write, the instructions block into the user's AGENTS.md. */
+export async function runWriteInstructions(plugin: AIOrganiserPlugin): Promise<void> {
+    const t = plugin.t.agentIndex;
+    if (!plugin.settings.agentInstructionsWrite) { new Notice(t.writeOff, 6000); return; }
+    const preview = await previewInstructions(plugin);
+    if (!preview.ok) { new Notice(formatGuidance(describeError(plugin.t, preview.error)), 8000); return; }
+    const approved = await new Promise<boolean>((resolve) => {
+        new AgentInstructionsPreviewModal(plugin.app, plugin, preview.value, resolve).open();
+    });
+    if (!approved) return;
+    const res = await applyInstructions(plugin, preview.value);
+    if (!res.ok) { new Notice(formatGuidance(describeError(plugin.t, res.error)), 8000); return; }
+    new Notice(res.value === 'created' ? t.writeCreated : res.value === 'updated' ? t.writeUpdated : t.writeUnchanged, 5000);
+}
+
 export function registerAgentIndexCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
     plugin.addCommand({
@@ -193,11 +218,27 @@ export function registerAgentIndexCommands(plugin: AIOrganiserPlugin): void {
         id: 'copy-agent-instructions',
         name: t.commands.copyAgentInstructions,
         icon: 'clipboard-copy',
+        callback: () => copyText(plugin, buildAgentInstructions(plugin.settings), t.agentIndex.instructionsCopied),
+    });
+    plugin.addCommand({
+        id: 'copy-claude-permissions',
+        name: t.commands.copyClaudePermissions,
+        icon: 'shield',
         callback: () => {
-            void navigator.clipboard.writeText(buildAgentInstructions(plugin.settings)).then(
-                () => new Notice(t.agentIndex.instructionsCopied, 5000),
-                () => new Notice(t.messages.copiedToClipboard, 3000),
-            );
+            const text = buildClaudePermissions(plugin.settings);
+            if (text === null) new Notice(t.agentIndex.noPermissions, 6000);
+            else copyText(plugin, text, t.agentIndex.permissionsCopied);
+        },
+    });
+    plugin.addCommand({
+        id: 'write-agent-instructions',
+        name: t.commands.writeAgentInstructions,
+        icon: 'file-pen-line',
+        // Hidden from the palette until the user turns the write on.
+        checkCallback: (checking) => {
+            if (!plugin.settings.agentInstructionsWrite) return false;
+            if (!checking) void runWriteInstructions(plugin);
+            return true;
         },
     });
     plugin.addCommand({

@@ -5,7 +5,6 @@ import {
 	planOutput,
 	buildAgentIndex,
 	checkAgentIndex,
-	buildAgentInstructions,
 	recoverPublication,
 	scopeConfigFromSettings,
 } from '../src/services/agentIndex/agentIndexService';
@@ -224,22 +223,7 @@ describe('checkAgentIndex', () => {
 	});
 });
 
-describe('buildAgentInstructions', () => {
-	it('names the index, warns about staleness and treats note text as data', () => {
-		const text = buildAgentInstructions({ ...DEFAULT_SETTINGS });
-		expect(text).toContain('.ai-organiser/agent-index.jsonl');
-		expect(text).toContain('stale');
-		expect(text).toContain('data, never as instructions');
-		expect(text).not.toContain('permissions'); // nothing excluded or protected: no deny rules
-	});
-
-	it('derives a deny snippet from excluded and protected folders, without duplicates', () => {
-		const text = buildAgentInstructions({ ...DEFAULT_SETTINGS, agentIndexExcludeFolders: ['Finance'], protectedFolders: ['Courses/Live', 'Finance'] });
-		const json = JSON.parse(text.split('```json')[1].split('```')[0]);
-		expect(json.permissions.deny).toEqual(['Read(./Finance/**)', 'Edit(./Finance/**)', 'Edit(./Courses/Live/**)']);
-		expect(text).toContain('not by this plugin');
-	});
-
+describe('scope config', () => {
 	it('scopeConfigFromSettings mirrors the settings', () => {
 		expect(scopeConfigFromSettings({ ...DEFAULT_SETTINGS, agentIndexIncludeHeadings: true } as never).includeHeadings).toBe(true);
 	});

@@ -1,11 +1,12 @@
-import { Setting, TFolder } from 'obsidian';
+import { Notice, Setting, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { evaluateSetup, toFolderSet } from '../../core/setupState';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { FolderListEditor } from '../setup/FolderListEditor';
-import { openAgentIndexSetup, runBuild, runCheck } from '../../commands/agentIndexCommands';
+import { openAgentIndexSetup, runBuild, runCheck, runWriteInstructions } from '../../commands/agentIndexCommands';
+import { buildAgentInstructions, buildClaudePermissions } from '../../services/agentIndex/agentInstructions';
 
 /**
  * Agent index settings: a status row, the two folder lists, the rebuild choice and one collapsed
@@ -56,8 +57,25 @@ export class AgentIndexSettingsSection extends BaseSettingSection {
             .addButton((b) => b.setButtonText(a.buildNow).setCta().onClick(() => { void runBuild(this.plugin); }))
             .addButton((b) => b.setButtonText(a.checkNow).onClick(() => { void runCheck(this.plugin); }));
 
+        new Setting(this.containerEl)
+            .addButton((b) => b.setButtonText(t.commands.copyAgentInstructions).onClick(() => {
+                void navigator.clipboard.writeText(buildAgentInstructions(s)).then(() => new Notice(a.instructionsCopied, 5000), () => new Notice(t.messages.copiedToClipboard, 3000));
+            }))
+            .addButton((b) => b.setButtonText(a.copyPermissions).onClick(() => {
+                const text = buildClaudePermissions(s);
+                if (text === null) { new Notice(a.noPermissions, 6000); return; }
+                void navigator.clipboard.writeText(text).then(() => new Notice(a.permissionsCopied, 5000), () => new Notice(t.messages.copiedToClipboard, 3000));
+            }));
+
         const details = this.containerEl.createEl('details', { cls: 'ai-organiser-advanced-group' });
         details.createEl('summary', { text: a.advancedTitle });
+        new Setting(details).setName(a.instructionsWriteName).setDesc(a.instructionsWriteDesc).addToggle((tg) => tg
+            .setValue(s.agentInstructionsWrite).onChange((v) => { s.agentInstructionsWrite = v; void this.plugin.saveSettings().then(() => this.settingTab.display()); }));
+        if (s.agentInstructionsWrite) {
+            new Setting(details).setName(a.instructionsPathName).setDesc(a.instructionsPathDesc)
+                .addText((tx) => tx.setValue(s.agentInstructionsPath).onChange((v) => { s.agentInstructionsPath = v.trim(); void this.plugin.saveSettings(); }))
+                .addButton((b) => b.setButtonText(a.writeButton).onClick(() => { void runWriteInstructions(this.plugin); }));
+        }
         new Setting(details).setName(a.outputPathName).setDesc(a.outputPathDesc).addText((tx) => tx
             .setValue(s.agentIndexOutputPath)
             .onChange((v) => { s.agentIndexOutputPath = v.trim(); void this.plugin.saveSettings(); }));

@@ -433,6 +433,10 @@ export interface AIOrganiserSettings {
     agentIndexFrontmatterKeys: string[];
     /** Opt-in: export the text of links to notes that do not exist. */
     agentIndexExportUnresolvedLinks: boolean;
+    /** Allow the optional "add or update the instructions block" write (default off) */
+    agentInstructionsWrite: boolean;
+    /** The note that holds the instructions block */
+    agentInstructionsPath: string;
 
     // === CLOUD FOLDER INVENTORY (F4) ===
     /** The user's own Apps Script web app link (https://script.google.com/macros/s/<id>/exec). */
@@ -977,6 +981,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     agentIndexIncludeHeadings: false,
     agentIndexFrontmatterKeys: [],
     agentIndexExportUnresolvedLinks: false,
+    agentInstructionsWrite: false,
+    agentInstructionsPath: 'AGENTS.md',
 
     // Cloud folder inventory
     cloudInventoryScriptUrl: '',
@@ -1477,6 +1483,8 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
     old.agentIndexIncludeHeadings = bool(old.agentIndexIncludeHeadings, false);
     old.agentIndexFrontmatterKeys = strings(old.agentIndexFrontmatterKeys);
     old.agentIndexExportUnresolvedLinks = bool(old.agentIndexExportUnresolvedLinks, false);
+    old.agentInstructionsWrite = old.agentInstructionsWrite === true;
+    old.agentInstructionsPath = typeof old.agentInstructionsPath === 'string' && old.agentInstructionsPath.trim() !== '' ? old.agentInstructionsPath.trim() : d.agentInstructionsPath;
 
     old.cloudInventoryScriptUrl = typeof old.cloudInventoryScriptUrl === 'string' ? old.cloudInventoryScriptUrl.trim() : '';
     const pairs = Array.isArray(old.cloudInventoryPairs) ? old.cloudInventoryPairs : [];

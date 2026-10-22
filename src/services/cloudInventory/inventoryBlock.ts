@@ -15,8 +15,8 @@
  *  - The same listing renders to the same bytes. The block header keeps `hash`, `status` and
  *    `listed`; `listed` stays unchanged while the content hash does.
  */
-import { Result, ok, err } from '../../core/result';
-import { endsInOpenFence, nonBodyLines } from '../../utils/markdownRegions';
+import type { Result } from '../../core/result';
+import { findMarkedBlock, replaceMarkedBlock } from '../../utils/ownedBlock';
 
 export type Completeness = 'complete' | 'truncated';
 
@@ -162,43 +162,10 @@ export interface OwnedBlock {
  * duplicated, missing one half, out of order or nested: do not write.
  */
 export function findOwnedBlock(text: string, pairId: string, folderId: string): Result<OwnedBlock | null> {
-    const start = startMarker(pairId, folderId);
-    const end = endMarker(pairId, folderId);
-    const starts: number[] = [];
-    const ends: number[] = [];
-    // Search a copy with fenced code and frontmatter blanked out (same offsets), so a marker shown as
-    // an example in a code block is never mistaken for, or replaced as, a managed block.
-    const lines = text.split('\n');
-    const hidden = nonBodyLines(lines);
-    const visible = lines.map((l, i) => (hidden[i] ? l.replace(/[^\r]/g, ' ') : l)).join('\n');
-    // A marker is a managed-block marker only when it fills its line; the same text inside a sentence is prose.
-    const wholeLine = (at: number, marker: string): boolean => {
-        const before = at === 0 ? '\n' : visible[at - 1];
-        const after = visible[at + marker.length] ?? '\n';
-        return before === '\n' && (after === '\n' || after === '\r');
-    };
-    for (let i = visible.indexOf(start); i !== -1; i = visible.indexOf(start, i + start.length)) if (wholeLine(i, start)) starts.push(i);
-    for (let i = visible.indexOf(end); i !== -1; i = visible.indexOf(end, i + end.length)) if (wholeLine(i, end)) ends.push(i);
-    if (starts.length === 0 && ends.length === 0) return ok(null);
-    if (starts.length !== 1 || ends.length !== 1) return err('marker-conflict');
-    if (ends[0] < starts[0]) return err('marker-conflict');
-    // A start marker for ANY pair/folder inside this block means nesting.
-    const inner = visible.slice(starts[0] + start.length, ends[0]);
-    if (inner.includes(START_PREFIX) || inner.includes(END_PREFIX)) return err('marker-conflict');
-    const stop = ends[0] + end.length;
-    return ok({ start: starts[0], end: stop, text: text.slice(starts[0], stop) });
+    return findMarkedBlock(text, { start: startMarker(pairId, folderId), end: endMarker(pairId, folderId), nestedPrefixes: [START_PREFIX, END_PREFIX] });
 }
 
 /** Replace this pair's block, or append it. Returns the new note text. */
 export function replaceBlock(text: string, block: string, pairId: string, folderId: string): Result<string> {
-    const found = findOwnedBlock(text, pairId, folderId);
-    if (!found.ok) return found;
-    if (found.value === null) {
-        // Appending after an unclosed code fence would put the block inside the example, where it can
-        // never be found again: refuse and let the user fix the note.
-        if (endsInOpenFence(text.split('\n'))) return err('marker-conflict');
-        const body = text.replace(/\s+$/, '');
-        return ok(`${body === '' ? '' : body + '\n\n'}${block}\n`);
-    }
-    return ok(text.slice(0, found.value.start) + block + text.slice(found.value.end));
+    return replaceMarkedBlock(text, block, { start: startMarker(pairId, folderId), end: endMarker(pairId, folderId), nestedPrefixes: [START_PREFIX, END_PREFIX] });
 }

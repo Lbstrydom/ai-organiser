@@ -40,7 +40,7 @@ describe('agent index off path', () => {
 		expect(plugin.app.vault.on).not.toHaveBeenCalled();
 	});
 
-	it('registers its four commands when on', () => {
+	it('registers its commands when on', () => {
 		const ids: string[] = [];
 		const plugin = {
 			settings: { ...structuredClone(DEFAULT_SETTINGS), agentIndexAutoRebuild: 'off' },
@@ -51,7 +51,7 @@ describe('agent index off path', () => {
 			t: { commands: {}, agentIndex: {} },
 		};
 		registerAgentIndexCommands(plugin as never);
-		expect(ids).toEqual(['build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'setup-agent-index']);
+		expect(ids).toEqual(['build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'copy-claude-permissions', 'write-agent-instructions', 'setup-agent-index']);
 	});
 
 	it('ships inert defaults that a migration leaves unchanged', () => {
@@ -60,6 +60,7 @@ describe('agent index off path', () => {
 		expect(DEFAULT_SETTINGS.agentIndexIncludeHeadings).toBe(false);
 		expect(DEFAULT_SETTINGS.agentIndexIncludeAliases).toBe(false);
 		expect(DEFAULT_SETTINGS.agentIndexExportUnresolvedLinks).toBe(false);
+		expect(DEFAULT_SETTINGS.agentInstructionsWrite).toBe(false);
 		const migrated = migrateOldSettings(structuredClone(DEFAULT_SETTINGS) as never) as Record<string, unknown>;
 		for (const key of Object.keys(DEFAULT_SETTINGS).filter((k) => k.startsWith('agentIndex'))) {
 			expect(migrated[key], key).toEqual((DEFAULT_SETTINGS as unknown as Record<string, unknown>)[key]);

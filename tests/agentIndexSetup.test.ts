@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { evaluateSetup, toFolderSet } from '../src/core/setupState';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
-import { planOutput, buildAgentInstructions } from '../src/services/agentIndex/agentIndexService';
+import { planOutput } from '../src/services/agentIndex/agentIndexService';
+import { buildAgentInstructions } from '../src/services/agentIndex/agentInstructions';
 
 describe('setup state for the agent index', () => {
 	const base = { ...structuredClone(DEFAULT_SETTINGS) } as Record<string, unknown>;
