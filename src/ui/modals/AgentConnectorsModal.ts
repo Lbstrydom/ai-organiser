@@ -15,13 +15,17 @@ import {
 } from '../../services/agentConnectors/connectorGuides';
 import { checkNodeInstalled, nodeMeetsMinimum, openTerminalInVault, type Spawner } from '../../services/agentConnectors/localTools';
 import { OperationController } from '../../services/agentConnectors/operationController';
-import { vaultBasePath } from '../../services/agentConnectors/connectorRuntime';
+import { connectorFolderPath, vaultBasePath } from '../../services/agentConnectors/connectorRuntime';
+import { absoluteGeneratedPath, buildCodexConfig, CONNECTOR_SERVER_FILE } from '../../services/agentConnectors/connectorBundle';
+import { saveConnectorFiles, type ConnectorFilePaths } from '../../services/agentConnectors/connectorFiles';
+import { runConnectorSelfTest, SELF_TEST_LIMIT_MS, type SelfTestResult } from '../../services/agentConnectors/connectorSelfTest';
 import { desktopRequire } from '../../utils/desktopRequire';
 import { logger } from '../../utils/logger';
 
-type RouteTab = 'claude' | 'codex' | 'cli' | 'chat';
+type RouteTab = 'readonly' | 'claude' | 'codex' | 'cli' | 'chat';
 
 const ROUTE_FOR_TAB: Record<RouteTab, ConnectorRoute> = {
+    readonly: 'read-only-connector',
     claude: 'claude-desktop-filesystem',
     codex: 'codex-agents-md',
     cli: 'command-line-agent',
@@ -46,7 +50,7 @@ function nodeSpawner(): Spawner | null {
  * plugin's own files. All action buttons go through one controller so they behave the same way.
  */
 export class AgentConnectorsModal extends Modal {
-    private tab: RouteTab = 'claude';
+    private tab: RouteTab = 'readonly';
     private readonly ops = new OperationController({ set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) });
     private stopListening: (() => void) | null = null;
 
@@ -75,7 +79,7 @@ export class AgentConnectorsModal extends Modal {
         el.createEl('p', { text: Platform.isMobile ? t.needsDesktop : t.intro });
 
         const tabs = el.createDiv({ cls: 'ai-organiser-connectors-tabs', attr: { role: 'tablist' } });
-        const all: Array<[RouteTab, string]> = [['claude', t.routeClaude], ['codex', t.routeCodex], ['cli', t.routeCli], ['chat', t.routeChat]];
+        const all: Array<[RouteTab, string]> = [['readonly', t.routeReadOnly], ['claude', t.routeClaude], ['codex', t.routeCodex], ['cli', t.routeCli], ['chat', t.routeChat]];
         for (const [id, label] of all) {
             if (Platform.isMobile && id !== 'chat') continue;
             const b = tabs.createEl('button', { text: label, attr: { role: 'tab', 'aria-selected': String(this.tab === id) } });
@@ -84,7 +88,8 @@ export class AgentConnectorsModal extends Modal {
         }
 
         this.renderClaims(el, this.tab);
-        if (this.tab === 'claude') this.renderClaude(el);
+        if (this.tab === 'readonly') this.renderReadOnly(el);
+        else if (this.tab === 'claude') this.renderClaude(el);
         else if (this.tab === 'codex') this.renderCodex(el);
         else if (this.tab === 'cli') this.renderCli(el);
         else this.renderChat(el);
@@ -95,6 +100,7 @@ export class AgentConnectorsModal extends Modal {
     private renderClaims(el: HTMLElement, tab: RouteTab): void {
         const t = this.plugin.t.agentConnectors;
         const text: Record<RouteTab, [string, string, string]> = {
+            readonly: [t.readOnlyEnforced, t.readOnlyAdvised, t.readOnlyNotControlled],
             claude: [t.claudeEnforced, t.claudeAdvised, t.claudeNotControlled],
             codex: [t.codexEnforced, t.codexAdvised, t.codexNotControlled],
             cli: [t.cliEnforced, t.cliAdvised, t.cliNotControlled],
@@ -141,12 +147,106 @@ export class AgentConnectorsModal extends Modal {
         for (const [label, href] of links) this.link(el, label, href);
     }
 
+    // ─── Read-only connector ────────────────────────────────────────────────
+
+    private renderReadOnly(el: HTMLElement): void {
+        const t = this.plugin.t.agentConnectors;
+        const s = this.plugin.settings;
+        const platform = currentPlatform();
+        if (s.agentConnectorScopeStale) this.failure(el, 'connector-scope-write-failed');
+
+        el.createEl('h4', { text: '1' });
+        el.createEl('p', { text: t.roStepFolder });
+        const folderRow = el.createDiv();
+        const input = folderRow.createEl('input', { type: 'text', value: s.agentConnectorFolder, attr: { placeholder: t.folderPlaceholder, 'aria-label': t.folderName } });
+        const save = folderRow.createEl('button', { text: t.saveFolder });
+        save.addEventListener('click', () => {
+            s.agentConnectorFolder = input.value.trim();
+            void this.plugin.saveSettings().then(() => this.render());
+        });
+        const folder = connectorFolderPath(s.agentConnectorFolder, s.protectedFolders);
+        if (!folder.ok && s.agentConnectorFolder.trim() !== '') this.failure(folderRow, folder.error);
+
+        el.createEl('h4', { text: '2' });
+        el.createEl('p', { text: t.roStepCreate });
+        const created = this.ops.state<ConnectorFilePaths>('files');
+        const createRow = el.createDiv();
+        const create = createRow.createEl('button', { text: created.status === 'running' ? t.creatingFiles : t.createFiles, cls: 'mod-cta' });
+        create.disabled = !folder.ok || this.ops.isBusy('files', 'writes');
+        create.addEventListener('click', () => {
+            void this.ops.run('files', () => saveConnectorFiles(this.plugin, this.plugin.manifest.version), { group: 'writes', limitMs: 30_000, timeoutError: 'write-failed' })
+                .catch((e: unknown) => logger.error('Connector', 'Saving files failed', e));
+        });
+        if (created.status === 'failed') this.failure(createRow, created.error);
+
+        const base = vaultBasePath(this.plugin);
+        if (created.status === 'done' && base.ok) {
+            createRow.createEl('p', { text: t.filesDone.replace('{bundle}', created.value.bundle).replace('{server}', created.value.server), cls: 'setting-item-description' });
+            this.renderReadOnlyInstall(el, created.value, base.value, platform);
+        } else if (created.status !== 'done') {
+            el.createEl('p', { text: t.roStop, cls: 'setting-item-description' });
+        }
+        this.docs(el, [[t.docClaudeServers, CONNECTOR_DOCS.claudeDesktopExtensions], [t.docCodexMcp, CONNECTOR_DOCS.codexMcp], [t.docNode, CONNECTOR_DOCS.nodejs]]);
+    }
+
+    private renderReadOnlyInstall(el: HTMLElement, files: ConnectorFilePaths, vaultPath: string, platform: ConnectorPlatform): void {
+        const t = this.plugin.t.agentConnectors;
+        const separator = platform === 'win32' ? '\\' : '/';
+        const folder = files.server.slice(0, files.server.lastIndexOf('/'));
+
+        el.createEl('h4', { text: '3' });
+        el.createEl('p', { text: t.roStepClaude });
+        el.createEl('p', { text: t.roVaultFolder });
+        this.codeBlock(el, vaultPath);
+        this.copy(vaultPath, t.copyLine, el);
+        el.createEl('p', { text: t.roClaudeNode, cls: 'setting-item-description' });
+        el.createEl('p', { text: t.roClaudeConfirm });
+        this.codeBlock(el, t.testPrompt);
+        this.copy(t.testPrompt, t.copyPrompt, el);
+        el.createEl('p', { text: t.roClaudeAdmin, cls: 'setting-item-description' });
+
+        el.createEl('h4', { text: '4' });
+        el.createEl('p', { text: t.roStepCodex });
+        const serverAbs = absoluteGeneratedPath(vaultPath, folder, CONNECTOR_SERVER_FILE, separator);
+        const toml = buildCodexConfig(serverAbs, vaultPath);
+        if (toml.ok) {
+            this.codeBlock(el, toml.value);
+            this.copy(toml.value, t.copyToml, el);
+        } else {
+            this.failure(el, toml.error);
+        }
+        this.renderNodeCheck(el);
+
+        el.createEl('h4', { text: '5' });
+        el.createEl('p', { text: t.roStepTest });
+        this.renderConnectorTest(el, serverAbs, vaultPath);
+        el.createEl('p', { text: t.roStop, cls: 'setting-item-description' });
+    }
+
+    private renderConnectorTest(el: HTMLElement, serverAbs: string, vaultPath: string): void {
+        const t = this.plugin.t.agentConnectors;
+        const state = this.ops.state<SelfTestResult>('selftest');
+        const row = el.createDiv();
+        const b = row.createEl('button', { text: state.status === 'running' ? t.testing : t.testConnector });
+        b.disabled = this.ops.isBusy('selftest');
+        b.addEventListener('click', () => {
+            const spawn = nodeSpawner();
+            void this.ops.run('selftest', () => {
+                if (!spawn) return Promise.resolve({ ok: false as const, error: 'connector-needs-desktop' });
+                return runConnectorSelfTest(spawn, serverAbs, vaultPath, { set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) });
+            }, { limitMs: SELF_TEST_LIMIT_MS + 2000, timeoutError: 'connector-test-failed' }).catch((e: unknown) => logger.error('Connector', 'Test failed', e));
+        });
+        if (state.status === 'done') row.createEl('p', { text: t.testPassed.replace('{count}', String(state.value.topLevelItems)) });
+        else if (state.status === 'failed') this.failure(row, state.error);
+    }
+
     // ─── Claude Desktop ─────────────────────────────────────────────────────
 
     private renderClaude(el: HTMLElement): void {
         const t = this.plugin.t.agentConnectors;
         const platform = currentPlatform();
 
+        el.createEl('p', { text: t.preferReadOnly, cls: 'setting-item-description' });
         el.createEl('h4', { text: '1' });
         el.createEl('p', { text: t.claudeStepNode });
         this.renderNodeCheck(el);

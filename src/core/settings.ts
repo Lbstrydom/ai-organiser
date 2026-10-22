@@ -440,6 +440,8 @@ export interface AIOrganiserSettings {
     agentInstructionsPath: string;
     /** Where generated connector files and the chat-project export go. Empty until the person chooses; never assumed. */
     agentConnectorFolder: string;
+    /** The last attempt to publish the connector's scope failed, so existing access may be out of date */
+    agentConnectorScopeStale: boolean;
 
     // === CLOUD FOLDER INVENTORY (F4) ===
     /** The user's own Apps Script web app link (https://script.google.com/macros/s/<id>/exec). */
@@ -1004,6 +1006,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     agentInstructionsWrite: false,
     agentInstructionsPath: 'AGENTS.md',
     agentConnectorFolder: '',
+    agentConnectorScopeStale: false,
 
     // Cloud folder inventory
     cloudInventoryScriptUrl: '',
@@ -1518,6 +1521,7 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
     old.agentIndexFrontmatterKeys = strings(old.agentIndexFrontmatterKeys);
     old.agentIndexExportUnresolvedLinks = bool(old.agentIndexExportUnresolvedLinks, false);
     old.agentInstructionsWrite = old.agentInstructionsWrite === true;
+    old.agentConnectorScopeStale = old.agentConnectorScopeStale === true;
     old.agentConnectorFolder = typeof old.agentConnectorFolder === 'string' ? old.agentConnectorFolder.trim() : d.agentConnectorFolder;
     old.agentInstructionsPath = typeof old.agentInstructionsPath === 'string' && old.agentInstructionsPath.trim() !== '' ? old.agentInstructionsPath.trim() : d.agentInstructionsPath;
 

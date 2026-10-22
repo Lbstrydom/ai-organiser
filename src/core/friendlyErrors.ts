@@ -75,6 +75,8 @@ export const GUIDANCE_CODES = [
     // Agent connectors
     'connector-folder-missing',
     'connector-folder-invalid',
+    'connector-scope-write-failed',
+    'connector-test-failed',
     'connector-file-not-ours',
     'connector-needs-desktop',
     'connector-node-missing',

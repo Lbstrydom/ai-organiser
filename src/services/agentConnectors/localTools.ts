@@ -9,6 +9,7 @@ import { validateVaultPath, type ConnectorPlatform } from './connectorGuides';
 
 export interface SpawnedChild {
     stdout?: { on(event: 'data', cb: (chunk: Buffer | string) => void): void } | null;
+    stdin?: { write(data: string): unknown; end(): unknown; on?(event: 'error', cb: () => void): unknown } | null;
     on(event: 'error', cb: (e: Error) => void): void;
     on(event: 'close', cb: (code: number | null) => void): void;
     kill?(): void;

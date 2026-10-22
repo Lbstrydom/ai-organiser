@@ -295,6 +295,7 @@ Repo-wide rules that bind *every* subsystem are in
 | Subsystem | What it is | Read it when |
 |---|---|---|
 | Connect an AI app | Guides for Claude Desktop, Codex and command-line agents that state what each route enforces; a chat-project vault map built from the index scope; the plugin never edits another app's config | Changing a guide, a snippet, the export, or any claim about what is enforced |
+| Read-only connector | A dependency-free local MCP server (both protocol eras) that serves only notes inside the index scope; scope read per request and fail-closed; revocation published and verified; `.mcpb` bundle for Claude Desktop, file plus TOML for Codex | Touching the server source (**mirror any change to `isInIndexScope`**), the scope publisher, containment, or the bundle |
 
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 

@@ -47,6 +47,8 @@ import { ProviderProfile, resolveProviderProfile } from './services/providerProf
 import { NullLLMService } from './services/llm/nullLLMService';
 import { ForegroundGate } from './services/foregroundGate';
 import { UpkeepController } from './services/upkeep/upkeepRuntime';
+import { ScopePublisher } from './services/agentConnectors/connectorScope';
+import { describeError, formatGuidance } from './core/friendlyErrors';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
 import { EmbeddingQueue, GenericEmbeddingQueue } from './services/vector/embeddingQueue';
 import { PdfHandlePool } from './services/pdf/pdfHandlePool';
@@ -155,6 +157,8 @@ export default class AIOrganiserPlugin extends Plugin {
     /** The vault upkeep scheduler; created only while the feature is on */
     public upkeep: UpkeepController | null = null;
     private lastUpkeepKey = '';
+    /** Keeps the read-only connector's scope file true to the settings (created on first use) */
+    private connectorScope: ScopePublisher | null = null;
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     public newsletterSeenIds: string[] = [];
@@ -319,6 +323,7 @@ export default class AIOrganiserPlugin extends Plugin {
             this.startNewsletterScheduler();
         }
         this.syncUpkeep();
+        this.syncConnectorScope();
         this.lastNewsletterConfig = {
             // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
             enabled: isFeatureEnabled(this.settings, 'newsletter'),
@@ -1114,7 +1119,7 @@ export default class AIOrganiserPlugin extends Plugin {
         registerProtectedFolders(this);
         this.startNewsletterScheduler();
         // Vault upkeep starts once the workspace is ready, so an overdue run never slows start-up.
-        this.app.workspace.onLayoutReady(() => this.syncUpkeep());
+        this.app.workspace.onLayoutReady(() => { this.syncUpkeep(); this.syncConnectorScope(); });
 
         // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
         // a small playback-speed toolbar (0.75×…2×). Obsidian's default
@@ -1315,6 +1320,30 @@ export default class AIOrganiserPlugin extends Plugin {
         // Check on startup whether a fetch is overdue, then poll on the interval
         void this.runScheduledNewsletterFetch();
         this.newsletterFetchTimer = window.setInterval(() => void this.runScheduledNewsletterFetch(), intervalMs);
+    }
+
+    /**
+     * Publish the read-only connector's scope for the current settings (or its stop marker when the
+     * feature or the index it needs was switched off). Serialised inside the publisher; a failure is
+     * remembered and shown once, never thrown.
+     */
+    public syncConnectorScope(): void {
+        const adapter = this.app?.vault?.adapter;
+        if (!adapter) return;
+        this.connectorScope ??= new ScopePublisher({
+            adapter,
+            settings: () => this.settings,
+            now: () => new Date().toISOString(),
+            setStale: async (stale) => {
+                if (this.settings.agentConnectorScopeStale === stale) return;
+                this.settings.agentConnectorScopeStale = stale;
+                await saveSettingsData(this, this.settings);
+            },
+        });
+        const wasStale = this.settings.agentConnectorScopeStale;
+        void this.connectorScope.sync().then((res) => {
+            if (!res.ok && !wasStale) new Notice(formatGuidance(describeError(this.t, res.error)), 12000);
+        });
     }
 
     /** Create, restart or stop the vault upkeep scheduler to match the settings. Idempotent. */
