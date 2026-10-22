@@ -59,7 +59,13 @@ export async function previewInstructions(plugin: AIOrganiserPlugin): Promise<Re
     if (!path.ok) return err(path.error);
     const file = plugin.app.vault.getAbstractFileByPath(path.value);
     if (file && !(file instanceof TFile)) return err('instructions-path-invalid');
-    const current = file instanceof TFile ? await plugin.app.vault.read(file) : null;
+    let current: string | null = null;
+    try {
+        current = file instanceof TFile ? await plugin.app.vault.read(file) : null;
+    } catch (e) {
+        logger.error('AgentIndex', 'Could not read the instructions file', e);
+        return err('write-failed');
+    }
     const block = renderInstructionsBlock(s);
     const plan = planInstructions(current, block);
     if (!plan.ok) return err(plan.error === 'marker-conflict' ? 'instructions-conflict' : plan.error);
@@ -96,8 +102,9 @@ export async function applyInstructions(plugin: AIOrganiserPlugin, preview: Inst
             recompute: (latest) => {
                 const found = findMarkedBlock(latest, AGENT_MARKERS);
                 if (!found.ok) return err('instructions-conflict');
-                // The user agreed to what they saw: a block that appeared or vanished since is a new case.
+                // The user agreed to what they saw: a block that appeared, vanished or was edited since is a new case.
                 if ((found.value !== null) !== hadBlock) return err('baseline-changed');
+                if (found.value !== null && found.value.text !== preview.before) return err('baseline-changed');
                 const next = replaceMarkedBlock(latest, preview.after, AGENT_MARKERS);
                 return next.ok ? ok({ content: next.value }) : err('instructions-conflict');
             },

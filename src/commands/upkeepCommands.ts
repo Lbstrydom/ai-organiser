@@ -98,7 +98,7 @@ export function openUpkeepSetup(plugin: AIOrganiserPlugin, onDone?: () => void):
                     const box = el.createDiv({ attr: { role: 'status' } });
                     box.setText(c.previewWorking);
                     const run = await previewUpkeep(plugin, draft.tasks);
-                    box.setText(run.summary.status === 'failed' ? c.failedNotice : c.previewResult.replace('{count}', String(reviewCount(run.summary))));
+                    box.setText(!run.ok || run.value.summary.status === 'failed' ? c.failedNotice : c.previewResult.replace('{count}', String(reviewCount(run.value.summary))));
                 },
             },
         ],

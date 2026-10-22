@@ -110,6 +110,20 @@ describe('commitReview (the outbox)', () => {
 	});
 });
 
+describe('commits do not undo each other', () => {
+	it('two commits at once both survive, even if one of their saves fails', async () => {
+		const h = makePlugin();
+		const flaky = h.plugin as unknown as { saveSettings: () => Promise<void> };
+		const real = flaky.saveSettings;
+		let calls = 0;
+		flaky.saveSettings = async () => { await new Promise((r) => setTimeout(r, 2)); if (++calls === 1) throw new Error('disk full'); return real(); };
+		const [a, b] = await Promise.all([commitReview(h.plugin, input(1)), commitReview(h.plugin, input(2))]);
+		expect(a.stoppedAt).toBe('persist');
+		expect(b.error).toBeUndefined();
+		expect(h.settings.sweepApprovals.map((r) => r.runId)).toEqual([b.record.runId]); // the failed one rolled back, the other kept
+	});
+});
+
 describe('durability: the live settings only keep what was saved', () => {
 	it('puts the approvals back when the first save fails, so recovery never reads an unsaved checkpoint', async () => {
 		const h = makePlugin();

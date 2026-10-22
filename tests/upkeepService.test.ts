@@ -103,10 +103,14 @@ describe('status and announcements', () => {
 
 	it('announces a scheduled run with new proposals once, stays quiet for an unchanged backlog, and flags a failure', async () => {
 		const run = await executeTasks(config(), policy, 'scheduled', env(), ctxFor());
-		const key = proposalFingerprint(run.summary);
-		expect(shouldNotify(run.summary, '', policy)).toEqual({ notify: true, kind: 'proposals' });
-		expect(shouldNotify(run.summary, key, policy)).toEqual({ notify: false, kind: 'none' });
-		expect(shouldNotify(run.summary, '', { ...policy, notify: false })).toEqual({ notify: false, kind: 'none' });
+		const key = proposalFingerprint(run.summary, run.proposals);
+		expect(shouldNotify(run.summary, '', policy, run.proposals)).toEqual({ notify: true, kind: 'proposals' });
+		expect(shouldNotify(run.summary, key, policy, run.proposals)).toEqual({ notify: false, kind: 'none' });
+		expect(shouldNotify(run.summary, '', { ...policy, notify: false }, run.proposals)).toEqual({ notify: false, kind: 'none' });
+		// Different proposals with the same counts are a change.
+		const swapped = run.proposals.map((p) => (p.kind === 'attachment-unreferenced' ? { ...p, path: 'A/other.pdf' } : p));
+		expect(proposalFingerprint(run.summary, swapped)).not.toBe(key);
+		expect(proposalFingerprint(run.summary, [...run.proposals].reverse())).toBe(key); // order does not matter
 		const failed = await executeTasks(config(), policy, 'scheduled', env({ checkIndex: async () => err('scan-incomplete'), checkInventories: async () => err('script-network'), scanAttachments: async () => err('scan-incomplete') }), ctxFor());
 		expect(shouldNotify(failed.summary, '', policy)).toEqual({ notify: true, kind: 'failure' });
 	});

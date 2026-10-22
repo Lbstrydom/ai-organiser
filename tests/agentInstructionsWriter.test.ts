@@ -133,6 +133,22 @@ describe('preview and apply', () => {
 		expect(h2.vault.get('AGENTS.md')).toBe('created meanwhile');
 	});
 
+	it('stops when the block was edited after the preview, even though a block is still there', async () => {
+		const h = makePlugin({}, { 'AGENTS.md': `${AGENT_BLOCK_START}\nold\n${AGENT_BLOCK_END}\n` });
+		const preview = await previewInstructions(h.plugin);
+		if (!preview.ok) throw new Error(preview.error);
+		const edited = `${AGENT_BLOCK_START}\nsomeone changed this after the preview\n${AGENT_BLOCK_END}\n`;
+		h.vault.set('AGENTS.md', edited);
+		expect(await applyInstructions(h.plugin, preview.value)).toEqual({ ok: false, error: 'baseline-changed' });
+		expect(h.vault.get('AGENTS.md')).toBe(edited);
+	});
+
+	it('reports a file that cannot be read as a typed error, not a rejection', async () => {
+		const h = makePlugin({}, { 'AGENTS.md': 'x' });
+		(h.plugin as unknown as { app: { vault: { read: () => Promise<string> } } }).app.vault.read = async () => { throw new Error('denied'); };
+		expect(await previewInstructions(h.plugin)).toEqual({ ok: false, error: 'write-failed' });
+	});
+
 	it('stops when the path setting changed after the preview', async () => {
 		const h = makePlugin();
 		const preview = await previewInstructions(h.plugin);

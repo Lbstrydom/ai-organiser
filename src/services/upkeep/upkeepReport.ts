@@ -26,24 +26,36 @@ export function reportPathFor(folder: string, protectedFolders: ProtectedSource)
     return ok(path);
 }
 
+/**
+ * Dynamic text as a literal code span: Markdown and Obsidian link syntax inside a name (`[[x]].png`)
+ * stays text, and a newline cannot start a new line of the report. The fence is longer than any
+ * backtick run in the text.
+ */
+export function literal(text: string): string {
+    const flat = text.replace(/[\r\n]+/g, ' ');
+    const longest = Math.max(0, ...(flat.match(/`+/g) ?? []).map((run) => run.length));
+    const fence = '`'.repeat(longest + 1);
+    return `${fence} ${flat} ${fence}`;
+}
+
 const describe = (p: Proposal): string => {
     switch (p.kind) {
         case 'agent-index-stale': return `The agent index is out of date (${p.added} added, ${p.removed} removed, ${p.changed} changed${p.unreadable ? `, ${p.unreadable} unreadable` : ''}).`;
-        case 'agent-index-refreshed': return `The agent index was refreshed (${p.path}).`;
-        case 'inventory-differs': return `The Drive inventory differs: ${p.hubPath}`;
-        case 'attachment-unreferenced': return `Nothing links to ${p.path}.`;
-        case 'attachment-large': return `${p.path} is large (${p.referenceCount} references).`;
-        case 'attachment-duplicate': return `Identical files: ${p.paths.join(', ')}`;
-        case 'link-suggestion': return `${p.attachmentPath} may belong with ${p.notePath} (shared words: ${p.evidence.join(', ')}).`;
+        case 'agent-index-refreshed': return `The agent index was refreshed (${literal(p.path)}).`;
+        case 'inventory-differs': return `The Drive inventory differs: ${literal(p.hubPath)}`;
+        case 'attachment-unreferenced': return `Nothing links to ${literal(p.path)}.`;
+        case 'attachment-large': return `${literal(p.path)} is large (${p.referenceCount} references).`;
+        case 'attachment-duplicate': return `Identical files: ${p.paths.map(literal).join(', ')}`;
+        case 'link-suggestion': return `${literal(p.attachmentPath)} may belong with ${literal(p.notePath)} (shared words: ${p.evidence.map(literal).join(', ')}).`;
     }
 };
 
 /** Render the report text. Plain Markdown, no links, so it can never create or change a link by itself. */
 export function renderReport(summary: RunSummary, proposals: readonly Proposal[], omitted: number): string {
     const lines = [REPORT_SIGNATURE, '# Vault upkeep report', '', `Run at ${summary.startedAt} (${summary.status}).`, ''];
-    for (const outcome of summary.outcomes) lines.push(`- ${outcome.task}: ${outcome.status}${outcome.reason ? ` (${outcome.reason})` : ''}`);
+    for (const outcome of summary.outcomes) lines.push(`- ${outcome.task}: ${outcome.status}${outcome.reason ? ` (${outcome.reason.replace(/[\r\n`]+/g, ' ')})` : ''}`);
     lines.push('');
-    if (proposals.length === 0) lines.push('Nothing to review.');
+    if (proposals.length === 0) lines.push(summary.status === 'ok' ? 'Nothing to review.' : 'The run did not finish, so this list may be incomplete.');
     for (const p of proposals) lines.push(`- ${describe(p).replace(/[\r\n]+/g, ' ')}`);
     if (omitted > 0) lines.push('', `${omitted} more are not listed here.`);
     return lines.join('\n') + '\n';
@@ -57,6 +69,7 @@ export async function saveReport(plugin: AIOrganiserPlugin, text: string): Promi
     try {
         const existing = vault.getAbstractFileByPath(path.value);
         if (!existing) {
+            if (!assertWritable(plugin.settings.protectedFolders, 'create', path.value).ok) return err('protected-path');
             const slash = path.value.lastIndexOf('/');
             if (slash > 0 && !vault.getAbstractFileByPath(path.value.slice(0, slash))) await vault.createFolder(path.value.slice(0, slash));
             await vault.create(path.value, text);

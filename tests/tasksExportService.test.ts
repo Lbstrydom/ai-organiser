@@ -37,6 +37,7 @@ describe('ping, lists and script state', () => {
 		const lists = await fetchTaskLists({ url: URL_OK, secret: 'S', transport: reply({ ok: true, lists: [{ id: 'a', title: 'Inbox' }] }) });
 		expect(lists).toEqual({ ok: true, value: [{ id: 'a', title: 'Inbox' }] });
 		expect(await fetchTaskLists({ url: URL_OK, secret: 'S', transport: reply({ ok: true, lists: [{ id: 5 }] }) })).toEqual({ ok: false, error: 'script-bad-response' });
+		expect(await fetchTaskLists({ url: URL_OK, secret: 'S', transport: reply({ ok: true, lists: [null] }) })).toEqual({ ok: false, error: 'script-bad-response' });
 		expect(await fetchTaskLists({ url: URL_OK, secret: 'S', transport: reply({ ok: false, error: { code: 'tasks-service-off' } }) })).toEqual({ ok: false, error: 'script-tasks-off' });
 	});
 
@@ -131,6 +132,34 @@ describe('exportApproved', () => {
 		const out = await exportApproved(record(2), deps({ transport }));
 		expect(out.record.tasks.map((t) => [t.state, t.error])).toEqual([['failed', 'conflict'], ['failed', 'export-failed']]);
 		expect(out.summary.failed).toBe(2);
+	});
+
+	it('refuses an acknowledgement for a task that was not in the batch, or a repeated one', async () => {
+		const stray = reply({ ok: true, results: [{ exportId: id(0), status: 'created' }, { exportId: id(9), status: 'created' }] });
+		const out = await exportApproved(record(1), deps({ transport: stray }));
+		expect(out.summary.error).toBe('script-bad-response');
+		expect(out.record.tasks[0].state).toBe('reported'); // nothing was applied from an answer that did not match
+		const twice = reply({ ok: true, results: [{ exportId: id(0), status: 'created' }, { exportId: id(0), status: 'created' }] });
+		expect((await exportApproved(record(1), deps({ transport: twice }))).summary.error).toBe('script-bad-response');
+		expect((await exportApproved(record(1), deps({ transport: reply({ ok: true, results: [null] }) }))).summary.error).toBe('script-bad-response');
+	});
+
+	it('checks each task against its source right before its own batch, not once at the start', async () => {
+		const order: string[] = [];
+		const transport: ScriptTransport = async ({ body }) => {
+			const req = JSON.parse(body);
+			order.push(`send:${req.tasks.length}`);
+			return { status: 200, text: JSON.stringify({ ok: true, results: req.tasks.map((t: { exportId: string }) => ({ exportId: t.exportId, status: 'created' })) }) };
+		};
+		const checkSource = async (task: { id: string }): Promise<SourceCheck> => {
+			order.push(`check:${task.id.slice(4, 12)}`);
+			// After the first batch went out, a later task's note becomes excluded.
+			return task.id === id(30) && order.some((o) => o.startsWith('send')) ? 'excluded' : 'ok';
+		};
+		const out = await exportApproved(record(40), deps({ transport, checkSource }));
+		expect(out.summary.blocked).toEqual([{ id: id(30), reason: 'excluded' }]);
+		expect(out.summary.exported).toBe(39);
+		expect(order.indexOf('send:25')).toBeLessThan(order.indexOf(`check:${id(30).slice(4, 12)}`)); // checked after the first send
 	});
 
 	it('stops, and says why, when the record cannot be saved', async () => {

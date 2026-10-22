@@ -301,23 +301,34 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
                 inbox: s.sweepInboxFolders, excludedFolders: s.sweepExcludedFolders, tags: s.sweepExcludedTags, props: s.sweepExcludedProperties,
                 terms: s.sweepExcludedTerms, nothing: s.sweepNothingToExclude, report: s.sweepReportPath, done: s.featureSetupCompletedAt['inbox-sweep'],
             };
-            s.sweepInboxFolders = draft.inbox;
-            s.sweepExcludedFolders = draft.excludedFolders;
-            s.sweepExcludedTags = lines(draft.tags).map((x) => x.replace(/^#/, ''));
-            s.sweepExcludedProperties = lines(draft.properties);
-            s.sweepExcludedTerms = lines(draft.terms);
-            s.sweepNothingToExclude = exclusionCount() === 0 && draft.nothing;
-            s.sweepReportPath = path.value;
-            s.featureSetupCompletedAt['inbox-sweep'] = new Date().toISOString();
+            const set = {
+                inbox: draft.inbox, excludedFolders: draft.excludedFolders,
+                tags: lines(draft.tags).map((x) => x.replace(/^#/, '')), props: lines(draft.properties), terms: lines(draft.terms),
+                nothing: exclusionCount() === 0 && draft.nothing, report: path.value, done: new Date().toISOString(),
+            };
+            s.sweepInboxFolders = set.inbox;
+            s.sweepExcludedFolders = set.excludedFolders;
+            s.sweepExcludedTags = set.tags;
+            s.sweepExcludedProperties = set.props;
+            s.sweepExcludedTerms = set.terms;
+            s.sweepNothingToExclude = set.nothing;
+            s.sweepReportPath = set.report;
+            s.featureSetupCompletedAt['inbox-sweep'] = set.done;
             try {
                 await plugin.saveSettings();
             } catch (e) {
-                // Not saved: put the live settings back so they never differ from what is on disk.
+                // Not saved: put back only what THIS setup set, and only if nothing else (a rename) changed it since.
                 logger.error('Sweep', 'Could not save the sweep setup', e);
-                s.sweepInboxFolders = before.inbox; s.sweepExcludedFolders = before.excludedFolders; s.sweepExcludedTags = before.tags;
-                s.sweepExcludedProperties = before.props; s.sweepExcludedTerms = before.terms; s.sweepNothingToExclude = before.nothing;
-                s.sweepReportPath = before.report;
-                if (before.done === undefined) delete s.featureSetupCompletedAt['inbox-sweep']; else s.featureSetupCompletedAt['inbox-sweep'] = before.done;
+                if (s.sweepInboxFolders === set.inbox) s.sweepInboxFolders = before.inbox;
+                if (s.sweepExcludedFolders === set.excludedFolders) s.sweepExcludedFolders = before.excludedFolders;
+                if (s.sweepExcludedTags === set.tags) s.sweepExcludedTags = before.tags;
+                if (s.sweepExcludedProperties === set.props) s.sweepExcludedProperties = before.props;
+                if (s.sweepExcludedTerms === set.terms) s.sweepExcludedTerms = before.terms;
+                if (s.sweepNothingToExclude === set.nothing) s.sweepNothingToExclude = before.nothing;
+                if (s.sweepReportPath === set.report) s.sweepReportPath = before.report;
+                if (s.featureSetupCompletedAt['inbox-sweep'] === set.done) {
+                    if (before.done === undefined) delete s.featureSetupCompletedAt['inbox-sweep']; else s.featureSetupCompletedAt['inbox-sweep'] = before.done;
+                }
                 return err('write-failed');
             }
             onDone?.();
@@ -467,7 +478,8 @@ function registerRenameTracking(plugin: AIOrganiserPlugin): void {
         const moved = (f: string): string => (isInsideOrEqual(normalisePath(f), oldNorm) ? normalisePath(file.path) + normalisePath(f).slice(oldNorm.length) : f);
         const inbox = s.sweepInboxFolders.map(moved);
         const excluded = s.sweepExcludedFolders.map(moved);
-        const reportMoved = normalisePath(s.sweepReportPath) === oldNorm;
+        const report = moved(s.sweepReportPath);
+        const reportMoved = report !== s.sweepReportPath;
         // Every rename-sensitive setting is looked at on its own before deciding nothing changed.
         const changed = ledger.changed || approvals.changed || reportMoved
             || inbox.some((f, i) => f !== s.sweepInboxFolders[i]) || excluded.some((f, i) => f !== s.sweepExcludedFolders[i]);
@@ -477,7 +489,7 @@ function registerRenameTracking(plugin: AIOrganiserPlugin): void {
         s.sweepApprovals = approvals.records;
         s.sweepInboxFolders = inbox;
         s.sweepExcludedFolders = excluded;
-        if (reportMoved) s.sweepReportPath = file.path;
+        if (reportMoved) s.sweepReportPath = report;
         void plugin.saveSettings().catch((e: unknown) => logger.error('Sweep', 'Could not save a renamed sweep path', e));
     }));
 }

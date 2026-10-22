@@ -82,6 +82,8 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
     const hash = deps.crypto.createHash('sha256');
     let size = 0;
     let created = false;
+    /** Identity of the file this call created, so cleanup never removes something else at the same path */
+    let ownIno: number | bigint | null = null;
     let out: ReturnType<typeof deps.fs.createWriteStream> | null = null;
     try {
         out = deps.fs.createWriteStream(dest, { flags: 'wx' });
@@ -90,7 +92,10 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
         await new Promise<void>((resolve, reject) => {
             const onAbort = (): void => { input.destroy(new Error('cancelled')); };
             options.signal?.addEventListener('abort', onAbort, { once: true });
-            target.on('open', () => { created = true; });
+            target.on('open', (fd: number) => {
+                created = true;
+                deps.fs.fstat(fd, (e, st) => { if (!e) ownIno = st.ino; });
+            });
             input.on('data', (chunk: string | Buffer) => {
                 hash.update(chunk);
                 size += chunk.length;
@@ -112,7 +117,11 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
             const stream = out;
             await new Promise<void>((resolve) => { const t = window.setTimeout(resolve, 2000); stream.once('close', () => { window.clearTimeout(t); resolve(); }); stream.destroy(); });
         }
-        if (created) await deps.fs.promises.unlink(dest).catch(() => undefined);
+        if (created) {
+            // Only if the path still names the file we made (when the identity is known).
+            const st = await deps.fs.promises.lstat(dest).catch(() => null);
+            if (st && (ownIno === null || st.ino === ownIno || st.ino === 0)) await deps.fs.promises.unlink(dest).catch(() => undefined);
+        }
         if (options.signal?.aborted) return err('cancelled');
         return err((e as NodeJS.ErrnoException).code === 'EEXIST' ? 'dest-exists' : 'copy-failed');
     }

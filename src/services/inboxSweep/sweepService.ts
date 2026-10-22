@@ -100,17 +100,22 @@ export async function runSweep(deps: SweepDeps, options: SweepOptions): Promise<
         if (!judged.result.allowed) { out.excluded[judged.result.reason] = (out.excluded[judged.result.reason] ?? 0) + 1; continue; }
         if (isSwept(deps.ledger(), path, judged.hash)) { out.skippedSwept++; continue; }
 
-        // Immediately before the call: the policy and the path must be what they were when it was judged.
-        let guarded: GuardedSnapshot = judged.result.snapshot;
-        const { policy, revision } = await coherentPolicy(deps);
-        const here = deps.currentPath ? deps.currentPath(path) : path;
-        // Judged against a policy that is identical now and when its revision was computed.
-        if (!here || JSON.stringify(deps.policy()) !== JSON.stringify(policy) || !stillAllowed(guarded, policy, revision, here)) {
+        // Immediately before the call the policy and the path must be what they were when the note was
+        // judged. A snapshot that fails this is captured and judged again, and the NEW snapshot must pass
+        // the same check before anything is sent: no model call without a passing pre-call validation.
+        let guarded: GuardedSnapshot | null = judged.result.snapshot;
+        let verified = false;
+        for (let attempt = 0; attempt < 3 && guarded && !verified; attempt++) {
+            const { policy, revision } = await coherentPolicy(deps);
+            const here = deps.currentPath ? deps.currentPath(guarded.path) : guarded.path;
+            if (here && JSON.stringify(deps.policy()) === JSON.stringify(policy) && stillAllowed(guarded, policy, revision, here)) { verified = true; break; }
             judged = await capture(deps, here ?? path);
-            if (!judged) { out.failed++; continue; }
-            if (!judged.result.allowed) { out.excluded[judged.result.reason] = (out.excluded[judged.result.reason] ?? 0) + 1; continue; }
+            if (!judged) { out.failed++; guarded = null; break; }
+            if (!judged.result.allowed) { out.excluded[judged.result.reason] = (out.excluded[judged.result.reason] ?? 0) + 1; guarded = null; break; }
             guarded = judged.result.snapshot;
         }
+        if (!guarded) continue;
+        if (!verified) { out.excluded.unknown = (out.excluded.unknown ?? 0) + 1; continue; }
 
         const { truncated } = promptText(guarded, options.maxChars);
         const answer = await deps.complete(buildSweepPrompt(guarded, options.maxChars), options.signal);

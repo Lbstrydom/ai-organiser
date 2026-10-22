@@ -8,7 +8,7 @@ vi.mock('../src/services/noteEdit/applyNoteEdit', () => ({
 	},
 }));
 
-import { REPORT_FILE_NAME, REPORT_SIGNATURE, renderReport, reportPathFor, saveReport } from '../src/services/upkeep/upkeepReport';
+import { REPORT_FILE_NAME, REPORT_SIGNATURE, literal, renderReport, reportPathFor, saveReport } from '../src/services/upkeep/upkeepReport';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import type { Proposal, RunSummary } from '../src/services/upkeep/upkeepTasks';
 import { TFile } from './mocks/obsidian';
@@ -47,15 +47,26 @@ describe('renderReport', () => {
 		expect(text.split('\n')[0]).toBe(REPORT_SIGNATURE);
 		expect(text).toContain('Run at 2026-10-22T08:00:00.000Z (ok).');
 		expect(text).toContain('The agent index is out of date (1 added, 0 removed, 2 changed).');
-		expect(text).toContain('F/garden.pdf may belong with N/Garden plan.md');
-		expect(text).not.toContain('[[');
-		expect(text).not.toContain('](');
+		expect(text).toContain('` F/garden.pdf ` may belong with ` N/Garden plan.md `');
 		expect(text).not.toMatch(/old\nname/); // a newline in a path cannot start a new line of the report
+	});
+
+	it('keeps link syntax in a name literal, so the report can never create a link', () => {
+		const text = renderReport(summary(), [{ kind: 'attachment-unreferenced', path: 'Attachments/[[Existing note]].png', sizeBytes: 1 }, { kind: 'attachment-large', path: 'A/`tick`.pdf', sizeBytes: 1, referenceCount: 0 }], 0);
+		expect(text).toContain('` Attachments/[[Existing note]].png `');
+		expect(text).toContain('`` A/`tick`.pdf ``');
+		expect(literal('a\nb')).toBe('` a b `');
 	});
 
 	it('says nothing to review for an empty ok run, and mentions omitted items', () => {
 		expect(renderReport(summary(), [], 0)).toContain('Nothing to review.');
 		expect(renderReport(summary(), proposals, 7)).toContain('7 more are not listed here.');
+	});
+
+	it('never says nothing to review for a run that did not finish', () => {
+		const text = renderReport(summary({ status: 'failed', outcomes: [{ task: 'agentIndex', status: 'failed', reason: 'scan-incomplete', counts: {}, omitted: 0 }] }), [], 0);
+		expect(text).not.toContain('Nothing to review.');
+		expect(text).toContain('did not finish');
 	});
 
 	it('shows a failed or partial run as such', () => {

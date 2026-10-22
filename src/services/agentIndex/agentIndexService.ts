@@ -143,9 +143,10 @@ export async function collectRecords(
     files: readonly TFile[],
     config: IndexScopeConfig,
     signal?: AbortSignal,
-): Promise<{ records: RawRecord[]; unreadable: number }> {
+): Promise<{ records: RawRecord[]; unreadable: number; unreadablePaths: string[] }> {
     const records: RawRecord[] = [];
     let unreadable = 0;
+    const unreadablePaths: string[] = [];
     for (const file of files) {
         if (signal?.aborted) break;
         let text: string;
@@ -154,6 +155,7 @@ export async function collectRecords(
             text = await app.vault.cachedRead(file);
         } catch {
             unreadable++;
+            unreadablePaths.push(file.path);
             continue;
         }
         const parsed = parseNote(text, config.frontmatterKeys);
@@ -175,7 +177,7 @@ export async function collectRecords(
             frontmatter: parsed.frontmatter,
         });
     }
-    return { records, unreadable };
+    return { records, unreadable, unreadablePaths };
 }
 
 function scopedFiles(app: App, config: IndexScopeConfig): TFile[] {
@@ -323,9 +325,10 @@ function newBuildId(): string {
 }
 
 /** Build and publish the index. Never throws. */
-export function buildAgentIndex(plugin: AIOrganiserPlugin): Promise<Result<BuildSummary>> {
+export function buildAgentIndex(plugin: AIOrganiserPlugin, options: { signal?: AbortSignal } = {}): Promise<Result<BuildSummary>> {
     return serialised(async () => {
         try {
+            if (options.signal?.aborted) return err('cancelled');
             const app = plugin.app;
             const snapshot = () => {
                 const s = plugin.settings;
@@ -344,6 +347,9 @@ export function buildAgentIndex(plugin: AIOrganiserPlugin): Promise<Result<Build
             let unreadable = 0;
             let stale = true;
             for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+                // Cancelling is honoured between attempts and before publication begins; once the signed
+                // swap starts it is allowed to finish so the output location is never left half done.
+                if (options.signal?.aborted) return err('cancelled');
                 snap = snapshot();
                 if (!snap.planned.ok) return err(snap.planned.error);
                 plans.set(snap.key, snap.planned.value);
@@ -370,6 +376,7 @@ export function buildAgentIndex(plugin: AIOrganiserPlugin): Promise<Result<Build
                 stale,
             });
             if (snapshot().key !== snap.key) return err('baseline-changed');
+            if (options.signal?.aborted) return err('cancelled');
             const published = await publish(app.vault.adapter, plan, content, buildId);
             if (!published.ok) return err(published.error);
             const total = app.vault.getMarkdownFiles().length;
@@ -420,13 +427,15 @@ export async function checkAgentIndex(plugin: AIOrganiserPlugin, options: { sign
         const config = scopeConfigFromSettings(plugin.settings);
         const files = scopedFiles(plugin.app, config);
         const before = fingerprint(files);
-        const { records, unreadable } = await collectRecords(plugin.app, files, config, options.signal);
+        const { records, unreadable, unreadablePaths } = await collectRecords(plugin.app, files, config, options.signal);
         if (options.signal?.aborted) return err('cancelled');
         const unstable = fingerprint(scopedFiles(plugin.app, config)) !== before;
         const indexed = new Map((header.files ?? []).map((f) => [f.path, f]));
         const now = new Map(records.map((r) => [r.path, r]));
         const added = [...now.keys()].filter((p) => !indexed.has(p)).sort();
-        const removed = [...indexed.keys()].filter((p) => !now.has(p)).sort();
+        // A note that could not be read this time is unknown, not removed.
+        const unreadableSet = new Set(unreadablePaths);
+        const removed = [...indexed.keys()].filter((p) => !now.has(p) && !unreadableSet.has(p)).sort();
         const changed = [...now.keys()].filter((p) => indexed.has(p) && indexed.get(p)!.sha256 !== now.get(p)!.sha256).sort();
         const scopeChanged = header.scopeHash !== (await scopeHashOf(config));
         return ok({ added, removed, changed, fresh: !unstable && unreadable === 0 && !scopeChanged && !added.length && !removed.length && !changed.length, scopeChanged, missing: false, unreadable, unstable });

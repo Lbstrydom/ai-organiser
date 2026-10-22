@@ -60,7 +60,7 @@ export function snapshotConfig(plugin: AIOrganiserPlugin, tasks = plugin.setting
 
 // ─── The vault, as the tasks see it ─────────────────────────────────────────
 
-function buildEnv(plugin: AIOrganiserPlugin): UpkeepEnv {
+function buildEnv(plugin: AIOrganiserPlugin, config: UpkeepConfigSnapshot): UpkeepEnv {
     const app = plugin.app;
     return {
         checkIndex: async (ctx) => {
@@ -69,8 +69,8 @@ function buildEnv(plugin: AIOrganiserPlugin): UpkeepEnv {
             const r = res.value;
             return ok({ added: r.added.length, removed: r.removed.length, changed: r.changed.length, unreadable: r.unreadable, unstable: r.unstable, scopeChanged: r.scopeChanged, missing: r.missing, fresh: r.fresh });
         },
-        refreshIndex: async () => {
-            const res = await buildAgentIndex(plugin);
+        refreshIndex: async (ctx) => {
+            const res = await buildAgentIndex(plugin, { signal: ctx.signal });
             return res.ok ? ok({ path: res.value.path }) : err(res.error);
         },
         checkInventories: async (ctx) => {
@@ -109,7 +109,7 @@ function buildEnv(plugin: AIOrganiserPlugin): UpkeepEnv {
             }
             const notes = app.vault.getMarkdownFiles().filter((f) => !isProtectedPath(s.protectedFolders, f.path)).map((f) => f.path);
             let duplicates: string[][] = [];
-            if (s.upkeepIncludeDuplicates) {
+            if (config.task.includeDuplicates) {
                 const dup = await analyseDuplicates(
                     attachments.map((a) => ({ path: a.path, size: a.sizeBytes })),
                     { readBinary: async (path) => {
@@ -161,10 +161,17 @@ export class UpkeepController {
         });
     }
 
+    /** The run in progress, so unloading can cancel it */
+    private active: AbortController | null = null;
+
     /** Start (or restart) the schedule. A no-op when the feature or the interval is off. */
     start(): void { this.job.start(); }
 
-    stop(): void { this.job.stop(); }
+    /** Stop the schedule and cancel a run that is in progress. */
+    stop(): void {
+        this.job.stop();
+        this.active?.abort();
+    }
 
     get running(): boolean { return this.job.running; }
 
@@ -211,12 +218,17 @@ export class UpkeepController {
         if (!Object.values(config.tasks).some(Boolean)) return err('upkeep-no-tasks');
         const policy: ExecutionPolicy = { allowIndexPublish: s.upkeepAutoRefreshIndex, retainResult: true, notify: trigger === 'scheduled' };
         const ctl = new AbortController();
+        this.active = ctl;
         const timer = window.setTimeout(() => ctl.abort(), s.upkeepRunCapSeconds * 1000);
         let run: ExecutedRun;
         try {
-            run = await executeTasks(config, policy, trigger, buildEnv(this.plugin), makeContext(s.upkeepRunCapSeconds * 1000, () => Date.now(), ctl.signal));
+            run = await executeTasks(config, policy, trigger, buildEnv(this.plugin, config), makeContext(s.upkeepRunCapSeconds * 1000, () => Date.now(), ctl.signal));
+        } catch (e) {
+            logger.error('Upkeep', 'Run failed', e);
+            return err('upkeep-task-failed');
         } finally {
             window.clearTimeout(timer);
+            this.active = null;
         }
         const result = await this.retain(run, policy, trigger);
         return ok(result);
@@ -230,15 +242,18 @@ export class UpkeepController {
         s.upkeepLastRun = { ...run.summary, endedAt: Date.now() };
         s.upkeepLastProposals = stored;
         s.upkeepFailures = run.summary.status === 'failed' && trigger === 'scheduled' ? Math.min(100, s.upkeepFailures + 1) : run.summary.status === 'failed' ? s.upkeepFailures : 0;
-        const verdict = shouldNotify(run.summary, s.upkeepLastNotified, policy);
-        if (verdict.kind === 'proposals') s.upkeepLastNotified = proposalFingerprint(run.summary);
+        const verdict = shouldNotify(run.summary, s.upkeepLastNotified, policy, run.proposals);
+        if (verdict.kind === 'proposals') s.upkeepLastNotified = proposalFingerprint(run.summary, run.proposals);
         if (run.summary.status !== 'failed' && reviewCount(run.summary) === 0) s.upkeepLastNotified = '';
         try {
             await this.plugin.saveSettings();
         } catch (e) {
             logger.error('Upkeep', 'Could not save the upkeep result', e);
         }
-        for (const l of this.listeners) l(result);
+        // A listener that throws must not turn a finished run into a failure.
+        for (const l of this.listeners) {
+            try { l(result); } catch (e) { logger.warn('Upkeep', 'A result listener failed', e); }
+        }
         if (verdict.notify) this.announce(verdict.kind, reviewCount(run.summary));
         return result;
     }
@@ -258,12 +273,16 @@ export class UpkeepController {
 }
 
 /** The setup's dry run: unsaved draft selections, no publishing, nothing retained or announced. */
-export async function previewUpkeep(plugin: AIOrganiserPlugin, draftTasks: Record<TaskName, boolean>): Promise<ExecutedRun> {
+export async function previewUpkeep(plugin: AIOrganiserPlugin, draftTasks: Record<TaskName, boolean>): Promise<Result<ExecutedRun>> {
     const s = plugin.settings;
     const ctl = new AbortController();
     const timer = window.setTimeout(() => ctl.abort(), s.upkeepRunCapSeconds * 1000);
     try {
-        return await executeTasks(snapshotConfig(plugin, draftTasks), { allowIndexPublish: false, retainResult: false, notify: false }, 'preview', buildEnv(plugin), makeContext(s.upkeepRunCapSeconds * 1000, () => Date.now(), ctl.signal));
+        const config = snapshotConfig(plugin, draftTasks);
+        return ok(await executeTasks(config, { allowIndexPublish: false, retainResult: false, notify: false }, 'preview', buildEnv(plugin, config), makeContext(s.upkeepRunCapSeconds * 1000, () => Date.now(), ctl.signal)));
+    } catch (e) {
+        logger.error('Upkeep', 'Preview failed', e);
+        return err('upkeep-task-failed');
     } finally {
         window.clearTimeout(timer);
     }

@@ -34,6 +34,17 @@ import {
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
 import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
 
+/**
+ * Approval mutations run one at a time. A rollback after a failed save restores a snapshot, which is
+ * only safe if no other commit slipped in between; serialising removes that window.
+ */
+let exclusive: Promise<unknown> = Promise.resolve();
+function runExclusive<T>(job: () => Promise<T>): Promise<T> {
+    const run = exclusive.then(job, job);
+    exclusive = run.catch(() => undefined);
+    return run;
+}
+
 export function sweepPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
     const s = plugin.settings;
     return {
@@ -134,7 +145,11 @@ export interface CommitOutcome {
 }
 
 /** Steps 1 to 3 for a freshly reviewed run. */
-export async function commitReview(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
+export function commitReview(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
+    return runExclusive(() => commitReviewGuarded(plugin, input));
+}
+
+async function commitReviewGuarded(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
     try {
         return await commitReviewUnsafe(plugin, input);
     } catch (e) {
@@ -161,11 +176,18 @@ async function commitReviewUnsafe(plugin: AIOrganiserPlugin, input: CommitInput)
     // 1. persist before anything else: edited proposals cannot be regenerated
     const saved = await saveRecord(plugin, record);
     if (!saved.ok) return { record, stoppedAt: 'persist', error: saved.error };
-    return finishRecord(plugin, record);
+    return finishLocked(plugin, record);
 }
 
+/** The same as `finishRecord`, for callers that already hold the exclusive lock. */
+const finishLocked = (plugin: AIOrganiserPlugin, record: ApprovalRecord): Promise<CommitOutcome> => finishUnsafe(plugin, record);
+
 /** Steps 2 and 3, repeatable. Used by the first commit and by recovery. Never throws. */
-export async function finishRecord(plugin: AIOrganiserPlugin, start: ApprovalRecord): Promise<CommitOutcome> {
+export function finishRecord(plugin: AIOrganiserPlugin, start: ApprovalRecord): Promise<CommitOutcome> {
+    return runExclusive(() => finishUnsafe(plugin, start));
+}
+
+async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): Promise<CommitOutcome> {
     let record = start;
     let stage: 'report' | 'ledger' = 'report';
     try {
@@ -202,12 +224,16 @@ export async function finishRecord(plugin: AIOrganiserPlugin, start: ApprovalRec
 }
 
 /** After a crash or an offline moment: finish every unfinished record. Returns the first problem found. */
-export async function repairApprovals(plugin: AIOrganiserPlugin): Promise<{ repaired: number; error?: string; path?: string }> {
+export function repairApprovals(plugin: AIOrganiserPlugin): Promise<{ repaired: number; error?: string; path?: string }> {
+    return runExclusive(() => repairUnsafe(plugin));
+}
+
+async function repairUnsafe(plugin: AIOrganiserPlugin): Promise<{ repaired: number; error?: string; path?: string }> {
     let repaired = 0;
     try {
         for (const record of [...plugin.settings.sweepApprovals]) {
             if (record.reportDone && record.ledgerDone) continue;
-            const out = await finishRecord(plugin, record);
+            const out = await finishLocked(plugin, record);
             if (out.error) return { repaired, error: out.error, path: record.reportPath };
             repaired++;
         }
@@ -262,7 +288,7 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
             signal,
             listId: s.tasksListId,
             checkSource: (task) => checkSource(plugin, task.sourcePath, task.sourceHash),
-            persist: (r) => saveRecord(plugin, r),
+            persist: (r) => runExclusive(() => saveRecord(plugin, r)),
         });
         total.exported += out.summary.exported;
         total.failed += out.summary.failed;
@@ -270,9 +296,13 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
         total.blocked.push(...out.summary.blocked);
         if (out.summary.error) { total.error = out.summary.error; break; }
     }
-    const beforePrune = s.sweepApprovals;
-    s.sweepApprovals = pruneApprovals(s.sweepApprovals);
-    const finalSave = await save(plugin);
-    if (!finalSave.ok) { s.sweepApprovals = beforePrune; return err(finalSave.error); }
+    const finalSave = await runExclusive(async () => {
+        const beforePrune = s.sweepApprovals;
+        s.sweepApprovals = pruneApprovals(s.sweepApprovals);
+        const saved = await save(plugin);
+        if (!saved.ok) s.sweepApprovals = beforePrune;
+        return saved;
+    });
+    if (!finalSave.ok) return err(finalSave.error);
     return ok(total);
 }

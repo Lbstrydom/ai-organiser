@@ -59,7 +59,7 @@ export async function fetchTaskLists(endpoint: Endpoint): Promise<Result<TaskLis
     if (!Array.isArray(res.value.lists)) return err('script-bad-response');
     const lists: TaskList[] = [];
     for (const raw of res.value.lists) {
-        const l = raw as { id?: unknown; title?: unknown };
+        const l = (raw && typeof raw === 'object' ? raw : {}) as { id?: unknown; title?: unknown };
         if (typeof l.id !== 'string' || l.id === '' || typeof l.title !== 'string') return err('script-bad-response');
         lists.push({ id: l.id, title: l.title });
     }
@@ -92,13 +92,17 @@ function toWire(task: ApprovedTask): { exportId: string; title: string; notes: s
     return { exportId: task.id, title, notes: `From note: ${sanitizeInline(task.sourcePath, 200)}` };
 }
 
-function decodeResults(value: unknown): ExportResult[] | null {
+/** Decode an upsert answer. Every acknowledgement must name a task of THIS batch, once. */
+function decodeResults(value: unknown, batchIds: ReadonlySet<string>): ExportResult[] | null {
     const results = (value as { results?: unknown } | null)?.results;
     if (!Array.isArray(results)) return null;
     const out: ExportResult[] = [];
+    const seen = new Set<string>();
     for (const r of results) {
+        if (!r || typeof r !== 'object') return null;
         const x = r as { exportId?: unknown; status?: unknown };
-        if (typeof x.exportId !== 'string') return null;
+        if (typeof x.exportId !== 'string' || !batchIds.has(x.exportId) || seen.has(x.exportId)) return null;
+        seen.add(x.exportId);
         if (x.status !== 'created' && x.status !== 'exists' && x.status !== 'error' && x.status !== 'retry' && x.status !== 'conflict') return null;
         out.push({ exportId: x.exportId, status: x.status });
     }
@@ -112,21 +116,23 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
     const passes = Math.max(1, deps.maxPasses ?? 3);
 
     for (let pass = 0; pass < passes; pass++) {
-        const todo: ApprovedTask[] = [];
-        for (const task of exportable(record)) {
-            if (blockedIds.has(task.id)) continue;
-            const check = await deps.checkSource(task);
-            if (check !== 'ok') { blockedIds.add(task.id); summary.blocked.push({ id: task.id, reason: check }); continue; }
-            todo.push(task);
-        }
+        const todo = exportable(record).filter((t) => !blockedIds.has(t.id));
         if (todo.length === 0) break;
         let retried = 0;
         for (let i = 0; i < todo.length; i += MAX_TASKS_PER_REQUEST) {
             if (deps.signal?.aborted) { summary.error = 'cancelled'; return { record, summary: finalise(record, summary) }; }
-            const batch = todo.slice(i, i + MAX_TASKS_PER_REQUEST);
+            // Each task is checked against its source immediately before ITS batch is sent, not once up front:
+            // earlier batches take time, and a note may have changed or been excluded meanwhile.
+            const batch: ApprovedTask[] = [];
+            for (const task of todo.slice(i, i + MAX_TASKS_PER_REQUEST)) {
+                const check = await deps.checkSource(task);
+                if (check === 'ok') batch.push(task);
+                else { blockedIds.add(task.id); summary.blocked.push({ id: task.id, reason: check }); }
+            }
+            if (batch.length === 0) continue;
             const res = await callScript<unknown>({ url: deps.url, secret: deps.secret, transport: deps.transport, signal: deps.signal, body: { op: 'upsert', listId: deps.listId, tasks: batch.map(toWire) } });
             if (!res.ok) { summary.error = res.error; return { record, summary: finalise(record, summary) }; }
-            const results = decodeResults(res.value);
+            const results = decodeResults(res.value, new Set(batch.map((t) => t.id)));
             if (!results) { summary.error = 'script-bad-response'; return { record, summary: finalise(record, summary) }; }
             record = applyExportResults(record, results);
             retried += results.filter((r) => r.status === 'retry').length;

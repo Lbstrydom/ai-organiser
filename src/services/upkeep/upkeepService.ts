@@ -108,8 +108,9 @@ export function toStored(run: ExecutedRun): { items: Proposal[]; omitted: number
 }
 
 /** A key that changes when the set of proposals changes; an unchanged backlog is not announced again. */
-export function proposalFingerprint(summary: RunSummary): string {
-    return JSON.stringify(Object.entries(summary.totals).sort(([a], [b]) => (a < b ? -1 : 1)));
+export function proposalFingerprint(summary: RunSummary, proposals: readonly Proposal[] = []): string {
+    const identities = proposals.map((p) => JSON.stringify(p)).sort();
+    return JSON.stringify([Object.entries(summary.totals).sort(([a], [b]) => (a < b ? -1 : 1)), identities]);
 }
 
 /** Total number of things to review in a summary. */
@@ -118,10 +119,10 @@ export function reviewCount(summary: RunSummary): number {
 }
 
 /** Whether a scheduled run should announce itself. */
-export function shouldNotify(summary: RunSummary, lastNotifiedKey: string, policy: ExecutionPolicy): { notify: boolean; kind: 'proposals' | 'failure' | 'none' } {
+export function shouldNotify(summary: RunSummary, lastNotifiedKey: string, policy: ExecutionPolicy, proposals: readonly Proposal[] = []): { notify: boolean; kind: 'proposals' | 'failure' | 'none' } {
     if (!policy.notify) return { notify: false, kind: 'none' };
     if (summary.status === 'failed') return { notify: true, kind: 'failure' };
-    if (reviewCount(summary) > 0 && proposalFingerprint(summary) !== lastNotifiedKey) return { notify: true, kind: 'proposals' };
+    if (reviewCount(summary) > 0 && proposalFingerprint(summary, proposals) !== lastNotifiedKey) return { notify: true, kind: 'proposals' };
     return { notify: false, kind: 'none' };
 }
 

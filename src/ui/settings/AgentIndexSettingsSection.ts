@@ -59,12 +59,12 @@ export class AgentIndexSettingsSection extends BaseSettingSection {
 
         new Setting(this.containerEl)
             .addButton((b) => b.setButtonText(t.commands.copyAgentInstructions).onClick(() => {
-                void navigator.clipboard.writeText(buildAgentInstructions(s)).then(() => new Notice(a.instructionsCopied, 5000), () => new Notice(t.messages.copiedToClipboard, 3000));
+                void navigator.clipboard.writeText(buildAgentInstructions(s)).then(() => new Notice(a.instructionsCopied, 5000), () => new Notice(a.copyFailed, 8000));
             }))
             .addButton((b) => b.setButtonText(a.copyPermissions).onClick(() => {
                 const text = buildClaudePermissions(s);
                 if (text === null) { new Notice(a.noPermissions, 6000); return; }
-                void navigator.clipboard.writeText(text).then(() => new Notice(a.permissionsCopied, 5000), () => new Notice(t.messages.copiedToClipboard, 3000));
+                void navigator.clipboard.writeText(text).then(() => new Notice(a.permissionsCopied, 5000), () => new Notice(a.copyFailed, 8000));
             }));
 
         const details = this.containerEl.createEl('details', { cls: 'ai-organiser-advanced-group' });

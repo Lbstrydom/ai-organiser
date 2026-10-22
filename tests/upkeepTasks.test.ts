@@ -101,6 +101,16 @@ describe('attachments task', () => {
 		expect(withDup.ok && withDup.value.proposals.some((p) => p.kind === 'attachment-duplicate')).toBe(true);
 	});
 
+	it('reports the true number of link suggestions even though only 50 are kept', async () => {
+		const attachments = Array.from({ length: 80 }, (_, i) => ({ path: `F/alpha-beta-${String(i).padStart(3, '0')}.pdf`, sizeBytes: 1, referenceCount: 0, unreferenced: true }));
+		const res = await runAttachmentsTask(env({ scanAttachments: async () => ok({ attachments, notes: ['N/Alpha beta.md'], duplicates: [] }) }), config, ctx());
+		expect(res.ok && res.value.totals['link-suggestion']).toBe(80);
+		expect(res.ok && res.value.totals['attachment-unreferenced']).toBe(80);
+		// 80 unreferenced + 50 kept suggestions are cut to 100 items by the per-check cap; every cut is counted.
+		expect(res.ok && res.value.proposals).toHaveLength(100);
+		expect(res.ok && res.value.omitted).toBe(30 + 30);
+	});
+
 	it('passes a failed scan through', async () => {
 		expect(await runAttachmentsTask(env({ scanAttachments: async () => err('scan-incomplete') }), config, ctx())).toEqual({ ok: false, error: 'scan-incomplete' });
 	});
@@ -113,7 +123,7 @@ describe('the basic title-word matcher', () => {
 	});
 
 	it('needs two shared tokens, or the only token when it is long', async () => {
-		const out = await suggestLinks(
+		const { items: out } = await suggestLinks(
 			['Files/garden-plan.pdf', 'Files/budget.pdf', 'Files/xy.pdf', 'Files/notes.pdf'],
 			['Projects/Garden plan 2026.md', 'Projects/Budget overview.md', 'Misc/Plan.md'],
 			ctx(),
@@ -125,21 +135,24 @@ describe('the basic title-word matcher', () => {
 	});
 
 	it('picks the best note, then the smallest path, and proposes one note per attachment', async () => {
-		const out = await suggestLinks(['F/garden-plan-2026.pdf'], ['B/Garden plan.md', 'A/Garden plan.md', 'C/Garden plan 2026.md'], ctx());
+		const { items: out } = await suggestLinks(['F/garden-plan-2026.pdf'], ['B/Garden plan.md', 'A/Garden plan.md', 'C/Garden plan 2026.md'], ctx());
 		expect(out).toHaveLength(1);
 		expect(out[0]).toMatchObject({ notePath: 'C/Garden plan 2026.md' });
-		const tie = await suggestLinks(['F/garden-plan.pdf'], ['B/Garden plan.md', 'A/Garden plan.md'], ctx());
+		const tie = (await suggestLinks(['F/garden-plan.pdf'], ['B/Garden plan.md', 'A/Garden plan.md'], ctx())).items;
 		expect(tie[0]).toMatchObject({ notePath: 'A/Garden plan.md' });
 	});
 
 	it('caps the suggestions at 50 and stops when the run is stopped', async () => {
 		const attachments = Array.from({ length: 80 }, (_, i) => `F/alpha-beta-${String(i).padStart(3, '0')}.pdf`);
 		const notes = ['N/Alpha beta.md'];
-		expect(await suggestLinks(attachments, notes, ctx())).toHaveLength(50);
+		const full = await suggestLinks(attachments, notes, ctx());
+		expect(full.items).toHaveLength(50);
+		expect(full.total).toBe(80); // the totals count every match, not just the kept ones
 		const ctl = new AbortController();
 		ctl.abort();
 		const many = Array.from({ length: 1000 }, (_, i) => `N/Alpha beta ${i}.md`);
-		expect(await suggestLinks(attachments, many, ctx({ signal: ctl.signal }))).toEqual([]);
+		expect(await suggestLinks(attachments, many, ctx({ signal: ctl.signal }))).toEqual({ items: [], total: 0 });
+		expect(await suggestLinks(['F/alpha-beta.pdf'], notes, ctx({ signal: ctl.signal }))).toEqual({ items: [], total: 0 }); // checked at entry, even for tiny input
 	});
 
 	it('works from an inverted index: many notes and attachments finish quickly', async () => {

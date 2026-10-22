@@ -175,8 +175,14 @@ export async function runAttachmentsTask(env: UpkeepEnv, config: TaskConfig, ctx
     if (config.includeDuplicates) for (const group of scan.value.duplicates) proposals.push({ kind: 'attachment-duplicate', paths: [...group].sort() });
     const orphans = scan.value.attachments.filter((a) => a.unreferenced).map((a) => a.path);
     const suggestions = await suggestLinks(orphans, scan.value.notes, ctx);
-    proposals.push(...suggestions);
-    return ok(collect(proposals));
+    proposals.push(...suggestions.items);
+    const result = collect(proposals);
+    // The suggestions are capped before collection; the totals still count every match.
+    if (suggestions.total > 0) {
+        result.totals['link-suggestion'] = suggestions.total;
+        result.omitted += suggestions.total - suggestions.items.length;
+    }
+    return ok(result);
 }
 
 // ─── The basic title-word matcher (no model, no embedding, no egress) ───────
@@ -200,7 +206,8 @@ const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => window.se
  * an inverted index and the work runs in chunks that yield and check the run context, so a large
  * vault neither blocks the interface nor outlives the cap. The shared tokens are the evidence.
  */
-export async function suggestLinks(attachmentPaths: readonly string[], notePaths: readonly string[], ctx: RunContext): Promise<Proposal[]> {
+export async function suggestLinks(attachmentPaths: readonly string[], notePaths: readonly string[], ctx: RunContext): Promise<{ items: Proposal[]; total: number }> {
+    if (isStopped(ctx)) return { items: [], total: 0 };
     const index = new Map<string, number[]>();
     const noteTokens: string[][] = [];
     for (let i = 0; i < notePaths.length; i++) {
@@ -211,10 +218,12 @@ export async function suggestLinks(attachmentPaths: readonly string[], notePaths
             if (list) list.push(i);
             else index.set(t, [i]);
         }
-        if (i % CHUNK === CHUNK - 1) { await yieldToEventLoop(); if (isStopped(ctx)) return []; }
+        if (i % CHUNK === CHUNK - 1) { await yieldToEventLoop(); if (isStopped(ctx)) return { items: [], total: 0 }; }
     }
     const out: Array<Extract<Proposal, { kind: 'link-suggestion' }> & { score: number }> = [];
     for (let a = 0; a < attachmentPaths.length; a++) {
+        // Checked on every path, including the ones that skip an attachment.
+        if (a % CHUNK === CHUNK - 1) { await yieldToEventLoop(); if (isStopped(ctx)) break; }
         const tokens = tokensOf(baseName(attachmentPaths[a]));
         if (tokens.length === 0) continue;
         const shared = new Map<number, string[]>();
@@ -230,10 +239,10 @@ export async function suggestLinks(attachmentPaths: readonly string[], notePaths
             if (!best || evidence.length > best.evidence.length || (evidence.length === best.evidence.length && notePaths[n] < notePaths[best.note])) best = { note: n, evidence };
         }
         if (best) out.push({ kind: 'link-suggestion', attachmentPath: attachmentPaths[a], notePath: notePaths[best.note], evidence: [...best.evidence].sort(), score: best.evidence.length });
-        if (a % CHUNK === CHUNK - 1) { await yieldToEventLoop(); if (isStopped(ctx)) break; }
     }
-    return out
+    const items = out
         .sort((x, y) => y.score - x.score || (x.attachmentPath < y.attachmentPath ? -1 : 1))
         .slice(0, MAX_SUGGESTIONS)
         .map(({ score: _score, ...proposal }) => proposal);
+    return { items, total: out.length };
 }

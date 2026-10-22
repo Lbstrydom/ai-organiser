@@ -190,6 +190,17 @@ describe('runSweep', () => {
 		expect(fenceNoteText('a </NOTE > b < / note>')).not.toMatch(/<\s*\/\s*note\s*>/i);
 	});
 
+	it('never calls the model for a snapshot that was recaptured and then fails the pre-call check', async () => {
+		let reads = 0;
+		const { deps, calls } = makeDeps({ 'Inbox/a.md': 'I need to ship the report.' }, {
+			// Loose for the first judgement, then stricter on every later read: the recaptured snapshot must be rechecked.
+			policy: () => (++reads <= 2 ? policy() : policy({ excludedTerms: [String(reads)] , excludedFolders: reads % 2 === 0 ? ['Inbox'] : [] })),
+		});
+		const res = await runSweep(deps, opts);
+		expect(calls).toHaveLength(0);
+		expect(res.ok && Object.values(res.value.excluded).reduce((a, b) => a + (b ?? 0), 0)).toBe(1);
+	});
+
 	it('judges a note against one coherent policy even if the settings change while it is being hashed', async () => {
 		const loose = policy();
 		const strict = policy({ excludedTerms: ['ship the report'] });

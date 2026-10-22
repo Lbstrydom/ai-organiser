@@ -223,6 +223,17 @@ describe('checkAgentIndex', () => {
 	});
 });
 
+describe('checkAgentIndex: unreadable is not removed', () => {
+	it('does not report a note that could not be read as removed', async () => {
+		const { plugin, v } = makePlugin({ 'Notes/a.md': 'alpha', 'Notes/b.md': 'beta' });
+		await buildAgentIndex(plugin);
+		const original = v.app.vault.cachedRead;
+		v.app.vault.cachedRead = async (f: { path: string }) => { if (f.path === 'Notes/b.md') throw new Error('locked'); return original(f as never); };
+		const res = await checkAgentIndex(plugin);
+		expect(res).toMatchObject({ ok: true, value: { removed: [], unreadable: 1, fresh: false } });
+	});
+});
+
 describe('scope config', () => {
 	it('scopeConfigFromSettings mirrors the settings', () => {
 		expect(scopeConfigFromSettings({ ...DEFAULT_SETTINGS, agentIndexIncludeHeadings: true } as never).includeHeadings).toBe(true);

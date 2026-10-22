@@ -181,7 +181,8 @@ function registerAutoRebuild(plugin: AIOrganiserPlugin): void {
 function copyText(plugin: AIOrganiserPlugin, text: string, done: string): void {
     navigator.clipboard.writeText(text).then(
         () => new Notice(done, 5000),
-        () => new Notice(plugin.t.messages.copiedToClipboard, 3000),
+        // A clipboard that refuses is a failure, never "copied".
+        () => new Notice(plugin.t.agentIndex.copyFailed, 8000),
     );
 }
 

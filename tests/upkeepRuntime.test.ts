@@ -263,7 +263,9 @@ describe('UpkeepController: scheduled runs', () => {
 describe('previewUpkeep (the setup dry run)', () => {
 	it('uses the draft selections, never publishes the index, never saves and retains nothing', async () => {
 		const h = makePlugin({ upkeepAutoRefreshIndex: true, upkeepTasks: { agentIndex: false, inventories: false, attachments: false } });
-		const run = await previewUpkeep(h.plugin, { agentIndex: true, inventories: false, attachments: false });
+		const res = await previewUpkeep(h.plugin, { agentIndex: true, inventories: false, attachments: false });
+		if (!res.ok) throw new Error(res.error);
+		const run = res.value;
 		expect(run.summary.trigger).toBe('preview');
 		expect(run.proposals).toEqual([{ kind: 'agent-index-stale', added: 0, removed: 0, changed: 1, unreadable: 0, unstable: false }]);
 		expect(mocks.buildAgentIndex).not.toHaveBeenCalled();

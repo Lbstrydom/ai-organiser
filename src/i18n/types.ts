@@ -3725,6 +3725,7 @@ export interface Translations {
         checkScopeChanged: string;
         checkMissing: string;
         instructionsCopied: string;
+        copyFailed: string;
         instructionsWriteName: string;
         instructionsWriteDesc: string;
         instructionsPathName: string;

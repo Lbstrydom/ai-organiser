@@ -3912,6 +3912,7 @@ export const en: Translations = {
         checkScopeChanged: "Your folder settings changed since it was built.",
         checkMissing: "There is no agent index yet. Build one first.",
         instructionsCopied: "Agent instructions copied. Paste them into AGENTS.md.",
+        copyFailed: "Could not copy to the clipboard. Allow clipboard access for Obsidian and try again.",
         instructionsWriteName: "Keep instructions in AGENTS.md",
         instructionsWriteDesc: "Lets you add or update one marked block of instructions in your AGENTS.md. You always see a preview first, and nothing outside the block is touched.",
         instructionsPathName: "Instructions file",
