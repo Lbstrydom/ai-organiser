@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { load } from 'js-yaml';
 import {
 	RELEASE_LABEL,
 	fingerprint,
@@ -175,6 +176,34 @@ describe('labels and arguments', () => {
 		expect(() => parseArgs(['--base', 'a'])).toThrow(/required/);
 		expect(() => parseArgs(['--base', 'a', '--head', 'b', '--nope'])).toThrow(/unknown/);
 		expect(parseArgs(['--base', 'a', '--head', 'b', '--labels', 'x'])).toEqual({ base: 'a', head: 'b', labels: 'x' });
+	});
+});
+
+describe('the workflow contract (trust boundary and event coverage)', () => {
+	const workflow = load(readFileSync(join(__dirname, '..', '.github', 'workflows', 'version-guard.yml'), 'utf8')) as {
+		on: { pull_request_target?: { branches?: string[]; types?: string[] }; pull_request?: unknown };
+		permissions: Record<string, string>;
+		jobs: Record<string, { steps: { uses?: string; run?: string; with?: Record<string, unknown> }[] }>;
+	};
+
+	it('uses pull_request_target, so the guard and workflow come from the base branch', () => {
+		expect(workflow.on.pull_request_target).toBeDefined();
+		expect(workflow.on.pull_request).toBeUndefined();
+	});
+
+	it('re-runs on every event that can change the verdict, including a retarget (edited) and label changes', () => {
+		expect(workflow.on.pull_request_target?.types).toEqual(
+			expect.arrayContaining(['opened', 'synchronize', 'reopened', 'edited', 'labeled', 'unlabeled']),
+		);
+	});
+
+	it('is read-only and never checks out or runs code from the PR head', () => {
+		expect(workflow.permissions).toEqual({ contents: 'read' });
+		const steps = Object.values(workflow.jobs).flatMap((j) => j.steps);
+		for (const step of steps) {
+			if (step.uses?.startsWith('actions/checkout')) expect(step.with?.ref).toBeUndefined();
+			expect(step.run ?? '').not.toMatch(/npm (ci|install)|checkout .*pr-head|pr-head\//);
+		}
 	});
 });
 

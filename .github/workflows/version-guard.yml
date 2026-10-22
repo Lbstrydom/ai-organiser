@@ -18,7 +18,9 @@ on:
   pull_request_target:
     branches:
       - main
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    # `edited` covers a PR retargeted to main from another branch (it fires on a base change), which
+    # would otherwise enter the guarded scope without any new event; a title edit just re-runs the cheap check.
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
 
 permissions:
   contents: read
