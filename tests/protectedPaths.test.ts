@@ -20,6 +20,15 @@ describe('normalisePath / resolveProtectedFolders', () => {
 		expect(normalisePath('./A//B/')).toBe('A/B');
 	});
 
+	it('resolves .. so a path cannot hide inside or escape a protected folder', () => {
+		expect(normalisePath('A/../B')).toBe('B');
+		expect(normalisePath('A/B/../../C/')).toBe('C');
+		expect(normalisePath('../../x')).toBe('x');
+		expect(isProtectedPath(['Courses/Live'], 'Courses/Other/../Live/note.md')).toBe(true);
+		expect(isProtectedPath(['Courses/Live'], 'Courses/Live/../Free/note.md')).toBe(false);
+		expect(assertWritable(['Courses/Live'], 'create', 'Elsewhere/../Courses/Live/new.md').ok).toBe(false);
+	});
+
 	it('drops empty and non-string entries and de-duplicates case-insensitively', () => {
 		expect(resolveProtectedFolders(['A/B', 'a/b/', '', '/', 5 as unknown as string])).toEqual(['A/B']);
 	});

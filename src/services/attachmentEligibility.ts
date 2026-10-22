@@ -119,6 +119,10 @@ export interface RevalidationInput {
     files: readonly FileIdentity[];
     scanStartedAt: number;
     occurrences: readonly StoredOccurrence[];
+    /** Referrers the scan actually read, with their modified time then. A referrer that is not
+     *  listed (never scanned, or moved here since) or whose time differs is read again. When this
+     *  is absent nothing can be trusted from the scan, so every referrer is read again. */
+    scannedReferrers?: readonly { path: string; mtime: number }[];
     /** Referrers the scan could not read; they are tried again here rather than ignored */
     priorFailures?: readonly CoverageFailure[];
     changes: ChangeSet;
@@ -138,9 +142,31 @@ export async function revalidate(
     const ready = port.isResolved() || (await port.waitResolved(input.waitMs ?? 5000));
     if (!ready) return err('metadata-not-ready');
 
+    // The graph is rebuilt from async reads, so the vault can move underneath it. Rebuild until
+    // the referrer set is identical before and after; give up (fail closed) after three tries.
+    for (let attempt = 0; attempt < 3; attempt++) {
+        const before = referrerSignature(port.listReferrers());
+        const built = await buildEligibility(port, input);
+        if (referrerSignature(port.listReferrers()) === before) return ok(built);
+    }
+    return err('scan-out-of-date');
+}
+
+function referrerSignature(referrers: readonly ReferrerInfo[]): string {
+    return referrers.map((r) => `${r.path}\u0000${r.mtime}`).sort().join('\u0001');
+}
+
+async function buildEligibility(
+    port: AttachmentVaultPort,
+    input: RevalidationInput,
+): Promise<Map<string, Eligibility>> {
     const referrers = port.listReferrers();
     const live = new Map(referrers.map((r) => [r.path, r]));
+    const scanned = input.scannedReferrers ? new Map(input.scannedReferrers.map((r) => [r.path, r.mtime])) : null;
     const stale = (r: ReferrerInfo): boolean =>
+        scanned === null ||
+        !scanned.has(r.path) ||
+        scanned.get(r.path) !== r.mtime ||
         r.mtime > input.scanStartedAt ||
         input.changes.created.has(r.path) ||
         input.changes.renamed.has(r.path) ||
@@ -201,14 +227,19 @@ export async function revalidate(
             }),
         );
     }
-    return ok(result);
+    return result;
 }
 
 // ─── Obsidian-backed port ────────────────────────────────────────────────────
 
 /** Build the port over a live `App`. */
 export function createAppVaultPort(app: App): AttachmentVaultPort {
-    const candidatesFor = (linktext: string): string[] => buildCandidateIndex(app.vault.getFiles().map((f) => f.path))(linktext);
+    // One index per port (one revalidation), built on first use and reused for every occurrence.
+    let index: ((linktext: string) => string[]) | null = null;
+    const candidatesFor = (linktext: string): string[] => {
+        index ??= buildCandidateIndex(app.vault.getFiles().map((f) => f.path));
+        return index(linktext);
+    };
     return {
         isResolved: () => (app.metadataCache as unknown as { resolved?: boolean }).resolved !== false,
         waitResolved: (timeoutMs) =>

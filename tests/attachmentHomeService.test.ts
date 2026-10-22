@@ -133,15 +133,31 @@ describe('suggestHomes (semantic)', () => {
 });
 
 describe('alreadyLinks', () => {
-	it('detects embeds and links by path or bare name, with subpaths and aliases', () => {
-		const f = 'Docs/Scan 1.pdf';
-		for (const text of ['![[Docs/Scan 1.pdf]]', '[[Scan 1.pdf]]', '![[Scan 1.pdf#page=2]]', '![[Docs/Scan 1.pdf|alias]]', '![[ Scan 1.PDF ]]']) {
+	const f = 'Docs/Scan 1.pdf';
+	const resolveToF = (linktext: string) => (linktext.toLowerCase() === 'scan 1.pdf' ? f : null);
+
+	it('matches the full path with subpaths and aliases, without needing a resolver', () => {
+		for (const text of ['![[Docs/Scan 1.pdf]]', '![[Docs/Scan 1.pdf#page=2]]', '![[Docs/Scan 1.pdf|alias]]', '[[ docs/scan 1.PDF ]]']) {
 			expect(alreadyLinks(text, f), text).toBe(true);
 		}
 	});
 
+	it('does not treat a bare name as proof without resolving it', () => {
+		expect(alreadyLinks('![[Scan 1.pdf]]', f)).toBe(false);
+	});
+
+	it('accepts a bare name only when it resolves, from the note, to this very file', () => {
+		expect(alreadyLinks('![[Scan 1.pdf]]', f, resolveToF)).toBe(true);
+		expect(alreadyLinks('![[Scan 1.pdf]]', f, () => 'Other/Scan 1.pdf')).toBe(false);
+		expect(alreadyLinks('![[Scan 1.pdf]]', f, () => null)).toBe(false);
+	});
+
 	it('does not match a different file or a partial name', () => {
-		expect(alreadyLinks('![[Scan 10.pdf]] ![[Other/Scan 1.pdfx]]', 'Docs/Scan 1.pdf')).toBe(false);
+		expect(alreadyLinks('![[Scan 10.pdf]] ![[Other/Scan 1.pdfx]]', f, resolveToF)).toBe(false);
+	});
+
+	it('ignores links inside fenced code', () => {
+		expect(alreadyLinks('```\n![[Docs/Scan 1.pdf]]\n```', f)).toBe(false);
 	});
 });
 
@@ -164,9 +180,33 @@ describe('appendAttachmentLink', () => {
 	});
 
 	it('is idempotent: an existing link leaves the content unchanged', () => {
-		const note = '## Attachments\n![[a.pdf]]\n';
+		const note = '## Attachments\n![[Docs/a.pdf]]\n';
 		const res = appendAttachmentLink(note, f, 'Attachments');
 		expect(res).toEqual({ ok: true, value: { content: note, info: 'already-linked' } });
+	});
+
+	it('is idempotent for a bare-name link that resolves to the same file', () => {
+		const note = '## Attachments\n![[a.pdf]]\n';
+		const res = appendAttachmentLink(note, f, 'Attachments', (l) => (l === 'a.pdf' ? f : null));
+		expect(res.ok && res.value.info).toBe('already-linked');
+	});
+
+	it('adds the link when a same-named file in another folder is the one already linked', () => {
+		const note = '## Attachments\n![[a.pdf]]\n';
+		const res = appendAttachmentLink(note, f, 'Attachments', () => 'Other/a.pdf');
+		expect(res.ok && res.value.content).toContain('![[Docs/a.pdf]]');
+	});
+
+	it('does not mistake a heading inside a fenced code block for the real heading', () => {
+		const note = '```\n## Attachments\n```\n\nBody\n';
+		const res = appendAttachmentLink(note, f, 'Attachments');
+		expect(res.ok && res.value.content).toBe('```\n## Attachments\n```\n\nBody\n\n## Attachments\n![[Docs/a.pdf]]\n');
+	});
+
+	it('does not end the section at a heading-like line inside a fence', () => {
+		const note = '## Attachments\n![[x.png]]\n```\n# not a heading\n```\n![[y.png]]\n\n## Other\n';
+		const res = appendAttachmentLink(note, f, 'Attachments');
+		expect(res.ok && res.value.content).toBe('## Attachments\n![[x.png]]\n```\n# not a heading\n```\n![[y.png]]\n![[Docs/a.pdf]]\n\n## Other\n');
 	});
 
 	it('treats the heading text literally (no regex surprises)', () => {

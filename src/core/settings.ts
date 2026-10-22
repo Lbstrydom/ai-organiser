@@ -1128,6 +1128,18 @@ export function getResearchOutputFullPath(settings: AIOrganiserSettings): string
 }
 
 /**
+ * Settings keys that decide where plugin output is written. Used to validate them against the
+ * protected-folder list and to revert a change that would collide with it.
+ */
+export const OUTPUT_ROOT_SETTING_KEYS = [
+    'pluginFolder', 'outputRootFolder', 'configFolderPath', 'transcriptFolder', 'transcriptOutputFolder',
+    'minutesOutputFolder', 'exportOutputFolder', 'flashcardFolder', 'chatExportFolder', 'chatRootFolder',
+    'presentationOutputFolder', 'canvasOutputFolder', 'webReaderOutputFolder', 'kindleOutputFolder',
+    'newsletterOutputFolder', 'notebooklmExportFolder', 'sketchOutputFolder', 'researchOutputFolder',
+    'audioNarrationOutputFolder',
+] as const;
+
+/**
  * Get all plugin-managed folders that should be auto-excluded from tagging.
  * When output root equals plugin folder, just exclude pluginFolder (current behavior).
  * When split, exclude config root + each managed output subfolder individually.
@@ -1321,7 +1333,10 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
  * Order-safe and idempotent: a missing or invalid value becomes the default, a valid one is kept.
  */
 export function migrateProtectedAndAttachmentSettings(old: Record<string, unknown>): void {
-    const folders = old.protectedFolders;
+    // A malformed value must not silently weaken protection: a lone string is kept as one folder.
+    const folders = typeof old.protectedFolders === 'string' && old.protectedFolders.trim() !== ''
+        ? [old.protectedFolders]
+        : old.protectedFolders;
     old.protectedFolders = Array.isArray(folders)
         ? folders.filter((f): f is string => typeof f === 'string' && f.trim() !== '')
         : [];

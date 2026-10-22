@@ -185,6 +185,64 @@ describe('revalidate', () => {
 	});
 });
 
+describe('revalidate: provenance and stability', () => {
+	const scanned = id('Docs/a.pdf');
+
+	it('reads a referrer the scan never listed (a note moved in without an event or a newer mtime)', async () => {
+		const port = makePort({ notes: { 'Docs/moved.md': { text: '![[a.pdf]]', mtime: 100 } }, files: { 'Docs/a.pdf': scanned } });
+		const res = await revalidate(port, {
+			files: [scanned], scanStartedAt: 1000, occurrences: [], changes: EMPTY_CHANGES, protectedFolders: [],
+			scannedReferrers: [{ path: 'elsewhere/n.md', mtime: 100 }],
+		});
+		expect(res.ok && res.value.get('Docs/a.pdf')?.reasons).toContain('still-referenced');
+	});
+
+	it('reuses stored occurrences only for referrers whose recorded mtime still matches', async () => {
+		let reads = 0;
+		const base = makePort({ notes: { 'n.md': { text: 'no links now', mtime: 100 } }, files: { 'Docs/a.pdf': scanned } });
+		const port = { ...base, readText: async (p: string) => { reads++; return base.readText(p); } } as AttachmentVaultPort;
+		const res = await revalidate(port, {
+			files: [scanned], scanStartedAt: 1000, changes: EMPTY_CHANGES, protectedFolders: [],
+			occurrences: [occ('n.md', 'a.pdf')], scannedReferrers: [{ path: 'n.md', mtime: 100 }],
+		});
+		expect(reads).toBe(0);
+		expect(res.ok && res.value.get('Docs/a.pdf')?.reasons).toContain('still-referenced'); // stored occurrence trusted
+	});
+
+	it('reads a referrer again when its mtime differs from the recorded one', async () => {
+		const port = makePort({ notes: { 'n.md': { text: 'no links now', mtime: 200 } }, files: { 'Docs/a.pdf': scanned } });
+		const res = await revalidate(port, {
+			files: [scanned], scanStartedAt: 1000, changes: EMPTY_CHANGES, protectedFolders: [],
+			occurrences: [occ('n.md', 'a.pdf')], scannedReferrers: [{ path: 'n.md', mtime: 100 }],
+		});
+		expect(res.ok && res.value.get('Docs/a.pdf')?.eligible).toBe(true);
+	});
+
+	it('rebuilds when the vault changes during the read and succeeds once it settles', async () => {
+		const state = { notes: { 'n.md': { text: 'x', mtime: 100 } } as Record<string, { text: string; mtime: number }>, files: { 'Docs/a.pdf': scanned } };
+		const base = makePort({ notes: state.notes, files: state.files });
+		let mutated = false;
+		const port = {
+			...base,
+			readText: async (p: string) => {
+				if (!mutated) { mutated = true; state.notes['n.md'] = { text: 'x', mtime: 101 }; }
+				return base.readText(p);
+			},
+			listReferrers: () => Object.entries(state.notes).map(([path, n]) => ({ path, extension: 'md' as const, mtime: n.mtime })),
+		} as AttachmentVaultPort;
+		const res = await revalidate(port, { files: [scanned], scanStartedAt: 1000, occurrences: [], changes: EMPTY_CHANGES, protectedFolders: [] });
+		expect(res.ok).toBe(true);
+	});
+
+	it('fails closed when the vault never stops changing', async () => {
+		let tick = 100;
+		const base = makePort({ notes: { 'n.md': { text: 'x', mtime: 100 } }, files: { 'Docs/a.pdf': scanned } });
+		const port = { ...base, listReferrers: () => [{ path: 'n.md', extension: 'md' as const, mtime: tick++ }] } as AttachmentVaultPort;
+		const res = await revalidate(port, { files: [scanned], scanStartedAt: 1000, occurrences: [], changes: EMPTY_CHANGES, protectedFolders: [] });
+		expect(res).toEqual({ ok: false, error: 'scan-out-of-date' });
+	});
+});
+
 describe('ChangeLog', () => {
 	it('records a rename as a new path and a deleted old path', () => {
 		const log = new ChangeLog();

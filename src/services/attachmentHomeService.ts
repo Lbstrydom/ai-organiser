@@ -184,24 +184,57 @@ export function createHomeContext(
 
 // ─── Link to note ────────────────────────────────────────────────────────────
 
-/** True when `text` already links or embeds the file (by full path or bare file name). */
-export function alreadyLinks(text: string, filePath: string): boolean {
-    const name = filePath.split('/').pop() ?? filePath;
-    const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(`!?\\[\\[\\s*(?:${escape(filePath)}|${escape(name)})\\s*(?:[#|][^\\]]*)?\\]\\]`, 'i');
-    return re.test(text);
+/** Link text of every wiki link or embed in `text` (alias and subpath removed), outside code fences. */
+function wikiLinkTargets(text: string): string[] {
+    const targets: string[] = [];
+    let fenced = false;
+    for (const line of text.split('\n')) {
+        if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
+        if (fenced) continue;
+        for (const m of line.matchAll(/!?\[\[([^\]]+)\]\]/g)) {
+            targets.push(m[1].split('|')[0].split('#')[0].trim());
+        }
+    }
+    return targets;
+}
+
+/**
+ * True when `text` already links or embeds the file. With a `resolve` function (link text →
+ * vault path, resolved from the destination note) the comparison is by canonical target, so a
+ * same-named file in another folder does not count. Without one, only the full path matches.
+ */
+export function alreadyLinks(text: string, filePath: string, resolve?: (linktext: string) => string | null): boolean {
+    const wanted = filePath.toLowerCase();
+    return wikiLinkTargets(text).some((target) => {
+        if (target.toLowerCase() === wanted) return true;
+        if (!resolve) return false;
+        const resolved = resolve(target);
+        return resolved !== null && resolved.toLowerCase() === wanted;
+    });
 }
 
 /**
  * Pure transform: append `![[filePath]]` under the heading, creating the heading at the end of
  * the note when it is missing. The heading matches at any level, case-insensitively.
  */
-export function appendAttachmentLink(current: string, filePath: string, heading: string): Result<ApplyOutcome> {
-    if (alreadyLinks(current, filePath)) return ok({ content: current, info: 'already-linked' });
+export function appendAttachmentLink(
+    current: string,
+    filePath: string,
+    heading: string,
+    resolve?: (linktext: string) => string | null,
+): Result<ApplyOutcome> {
+    if (alreadyLinks(current, filePath, resolve)) return ok({ content: current, info: 'already-linked' });
     const link = `![[${filePath}]]`;
     const lines = current.split('\n');
+    // Headings inside fenced code blocks are not headings.
+    const fencedLine = new Array<boolean>(lines.length).fill(false);
+    let inFence = false;
+    for (let i = 0; i < lines.length; i++) {
+        if (/^\s*(```|~~~)/.test(lines[i])) { inFence = !inFence; fencedLine[i] = true; continue; }
+        fencedLine[i] = inFence;
+    }
     const headingRe = new RegExp(`^(#{1,6})\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*#*\\s*$`, 'i');
-    const start = lines.findIndex((l) => headingRe.test(l));
+    const start = lines.findIndex((l, i) => !fencedLine[i] && headingRe.test(l));
     if (start === -1) {
         const body = current.replace(/\s+$/, '');
         const prefix = body === '' ? '' : body + '\n\n';
@@ -210,6 +243,7 @@ export function appendAttachmentLink(current: string, filePath: string, heading:
     const level = (lines[start].match(/^#+/) ?? ['#'])[0].length;
     let end = lines.length;
     for (let i = start + 1; i < lines.length; i++) {
+        if (fencedLine[i]) continue;
         const m = lines[i].match(/^(#{1,6})\s+\S/);
         if (m && m[1].length <= level) { end = i; break; }
     }
@@ -238,12 +272,15 @@ export async function linkToNote(
     } catch {
         return err('target-missing');
     }
-    if (alreadyLinks(baseline, attachmentPath)) return ok({ changed: false });
+    // Resolve existing links from the destination note's own position (same-named files elsewhere do not count).
+    const resolve = (linktext: string): string | null =>
+        plugin.app.metadataCache.getFirstLinkpathDest(linktext, notePath)?.path ?? null;
+    if (alreadyLinks(baseline, attachmentPath, resolve)) return ok({ changed: false });
     const target: CompositeTarget = {
         kind: 'composite',
         filePath: notePath,
         baseline,
-        recompute: (current) => appendAttachmentLink(current, attachmentPath, heading),
+        recompute: (current) => appendAttachmentLink(current, attachmentPath, heading, resolve),
     };
     // The user's click on "Link" is the approval, so no second review modal.
     const res = await applyNoteEdit(plugin, target, { review: false });

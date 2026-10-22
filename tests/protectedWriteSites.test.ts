@@ -117,6 +117,11 @@ function walk(dir: string, out: string[] = []): string[] {
 	return out;
 }
 
+/** Count write-API sites in a source string and whether it contains a guard (used by the negative controls). */
+function analyseSource(text: string): { count: number; guarded: boolean } {
+	return { count: (text.match(WRITE_API) ?? []).length, guarded: GUARD.test(text) };
+}
+
 function scan(): Map<string, { count: number; guarded: boolean }> {
 	const root = join(__dirname, '..');
 	const result = new Map<string, { count: number; guarded: boolean }>();
@@ -127,6 +132,28 @@ function scan(): Map<string, { count: number; guarded: boolean }> {
 	}
 	return result;
 }
+
+describe('write-site scanner (negative controls)', () => {
+	it('finds each family of write API and counts every site', () => {
+		const text = [
+			'await app.vault.modify(f, s);',
+			'await this.app.fileManager.trashFile(f);',
+			'await plugin.app.fileManager.processFrontMatter(f, fn);',
+			'await app.vault.adapter.write(p, s);',
+			'editor.replaceSelection(x);',
+		].join('\n');
+		expect(analyseSource(text).count).toBe(5);
+	});
+
+	it('does not count look-alikes such as Map.delete or a bare modify call', () => {
+		expect(analyseSource('cache.delete(k); set.create(x); modify(file);').count).toBe(0);
+	});
+
+	it('recognises a guard and a missing guard', () => {
+		expect(analyseSource('assertWritable(s, "modify", p); vault.modify(f, x);')).toEqual({ count: 1, guarded: true });
+		expect(analyseSource('vault.modify(f, x);')).toEqual({ count: 1, guarded: false });
+	});
+});
 
 describe('protected folders: write-site classification', () => {
 	const found = scan();

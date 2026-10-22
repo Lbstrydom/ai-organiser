@@ -3521,7 +3521,7 @@ export const en: Translations = {
         alreadyLinkedNotice: "{note} already links this file.",
         protectedNotLinkable: "Protected, so it cannot be linked",
         egressTitle: "Send text to {provider}?",
-        egressBody: "To find a good home note, the first 1,000 characters of this file's text are sent to {provider}. You can use a basic match on title words instead, which sends nothing.",
+        egressBody: "To find a good home note, the first {chars} characters of this file's text are sent to {provider}. You can use a basic match on title words instead, which sends nothing.",
         egressSend: "Send text",
         egressBasic: "Use basic match",
         reasonReferenced: "Used by {count} notes or canvases",

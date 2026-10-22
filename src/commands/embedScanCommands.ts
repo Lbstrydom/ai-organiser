@@ -133,7 +133,7 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
 
         if (result.cancelled) return; // User cancelled
 
-        if (result.targets.length === 0 && result.possiblyOrphaned.length === 0) {
+        if (result.targets.length === 0 && result.possiblyOrphaned.length === 0 && (result.coverageFailures ?? []).length === 0) {
             new Notice(embedScan.noEmbedsFound);
             return;
         }

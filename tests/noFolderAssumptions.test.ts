@@ -40,9 +40,16 @@ describe('no folder-structure assumptions', () => {
 
 	it('setup, guidance and feature strings contain no PARA-style names', () => {
 		for (const section of NEW_SECTIONS) {
-			for (const s of strings((en as unknown as Record<string, unknown>)[section])) {
+			const values = strings((en as unknown as Record<string, unknown>)[section]);
+			expect(values.length, `${section} must exist and contain strings`).toBeGreaterThan(0);
+			for (const s of values) {
 				expect(PARA_WORDS.test(s), `${section}: ${s}`).toBe(false);
 			}
 		}
+	});
+
+	it('the PARA check itself catches a PARA-style name (negative control)', () => {
+		expect(PARA_WORDS.test('Move it to the Areas folder')).toBe(true);
+		expect(PARA_WORDS.test('Choose a folder')).toBe(false);
 	});
 });

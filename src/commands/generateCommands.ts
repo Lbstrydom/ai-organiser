@@ -124,7 +124,7 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
 
     const result = r.value;
     if (selectedText && result.success) {
-        if (!guardActiveNote()) return;
+        if (!guardActiveNote(editor)) return;
         editor.replaceSelection(selectedText);
     }
     plugin.handleTagUpdateResult(result);

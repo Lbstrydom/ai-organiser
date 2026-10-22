@@ -105,7 +105,7 @@ describe('evaluateScriptCompat', () => {
 describe('settings migration for the F1 / F2 / onboarding keys', () => {
 	it('coerces missing and invalid values to the defaults', () => {
 		const out = migrateOldSettings({
-			protectedFolders: 'nope',
+			protectedFolders: 7,
 			featureSetupCompletedAt: ['x'],
 			attachmentLargeFileMB: -5,
 			attachmentDuplicateMaxMB: 'abc',
@@ -116,6 +116,11 @@ describe('settings migration for the F1 / F2 / onboarding keys', () => {
 		expect(out.attachmentLargeFileMB).toBe(20);
 		expect(out.attachmentDuplicateMaxMB).toBe(50);
 		expect(out.attachmentLinkHeading).toBe('Attachments');
+	});
+
+	it('keeps a lone string as one protected folder rather than silently dropping protection', () => {
+		const out = migrateOldSettings({ protectedFolders: 'Courses/Live' }) as Record<string, unknown>;
+		expect(out.protectedFolders).toEqual(['Courses/Live']);
 	});
 
 	it('keeps valid values and is idempotent', () => {

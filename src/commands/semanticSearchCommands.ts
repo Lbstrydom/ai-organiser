@@ -635,13 +635,14 @@ class ExportSearchResultsModal extends Modal {
                     return;
                 }
 
-                if (!assertWritableActive('modify', this.selectedNote.path).ok) {
+                // Capture the note once: the picker can change while the write is in flight.
+                const note = this.selectedNote;
+                if (!assertWritableActive('modify', note.path).ok) {
                     new Notice(this.plugin.t.messages.protectedNoteNotModified, 6000);
                     return;
                 }
-                const existingContent = await this.app.vault.read(this.selectedNote);
-                const newContent = existingContent + '\n\n' + content;
-                await this.app.vault.modify(this.selectedNote, newContent);
+                // Read-modify-write inside one atomic transform, so an edit made meanwhile is not overwritten.
+                await this.app.vault.process(note, (existing) => existing + '\n\n' + content);
                 new Notice(t.success.replace('{count}', this.results.length.toString()));
             }
 

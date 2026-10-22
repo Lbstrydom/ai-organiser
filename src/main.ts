@@ -19,8 +19,9 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
-import { assertWritable } from './core/protectedPaths';
-import { registerProtectedFolders, unregisterProtectedFolders } from './commands/protectedFolderCommands';
+import { assertWritable, setActiveProtection } from './core/protectedPaths';
+import { referrersProtectedActive } from './utils/protectedGuard';
+import { registerProtectedFolders, unregisterProtectedFolders, enforceOutputDisjointness } from './commands/protectedFolderCommands';
 import { isFeatureEnabled } from './services/featureService';
 import { FEATURE_REGISTRY, type FeatureId } from './core/features';
 import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
@@ -271,6 +272,8 @@ export default class AIOrganiserPlugin extends Plugin {
     }
 
     public async saveSettings(): Promise<void> {
+        // An output-folder edit that would land inside a protected folder is undone here.
+        enforceOutputDisjointness(this);
         const embeddingSettingsChanged =
             this.settings.embeddingProvider !== this.lastEmbeddingConfig.provider ||
             this.settings.embeddingModel !== this.lastEmbeddingConfig.model ||
@@ -973,6 +976,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public async onload(): Promise<void> {
         await this.loadSettings();
+        // Protected folders apply from the first moment settings exist, before any service starts.
+        setActiveProtection(() => this.settings);
         await this.initializeLLMService();
 
         // Initialize configuration service with full path (pluginFolder/configFolderPath)
@@ -1864,6 +1869,15 @@ export default class AIOrganiserPlugin extends Plugin {
             if (suggestions.applyFolder && suggestions.folder) {
                 const newFolder = suggestions.folder;
 
+                // Protected folders: check the whole footprint (source, destination and the notes whose
+                // links the move rewrites) BEFORE creating anything.
+                const newPath = `${newFolder}/${file.name}`;
+                if (!assertWritable(this.settings, 'rename', [file.path, newPath, { path: newFolder, folder: false }]).ok
+                    || referrersProtectedActive(this.app, file.path)) {
+                    new Notice(this.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
+
                 // Create folder if it doesn't exist
                 const folderExists = this.app.vault.getAbstractFileByPath(newFolder);
                 if (!folderExists) {
@@ -1871,11 +1885,6 @@ export default class AIOrganiserPlugin extends Plugin {
                 }
 
                 // Move file to new folder
-                const newPath = `${newFolder}/${file.name}`;
-                if (!assertWritable(this.settings, 'rename', [file.path, newPath]).ok) {
-                    new Notice(this.t.messages.protectedNoteNotModified, 6000);
-                    return;
-                }
                 await this.app.fileManager.renameFile(file, newPath);
 
                 // Update reference to the moved file
@@ -1901,7 +1910,8 @@ export default class AIOrganiserPlugin extends Plugin {
                     return;
                 }
 
-                if (!assertWritable(this.settings, 'rename', [currentFile.path, newPath]).ok) {
+                if (!assertWritable(this.settings, 'rename', [currentFile.path, newPath]).ok
+                    || referrersProtectedActive(this.app, currentFile.path)) {
                     new Notice(this.t.messages.protectedNoteNotModified, 6000);
                     return;
                 }

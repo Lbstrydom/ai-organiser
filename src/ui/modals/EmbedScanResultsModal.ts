@@ -26,6 +26,7 @@ import {
 } from '../../services/attachmentEligibility';
 import { analyseDuplicates, type DuplicateResult } from '../../services/attachmentDuplicateService';
 import {
+    HOME_QUERY_CHARS,
     createHomeContext,
     linkToNote,
     suggestHomes,
@@ -113,12 +114,12 @@ export interface EmbedScanModalContext {
     onRescan?: () => void;
 }
 
-/** The user's answer to "send text to the embedding provider?", remembered for the session. */
-let sessionEgressChoice: boolean | null = null;
+/** The user's answer to "send text to the embedding provider?", remembered per provider for the session. */
+const sessionEgressChoice = new Map<string, boolean>();
 
-/** Forget the session answer (called when the plugin loads). */
+/** Forget the session answers (called when the plugin loads). */
 export function resetEgressChoice(): void {
-    sessionEgressChoice = null;
+    sessionEgressChoice.clear();
 }
 
 type SuggestState =
@@ -842,26 +843,40 @@ export class EmbedScanResultsModal extends Modal {
      * Rebuild the reference graph from the CURRENT vault, drop anything that is no longer safe,
      * and only then ask for confirmation. Fails closed if the link index is not ready.
      */
-    private async revalidateAndConfirm(selected: TFile[]): Promise<void> {
-        const es = this.t.embedScan;
+    /**
+     * Check the selected files against the CURRENT vault. Returns the ones still safe and the
+     * ones kept back; a failure to check (for example the link index is not ready) is reported
+     * and treated as "nothing is safe".
+     */
+    private async checkSafe(selected: TFile[]): Promise<{ safe: TFile[]; kept: TFile[] } | null> {
         const settings = this.ctx?.plugin.settings;
-        const checking = new Notice(es.revalidating, 0);
         const identities = selected.map((f) => this.scanIdentity.get(f.path) ?? { path: f.path, size: f.stat.size, mtime: f.stat.mtime });
         const res = await revalidate(createAppVaultPort(this.app), {
             files: identities,
             scanStartedAt: this.scanResult.scanStartedAt ?? 0,
             occurrences: this.scanResult.occurrences ?? [],
+            scannedReferrers: this.scanResult.scannedReferrers,
             priorFailures: this.scanResult.coverageFailures ?? [],
             changes: this.changeLog.snapshot(),
             protectedFolders: settings?.protectedFolders ?? [],
         });
-        checking.hide();
         if (!res.ok) {
             new Notice(formatGuidance(describeError(this.t, res.error)), 8000);
-            return;
+            return null;
         }
-        const safe = selected.filter((f) => res.value.get(f.path)?.eligible);
-        const kept = selected.filter((f) => !res.value.get(f.path)?.eligible);
+        return {
+            safe: selected.filter((f) => res.value.get(f.path)?.eligible),
+            kept: selected.filter((f) => !res.value.get(f.path)?.eligible),
+        };
+    }
+
+    private async revalidateAndConfirm(selected: TFile[]): Promise<void> {
+        const es = this.t.embedScan;
+        const checking = new Notice(es.revalidating, 0);
+        const checked = await this.checkSafe(selected);
+        checking.hide();
+        if (!checked) return;
+        const { safe, kept } = checked;
         if (kept.length > 0) {
             for (const f of kept) this.selectedPaths.delete(f.path);
             new Notice(es.keptNotice.replace('{count}', String(kept.length)), 8000);
@@ -891,9 +906,20 @@ export class EmbedScanResultsModal extends Modal {
         return files;
     }
 
-    private async executeDelete(files: TFile[]): Promise<void> {
+    private async executeDelete(candidates: TFile[]): Promise<void> {
         const embedScan = this.t.embedScan;
         let deletedCount = 0;
+
+        // Confirmation approves a specific validated state. A reference may have appeared while
+        // the dialog was open, so check again immediately before trashing.
+        const checked = await this.checkSafe(candidates);
+        if (!checked) return;
+        if (checked.kept.length > 0) {
+            for (const f of checked.kept) this.selectedPaths.delete(f.path);
+            new Notice(embedScan.keptNotice.replace('{count}', String(checked.kept.length)), 8000);
+            this.stale = true;
+        }
+        const files = checked.safe;
 
         for (const file of files) {
             try {
@@ -1160,12 +1186,14 @@ export class EmbedScanResultsModal extends Modal {
 
     /** Ask once per session whether text may go to the (external) embedding provider. */
     private confirmEgress(): Promise<boolean> {
-        if (sessionEgressChoice !== null) return Promise.resolve(sessionEgressChoice);
         const es = this.t.embedScan;
         const provider = this.ctx?.plugin.settings.embeddingProvider ?? '';
+        const remembered = sessionEgressChoice.get(provider);
+        if (remembered !== undefined) return Promise.resolve(remembered);
+        const body = es.egressBody.replaceAll('{provider}', provider).replace('{chars}', HOME_QUERY_CHARS.toLocaleString('en-US'));
         return new Promise<boolean>((resolve) => {
-            new EgressModal(this.app, es.egressTitle.replace('{provider}', provider), es.egressBody.replace('{provider}', provider), es.egressSend, es.egressBasic, (choice) => {
-                sessionEgressChoice = choice;
+            new EgressModal(this.app, es.egressTitle.replace('{provider}', provider), body, es.egressSend, es.egressBasic, (choice) => {
+                sessionEgressChoice.set(provider, choice);
                 resolve(choice);
             }).open();
         });

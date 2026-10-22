@@ -1244,7 +1244,7 @@ export class UnifiedChatModal extends Modal {
             return;
         }
 
-        if (!guardActiveNote()) return;
+        if (!guardActiveNote(editor)) return;
         editor.replaceSelection(lastAnswer.content);
         ensureNoteStructureIfEnabled(editor, this.plugin.settings);
         this.notify(this.plugin.t.modals.unifiedChat.answerInserted);
@@ -1321,7 +1321,7 @@ export class UnifiedChatModal extends Modal {
             if (isStaleGeneration(gen, this.requestGeneration)) return;
 
             if (response.success && response.content) {
-                if (!guardActiveNote()) return;
+                if (!guardActiveNote(editor)) return;
                 editor.replaceSelection(response.content);
                 ensureNoteStructureIfEnabled(editor, this.plugin.settings);
                 this.notify(this.plugin.t.modals.unifiedChat.summaryInserted);

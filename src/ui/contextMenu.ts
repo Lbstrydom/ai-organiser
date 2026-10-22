@@ -45,13 +45,13 @@ export function lineHasImageEmbed(line: string): boolean {
 function applyHighlightFromMenu(editor: Editor, selection: string, color: HighlightColor): void {
     if (color.id === 'clear') {
         const cleaned = stripExistingHighlight(selection);
-        if (!guardActiveNote()) return;
+        if (!guardActiveNote(editor)) return;
         editor.replaceSelection(cleaned);
         return;
     }
     const cleanedSelection = stripExistingHighlight(selection);
     const highlighted = `<mark class="ao-highlight ao-highlight-${color.id}">${cleanedSelection}</mark>`;
-    if (!guardActiveNote()) return;
+    if (!guardActiveNote(editor)) return;
     editor.replaceSelection(highlighted);
 }
 

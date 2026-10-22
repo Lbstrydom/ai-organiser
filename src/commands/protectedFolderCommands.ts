@@ -9,7 +9,7 @@
  *
  * Nothing here registers a command-palette entry: with an empty list the feature is inert.
  */
-import { Menu, Notice, TAbstractFile, TFolder } from 'obsidian';
+import { MarkdownView, Menu, Notice, TAbstractFile, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
 import {
@@ -20,7 +20,7 @@ import {
     setActiveProtection,
     type OutputRootConflict,
 } from '../core/protectedPaths';
-import { getPluginManagedFolders } from '../core/settings';
+import { getPluginManagedFolders, OUTPUT_ROOT_SETTING_KEYS } from '../core/settings';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { FolderListEditor, countNotesInFolder } from '../ui/setup/FolderListEditor';
 import { logger } from '../utils/logger';
@@ -47,9 +47,52 @@ export async function applyProtectedFolders(plugin: AIOrganiserPlugin, next: rea
     return ok(undefined);
 }
 
-/** Warn (once per load) about an existing overlap between an output folder and a protected one. */
+// ── Output-folder disjointness at every settings save ──────────────────────────────────────────
+// The last state in which no NEW collision existed. A save that introduces a collision restores
+// the output-folder settings from here, so the rule holds for output-folder edits as well as for
+// protected-list edits. A collision that already existed when the plugin loaded is only warned
+// about (the user may be mid-migration); it never grows.
+let lastGoodOutputRoots: Record<string, unknown> = {};
+let knownConflictPaths = new Set<string>();
+let baselined = false;
+
+function snapshotOutputRoots(settings: object): Record<string, unknown> {
+    const out: Record<string, unknown> = {};
+    for (const key of OUTPUT_ROOT_SETTING_KEYS) out[key] = (settings as Record<string, unknown>)[key];
+    return out;
+}
+
+/**
+ * Call at the start of every settings save. Returns true when a change was reverted because it
+ * would have put a plugin output folder inside (or around) a protected folder.
+ */
+export function enforceOutputDisjointness(plugin: AIOrganiserPlugin): boolean {
+    const conflicts = outputConflicts(plugin, plugin.settings.protectedFolders);
+    if (!baselined) {
+        // A save before registration (during load) establishes the starting state; nothing to revert.
+        lastGoodOutputRoots = snapshotOutputRoots(plugin.settings);
+        knownConflictPaths = new Set(conflicts.map((c) => c.path));
+        baselined = true;
+        return false;
+    }
+    const introduced = conflicts.filter((c) => !knownConflictPaths.has(c.path));
+    if (introduced.length === 0) {
+        lastGoodOutputRoots = snapshotOutputRoots(plugin.settings);
+        knownConflictPaths = new Set(conflicts.map((c) => c.path));
+        return false;
+    }
+    Object.assign(plugin.settings, lastGoodOutputRoots);
+    new Notice(plugin.t.protectedFolders.outputRefused.replace('{label}', introduced[0].label), 10000);
+    plugin.settingTab?.display();
+    return true;
+}
+
+/** Record the starting state and warn once about a collision that already exists. */
 function warnAboutOverlap(plugin: AIOrganiserPlugin): void {
     const conflicts = outputConflicts(plugin, plugin.settings.protectedFolders);
+    lastGoodOutputRoots = snapshotOutputRoots(plugin.settings);
+    knownConflictPaths = new Set(conflicts.map((c) => c.path));
+    baselined = true;
     for (const c of conflicts) {
         logger.warn('Protected', `Output folder "${c.label}" overlaps protected folder "${c.protectedFolder}"`);
         new Notice(plugin.t.protectedFolders.outputOverlap.replace('{label}', c.label), 10000);
@@ -145,6 +188,13 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
     installActiveNoteGuard(
         () => plugin.app.workspace.getActiveFile()?.path ?? null,
         () => plugin.t.messages.protectedNoteNotModified,
+        (editor) => {
+            for (const leaf of plugin.app.workspace.getLeavesOfType('markdown')) {
+                const view = leaf.view;
+                if (view instanceof MarkdownView && view.editor === editor) return view.file?.path ?? null;
+            }
+            return null;
+        },
     );
 
     plugin.registerEvent(plugin.app.vault.on('rename', (file, oldPath) => {
@@ -162,6 +212,7 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
 
 /** Tear down the registry (onunload). */
 export function unregisterProtectedFolders(): void {
+    baselined = false;
     setActiveProtection(null);
     installActiveNoteGuard(null, null);
 }

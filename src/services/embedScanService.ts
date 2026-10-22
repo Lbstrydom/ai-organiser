@@ -94,6 +94,9 @@ export interface EmbedScanResult {
     scanStartedAt?: number;
     /** Every non-markdown reference found, for re-resolution at trash confirmation */
     occurrences?: StoredOccurrence[];
+    /** Every note and canvas that was actually read, with its modified time then. A later check
+     *  treats any referrer NOT listed here (or changed since) as unscanned and reads it again. */
+    scannedReferrers?: { path: string; mtime: number }[];
 }
 
 /** Progress callback for vault-scale scans */
@@ -332,6 +335,7 @@ export async function scanNotes(
     const occurrences: StoredOccurrence[] = [];
     const coverageFailures: CoverageFailure[] = [];
     const ambiguous = new Set<string>();
+    const scannedReferrers: { path: string; mtime: number }[] = [];
     const candidatesFor = buildCandidateIndex(app.vault.getFiles().map((f) => f.path));
     let notesScanned = 0;
     let canvasesScanned = 0;
@@ -358,6 +362,7 @@ export async function scanNotes(
             coverageFailures.push(collected.failure);
             continue;
         }
+        scannedReferrers.push({ path: sourceFile.path, mtime: sourceFile.stat.mtime });
 
         for (const occ of collected.occurrences) {
             const raw = collected.embedded.get(occ)!;
@@ -445,6 +450,7 @@ export async function scanNotes(
         ambiguousPaths: [...ambiguous],
         scanStartedAt,
         occurrences,
+        scannedReferrers,
     };
 }
 

@@ -214,7 +214,7 @@ export function registerInsertRelatedNotesCommand(plugin: AIOrganiserPlugin): vo
 
                 // Insert at cursor or end
                 const cursor = editor.getCursor();
-                if (!guardActiveNote()) return;
+                if (!guardActiveNote(editor)) return;
                 editor.replaceRange(relatedSection, cursor);
                 ensureNoteStructureIfEnabled(editor, plugin.settings);
                 new Notice(plugin.t.messages.insertedRelatedNotes.replace('{count}', String(related.length)));

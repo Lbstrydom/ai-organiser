@@ -100,7 +100,11 @@ export async function analyseDuplicates(
                 notAnalysed.push({ path: file.path, reason: 'read-failed' });
             }
             done++;
-            options.onProgress?.(done, hashable.length, file.path);
+            try {
+                options.onProgress?.(done, hashable.length, file.path);
+            } catch {
+                // An observer failing must not abort the analysis.
+            }
         }
     };
 

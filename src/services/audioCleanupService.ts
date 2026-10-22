@@ -57,8 +57,7 @@ export async function offerPostTranscriptionCleanup(
     }
 
     if (policy === 'delete') {
-        await deleteAudioFile(plugin, file);
-        return 'delete';
+        return (await deleteAudioFile(plugin, file)) ? 'delete' : 'keep-original';
     }
 
     // policy === 'ask' → show modal
@@ -77,7 +76,7 @@ export async function offerPostTranscriptionCleanup(
     if (choice.action === 'keep-compressed' && worthCompressing) {
         await replaceWithCompressed(plugin, file, transcriptionResult);
     } else if (choice.action === 'delete') {
-        await deleteAudioFile(plugin, file);
+        if (!(await deleteAudioFile(plugin, file))) return 'keep-original';
     }
 
     return choice.action;
@@ -109,16 +108,18 @@ async function replaceWithCompressed(
 async function deleteAudioFile(
     plugin: AIOrganiserPlugin,
     file: TFile
-): Promise<void> {
+): Promise<boolean> {
     if (!assertWritable(plugin.settings, 'delete', file.path).ok) {
         new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
-        return;
+        return false;
     }
     try {
         await plugin.app.fileManager.trashFile(file);
         new Notice(plugin.t.compression?.audioDeleted || 'Audio file deleted');
+        return true;
     } catch (err) {
         logger.error('Audio', 'Delete failed:', err);
         new Notice('Failed to delete audio file');
+        return false;
     }
 }

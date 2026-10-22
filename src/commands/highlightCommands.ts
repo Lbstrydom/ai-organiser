@@ -89,7 +89,7 @@ function applyHighlight(editor: Editor, selection: string, color: HighlightColor
     // This provides the most flexibility and works in both edit and preview modes
     const highlighted = `<mark class="ao-highlight ao-highlight-${color.id}">${cleanedSelection}</mark>`;
 
-    if (!guardActiveNote()) return;
+    if (!guardActiveNote(editor)) return;
     editor.replaceSelection(highlighted);
 }
 
@@ -98,7 +98,7 @@ function applyHighlight(editor: Editor, selection: string, color: HighlightColor
  */
 function removeHighlight(editor: Editor, selection: string): void {
     const cleanedSelection = stripExistingHighlight(selection);
-    if (!guardActiveNote()) return;
+    if (!guardActiveNote(editor)) return;
     editor.replaceSelection(cleanedSelection);
 }
 

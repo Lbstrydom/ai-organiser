@@ -167,9 +167,15 @@ export async function writeNote(
     // Protected folders (F1): refuse before any editor or vault write. Empty/absent list = no-op.
     const allowed = assertWritable(protectedFolders, 'modify', file.path);
     if (!allowed.ok) return err(allowed.error);
-    const editor = findEditorForFile(app, file);
-    if (editor) {
-        return writeViaEditor(editor, apply);
+    try {
+        const editor = findEditorForFile(app, file);
+        if (editor) {
+            return writeViaEditor(editor, apply);
+        }
+        return await writeViaVault(app, file, apply);
+    } catch (e) {
+        // Contract: every outcome is a typed Result, never a throw.
+        logger.error('NoteEdit', 'unexpected write failure', e);
+        return err('write-failed');
     }
-    return writeViaVault(app, file, apply);
 }

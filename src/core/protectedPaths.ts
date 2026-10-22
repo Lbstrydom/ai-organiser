@@ -28,13 +28,21 @@ export type ProtectedSource = readonly string[] | { protectedFolders?: readonly 
 /** Stable error code returned by every guard. */
 export const PROTECTED_PATH_ERROR = 'protected-path';
 
-/** Normalise a vault path for comparison: forward slashes, no leading or trailing slash, no `.` segments. */
+/**
+ * Normalise a vault path for comparison: forward slashes, no leading or trailing slash, no `.`
+ * segments, and `..` resolved (`A/../B` is `B`; a `..` at the root cannot climb out of the vault).
+ */
 export function normalisePath(path: string): string {
-    return path
-        .replaceAll('\\', '/')
-        .split('/')
-        .filter((seg) => seg !== '' && seg !== '.')
-        .join('/');
+    const out: string[] = [];
+    for (const seg of path.replaceAll('\\', '/').split('/')) {
+        if (seg === '' || seg === '.') continue;
+        if (seg === '..') {
+            out.pop();
+            continue;
+        }
+        out.push(seg);
+    }
+    return out.join('/');
 }
 
 function key(path: string): string {

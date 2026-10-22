@@ -277,7 +277,7 @@ async function generateMermaidDiagram(
     const cleanedDiagram = cleanMermaidOutput(r.value!);
     const wrappedDiagram = wrapInCodeFence(cleanedDiagram);
     const cursor = editor.getCursor();
-    if (!guardActiveNote()) return;
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
     ensureNoteStructureIfEnabled(editor, plugin.settings);
     new Notice(t.messages.diagramGenerated, 3000);

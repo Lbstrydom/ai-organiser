@@ -129,7 +129,7 @@ type SettingsLike = Record<string, unknown>;
 
 function isNonEmpty(value: unknown): boolean {
     if (typeof value === 'string') return value.trim() !== '';
-    if (Array.isArray(value)) return value.length > 0;
+    if (Array.isArray(value)) return value.some((v) => (typeof v === 'string' ? v.trim() !== '' : v !== undefined && v !== null));
     return value !== undefined && value !== null;
 }
 
