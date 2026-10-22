@@ -162,10 +162,13 @@ describe('orchestrateChunked prefix handling', () => {
 
 describe('presentation refine / polish send the IR system prompt as the cacheable prefix', () => {
     const calls: Array<{ prompt: string; options?: SummarizeOptions }> = [];
-    const context = (content: string): LLMFacadeContext => ({
+    /** One reply (repeated for every call) or a sequence (the last one repeats). */
+    const context = (replies: string | string[]): LLMFacadeContext => ({
         settings: { serviceType: 'cloud', cloudServiceType: 'claude' },
         llmService: {
             summarizeText: vi.fn(async (prompt: string, options?: SummarizeOptions) => {
+                const seq = Array.isArray(replies) ? replies : [replies];
+                const content = seq[Math.min(calls.length, seq.length - 1)];
                 calls.push({ prompt, options });
                 return { success: true, content };
             }),
@@ -189,14 +192,48 @@ describe('presentation refine / polish send the IR system prompt as the cacheabl
             await refineDeckIrSelective(context('not a deck'), {
                 currentDeck: coffeeDeckIr, selections: IR_SELECTIONS, outputLanguage: lang,
             });
-            expect(calls.length).toBeGreaterThanOrEqual(1);
             expect(calls[0].options?.stablePrefix).toBe(buildIrSystemPrompt({ outputLanguage: lang }));
             expect(calls[0].options?.label).toBe('presentation-polish');
             expect(joinPromptParts(calls[0].options?.stablePrefix, calls[0].prompt)).toBe(fixture[`irSelective:${lang ?? 'none'}`]);
-            // a repair retry, if one happens, reuses the very same prefix
-            for (const c of calls) expect(c.options?.stablePrefix).toBe(calls[0].options?.stablePrefix);
         });
     }
+
+    describe('selective refine repair path', () => {
+        const slice = (i: number) => ({ slideIndex: i, slides: [coffeeDeckIr.slides[i]] });
+        const valid = JSON.stringify({ slices: IR_SELECTIONS.map(sel => slice(sel.slideIndex)) });
+
+        it('an unparseable reply is repaired exactly once; both calls share prefix + label; the final result is an error', async () => {
+            const res = await refineDeckIrSelective(context('not a deck'), {
+                currentDeck: coffeeDeckIr, selections: IR_SELECTIONS, outputLanguage: 'French',
+            });
+            expect(calls).toHaveLength(2);
+            expect(calls[1].options?.stablePrefix).toBe(calls[0].options?.stablePrefix);
+            expect(calls[1].options?.label).toBe('presentation-polish');
+            expect(calls[1].prompt).not.toBe(calls[0].prompt);
+            expect(calls[1].prompt).toContain('not a deck'); // the repair prompt echoes the bad output
+            expect(res.ok).toBe(false);
+        });
+
+        it('invalid then valid: succeeds on the repair call and leaves unselected slides untouched', async () => {
+            const res = await refineDeckIrSelective(context(['not a deck', valid]), {
+                currentDeck: coffeeDeckIr, selections: IR_SELECTIONS,
+            });
+            expect(calls).toHaveLength(2);
+            expect(calls[1].options?.stablePrefix).toBe(buildIrSystemPrompt({}));
+            expect(res.ok).toBe(true);
+            if (res.ok) {
+                expect(res.value.slides).toHaveLength(coffeeDeckIr.slides.length);
+                expect(res.value.slides[0]).toEqual(coffeeDeckIr.slides[0]);
+                expect(res.value.slides[coffeeDeckIr.slides.length - 1]).toEqual(coffeeDeckIr.slides[coffeeDeckIr.slides.length - 1]);
+            }
+        });
+
+        it('a valid first reply needs no repair', async () => {
+            const res = await refineDeckIrSelective(context(valid), { currentDeck: coffeeDeckIr, selections: IR_SELECTIONS });
+            expect(calls).toHaveLength(1);
+            expect(res.ok).toBe(true);
+        });
+    });
 
     it('refine and polish share one prefix for the same language (one cache entry)', async () => {
         await refineDeckIr(context(JSON.stringify(coffeeDeckIr)), { currentDeck: coffeeDeckIr, userRequest: 'x', outputLanguage: 'French' });
