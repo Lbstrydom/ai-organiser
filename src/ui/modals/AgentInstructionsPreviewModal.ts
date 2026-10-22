@@ -33,10 +33,12 @@ export class AgentInstructionsPreviewModal extends Modal {
             this.contentEl.createEl('pre', { text: p.after, cls: 'ai-organiser-inventory-preview' });
         }
         const buttons = this.contentEl.createDiv({ cls: 'ai-organiser-modal-buttons' });
-        const apply = buttons.createEl('button', { text: t.previewApply, cls: 'mod-cta' });
-        apply.disabled = !p.changed;
-        this.cleanups.push(listen(apply, 'click', () => { this.settled = true; this.onDone(true); this.close(); }));
-        const cancel = buttons.createEl('button', { text: this.plugin.t.modals.cancel });
+        // Nothing to apply: offer only Close, not a button that does nothing.
+        if (p.changed) {
+            const apply = buttons.createEl('button', { text: t.previewApply, cls: 'mod-cta' });
+            this.cleanups.push(listen(apply, 'click', () => { this.settled = true; this.onDone(true); this.close(); }));
+        }
+        const cancel = buttons.createEl('button', { text: p.changed ? this.plugin.t.modals.cancel : this.plugin.t.common.close });
         this.cleanups.push(listen(cancel, 'click', () => this.close()));
     }
 

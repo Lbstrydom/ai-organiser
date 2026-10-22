@@ -19,7 +19,8 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
-import { assertWritable, setActiveProtection } from './core/protectedPaths';
+import { assertWritable, setActiveProtection, splitByProtection } from './core/protectedPaths';
+import { plural } from './utils/plural';
 import { referrersProtectedActive } from './utils/protectedGuard';
 import { registerProtectedFolders, unregisterProtectedFolders, enforceOutputDisjointness } from './commands/protectedFolderCommands';
 import { isFeatureEnabled } from './services/featureService';
@@ -144,6 +145,8 @@ export default class AIOrganiserPlugin extends Plugin {
      *  interleave saveSettings/teardown/re-render. The in-flight apply re-renders the tab
      *  at the end, so a dropped concurrent toggle is reflected correctly on that render. */
     private applyingFeatureFlags = false;
+    /** A feature was switched since Obsidian last loaded the plugin, so its commands and views need a reload. Not saved: a restart clears it. */
+    public featureReloadPending = false;
     private readonly eventHandlers: EventHandlers;
     private readonly tagNetworkManager: TagNetworkManager;
     private readonly tagOperations: TagOperations;
@@ -385,6 +388,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 && isFeatureEnabled({ featureFlags: newFlags }, 'visual-search');
             if (visualTurnedOn) void this.initVisualLane();
 
+            this.featureReloadPending = true;
             await this.settingTab?.render();
             new Notice(this.t.features.reloadNotice, 8000);
         } finally {
@@ -1570,13 +1574,21 @@ export default class AIOrganiserPlugin extends Plugin {
     }
 
     public async clearAllNotesTags(): Promise<void> {
-        const files = this.getNonExcludedMarkdownFiles();
+        const m = this.t.messages;
+        const { writable, protectedOut } = splitByProtection(this.settings.protectedFolders, this.getNonExcludedMarkdownFiles());
+        if (writable.length === 0) {
+            new Notice(m.clearTagsAllProtected, 6000);
+            return;
+        }
+        const note = (template: string) => (protectedOut.length > 0 ? plural(template, protectedOut.length) : '');
         if (await this.showConfirmationDialog(
-            `Remove all tags from ${files.length} notes? This action cannot be undone.`
+            [plural(m.clearTagsAllNotesConfirm, writable.length), note(m.clearTagsProtectedConfirm)].filter(Boolean).join(' ')
         )) {
             try {
-                await this.tagOperations.clearDirectoryTags(files);
-                new Notice(this.t.messages.successfullyClearedAllVault, 3000);
+                await this.tagOperations.clearDirectoryTags(writable);
+                new Notice(protectedOut.length > 0
+                    ? [plural(m.tagsClearedFrom, writable.length), note(m.clearTagsProtectedResult)].join('. ')
+                    : m.successfullyClearedAllVault, protectedOut.length > 0 ? 6000 : 3000);
             } catch {
                 new Notice(this.t.messages.failedToClearVaultTags, 4000);
             }

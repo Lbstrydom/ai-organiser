@@ -53,7 +53,7 @@ export function isOffloadAvailable(plugin: AIOrganiserPlugin): boolean {
         && nodeDeps() !== null;
 }
 
-function basePath(plugin: AIOrganiserPlugin): string | null {
+export function basePath(plugin: AIOrganiserPlugin): string | null {
     const adapter = plugin.app.vault.adapter;
     return adapter instanceof FileSystemAdapter ? adapter.getBasePath() : null;
 }

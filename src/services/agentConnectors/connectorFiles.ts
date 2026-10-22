@@ -96,6 +96,31 @@ async function publishTarget(plugin: AIOrganiserPlugin, target: Target): Promise
     }
 }
 
+/**
+ * The paths of connector files that are already in the chosen folder, so a guide reopened later can show
+ * the finished setup. Reads only. `ok(null)` means they are absent, not ours, or an older version than this
+ * plugin writes (so the person is offered "Create connector files" to refresh them). Never throws.
+ */
+export async function findExistingConnectorFiles(plugin: AIOrganiserPlugin): Promise<Result<ConnectorFilePaths | null>> {
+    try {
+        const s = plugin.settings;
+        if (!isFeatureEnabled(s, 'agent-connectors')) return ok(null);
+        const folder = connectorFolderPath(s.agentConnectorFolder, s.protectedFolders);
+        if (!folder.ok) return ok(null);
+        const adapter = plugin.app.vault.adapter;
+        const bundle = `${folder.value}/${CONNECTOR_BUNDLE_FILE}`;
+        const server = `${folder.value}/${CONNECTOR_SERVER_FILE}`;
+        if (!(await adapter.exists(bundle)) || !(await adapter.exists(server))) return ok(null);
+        if (!isOwnBundle(new Uint8Array(await adapter.readBinary(bundle)))) return ok(null);
+        const serverText = await adapter.read(server);
+        if (!isOwnServerFile(serverText) || serverText !== buildServerFileText()) return ok(null);
+        return ok({ bundle, server });
+    } catch (e) {
+        logger.error('Connector', 'Looking for existing connector files failed', e);
+        return err('write-failed');
+    }
+}
+
 /** Create or refresh the bundle and the standalone server in the connector folder. Never throws. */
 export function saveConnectorFiles(plugin: AIOrganiserPlugin, pluginVersion: string): Promise<Result<ConnectorFilePaths>> {
     return serialised(async () => {

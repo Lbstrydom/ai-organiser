@@ -25,6 +25,7 @@ import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { FolderListEditor, countNotesInFolder } from '../ui/setup/FolderListEditor';
 import { logger } from '../utils/logger';
+import { plural } from '../utils/plural';
 import { installActiveNoteGuard } from '../utils/protectedGuard';
 
 /** Output folders (plugin-managed) that collide with the given protected list. */
@@ -185,9 +186,7 @@ export function openProtectedFoldersSetup(plugin: AIOrganiserPlugin, onDone?: ()
                     }
                     const notes = draft.reduce((sum, f) => sum + countNotesInFolder(plugin.app, f), 0);
                     el.createEl('p', {
-                        text: t.protectedFolders.wizardConfirmSummary
-                            .replace('{count}', String(notes))
-                            .replace('{folders}', String(draft.length)),
+                        text: plural(t.protectedFolders.wizardConfirmSummary, notes),
                     });
                     const list = el.createEl('ul');
                     for (const f of draft) list.createEl('li', { text: f });
@@ -230,7 +229,7 @@ function addMenuItems(plugin: AIOrganiserPlugin, menu: Menu, file: TAbstractFile
                     return;
                 }
                 new Notice(
-                    t.nowProtected.replace('{folder}', file.path).replace('{count}', String(countNotesInFolder(plugin.app, file.path))),
+                    plural(t.nowProtected, countNotesInFolder(plugin.app, file.path)).replace('{folder}', file.path),
                     5000,
                 );
             })();
@@ -259,6 +258,7 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
         const res = rewriteOnRename(plugin.settings.protectedFolders, oldPath, file.path);
         if (!res.changed) return;
         plugin.settings.protectedFolders = res.list;
+        new Notice(plugin.t.protectedFolders.followedRename.replace('{from}', oldPath).replace('{to}', file.path), 6000);
         void enqueueProtectionUpdate(async () => {
             try {
                 await plugin.saveSettings();

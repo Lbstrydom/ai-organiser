@@ -2,6 +2,8 @@ import { MarkdownView, Notice } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { ClearTagsScopeModal, ClearTagsScope } from '../ui/modals/ClearTagsScopeModal';
+import { isProtectedPath, splitByProtection } from '../core/protectedPaths';
+import { plural } from '../utils/plural';
 
 export function registerClearCommands(plugin: AIOrganiserPlugin) {
     // Command: Clear Tags (scope modal)
@@ -32,6 +34,10 @@ export function registerClearCommands(plugin: AIOrganiserPlugin) {
 async function clearTagsForCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
     const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
     if (view?.file && view.editor) {
+        if (isProtectedPath(plugin.settings.protectedFolders, view.file.path)) {
+            new Notice(plugin.t.messages.protectedNoteNotModified, 6000); // one notice, and no structure edit to refuse a second time
+            return;
+        }
         await plugin.clearNoteTags();
         ensureNoteStructureIfEnabled(view.editor, plugin.settings);
     } else {
@@ -59,18 +65,25 @@ async function clearTagsForCurrentFolder(plugin: AIOrganiserPlugin): Promise<voi
         return;
     }
 
-    const confirmed = await plugin.showConfirmationDialog(
-        `${plugin.t.messages.clearTagsForFolderConfirm.replace('{count}', String(filesInFolder.length))}`
-    );
-
-    if (!confirmed) {
-        new Notice(plugin.t.messages.operationCancelled);
+    const m = plugin.t.messages;
+    const { writable, protectedOut } = splitByProtection(plugin.settings.protectedFolders, filesInFolder);
+    if (writable.length === 0) {
+        new Notice(m.clearTagsAllProtected);
         return;
     }
 
-    const result = await plugin.clearDirectoryTags(filesInFolder);
+    const confirmed = await plugin.showConfirmationDialog(
+        [plural(m.clearTagsForFolderConfirm, writable.length), protectedOut.length > 0 ? plural(m.clearTagsProtectedConfirm, protectedOut.length) : ''].filter(Boolean).join(' ')
+    );
+
+    if (!confirmed) {
+        new Notice(m.operationCancelled);
+        return;
+    }
+
+    const result = await plugin.clearDirectoryTags(writable);
     if (result.success) {
-        new Notice(`${plugin.t.messages.tagsClearedFrom.replace('{count}', String(result.successCount))}`);
+        new Notice([plural(m.tagsClearedFrom, result.successCount), protectedOut.length > 0 ? plural(m.clearTagsProtectedResult, protectedOut.length) : ''].filter(Boolean).join('. '), protectedOut.length > 0 ? 6000 : undefined);
         const activeView = plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (activeView?.editor) {
             ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { saveConnectorFiles } from '../src/services/agentConnectors/connectorFiles';
+import { findExistingConnectorFiles, saveConnectorFiles } from '../src/services/agentConnectors/connectorFiles';
 import { CONNECTOR_BUNDLE_FILE, CONNECTOR_SERVER_FILE, isOwnBundle } from '../src/services/agentConnectors/connectorBundle';
 import { CONNECTOR_SERVER_SOURCE } from '../src/services/agentConnectors/connectorServerSource';
 import { buildZip } from '../src/utils/zipStore';
@@ -97,5 +97,26 @@ describe('saveConnectorFiles: gated by its feature', () => {
 		const h = makePlugin({ featureFlags: {} });
 		expect(await saveConnectorFiles(h.plugin, '1.2.3')).toEqual({ ok: false, error: 'connector-feature-off' });
 		expect(h.files.size).toBe(0);
+	});
+});
+
+describe('findExistingConnectorFiles', () => {
+	it('finds the files a finished setup left, so a reopened guide shows the install steps', async () => {
+		const h = makePlugin();
+		expect(await findExistingConnectorFiles(h.plugin)).toEqual({ ok: true, value: null });
+		await saveConnectorFiles(h.plugin, '1.2.3');
+		expect(await findExistingConnectorFiles(h.plugin)).toEqual({ ok: true, value: { bundle: BUNDLE, server: SERVER } });
+		expect(h.files.size).toBe(2); // reading wrote nothing
+	});
+
+	it('reports nothing for a foreign file, an older server, a half-made set, no folder or the feature off', async () => {
+		const bundle = buildZip([{ name: 'x', data: new Uint8Array() }], 'ai-organiser/connector-bundle v1');
+		expect((await findExistingConnectorFiles(makePlugin({}, { [SERVER]: 'console.log(1)', [BUNDLE]: bundle }).plugin))).toEqual({ ok: true, value: null });
+		expect((await findExistingConnectorFiles(makePlugin({}, { [SERVER]: '// ai-organiser/connector-server v1 protocol 2026-07-28,2025-11-25\nold', [BUNDLE]: bundle }).plugin))).toEqual({ ok: true, value: null });
+		expect((await findExistingConnectorFiles(makePlugin({}, { [SERVER]: CONNECTOR_SERVER_SOURCE }).plugin))).toEqual({ ok: true, value: null });
+		const done = makePlugin({}, { [SERVER]: CONNECTOR_SERVER_SOURCE, [BUNDLE]: bundle });
+		expect((await findExistingConnectorFiles(makePlugin({ agentConnectorFolder: '' }, { [SERVER]: CONNECTOR_SERVER_SOURCE, [BUNDLE]: bundle }).plugin))).toEqual({ ok: true, value: null });
+		expect((await findExistingConnectorFiles(makePlugin({ featureFlags: { 'agent-index': true, 'agent-connectors': false } }, { [SERVER]: CONNECTOR_SERVER_SOURCE, [BUNDLE]: bundle }).plugin))).toEqual({ ok: true, value: null });
+		expect((await findExistingConnectorFiles(done.plugin))).toEqual({ ok: true, value: { bundle: BUNDLE, server: SERVER } });
 	});
 });

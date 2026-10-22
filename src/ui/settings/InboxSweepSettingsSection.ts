@@ -38,7 +38,7 @@ export class InboxSweepSettingsSection extends BaseSettingSection {
         const blocker = sweepBlocker(this.plugin);
         if (blocker) this.containerEl.createDiv({ cls: 'setting-item-description', text: formatGuidance(describeError(t, blocker)) });
 
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.setupButton).setCta().onClick(() => openInboxSweepSetup(this.plugin, () => this.settingTab.display())))
             .addButton((b) => b.setButtonText(c.runNow).onClick(() => { void runInboxSweep(this.plugin); }));
 

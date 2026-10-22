@@ -35,7 +35,7 @@ export class GoogleTasksSettingsSection extends BaseSettingSection {
         const waiting = pendingApprovals(s.sweepApprovals, true).reduce((n, r) => n + exportable(r).length, 0);
         if (waiting > 0) this.containerEl.createDiv({ cls: 'setting-item-description', text: c.pendingLine.replace('{count}', String(waiting)) });
 
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.setupButton).setCta().onClick(() => openTasksSetup(this.plugin, () => this.settingTab.display())))
             .addButton((b) => b.setButtonText(c.sendNow).onClick(() => { void runSendApproved(this.plugin); }));
     }

@@ -38,13 +38,26 @@ const browserClock: JobClock = {
     clearInterval: (id) => window.clearInterval(id),
 };
 
+/** Why a task cannot run: its feature is off, or (Drive check only) the feature is on but no folder is paired or no valid script link is saved. */
+export type UnavailableReason = 'feature-off' | 'needs-setup';
+
+export function unavailableReason(plugin: AIOrganiserPlugin, task: TaskName): UnavailableReason | null {
+    const s = plugin.settings;
+    switch (task) {
+        case 'agentIndex': return isFeatureEnabled(s, 'agent-index') ? null : 'feature-off';
+        case 'attachments': return isFeatureEnabled(s, 'embed-scan') ? null : 'feature-off';
+        case 'inventories':
+            if (!isFeatureEnabled(s, 'cloud-inventory')) return 'feature-off';
+            return s.cloudInventoryPairs.length > 0 && validateScriptUrl(s.cloudInventoryScriptUrl).ok ? null : 'needs-setup';
+    }
+}
+
 /** Which tasks can run now: their feature is on (and, for the Drive check, it is set up). */
 export function availability(plugin: AIOrganiserPlugin): Record<TaskName, boolean> {
-    const s = plugin.settings;
     return {
-        agentIndex: isFeatureEnabled(s, 'agent-index'),
-        inventories: isFeatureEnabled(s, 'cloud-inventory') && s.cloudInventoryPairs.length > 0 && validateScriptUrl(s.cloudInventoryScriptUrl).ok,
-        attachments: isFeatureEnabled(s, 'embed-scan'),
+        agentIndex: unavailableReason(plugin, 'agentIndex') === null,
+        inventories: unavailableReason(plugin, 'inventories') === null,
+        attachments: unavailableReason(plugin, 'attachments') === null,
     };
 }
 

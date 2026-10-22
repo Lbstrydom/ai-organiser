@@ -17,10 +17,11 @@ import { checkNodeInstalled, nodeMeetsMinimum, openTerminalInVault, type Spawner
 import { OperationController } from '../../services/agentConnectors/operationController';
 import { connectorFolderPath, vaultBasePath } from '../../services/agentConnectors/connectorRuntime';
 import { absoluteGeneratedPath, buildCodexConfig, CONNECTOR_SERVER_FILE } from '../../services/agentConnectors/connectorBundle';
-import { saveConnectorFiles, type ConnectorFilePaths } from '../../services/agentConnectors/connectorFiles';
+import { findExistingConnectorFiles, saveConnectorFiles, type ConnectorFilePaths } from '../../services/agentConnectors/connectorFiles';
 import { runConnectorSelfTest, SELF_TEST_LIMIT_MS, type SelfTestResult } from '../../services/agentConnectors/connectorSelfTest';
 import { desktopRequire } from '../../utils/desktopRequire';
 import { logger } from '../../utils/logger';
+import { plural } from '../../utils/plural';
 
 type RouteTab = 'readonly' | 'claude' | 'codex' | 'cli' | 'chat';
 
@@ -53,12 +54,17 @@ export class AgentConnectorsModal extends Modal {
     private tab: RouteTab = 'readonly';
     private readonly ops = new OperationController({ set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) });
     private stopListening: (() => void) | null = null;
+    private closed = false;
+    /** Connector files found in the folder when the guide opened, so a finished setup is shown again. */
+    private existing: { folder: string; files: ConnectorFilePaths | null } | null = null;
+    private probing: string | null = null;
 
     constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly onExport: () => Promise<Result<string | null>>) {
         super(app);
     }
 
     onOpen(): void {
+        this.closed = false;
         this.contentEl.addClass('ai-organiser-connectors');
         this.setTitle(this.plugin.t.agentConnectors.modalTitle);
         if (Platform.isMobile) this.tab = 'chat';
@@ -67,6 +73,7 @@ export class AgentConnectorsModal extends Modal {
     }
 
     onClose(): void {
+        this.closed = true;
         this.stopListening?.();
         this.stopListening = null;
         this.contentEl.empty();
@@ -193,13 +200,32 @@ export class AgentConnectorsModal extends Modal {
         if (created.status === 'failed') this.failure(createRow, created.error);
 
         const base = vaultBasePath(this.plugin);
-        if (created.status === 'done' && base.ok) {
-            createRow.createEl('p', { text: t.filesDone.replace('{bundle}', created.value.bundle).replace('{server}', created.value.server), cls: 'setting-item-description' });
-            this.renderReadOnlyInstall(el, created.value, base.value, platform);
+        // Files from this session's button, or ones already in the folder from an earlier setup.
+        const found = this.existing !== null && folder.ok && this.existing.folder === folder.value ? this.existing.files : null;
+        const files = created.status === 'done' ? created.value : created.status === 'idle' ? found : null;
+        if (folder.ok) this.probeExistingFiles(folder.value);
+        if (files !== null && base.ok) {
+            createRow.createEl('p', { text: t.filesDone.replace('{bundle}', files.bundle).replace('{server}', files.server), cls: 'setting-item-description' });
+            this.renderReadOnlyInstall(el, files, base.value, platform);
         } else if (created.status !== 'done') {
             el.createEl('p', { text: t.roStop, cls: 'setting-item-description' });
         }
         this.docs(el, [[t.docClaudeExtensions, CONNECTOR_DOCS.claudeDesktopExtensions], [t.docCodexMcp, CONNECTOR_DOCS.codexMcp], [t.docNode, CONNECTOR_DOCS.nodejs]]);
+    }
+
+    /** Look once per folder for connector files made earlier, then draw again. */
+    private probeExistingFiles(folder: string): void {
+        if (this.probing === folder || this.existing?.folder === folder) return;
+        this.probing = folder;
+        void findExistingConnectorFiles(this.plugin).then((res) => {
+            if (this.closed || this.probing !== folder) return;
+            this.probing = null;
+            this.existing = { folder, files: res.ok ? res.value : null };
+            this.render();
+        }, (e: unknown) => {
+            this.probing = null;
+            logger.error('Connector', 'Probing for connector files failed', e);
+        });
     }
 
     private renderReadOnlyInstall(el: HTMLElement, files: ConnectorFilePaths, vaultPath: string, platform: ConnectorPlatform): void {
@@ -249,7 +275,7 @@ export class AgentConnectorsModal extends Modal {
                 return runConnectorSelfTest(spawn, serverAbs, vaultPath, { set: (fn, ms) => window.setTimeout(fn, ms), clear: (id) => window.clearTimeout(id) });
             }, { limitMs: SELF_TEST_LIMIT_MS + 2000, timeoutError: 'connector-test-failed' }).catch((e: unknown) => logger.error('Connector', 'Test failed', e));
         });
-        if (state.status === 'done') row.createEl('p', { text: t.testPassed.replace('{count}', String(state.value.topLevelItems)) });
+        if (state.status === 'done') row.createEl('p', { text: plural(t.testPassed, state.value.topLevelItems) });
         else if (state.status === 'failed') this.failure(row, state.error);
     }
 

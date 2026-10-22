@@ -10,6 +10,7 @@ export interface Translations {
         desc: string;
         alwaysOn: string;
         reloadNotice: string;
+        reloadPending: string;
         alsoEnabled: string;            // "Also enabled: {features}"
         disableConfirmTitle: string;
         disableConfirmBody: string;     // "...{feature}...{dependents}"
@@ -1515,6 +1516,10 @@ export interface Translations {
         restartRequired: string;
         languageChangeNotice: string;
         clearTagsForFolderConfirm: string;
+        clearTagsAllNotesConfirm: string;
+        clearTagsProtectedConfirm: string;
+        clearTagsProtectedResult: string;
+        clearTagsAllProtected: string;
         tagsClearedFrom: string;
         failedToClearTags: string;
         noTagsInVault: string;
@@ -3508,6 +3513,7 @@ export interface Translations {
         allSizes: string;
         scannedNotes: string;
         totalFiles: string;
+        summaryUnused: string;
         totalSize: string;
         showingResults: string;
         noResults: string;
@@ -3694,6 +3700,7 @@ export interface Translations {
         wizardConfirmTitle: string;
         /** "{count} notes in {folders} folders will be protected." */
         wizardConfirmSummary: string;
+        followedRename: string;
         wizardNothingChosen: string;
     };
     agentIndex: {
@@ -3947,6 +3954,7 @@ export interface Translations {
         taskInventories: string;
         taskAttachments: string;
         taskUnavailable: string;
+        taskNeedsSetup: string;
         taskInventoriesNote: string;
         autoRefreshName: string;
         autoRefreshDesc: string;
@@ -3967,6 +3975,7 @@ export interface Translations {
         whenHelp: string;
         stepPreview: string;
         previewHelp: string;
+        previewSchedule: string;
         previewWorking: string;
         previewResult: string;
         previewPartial: string;

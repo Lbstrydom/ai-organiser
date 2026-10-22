@@ -53,11 +53,11 @@ export class AgentIndexSettingsSection extends BaseSettingSection {
             .setValue(s.agentIndexAutoRebuild)
             .onChange((v) => { s.agentIndexAutoRebuild = v === 'on-change' ? 'on-change' : 'off'; void this.plugin.saveSettings(); }));
 
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(a.buildNow).setCta().onClick(() => { void runBuild(this.plugin); }))
             .addButton((b) => b.setButtonText(a.checkNow).onClick(() => { void runCheck(this.plugin); }));
 
-        new Setting(this.containerEl)
+        new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(t.commands.copyAgentInstructions).onClick(() => {
                 void navigator.clipboard.writeText(buildAgentInstructions(s)).then(() => new Notice(a.instructionsCopied, 5000), () => new Notice(a.copyFailed, 8000));
             }))
