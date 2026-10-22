@@ -122,7 +122,9 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
 
         const deps = buildSweepDeps(plugin, ctl.signal);
         const limits = { maxNotes: plugin.settings.sweepMaxNotes, maxChars: plugin.settings.sweepMaxChars };
-        const estimate = await estimateSweep(deps, limits);
+        const estimated = await estimateSweep(deps, limits);
+        if (!estimated.ok) { guidanceNotice(plugin, estimated.error); return; }
+        const estimate = estimated.value;
         if (estimate.notes === 0) { new Notice(t.nothingToSweep, 6000); return; }
         const cloud = plugin.settings.serviceType === 'cloud';
         const body = [

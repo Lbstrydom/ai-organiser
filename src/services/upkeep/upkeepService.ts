@@ -104,7 +104,9 @@ export async function executeTasks(
 /** The most items the plugin keeps between runs. */
 export function toStored(run: ExecutedRun): { items: Proposal[]; omitted: number } {
     const items = run.proposals.slice(0, MAX_PERSISTED_ITEMS);
-    return { items, omitted: run.proposals.length - items.length };
+    // Items cut here, plus the ones each task already left out before they reached the run.
+    const atTask = run.summary.outcomes.reduce((n, o) => n + o.omitted, 0);
+    return { items, omitted: run.proposals.length - items.length + atTask };
 }
 
 /** A key that changes when the set of proposals changes; an unchanged backlog is not announced again. */

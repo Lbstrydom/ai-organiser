@@ -110,6 +110,12 @@ describe('appendSection and reconcileReport', () => {
 		expect(appendSection(first.value, RUN, section)).toEqual(first); // idempotent
 	});
 
+	it('keeps trailing whitespace of the user\'s text, and refuses a note whose open fence would hide the section', () => {
+		const mine = '# Report\n\nMy words.  \n\n\n';
+		expect(appendSection(mine, RUN, section)).toEqual({ ok: true, value: `${mine}${section}\n` });
+		expect(appendSection('# Report\n\n```\nnever closed\n', RUN, section)).toEqual({ ok: false, error: 'marker-conflict' });
+	});
+
 	it('refuses to append next to a damaged section', () => {
 		expect(appendSection(`${section}\n${section}`, RUN, section)).toEqual({ ok: false, error: 'marker-conflict' });
 	});

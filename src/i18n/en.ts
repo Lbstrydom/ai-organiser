@@ -4050,6 +4050,7 @@ export const en: Translations = {
         previewHelp: "This runs your chosen checks once and writes nothing.",
         previewWorking: "Checking.",
         previewResult: "{count} things would be proposed.",
+        previewPartial: "{count} things would be proposed so far, but some checks did not finish. The list may be incomplete.",
         previewNetwork: "The Drive check contacts your own script.",
         reviewTitle: "Vault upkeep",
         reviewIntro: "Each button opens the place that already handles that change safely. Nothing here changes your notes by itself.",

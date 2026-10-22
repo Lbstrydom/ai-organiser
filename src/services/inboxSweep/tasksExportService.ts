@@ -92,7 +92,7 @@ function toWire(task: ApprovedTask): { exportId: string; title: string; notes: s
     return { exportId: task.id, title, notes: `From note: ${sanitizeInline(task.sourcePath, 200)}` };
 }
 
-/** Decode an upsert answer. Every acknowledgement must name a task of THIS batch, once. */
+/** Decode an upsert answer. Every acknowledgement names a task of THIS batch, once, and every task of the batch is acknowledged. */
 function decodeResults(value: unknown, batchIds: ReadonlySet<string>): ExportResult[] | null {
     const results = (value as { results?: unknown } | null)?.results;
     if (!Array.isArray(results)) return null;
@@ -106,7 +106,8 @@ function decodeResults(value: unknown, batchIds: ReadonlySet<string>): ExportRes
         if (x.status !== 'created' && x.status !== 'exists' && x.status !== 'error' && x.status !== 'retry' && x.status !== 'conflict') return null;
         out.push({ exportId: x.exportId, status: x.status });
     }
-    return out;
+    // An answer that skips a submitted task cannot be trusted to describe the batch.
+    return seen.size === batchIds.size ? out : null;
 }
 
 export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): Promise<{ record: ApprovalRecord; summary: ExportSummary }> {

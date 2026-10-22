@@ -68,7 +68,7 @@ function harness(over: Partial<JobConfig> = {}) {
 		setInterval: (fn) => { const id = nextId++; timers.set(id, fn); return id; },
 		clearInterval: (id) => { timers.delete(id); },
 	};
-	const state = { canRun: true, runs: 0, release: null as null | (() => void), throwOnRun: false, registered: [] as number[] };
+	const state = { canRun: true, runs: 0, release: null as null | (() => void), throwOnRun: false, registered: [] as number[], failures: [] as unknown[] };
 	const job = new IntervalJob({
 		clock,
 		config: () => cfg,
@@ -80,6 +80,7 @@ function harness(over: Partial<JobConfig> = {}) {
 			await new Promise<void>((resolve) => { state.release = resolve; });
 			cfg.lastAttemptEnd = now;
 		},
+		onFailure: (e) => { state.failures.push(e); },
 		onTimer: (id) => state.registered.push(id),
 	});
 	return { job, cfg, timers, state, advance: (ms: number) => { now += ms; } };
@@ -146,7 +147,8 @@ describe('IntervalJob', () => {
 	it('releases the mutex when a run throws, so the job is never wedged', async () => {
 		const h = harness();
 		h.state.throwOnRun = true;
-		expect(await h.job.tick()).toBe('ran');
+		expect(await h.job.tick()).toBe('failed');
+		expect(h.state.failures).toHaveLength(1); // the host is told, so the attempt can count toward the backoff
 		expect(h.job.running).toBe(false);
 		h.state.throwOnRun = false;
 		expect(await h.job.tick()).toBe('ran');

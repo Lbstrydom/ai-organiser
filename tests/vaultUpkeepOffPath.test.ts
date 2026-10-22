@@ -30,7 +30,10 @@ describe('vault upkeep off path', () => {
 			app: { vault: { on: vi.fn() } },
 			t: {},
 		};
-		try { registerCommands(plugin as never); } catch { /* context menu needs a full app */ }
+		let thrown: unknown = null;
+		try { registerCommands(plugin as never); } catch (e) { thrown = e; /* other registrars need a fuller app */ }
+		// Whatever else fails to register in this stub, it must not be this feature.
+		expect(String(thrown)).not.toMatch(/upkeep/i);
 		const ids = addCommand.mock.calls.map((c) => (c[0] as { id: string }).id);
 		expect(ids.filter((i) => /upkeep/.test(i))).toEqual([]);
 		expect(plugin.registerInterval).not.toHaveBeenCalled();

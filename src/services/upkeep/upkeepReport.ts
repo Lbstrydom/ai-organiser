@@ -72,6 +72,9 @@ export async function saveReport(plugin: AIOrganiserPlugin, text: string): Promi
             if (!assertWritable(plugin.settings.protectedFolders, 'create', path.value).ok) return err('protected-path');
             const slash = path.value.lastIndexOf('/');
             if (slash > 0 && !vault.getAbstractFileByPath(path.value.slice(0, slash))) await vault.createFolder(path.value.slice(0, slash));
+            // The folder step awaited: protection may have changed, and the file may now exist.
+            if (!assertWritable(plugin.settings.protectedFolders, 'create', path.value).ok) return err('protected-path');
+            if (vault.getAbstractFileByPath(path.value)) return err('upkeep-report-not-ours');
             await vault.create(path.value, text);
             return ok(path.value);
         }

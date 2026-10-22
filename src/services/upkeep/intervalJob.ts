@@ -76,7 +76,7 @@ export interface JobConfig {
     failures: number;
 }
 
-export type TickOutcome = 'ran' | 'off' | 'not-due' | 'busy' | 'context';
+export type TickOutcome = 'ran' | 'failed' | 'off' | 'not-due' | 'busy' | 'context';
 
 export interface IntervalJobOptions {
     clock: JobClock;
@@ -85,6 +85,8 @@ export interface IntervalJobOptions {
     canRun(): boolean;
     /** Perform one run. Never throws past the job: a throw counts as a failed run. */
     run(trigger: 'scheduled'): Promise<void>;
+    /** Called when a run threw, so the host can count the attempt (otherwise the job would retry on every tick) */
+    onFailure?(error: unknown): void;
     /** Called with the interval id so the host can register it for cleanup on unload */
     onTimer?(id: number): void;
 }
@@ -124,8 +126,11 @@ export class IntervalJob {
         this.active = true;
         try {
             await this.options.run('scheduled');
-        } catch {
-            // The host records the failure; the job only has to stay usable.
+        } catch (e) {
+            // The job stays usable, and the host is told so the attempt counts toward the backoff.
+            this.active = false;
+            try { this.options.onFailure?.(e); } catch { /* a failing hook must not wedge the job */ }
+            return 'failed';
         } finally {
             this.active = false;
         }

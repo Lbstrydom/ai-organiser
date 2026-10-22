@@ -45,6 +45,13 @@ describe('replaceMarkedBlock', () => {
 		expect(replaceMarkedBlock(first.value, block, M)).toEqual(first);
 	});
 
+	it('never trims or rewrites the user\'s own text when it appends', () => {
+		const mine = '# Mine\n\nWords.   \n\n\n';
+		expect(replaceMarkedBlock(mine, block, M)).toEqual({ ok: true, value: `${mine}${block}\n` });
+		expect(replaceMarkedBlock('no newline at all', block, M)).toEqual({ ok: true, value: `no newline at all\n\n${block}\n` });
+		expect(replaceMarkedBlock('one newline\n', block, M)).toEqual({ ok: true, value: `one newline\n\n${block}\n` });
+	});
+
 	it('replaces only the block, byte for byte', () => {
 		const note = `Intro\n\n${M.start}\nold\n${M.end}\n\nOutro\n`;
 		expect(replaceMarkedBlock(note, block, M)).toEqual({ ok: true, value: `Intro\n\n${block}\n\nOutro\n` });

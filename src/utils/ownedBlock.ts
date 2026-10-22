@@ -71,8 +71,9 @@ export function replaceMarkedBlock(text: string, block: string, markers: BlockMa
     if (!found.ok) return found;
     if (found.value === null) {
         if (endsInOpenFence(text.split('\n'))) return err('marker-conflict');
-        const body = text.replace(/\s+$/, '');
-        return ok(`${body === '' ? '' : body + '\n\n'}${block}\n`);
+        // Only separators are added; nothing the user wrote is trimmed or rewritten.
+        const sep = text === '' || /\n\r?\n$/.test(text) ? '' : text.endsWith('\n') ? '\n' : '\n\n';
+        return ok(`${text}${sep}${block}\n`);
     }
     return ok(text.slice(0, found.value.start) + block + text.slice(found.value.end));
 }

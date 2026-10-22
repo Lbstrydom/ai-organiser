@@ -129,8 +129,12 @@ export function appendSection(text: string, runId: string, section: string): Res
     const found = findSection(text, runId);
     if (found.state === 'conflict') return err('marker-conflict');
     if (found.state === 'ok') return ok(text);
-    const body = text.replace(/\s+$/, '');
-    return ok(`${body === '' ? '' : body + '\n\n'}${section}\n`);
+    // Only separators are added; the user's own text is kept as it is.
+    const sep = text === '' || /\n\r?\n$/.test(text) ? '' : text.endsWith('\n') ? '\n' : '\n\n';
+    const composed = `${text}${sep}${section}\n`;
+    // The result must read back as exactly this run's section (an unclosed fence in the note would hide it).
+    const check = findSection(composed, runId);
+    return check.state === 'ok' ? ok(composed) : err('marker-conflict');
 }
 
 /** Recovery decision for the report step: compare the ids in the note with the approval record's. */

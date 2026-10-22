@@ -151,14 +151,24 @@ export class UpkeepController {
                 const s = plugin.settings;
                 return {
                     intervalMs: isFeatureEnabled(s, 'vault-upkeep') ? intervalMs(s.upkeepInterval, s.upkeepCustomMinutes) : null,
-                    lastAttemptEnd: s.upkeepLastRun?.endedAt ?? null,
+                    lastAttemptEnd: Math.max(s.upkeepLastRun?.endedAt ?? -Infinity, this.lastFailedAt ?? -Infinity) === -Infinity ? null : Math.max(s.upkeepLastRun?.endedAt ?? -Infinity, this.lastFailedAt ?? -Infinity),
                     failures: s.upkeepFailures,
                 };
             },
             canRun: () => this.contextAllows(),
             run: async () => { await this.execute('scheduled'); },
+            onFailure: () => this.recordFailedAttempt(),
             onTimer: (id) => { this.timerIds.push(id); plugin.registerInterval(id); },
         });
+    }
+
+    /** When the last scheduled attempt ended without recording a run, so a failure still backs the schedule off */
+    private lastFailedAt: number | null = null;
+
+    private recordFailedAttempt(): void {
+        this.lastFailedAt = Date.now();
+        const s = this.plugin.settings;
+        s.upkeepFailures = Math.min(100, s.upkeepFailures + 1);
     }
 
     /** The run in progress, so unloading can cancel it */
@@ -209,7 +219,9 @@ export class UpkeepController {
 
     /** The scheduled path: the job already holds the mutex. */
     private async execute(trigger: 'scheduled'): Promise<void> {
-        await this.executeClaimed(trigger);
+        const res = await this.executeClaimed(trigger);
+        // A run that never started (nothing selected, a thrown run) is still an attempt.
+        if (!res.ok) this.recordFailedAttempt();
     }
 
     private async executeClaimed(trigger: 'manual' | 'scheduled'): Promise<Result<UpkeepResult>> {
@@ -237,7 +249,7 @@ export class UpkeepController {
     private async retain(run: ExecutedRun, policy: ExecutionPolicy, trigger: 'manual' | 'scheduled'): Promise<UpkeepResult> {
         const s = this.plugin.settings;
         const stored = toStored(run);
-        const result: UpkeepResult = { summary: run.summary, proposals: run.proposals, omitted: run.summary.outcomes.reduce((n, o) => n + o.omitted, 0) };
+        const result: UpkeepResult = { summary: run.summary, proposals: run.proposals, omitted: stored.omitted };
         this.last = result;
         s.upkeepLastRun = { ...run.summary, endedAt: Date.now() };
         s.upkeepLastProposals = stored;

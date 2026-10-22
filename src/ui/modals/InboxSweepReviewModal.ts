@@ -26,6 +26,8 @@ const PREFIX: Record<SweepItemKind, string> = { next_action: '', waiting_for: 'W
 
 export class InboxSweepReviewModal extends Modal {
     private cleanups: (() => void)[] = [];
+    /** The footer is redrawn on every change; its listeners are released with each redraw, not kept until close */
+    private footerCleanups: (() => void)[] = [];
     private rows: Row[];
     /** undefined = follow the items (swept when any of its items is ticked); boolean = the user chose */
     private sweptChoice = new Map<string, boolean>();
@@ -100,14 +102,16 @@ export class InboxSweepReviewModal extends Modal {
 
     private renderFooter(): void {
         const t = this.t;
+        for (const cleanup of this.footerCleanups) cleanup();
+        this.footerCleanups = [];
         this.footer.empty();
         const n = this.selected().length;
         const anySwept = this.notes.some((note) => this.isSwept(note));
         const primary = this.footer.createEl('button', { cls: 'mod-cta', text: n > 0 ? t.addButton.replace('{count}', String(n)) : t.markReviewedButton });
         primary.disabled = n === 0 && !anySwept;
-        this.cleanups.push(listen(primary, 'click', () => this.finish()));
+        this.footerCleanups.push(listen(primary, 'click', () => this.finish()));
         const cancel = this.footer.createEl('button', { text: this.plugin.t.modals.cancel });
-        this.cleanups.push(listen(cancel, 'click', () => this.close()));
+        this.footerCleanups.push(listen(cancel, 'click', () => this.close()));
     }
 
     private finish(): void {
@@ -125,8 +129,9 @@ export class InboxSweepReviewModal extends Modal {
     }
 
     onClose(): void {
-        for (const cleanup of this.cleanups) cleanup();
+        for (const cleanup of [...this.cleanups, ...this.footerCleanups]) cleanup();
         this.cleanups = [];
+        this.footerCleanups = [];
         this.contentEl.empty();
         if (!this.settled) { this.settled = true; this.onDone(null); }
     }

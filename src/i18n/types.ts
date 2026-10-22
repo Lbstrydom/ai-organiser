@@ -3863,6 +3863,7 @@ export interface Translations {
         previewHelp: string;
         previewWorking: string;
         previewResult: string;
+        previewPartial: string;
         previewNetwork: string;
         reviewTitle: string;
         reviewIntro: string;

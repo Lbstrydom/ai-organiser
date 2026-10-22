@@ -225,6 +225,13 @@ describe('estimateSweep', () => {
 	it('counts only notes that would be sent', async () => {
 		const p = policy({ excludedFolders: ['Private'] });
 		const { deps } = makeDeps({ 'Inbox/a.md': 'x'.repeat(100), 'Private/b.md': 'y'.repeat(100), 'Inbox/c.md': 'z'.repeat(50_000), 'Inbox/d.md': 'w'.repeat(5_000) }, {}, p);
-		expect(await estimateSweep(deps, { maxNotes: 20, maxChars: 1_000 })).toEqual({ notes: 2, chars: 1_100 });
+		expect(await estimateSweep(deps, { maxNotes: 20, maxChars: 1_000 })).toEqual({ ok: true, value: { notes: 2, chars: 1_100 } });
+	});
+
+	it('turns a throwing dependency into a typed failure', async () => {
+		const { deps } = makeDeps({ 'Inbox/a.md': 'x' });
+		deps.readText = async () => { throw new Error('locked'); };
+		expect(await estimateSweep(deps, { maxNotes: 20, maxChars: 1_000 })).toEqual({ ok: false, error: 'unknown' });
+		expect(await runSweep(deps, opts)).toEqual({ ok: false, error: 'unknown' });
 	});
 });

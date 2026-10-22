@@ -209,10 +209,8 @@ const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => window.se
 export async function suggestLinks(attachmentPaths: readonly string[], notePaths: readonly string[], ctx: RunContext): Promise<{ items: Proposal[]; total: number }> {
     if (isStopped(ctx)) return { items: [], total: 0 };
     const index = new Map<string, number[]>();
-    const noteTokens: string[][] = [];
     for (let i = 0; i < notePaths.length; i++) {
         const tokens = tokensOf(baseName(notePaths[i]));
-        noteTokens.push(tokens);
         for (const t of tokens) {
             const list = index.get(t);
             if (list) list.push(i);
@@ -227,10 +225,13 @@ export async function suggestLinks(attachmentPaths: readonly string[], notePaths
         const tokens = tokensOf(baseName(attachmentPaths[a]));
         if (tokens.length === 0) continue;
         const shared = new Map<number, string[]>();
+        let steps = 0;
         for (const t of tokens) for (const n of index.get(t) ?? []) {
             const list = shared.get(n);
             if (list) list.push(t);
             else shared.set(n, [t]);
+            // A very common word has a long posting list: yield inside it as well, not only between attachments.
+            if (++steps % (CHUNK * 10) === 0) { await yieldToEventLoop(); if (isStopped(ctx)) return { items: [], total: 0 }; }
         }
         let best: { note: number; evidence: string[] } | null = null;
         for (const [n, evidence] of shared) {

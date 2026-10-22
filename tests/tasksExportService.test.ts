@@ -144,6 +144,13 @@ describe('exportApproved', () => {
 		expect((await exportApproved(record(1), deps({ transport: reply({ ok: true, results: [null] }) }))).summary.error).toBe('script-bad-response');
 	});
 
+	it('refuses an answer that skips a task of the batch', async () => {
+		const partial = reply({ ok: true, results: [{ exportId: id(0), status: 'created' }] });
+		const out = await exportApproved(record(2), deps({ transport: partial }));
+		expect(out.summary.error).toBe('script-bad-response');
+		expect(out.record.tasks.every((t) => t.state === 'reported')).toBe(true); // nothing applied from an incomplete answer
+	});
+
 	it('checks each task against its source right before its own batch, not once at the start', async () => {
 		const order: string[] = [];
 		const transport: ScriptTransport = async ({ body }) => {

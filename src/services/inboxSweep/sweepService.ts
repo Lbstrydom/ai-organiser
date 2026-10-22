@@ -10,6 +10,7 @@ import { buildSweepPrompt, parseSweepResponse, promptText, type SweepItem } from
 import { buildSnapshot } from './noteSnapshot';
 import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, type GuardedSnapshot, type SweepPolicy } from './sweepGuard';
 import { isSwept, type SweepLedger } from './sweepLedger';
+import { logger } from '../../utils/logger';
 
 export interface NoteProposals {
     path: string;
@@ -48,7 +49,16 @@ export interface SweepOptions {
 }
 
 /** How many notes a run would send and roughly how many characters, for the cost confirmation. */
-export async function estimateSweep(deps: SweepDeps, options: Pick<SweepOptions, 'maxNotes' | 'maxChars'>): Promise<{ notes: number; chars: number }> {
+export async function estimateSweep(deps: SweepDeps, options: Pick<SweepOptions, 'maxNotes' | 'maxChars'>): Promise<Result<{ notes: number; chars: number }>> {
+    try {
+        return ok(await estimateUnguarded(deps, options));
+    } catch (e) {
+        logger.error('Sweep', 'Estimate failed', e);
+        return err('unknown');
+    }
+}
+
+async function estimateUnguarded(deps: SweepDeps, options: Pick<SweepOptions, 'maxNotes' | 'maxChars'>): Promise<{ notes: number; chars: number }> {
     let notes = 0;
     let chars = 0;
     for (const path of deps.candidates()) {
@@ -87,6 +97,17 @@ async function capture(deps: SweepDeps, path: string): Promise<{ result: ReturnT
 }
 
 export async function runSweep(deps: SweepDeps, options: SweepOptions): Promise<Result<SweepRunResult>> {
+    // A thrown dependency (a vault read, the model call) is a typed failure, never a rejection past the contract.
+    try {
+        return await runSweepUnguarded(deps, options);
+    } catch (e) {
+        if (options.signal?.aborted) return err('cancelled');
+        logger.error('Sweep', 'Sweep failed', e);
+        return err('unknown');
+    }
+}
+
+async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promise<Result<SweepRunResult>> {
     const out: SweepRunResult = { notes: [], excluded: {}, skippedSwept: 0, failed: 0, cancelled: false };
     const candidates = deps.candidates();
     let processed = 0;

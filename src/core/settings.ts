@@ -1592,7 +1592,7 @@ export function migrateUpkeepSettings(old: Record<string, unknown>): void {
         : [];
     // Rebuild the record from validated parts; one bad outcome discards the whole saved run.
     old.upkeepLastRun = last && typeof last === 'object' && typeof last.startedAt === 'string' && typeof last.endedAt === 'number' && typeof last.durationMs === 'number'
-        && typeof last.status === 'string' && ['ok', 'partial', 'failed'].includes(last.status) && outcomes.length === (last.outcomes as unknown[]).length && outcomes.every(Boolean)
+        && typeof last.status === 'string' && ['ok', 'partial', 'failed'].includes(last.status) && Array.isArray(last.outcomes) && outcomes.length === last.outcomes.length && outcomes.every(Boolean)
         ? { startedAt: last.startedAt, endedAt: last.endedAt, durationMs: last.durationMs, trigger: last.trigger === 'scheduled' ? 'scheduled' : last.trigger === 'preview' ? 'preview' : 'manual', status: last.status, outcomes, totals: last.totals && typeof last.totals === 'object' ? last.totals : {} }
         : null;
     const kept = old.upkeepLastProposals as Record<string, unknown> | null | undefined;

@@ -126,5 +126,9 @@ describe('status and announcements', () => {
 		const stored = toStored({ summary: { startedAt: '', durationMs: 0, trigger: 'manual', outcomes: [], totals: {}, status: 'ok' }, proposals });
 		expect(stored.items).toHaveLength(200);
 		expect(stored.omitted).toBe(100);
+		// What a task already left out is carried along, so the report never under-counts.
+		const outcomes = [{ task: 'attachments' as const, status: 'ok' as const, counts: {}, omitted: 7 }];
+		const withTask = toStored({ summary: { startedAt: '', durationMs: 0, trigger: 'manual', outcomes, totals: {}, status: 'ok' }, proposals: proposals.slice(0, 250) });
+		expect(withTask.omitted).toBe(50 + 7);
 	});
 });
