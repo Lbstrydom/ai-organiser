@@ -1188,7 +1188,9 @@ export default class AIOrganiserPlugin extends Plugin {
         );
 
         // An offload left unfinished last time: offer to open it (desktop, feature on).
-        void import('./commands/offloadCommands').then((m) => m.promptUnfinishedOffload(this));
+        void import('./commands/offloadCommands')
+            .then((m) => m.promptUnfinishedOffload(this))
+            .catch((e: unknown) => logger.warn('Offload', 'Could not set up the unfinished-offload prompt', e));
 
         // First-run intro (FT-7 / L2): point existing + new users at the new Features
         // section. Once-only — the persisted `featuresIntroShown` marker is set + saved

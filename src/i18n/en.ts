@@ -3842,7 +3842,7 @@ export const en: Translations = {
     agentIndex: {
         sectionTitle: "Agent index",
         statusName: "Agent index",
-        description: "Writes a note index that AI coding tools such as Claude Code can read, so they find notes without searching every file. It holds structure only (paths, tags, links), never note text.",
+        description: "Writes a note index that AI coding tools such as Claude Code can read, so they find notes without searching every file. By default it holds structure only (paths, tags, links), never note text. You can choose to add short free-text fields (aliases, headings, selected properties).",
         includeHeading: "Folders to include",
         includeHelp: "Leave empty to include the whole vault.",
         excludeHeading: "Folders to keep out",
@@ -3877,7 +3877,7 @@ export const en: Translations = {
         stepFolders: "Folders",
         stepSharing: "What to share",
         stepPreview: "Preview",
-        sharingHelp: "The index never contains note text. These options add short free-text fields:",
+        sharingHelp: "The index never contains note body text. These options add short free-text fields from your own notes:",
         previewSummary: "{included} notes would be indexed. {excluded} notes are kept out (their names are not shown).",
         previewSample: "First {count} entries (structure only):",
         buildAfter: "Build the index now"

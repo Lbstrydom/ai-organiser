@@ -944,7 +944,7 @@ export function buildCommandCategories(
 				cmd('tagging', 'maintain', 'collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
 					desc.collectAllTags || 'Collect every tag in the vault into a list',
 					['tags', 'collect', 'list'], ['vault-visualize']),
-				cmd('cloud-offload', 'maintain', 'resume-offload', t.commands.resumeOffload, 'cloud-upload', 'vault',
+				cmd('cloud-offload', 'maintain', 'resume-offload', t.commands.resumeOffload, 'cloud-upload', 'none',
 					desc.resumeOffload || 'Continue an unfinished move of a large file to Google Drive',
 					['drive', 'google', 'offload', 'resume', 'large']),
 				cmd('embed-scan', 'maintain', 'find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',

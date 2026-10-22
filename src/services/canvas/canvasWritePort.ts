@@ -36,8 +36,16 @@ export function transformCanvas(text: string, edits: readonly CanvasLinkEdit[]):
         return err('canvas-unreadable');
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) return err('canvas-unreadable');
-    const root = data as { nodes?: unknown };
+    const root = data as { nodes?: unknown; edges?: unknown };
     if (!Array.isArray(root.nodes)) return err('canvas-unreadable');
+    if (root.edges !== undefined && !Array.isArray(root.edges)) return err('canvas-unreadable');
+    // Every node must be an object with a unique string id, or the canvas is not safe to rewrite.
+    const ids = new Set<string>();
+    for (const node of root.nodes as unknown[]) {
+        const id = node && typeof node === 'object' ? (node as { id?: unknown }).id : undefined;
+        if (typeof id !== 'string' || id === '' || ids.has(id)) return err('canvas-unreadable');
+        ids.add(id);
+    }
     const byId = new Map(edits.map((e) => [e.nodeId, e.url]));
     const done = new Set<string>();
     root.nodes = root.nodes.map((node: unknown) => {

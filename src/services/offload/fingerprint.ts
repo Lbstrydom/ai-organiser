@@ -58,7 +58,11 @@ export function hashStream(deps: NodeDeps, absolutePath: string, options: Stream
         stream.on('data', (chunk: string | Buffer) => {
             hash.update(chunk);
             bytes += chunk.length;
-            options.onProgress?.(bytes);
+            try {
+                options.onProgress?.(bytes);
+            } catch {
+                // A progress callback must never break the hash; its failure is ignored.
+            }
         });
         stream.on('error', () => finish(err('read-failed')));
         stream.on('end', () => finish(ok({ sha256: hash.digest('hex'), bytes })));
@@ -74,7 +78,8 @@ export function streamFingerprinter(deps: NodeDeps): Fingerprinter {
             const hashed = await hashStream(deps, absolutePath, options);
             if (!hashed.ok) return err(hashed.error);
             const after = await deps.fs.promises.stat(absolutePath);
-            if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || hashed.value.bytes !== before.size) return err('file-changed');
+            // Same size and time is not enough: the path may now name a different file (atomic replace).
+            if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ino !== before.ino || after.dev !== before.dev || hashed.value.bytes !== before.size) return err('file-changed');
             return ok({ size: after.size, mtimeMs: after.mtimeMs, sha256: hashed.value.sha256 });
         } catch {
             return err('read-failed');

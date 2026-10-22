@@ -92,7 +92,11 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
             input.on('data', (chunk: string | Buffer) => {
                 hash.update(chunk);
                 size += chunk.length;
-                options.onProgress?.(size);
+                try {
+                    options.onProgress?.(size);
+                } catch {
+                    // A progress callback must never break the copy.
+                }
             });
             input.on('error', (e) => { out.destroy(); options.signal?.removeEventListener('abort', onAbort); reject(e); });
             out.on('error', (e) => { input.destroy(); options.signal?.removeEventListener('abort', onAbort); reject(e); });

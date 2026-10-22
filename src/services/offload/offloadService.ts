@@ -64,6 +64,8 @@ export type Waiting = 'none' | 'drive-sync' | 'rewrite-approval' | 'blocked' | '
 export interface AdvanceOutcome {
     record: OffloadRecord;
     waiting: Waiting;
+    /** Set when the journal could not be written: the state shown may be ahead of what is saved */
+    persistError?: string;
 }
 
 async function save(deps: OffloadDeps, record: OffloadRecord): Promise<Result<OffloadRecord>> {
@@ -75,18 +77,25 @@ function sourceAbsolute(deps: OffloadDeps, path: string): string {
     return deps.node.path.join(deps.vaultBasePath, ...path.split('/'));
 }
 
-async function fail(deps: OffloadDeps, record: OffloadRecord, code: string): Promise<AdvanceOutcome> {
+/** The newest saved version of a record: a stage may have saved progress the caller has not seen. */
+async function latest(deps: OffloadDeps, record: OffloadRecord): Promise<OffloadRecord> {
+    const all = await deps.store.load();
+    return (all.ok ? all.value.find((r) => r.opId === record.opId) : undefined) ?? record;
+}
+
+async function fail(deps: OffloadDeps, entry: OffloadRecord, code: string): Promise<AdvanceOutcome> {
+    const record = await latest(deps, entry);
     const next = transition(record, 'failed', deps.now(), { blocked: code });
     const final = next.ok ? next.value : { ...record, step: 'failed' as const, blocked: code };
-    await deps.store.put(final);
-    return { record: final, waiting: 'blocked' };
+    const saved = await deps.store.put(final);
+    return saved.ok ? { record: final, waiting: 'blocked' } : { record: final, waiting: 'blocked', persistError: saved.error };
 }
 
 /** Keep the record at its step, note why it is waiting. */
 async function hold(deps: OffloadDeps, record: OffloadRecord, code: string, waiting: Waiting): Promise<AdvanceOutcome> {
     const held = { ...record, blocked: code, updatedAt: deps.now() };
-    await deps.store.put(held);
-    return { record: held, waiting };
+    const saved = await deps.store.put(held);
+    return saved.ok ? { record: held, waiting } : { record: held, waiting, persistError: saved.error };
 }
 
 // ─── Start ──────────────────────────────────────────────────────────────────
@@ -167,7 +176,8 @@ async function rewriteStage(deps: OffloadDeps, start: OffloadRecord): Promise<Ad
         record = saved.value;
     }
     for (const item of plan.items) {
-        if (record.referrers[item.path] !== 'pending') continue;
+        // A conflict is re-assessed: the user may have fixed the note, or it may already carry the new text.
+        if (record.referrers[item.path] !== 'pending' && record.referrers[item.path] !== 'conflict') continue;
         const text = await deps.readText(item.path);
         let status: ReferrerStatus = 'conflict';
         if (text !== null) {
@@ -207,6 +217,8 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
     }
     if (!deps.exists(copy.source.path)) return fail(deps, record, 'source-missing');
 
+    // The vault is watched from the start of the check until the moment the file is trashed, so a
+    // reference added while the checkpoint is being saved invalidates the decision too.
     let result: ReturnType<typeof evaluateBarrier> = { ok: false, reason: 'vault-changed' };
     for (let attempt = 0; attempt < 3; attempt++) {
         const watch = deps.watch();
@@ -218,7 +230,7 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
         const scan = await deps.scanReferences(copy.source.path);
         const protectedHit = isProtectedPath(deps.protectedFolders(), copy.source.path)
             || copy.referrers.some((r) => isProtectedPath(deps.protectedFolders(), r.path));
-        const events = watch.stop();
+        let events = 0;
         result = evaluateBarrier({
             referrers: copy.referrers.map((r) => ({ path: r.path, status: record.referrers[r.path] ?? 'pending' })),
             remoteMatches: stillThere?.state === 'one' && stillThere.remote.id === record.remote?.id,
@@ -226,22 +238,26 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
             protectionOk: !protectedHit,
             remainingReferences: scan.ok ? scan.value.remaining : 1,
             coverageFailures: scan.ok ? scan.value.coverageFailures : 1,
-            unaccountedEvents: events,
+            unaccountedEvents: 0,
         });
-        // An event during the check invalidates it; run it again.
-        if (result.ok || result.reason !== 'vault-changed') break;
+        if (result.ok && record.step === 'verified') {
+            const pending = transition(record, 'trash-pending', deps.now());
+            if (!pending.ok) { watch.stop(); return fail(deps, record, pending.error); }
+            const saved = await save(deps, pending.value);
+            if (!saved.ok) { watch.stop(); return fail(deps, record, saved.error); }
+            record = saved.value;
+        }
+        events = watch.stop();
+        // An event during the check or the checkpoint invalidates the decision; look again.
+        if (events > 0) { result = { ok: false, reason: 'vault-changed' }; continue; }
+        if (!result.ok) break;
+        break;
     }
     if (!result.ok) return hold(deps, record, barrierCode(result.reason), 'blocked');
 
-    if (record.step === 'verified') {
-        const pending = transition(record, 'trash-pending', deps.now());
-        if (!pending.ok) return fail(deps, record, pending.error);
-        const saved = await save(deps, pending.value);
-        if (!saved.ok) return fail(deps, record, saved.error);
-        record = saved.value;
-    }
     const trashed = await deps.trash(copy.source.path);
-    if (!trashed.ok && deps.exists(copy.source.path)) return hold(deps, record, trashed.error, 'blocked');
+    // Whatever the trash reported, only the vault decides: the file must really be gone.
+    if (deps.exists(copy.source.path)) return hold(deps, record, trashed.ok ? 'trash-failed' : trashed.error, 'blocked');
     return finish(deps, record);
 }
 

@@ -32,6 +32,12 @@ describe('evaluateBarrier', () => {
 		expect(res).toMatchObject({ ok: false, reason });
 	});
 
+	it.each([NaN, -1, 1.5, Infinity, undefined as unknown as number])('does not read an invalid count (%s) as "none"', (bad) => {
+		expect(evaluateBarrier({ ...good, remainingReferences: bad })).toMatchObject({ ok: false, reason: 'scan-incomplete' });
+		expect(evaluateBarrier({ ...good, coverageFailures: bad })).toMatchObject({ ok: false, reason: 'scan-incomplete' });
+		expect(evaluateBarrier({ ...good, unaccountedEvents: bad })).toMatchObject({ ok: false, reason: 'scan-incomplete' });
+	});
+
 	it('names the first open referrer and the reference count', () => {
 		expect(evaluateBarrier({ ...good, referrers: [{ path: 'x.md', status: 'conflict' }] })).toEqual({ ok: false, reason: 'referrer-not-done', detail: 'x.md' });
 		expect(evaluateBarrier({ ...good, remainingReferences: 3 })).toEqual({ ok: false, reason: 'still-referenced', detail: '3' });

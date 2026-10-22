@@ -324,6 +324,61 @@ describe('commit barrier in the flow', () => {
 	});
 });
 
+describe('hardening', () => {
+	it('re-assesses a conflict on resume: a note fixed by hand is rewritten', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		h.vault.set('Notes/a.md', NOTE + ' typed after approval');
+		const stuck = await continueOffload(h.deps, approved);
+		expect(stuck.record.referrers['Notes/a.md']).toBe('conflict');
+		h.vault.set('Notes/a.md', NOTE); // the user undid the edit
+		const out = await continueOffload(h.deps, stuck.record);
+		expect(out).toMatchObject({ waiting: 'done', record: { step: 'done' } });
+		expect(h.vault.get('Notes/a.md')).toContain('drive.google.com');
+	});
+
+	it('does not believe a trash that reports success while the file is still there', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		h.deps.trash = async () => ok(undefined); // lies: nothing was removed
+		const out = await continueOffload(h.deps, approved);
+		expect(out.record.blocked).toBe('trash-failed');
+		expect(out.record.step).toBe('trash-pending');
+		expect(out.waiting).toBe('blocked');
+	});
+
+	it('watches the vault through the checkpoint: an event while it is saved cancels the trash', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		let stops = 0;
+		h.deps.watch = () => ({ stop: () => (++stops <= 3 ? 1 : 0) });
+		const out = await continueOffload(h.deps, approved);
+		expect(out.record.blocked).toBe('barrier-vault-changed');
+		expect(h.trashed).toEqual([]);
+	});
+
+	it('reports a journal that cannot be written instead of pretending the state is saved', async () => {
+		const h = await setup();
+		syncToDrive(h);
+		const early = await advanceOffload(h.deps, h.record);
+		expect(early.waiting).toBe('rewrite-approval');
+		h.deps.store.put = async () => err('write-failed');
+		const out = await continueOffload(h.deps, { ...early.record, step: 'rewrite-approved' as const });
+		expect(out.persistError).toBe('write-failed');
+	});
+
+	it('a failure keeps the progress that was already saved', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		h.deps.scanReferences = async () => { throw new Error('boom'); };
+		const out = await continueOffload(h.deps, approved);
+		expect(out.record.step).toBe('failed');
+		const saved = await h.store.load();
+		const rec = saved.ok ? saved.value.find((r) => r.opId === 'op1') : undefined;
+		expect(rec?.referrers).toEqual({ 'Notes/a.md': 'done', 'Boards/b.canvas': 'done' });
+	});
+});
+
 describe('abort', () => {
 	it('is allowed up to the rewrite approval and keeps the copy', async () => {
 		const h = await setup();

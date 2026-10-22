@@ -142,6 +142,24 @@ describe('fingerprint', () => {
 		expect(await fp(path.join(vault, 'missing.bin'))).toMatchObject({ ok: false });
 	});
 
+	it('rejects a file that was replaced by another with the same size and time', async () => {
+		const file = path.join(vault, 'a.bin');
+		fs.writeFileSync(file, 'hello');
+		let calls = 0;
+		const real = fs.promises.stat;
+		const fake = {
+			...deps,
+			fs: { ...fs, promises: { ...fs.promises, stat: async (p: string) => { const s = await real(p); calls++; return Object.assign(Object.create(Object.getPrototypeOf(s)), s, { ino: calls }); } } },
+		} as unknown as NodeDeps;
+		expect(await streamFingerprinter(fake)(file)).toEqual({ ok: false, error: 'file-changed' });
+	});
+
+	it('survives a progress callback that throws', async () => {
+		const file = path.join(vault, 'a.bin');
+		fs.writeFileSync(file, 'hello');
+		expect(await hashStream(deps, file, { onProgress: () => { throw new Error('ui bug'); } })).toEqual({ ok: true, value: { sha256: sha('hello'), bytes: 5 } });
+	});
+
 	it('honours cancellation', async () => {
 		const file = path.join(vault, 'a.bin');
 		fs.writeFileSync(file, 'hello');

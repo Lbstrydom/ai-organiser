@@ -35,12 +35,16 @@ export interface BarrierInput {
 
 export type BarrierResult = { ok: true } | { ok: false; reason: BarrierReason; detail?: string };
 
+/** A usable count is a finite, non-negative integer. Anything else (NaN, negative, missing) is not evidence of "none". */
+const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+
 export function evaluateBarrier(input: BarrierInput): BarrierResult {
     const open = input.referrers.find((r) => r.status !== 'done');
     if (open) return { ok: false, reason: 'referrer-not-done', detail: open.path };
     if (!input.remoteMatches) return { ok: false, reason: 'remote-mismatch' };
     if (!input.sourceMatches) return { ok: false, reason: 'source-changed' };
     if (!input.protectionOk) return { ok: false, reason: 'protected' };
+    if (!isCount(input.coverageFailures) || !isCount(input.remainingReferences) || !isCount(input.unaccountedEvents)) return { ok: false, reason: 'scan-incomplete' };
     if (input.coverageFailures > 0) return { ok: false, reason: 'scan-incomplete' };
     if (input.remainingReferences > 0) return { ok: false, reason: 'still-referenced', detail: String(input.remainingReferences) };
     if (input.unaccountedEvents > 0) return { ok: false, reason: 'vault-changed' };

@@ -30,6 +30,15 @@ describe('transformCanvas', () => {
 		expect(transformCanvas(text, [{ nodeId: 'zz', url: 'u' }])).toEqual({ ok: false, error: 'node-missing' });
 		expect(transformCanvas(text, [{ nodeId: 't1', url: 'u' }])).toEqual({ ok: false, error: 'node-missing' });
 	});
+
+	it('refuses a canvas whose nodes are not safely addressable', () => {
+		const dup = JSON.stringify({ nodes: [{ id: 'a', type: 'file', file: 'x' }, { id: 'a', type: 'text', text: '' }], edges: [] });
+		expect(transformCanvas(dup, [{ nodeId: 'a', url: 'u' }])).toEqual({ ok: false, error: 'canvas-unreadable' });
+		const noId = JSON.stringify({ nodes: [{ type: 'file', file: 'x' }], edges: [] });
+		expect(transformCanvas(noId, [])).toEqual({ ok: false, error: 'canvas-unreadable' });
+		expect(transformCanvas(JSON.stringify({ nodes: [], edges: 5 }), [])).toEqual({ ok: false, error: 'canvas-unreadable' });
+		expect(transformCanvas(JSON.stringify({ nodes: ['x'] }), [])).toEqual({ ok: false, error: 'canvas-unreadable' });
+	});
 });
 
 describe('rewriteCanvasNodes', () => {
