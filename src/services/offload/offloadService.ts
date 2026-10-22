@@ -48,7 +48,8 @@ export interface OffloadDeps {
     exists(path: string): boolean;
     writeMarkdown(path: string, baseline: string, next: string): Promise<Result<void>>;
     writeCanvas(path: string, nodeIds: readonly string[], url: string, baseline: string): Promise<Result<void>>;
-    trash(path: string): Promise<Result<void>>;
+    /** Move the file to the trash. `expected` is the identity the barrier verified; the port refuses if the file no longer matches it. */
+    trash(path: string, expected: { size: number; mtimeMs: number }): Promise<Result<void>>;
 
     /** One-folder Drive listing (no recursion) */
     listFolder(folderId: string): Promise<Result<RemoteListFile[]>>;
@@ -222,6 +223,9 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
     let result: ReturnType<typeof evaluateBarrier> = { ok: false, reason: 'vault-changed' };
     for (let attempt = 0; attempt < 3; attempt++) {
         const watch = deps.watch();
+        let stopped = false;
+        const stop = (): number => { if (stopped) return 0; stopped = true; return watch.stop(); };
+        try {
         const finger = await deps.fingerprint(sourceAbsolute(deps, copy.source.path), deps.options);
         const listing = await deps.listFolder(copy.driveFolderId);
         const stillThere = listing.ok && record.remote
@@ -242,20 +246,23 @@ async function trashStage(deps: OffloadDeps, start: OffloadRecord): Promise<Adva
         });
         if (result.ok && record.step === 'verified') {
             const pending = transition(record, 'trash-pending', deps.now());
-            if (!pending.ok) { watch.stop(); return fail(deps, record, pending.error); }
+            if (!pending.ok) return fail(deps, record, pending.error);
             const saved = await save(deps, pending.value);
-            if (!saved.ok) { watch.stop(); return fail(deps, record, saved.error); }
+            if (!saved.ok) return fail(deps, record, saved.error);
             record = saved.value;
         }
-        events = watch.stop();
+        events = stop();
         // An event during the check or the checkpoint invalidates the decision; look again.
         if (events > 0) { result = { ok: false, reason: 'vault-changed' }; continue; }
         if (!result.ok) break;
         break;
+        } finally {
+            stop(); // released on every exit, including a dependency that throws
+        }
     }
     if (!result.ok) return hold(deps, record, barrierCode(result.reason), 'blocked');
 
-    const trashed = await deps.trash(copy.source.path);
+    const trashed = await deps.trash(copy.source.path, { size: copy.source.size, mtimeMs: copy.source.mtimeMs });
     // Whatever the trash reported, only the vault decides: the file must really be gone.
     if (deps.exists(copy.source.path)) return hold(deps, record, trashed.ok ? 'trash-failed' : trashed.error, 'blocked');
     return finish(deps, record);
@@ -272,7 +279,9 @@ async function finish(deps: OffloadDeps, record: OffloadRecord): Promise<Advance
         const moved = transition(current, step, deps.now(), { blocked: undefined });
         if (!moved.ok) return fail(deps, current, moved.error);
         const saved = await save(deps, moved.value);
-        if (!saved.ok) return fail(deps, current, saved.error);
+        // The file is already gone. A failed checkpoint is not a failed offload: keep the last saved
+        // step (trash-pending) so a resume sees the source missing and completes this step.
+        if (!saved.ok) return { record: current, waiting: 'blocked', persistError: saved.error };
         current = saved.value;
     }
     return { record: current, waiting: 'done' };

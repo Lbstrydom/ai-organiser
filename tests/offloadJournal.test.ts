@@ -80,6 +80,27 @@ describe('JournalStore', () => {
 		expect(h.files.has(`${PATH}.aio-prev`)).toBe(false);
 	});
 
+	it('does not lose an update when two operations save at the same time', async () => {
+		const h = makeAdapter();
+		const store = new JournalStore(h.adapter as never, PATH);
+		const a = newRecord(copy, 'T');
+		const b = newRecord({ ...copy, opId: 'op2' }, 'T');
+		const c = newRecord({ ...copy, opId: 'op3' }, 'T');
+		const results = await Promise.all([store.put(a), store.put(b), store.put(c)]);
+		expect(results.every((r) => r.ok)).toBe(true);
+		const all = await store.load();
+		expect(all.ok && all.value.map((r) => r.opId).sort()).toEqual(['op1', 'op2', 'op3']);
+	});
+
+	it('leaves an unrelated file in the previous-version slot alone', async () => {
+		const h = makeAdapter();
+		const store = new JournalStore(h.adapter as never, PATH);
+		await store.put(newRecord(copy, 'T'));
+		h.files.set(`${PATH}.aio-prev`, 'something the user keeps here');
+		expect(await store.put(newRecord({ ...copy, opId: 'op2' }, 'T'))).toEqual({ ok: false, error: 'journal-not-ours' });
+		expect(h.files.get(`${PATH}.aio-prev`)).toBe('something the user keeps here');
+	});
+
 	it('replaces a record by id', async () => {
 		const h = makeAdapter();
 		const store = new JournalStore(h.adapter as never, PATH);

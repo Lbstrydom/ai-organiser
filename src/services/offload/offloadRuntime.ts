@@ -106,11 +106,13 @@ export function createOffloadDeps(plugin: AIOrganiserPlugin, options: { signal?:
             const url2 = url;
             return rewriteCanvasNodes(app, path, nodeIds.map((nodeId) => ({ nodeId, url: url2 })), baseline, plugin.settings.protectedFolders);
         },
-        trash: async (path) => {
+        trash: async (path, expected) => {
             const allowed = assertWritable(plugin.settings.protectedFolders, 'delete', path);
             if (!allowed.ok) return err(allowed.error);
             const file = app.vault.getAbstractFileByPath(path);
             if (!(file instanceof TFile)) return err('target-missing');
+            // The deletion boundary re-checks the identity the barrier verified.
+            if (file.stat.size !== expected.size) return err('file-changed');
             try {
                 await app.fileManager.trashFile(file);
                 return ok(undefined);

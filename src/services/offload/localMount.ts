@@ -82,13 +82,15 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
     const hash = deps.crypto.createHash('sha256');
     let size = 0;
     let created = false;
+    let out: ReturnType<typeof deps.fs.createWriteStream> | null = null;
     try {
-        const out = deps.fs.createWriteStream(dest, { flags: 'wx' });
+        out = deps.fs.createWriteStream(dest, { flags: 'wx' });
+        const target = out;
         const input = deps.fs.createReadStream(src, { highWaterMark: 1 << 20 });
         await new Promise<void>((resolve, reject) => {
             const onAbort = (): void => { input.destroy(new Error('cancelled')); };
             options.signal?.addEventListener('abort', onAbort, { once: true });
-            out.on('open', () => { created = true; });
+            target.on('open', () => { created = true; });
             input.on('data', (chunk: string | Buffer) => {
                 hash.update(chunk);
                 size += chunk.length;
@@ -98,14 +100,18 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
                     // A progress callback must never break the copy.
                 }
             });
-            input.on('error', (e) => { out.destroy(); options.signal?.removeEventListener('abort', onAbort); reject(e); });
-            out.on('error', (e) => { input.destroy(); options.signal?.removeEventListener('abort', onAbort); reject(e); });
-            out.on('finish', () => { options.signal?.removeEventListener('abort', onAbort); resolve(); });
-            input.pipe(out);
+            input.on('error', (e) => { target.destroy(); options.signal?.removeEventListener('abort', onAbort); reject(e); });
+            target.on('error', (e) => { input.destroy(); options.signal?.removeEventListener('abort', onAbort); reject(e); });
+            target.on('finish', () => { options.signal?.removeEventListener('abort', onAbort); resolve(); });
+            input.pipe(target);
         });
         return ok({ sha256: hash.digest('hex'), size });
     } catch (e) {
-        // Remove only a file this call created, never one that was already there.
+        // Wait for the destination to settle, then remove only a file this call created, never one that was already there.
+        if (out && !out.closed) {
+            const stream = out;
+            await new Promise<void>((resolve) => { const t = setTimeout(resolve, 2000); stream.once('close', () => { clearTimeout(t); resolve(); }); stream.destroy(); });
+        }
         if (created) await deps.fs.promises.unlink(dest).catch(() => undefined);
         if (options.signal?.aborted) return err('cancelled');
         return err((e as NodeJS.ErrnoException).code === 'EEXIST' ? 'dest-exists' : 'copy-failed');

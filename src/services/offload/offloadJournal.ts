@@ -95,7 +95,16 @@ async function parseSigned(path: string, text: string): Promise<OffloadRecord[] 
 
 /** Reads and writes the journal at a fixed path through the vault adapter. */
 export class JournalStore {
+    /** Read-modify-write cycles run one at a time, so two operations can never overwrite each other's update. */
+    private chain: Promise<unknown> = Promise.resolve();
+
     constructor(private readonly adapter: DataAdapter, private readonly path: string) {}
+
+    private serialised<T>(job: () => Promise<T>): Promise<T> {
+        const run = this.chain.then(job, job);
+        this.chain = run.catch(() => undefined);
+        return run;
+    }
 
     private get prev(): string { return `${this.path}.aio-prev`; }
 
@@ -135,6 +144,11 @@ export class JournalStore {
                 // Never replace something that is not our journal.
                 if (!(await parseSigned(this.path, await this.adapter.read(this.path)))) return err('journal-not-ours');
             }
+            // The previous-version slot is ours only if it carries our signature; a stray file there is left alone.
+            if (await this.adapter.exists(this.prev)) {
+                if (!(await parseSigned(this.path, await this.adapter.read(this.prev)))) return err('journal-not-ours');
+                await this.adapter.remove(this.prev);
+            }
             const body: JournalFile = { generator: JOURNAL_GENERATOR, path: this.path, version: 1, signature: await sign(this.path, records), records: [...records] };
             const tmp = this.tmp(Date.now().toString(36));
             await this.adapter.write(tmp, JSON.stringify(body));
@@ -155,12 +169,14 @@ export class JournalStore {
     }
 
     /** Insert or replace one record. */
-    async put(record: OffloadRecord): Promise<Result<void>> {
-        const all = await this.load();
-        if (!all.ok) return err(all.error);
-        const next = all.value.filter((r) => r.opId !== record.opId);
-        next.push(record);
-        return this.save(next);
+    put(record: OffloadRecord): Promise<Result<void>> {
+        return this.serialised(async () => {
+            const all = await this.load();
+            if (!all.ok) return err(all.error);
+            const next = all.value.filter((r) => r.opId !== record.opId);
+            next.push(record);
+            return this.save(next);
+        });
     }
 
     /** Records that are neither finished nor abandoned. */

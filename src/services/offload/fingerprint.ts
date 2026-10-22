@@ -79,7 +79,7 @@ export function streamFingerprinter(deps: NodeDeps): Fingerprinter {
             if (!hashed.ok) return err(hashed.error);
             const after = await deps.fs.promises.stat(absolutePath);
             // Same size and time is not enough: the path may now name a different file (atomic replace).
-            if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ino !== before.ino || after.dev !== before.dev || hashed.value.bytes !== before.size) return err('file-changed');
+            if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ino !== before.ino || after.dev !== before.dev || after.ctimeMs !== before.ctimeMs || hashed.value.bytes !== before.size) return err('file-changed');
             return ok({ size: after.size, mtimeMs: after.mtimeMs, sha256: hashed.value.sha256 });
         } catch {
             return err('read-failed');

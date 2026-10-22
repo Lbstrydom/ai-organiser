@@ -124,6 +124,19 @@ describe('placeFile', () => {
 		expect(fs.readdirSync(root)).toEqual(['keep.txt']);
 	});
 
+	it('removes only its own partial file when the source disappears mid-copy, and waits for the stream', async () => {
+		const root = fs.realpathSync(mount);
+		const gone = path.join(vault, 'ghost.pdf'); // never existed: the read stream fails to open
+		const res = await placeFile(deps, root, gone, 'Ghost.pdf', { sha256: sha('x'), size: 1 });
+		expect(res.ok).toBe(false);
+		expect(fs.readdirSync(root)).toEqual([]);
+		// an existing file of the same name is not touched by a failed attempt that did not create it
+		fs.writeFileSync(path.join(root, 'Keep.pdf'), 'mine');
+		const second = await placeFile(deps, root, gone, 'Keep.pdf', { sha256: sha('x'), size: 1 });
+		expect(second.ok).toBe(false);
+		expect(fs.readFileSync(path.join(root, 'Keep.pdf'), 'utf8')).toBe('mine');
+	});
+
 	it('refuses an unsafe name before writing anything', async () => {
 		const root = fs.realpathSync(mount);
 		expect(await placeFile(deps, root, src, '../escape.pdf', expectedOf(data))).toEqual({ ok: false, error: 'name-invalid' });

@@ -95,7 +95,7 @@ async function setup(over: { sourceData?: Buffer } = {}): Promise<Harness> {
 			vault.set(p, next.value);
 			return ok(undefined);
 		},
-		trash: async (p) => { present.delete(p); trashed.push(p); fs.rmSync(srcAbs, { force: true }); return ok(undefined); },
+		trash: async (p, _expected) => { present.delete(p); trashed.push(p); fs.rmSync(srcAbs, { force: true }); return ok(undefined); },
 		listFolder: async (): Promise<Result<RemoteListFile[]>> => { listCalls.n++; return ok([...drive]); },
 		scanReferences: async () => ok({ remaining: state.remaining, coverageFailures: state.coverage }),
 		watch: () => ({ stop: () => { const e = state.events; state.events = 0; return e; } }),
@@ -365,6 +365,52 @@ describe('hardening', () => {
 		h.deps.store.put = async () => err('write-failed');
 		const out = await continueOffload(h.deps, { ...early.record, step: 'rewrite-approved' as const });
 		expect(out.persistError).toBe('write-failed');
+	});
+
+	it('releases the vault watcher even when a dependency throws', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		let started = 0;
+		let stopped = 0;
+		h.deps.watch = () => { started++; return { stop: () => { stopped++; return 0; } }; };
+		h.deps.scanReferences = async () => { throw new Error('boom'); };
+		await continueOffload(h.deps, approved);
+		expect(started).toBeGreaterThan(0);
+		expect(stopped).toBe(started);
+	});
+
+	it('does not call a persistence failure after the trash a failed offload', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		const real = h.deps.store.put.bind(h.deps.store);
+		let puts = 0;
+		h.deps.store.put = async (r) => {
+			// Let everything up to and including the trash-pending checkpoint through, then fail.
+			if (r.step === 'trashed') { puts++; return err('write-failed'); }
+			return real(r);
+		};
+		const out = await continueOffload(h.deps, approved);
+		expect(h.trashed).toEqual([SRC]);
+		expect(puts).toBe(1);
+		expect(out.persistError).toBe('write-failed');
+		expect(out.record.step).not.toBe('failed');
+		// A later resume sees the source missing after trash-pending and completes the step.
+		h.deps.store.put = real;
+		const saved = await h.store.load();
+		const pending = saved.ok ? saved.value.find((r) => r.opId === 'op1') : undefined;
+		expect(pending?.step).toBe('trash-pending');
+		const resumed = await continueOffload(h.deps, pending!);
+		expect(resumed).toMatchObject({ waiting: 'done', record: { step: 'done' } });
+	});
+
+	it('passes the verified identity to the trash', async () => {
+		const h = await setup();
+		const approved = await toApproved(h);
+		let seen: { size: number; mtimeMs: number } | null = null;
+		const real = h.deps.trash;
+		h.deps.trash = async (p, expected) => { seen = expected; return real(p, expected); };
+		await continueOffload(h.deps, approved);
+		expect(seen).toEqual({ size: DATA.length, mtimeMs: 0 });
 	});
 
 	it('a failure keeps the progress that was already saved', async () => {

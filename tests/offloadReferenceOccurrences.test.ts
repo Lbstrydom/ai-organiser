@@ -34,6 +34,11 @@ describe('findOccurrences (markdown)', () => {
 		expect(find(text)).toEqual([]);
 	});
 
+	it('treats an escaped link as text the user is showing, not as a reference', () => {
+		expect(find('Example: \\[[Big report.pdf]] and \\![[Big report.pdf]] and \\[x](Attachments/Big%20report.pdf)')).toEqual([]);
+		expect(find('literal \\\\[[Big report.pdf]]')).toHaveLength(1); // an escaped backslash does not escape the bracket
+	});
+
 	it('captures alias, subpath and page', () => {
 		const [a, b, c] = find('[[Big report.pdf|the report]] ![[Big report.pdf#page=3]] [[Big report.pdf#Heading]]');
 		expect(a.display).toBe('the report');
@@ -82,6 +87,10 @@ describe('renderLink', () => {
 		expect(rewrite('[the doc](Attachments/Big%20report.pdf)')).toBe('[the doc](https://drive.google.com/file/d/Abc123/view)');
 		expect(rewrite('![diagram](Attachments/Big%20report.pdf)')).toBe('[diagram](https://drive.google.com/file/d/Abc123/view)');
 		expect(rewrite('![](Attachments/Big%20report.pdf)')).toContain('open in Drive');
+	});
+
+	it('keeps a Markdown link label exactly as written instead of escaping it twice', () => {
+		expect(rewrite('[Budget \\*draft\\*](Attachments/Big%20report.pdf)')).toBe('[Budget \\*draft\\*](https://drive.google.com/file/d/Abc123/view)');
 	});
 
 	it('escapes brackets in link text and leaves the rest of the line alone', () => {

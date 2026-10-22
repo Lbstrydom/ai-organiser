@@ -33,6 +33,8 @@ export interface Occurrence {
     original: string;
     /** Link alias (wikilink) or link text / alt (markdown), when the user wrote one */
     display?: string;
+    /** True when `display` is already Markdown source (a Markdown link label), so it is not escaped again */
+    displayIsMarkdown?: boolean;
     /** Heading, block or `page=` subpath */
     subpath?: string;
     /** Canvas node id */
@@ -108,7 +110,10 @@ function findInMarkdown(referrerPath: string, text: string, target: ScanTarget):
         const work = inFrontmatter ? line : maskInlineCode(line);
 
         const found: Occurrence[] = [];
+        // `\[[x]]` is the user showing the syntax, not a link.
+        const escaped = (index: number): boolean => { let n = 0; for (let k = index - 1; k >= 0 && work[k] === '\\'; k--) n++; return n % 2 === 1; };
         for (const m of work.matchAll(WIKILINK)) {
+            if (escaped(m.index ?? 0)) continue;
             const { link, alias } = splitAlias(m[2]);
             const { path, subpath } = splitSubpath(link.trim());
             if (path === '' || target.resolve(path, referrerPath) !== target.path) continue;
@@ -123,6 +128,7 @@ function findInMarkdown(referrerPath: string, text: string, target: ScanTarget):
             });
         }
         for (const m of work.matchAll(MD_LINK)) {
+            if (escaped(m.index ?? 0)) continue;
             const dest = decodeDest(m[3]);
             if (EXTERNAL.test(dest)) continue;
             const { path, subpath } = splitSubpath(dest);
@@ -134,6 +140,7 @@ function findInMarkdown(referrerPath: string, text: string, target: ScanTarget):
                 end: lineStart + (m.index ?? 0) + m[0].length,
                 original: m[0],
                 display: m[2].trim() || undefined,
+                displayIsMarkdown: true,
                 subpath,
             });
         }
@@ -236,7 +243,7 @@ export function renderLink(occ: Occurrence, info: LinkInfo): string {
         const heading = occ.subpath && page === null ? ` (${occ.subpath})` : page ? ` (page ${page})` : '';
         label = `${info.fileName}${heading}`;
     }
-    return `[${escapeLabel(label)}](${info.url})`;
+    return `[${occ.displayIsMarkdown && occ.display ? label : escapeLabel(label)}](${info.url})`;
 }
 
 export interface TextEdit {
