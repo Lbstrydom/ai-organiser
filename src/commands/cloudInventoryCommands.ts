@@ -47,12 +47,18 @@ export async function getInventorySecret(plugin: AIOrganiserPlugin): Promise<str
 }
 
 /** The stored secret, creating and storing a new one the first time. */
-export async function ensureInventorySecret(plugin: AIOrganiserPlugin): Promise<{ secret: string; created: boolean }> {
-    const existing = await getInventorySecret(plugin);
-    if (existing) return { secret: existing, created: false };
-    const secret = randomSecret();
-    await plugin.secretStorageService.setSecret(PLUGIN_SECRET_IDS.CLOUD_INVENTORY, secret);
-    return { secret, created: true };
+let secretInFlight: Promise<{ secret: string; created: boolean }> | null = null;
+export function ensureInventorySecret(plugin: AIOrganiserPlugin): Promise<{ secret: string; created: boolean }> {
+    // Single flight: two quick clicks must not each create (and the second overwrite) a secret.
+    if (secretInFlight) return secretInFlight;
+    secretInFlight = (async () => {
+        const existing = await getInventorySecret(plugin);
+        if (existing) return { secret: existing, created: false };
+        const secret = randomSecret();
+        await plugin.secretStorageService.setSecret(PLUGIN_SECRET_IDS.CLOUD_INVENTORY, secret);
+        return { secret, created: true };
+    })().finally(() => { secretInFlight = null; });
+    return secretInFlight;
 }
 
 function newPairId(): string {

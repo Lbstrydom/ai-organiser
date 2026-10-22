@@ -20,6 +20,8 @@ export function endsInOpenFence(lines: readonly string[]): boolean {
 // may precede it.
 const FENCE_LINE = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)?(`{3,}|~{3,})(.*)$/;
 
+const CLOSING_FENCE = /^[ \t>]*(`{3,}|~{3,})[ \t]*$/;
+
 function scanRegions(lines: readonly string[]): { mask: boolean[]; openFence: boolean } {
     const out = new Array<boolean>(lines.length).fill(false);
     let i = 0;
@@ -44,7 +46,8 @@ function scanRegions(lines: readonly string[]): { mask: boolean[]; openFence: bo
             continue;
         }
         out[i] = true;
-        if (m && m[1][0] === fence.ch && m[1].length >= fence.len && m[2].trim() === '') fence = null;
+        const close = lines[i].match(CLOSING_FENCE);
+        if (close && close[1][0] === fence.ch && close[1].length >= fence.len) fence = null;
     }
     return { mask: out, openFence: fence !== null };
 }

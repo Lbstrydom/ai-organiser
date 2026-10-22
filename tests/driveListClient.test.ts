@@ -79,6 +79,14 @@ describe('listDriveTree', () => {
 		expect(log).toEqual(['root:']);
 	});
 
+	it('wakes a request that is waiting on the network when cancelled', async () => {
+		const ctl = new AbortController();
+		const fetchPage = () => new Promise<Result<ListPage>>(() => { /* never answers */ });
+		const pending = listDriveTree({ rootFolderId: 'root', fetchPage, limits, signal: ctl.signal });
+		setTimeout(() => ctl.abort(), 5);
+		expect(await pending).toMatchObject({ status: 'failed', error: 'cancelled' });
+	});
+
 	it('does not wait for an in-flight request past the deadline', async () => {
 		const fetchPage = () => new Promise<Result<ListPage>>(() => { /* never answers */ });
 		const res = await listDriveTree({ rootFolderId: 'root', fetchPage, limits: { ...limits, deadlineMs: 20 } });

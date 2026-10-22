@@ -6,7 +6,7 @@
  *
  * The index is deterministic and holds structure only; see `services/agentIndex`.
  */
-import { Notice, Setting } from 'obsidian';
+import { Notice, Setting, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok } from '../core/result';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
@@ -155,9 +155,10 @@ export function openAgentIndexSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
 /** Debounced rebuild when notes in scope change. Registered once; reads the setting on every event. */
 function registerAutoRebuild(plugin: AIOrganiserPlugin): void {
     let timer: number | null = null;
-    const schedule = (path: string): void => {
+    const schedule = (path: string, folder = false): void => {
         if (plugin.settings.agentIndexAutoRebuild !== 'on-change') return;
-        if (!path.endsWith('.md') || !isInIndexScope(path, scopeConfigFromSettings(plugin.settings))) return;
+        // A folder event can move or remove many notes at once, so it always counts.
+        if (!folder && (!path.endsWith('.md') || !isInIndexScope(path, scopeConfigFromSettings(plugin.settings)))) return;
         if (timer !== null) window.clearTimeout(timer);
         timer = window.setTimeout(() => {
             timer = null;
@@ -169,8 +170,8 @@ function registerAutoRebuild(plugin: AIOrganiserPlugin): void {
     const vault = plugin.app.vault;
     plugin.registerEvent(vault.on('modify', (f) => schedule(f.path)));
     plugin.registerEvent(vault.on('create', (f) => schedule(f.path)));
-    plugin.registerEvent(vault.on('delete', (f) => schedule(f.path)));
-    plugin.registerEvent(vault.on('rename', (f, old) => { schedule(f.path); schedule(old); }));
+    plugin.registerEvent(vault.on('delete', (f) => schedule(f.path, f instanceof TFolder)));
+    plugin.registerEvent(vault.on('rename', (f, old) => { schedule(f.path, f instanceof TFolder); schedule(old); }));
     plugin.register(() => { if (timer !== null) window.clearTimeout(timer); });
 }
 

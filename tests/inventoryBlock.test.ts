@@ -102,6 +102,18 @@ describe('findOwnedBlock', () => {
 		expect(findOwnedBlock(inQuote, 'p1', 'F1')).toEqual({ ok: true, value: null });
 	});
 
+	it('counts a marker only when it fills its line', () => {
+		const prose = `Notes: the marker ${startMarker('p1', 'F1')} is written like this, and ${endMarker('p1', 'F1')} ends it.`;
+		expect(findOwnedBlock(prose, 'p1', 'F1')).toEqual({ ok: true, value: null });
+		const res = replaceBlock(prose, block, 'p1', 'F1');
+		expect(res.ok && res.value.startsWith(prose)).toBe(true);
+	});
+
+	it('a list-prefixed fence line does not close a fence', () => {
+		const text = '```\n- ```\n' + startMarker('p1', 'F1') + '\n' + endMarker('p1', 'F1') + '\n```\n';
+		expect(findOwnedBlock(text, 'p1', 'F1')).toEqual({ ok: true, value: null });
+	});
+
 	it('refuses to append after an unclosed fence', () => {
 		const open = '# Hub\n\n```\nexample that never closes\n';
 		expect(replaceBlock(open, block, 'p1', 'F1')).toEqual({ ok: false, error: 'marker-conflict' });

@@ -367,6 +367,7 @@ export function buildAgentIndex(plugin: AIOrganiserPlugin): Promise<Result<Build
                 scopeHash: await scopeHashOf(config),
                 stale,
             });
+            if (snapshot().key !== snap.key) return err('baseline-changed');
             const published = await publish(app.vault.adapter, plan, content, buildId);
             if (!published.ok) return err(published.error);
             const total = app.vault.getMarkdownFiles().length;

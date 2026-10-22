@@ -81,6 +81,13 @@ export async function listDriveTree(options: ListTreeOptions): Promise<TreeListi
     /** One page request that can neither throw nor outlive the traversal deadline. */
     const request = async (folderId: string, token: string | null): Promise<Result<ListPage> | 'timeout'> => {
         let timer: number | null = null;
+        let onAbort: (() => void) | null = null;
+        const cancelled = new Promise<Result<ListPage>>((resolve) => {
+            if (!options.signal) return;
+            onAbort = () => resolve(err('cancelled'));
+            if (options.signal.aborted) onAbort();
+            else options.signal.addEventListener('abort', onAbort, { once: true });
+        });
         const timeout = new Promise<'timeout'>((resolve) => {
             timer = window.setTimeout(() => resolve('timeout'), Math.max(0, deadline - now()));
         });
@@ -92,9 +99,10 @@ export async function listDriveTree(options: ListTreeOptions): Promise<TreeListi
                     return err('script-network');
                 }
             })();
-            return await Promise.race([call, timeout]);
+            return await Promise.race([call, timeout, cancelled]);
         } finally {
             if (timer !== null) window.clearTimeout(timer);
+            if (onAbort) options.signal?.removeEventListener('abort', onAbort);
         }
     };
 

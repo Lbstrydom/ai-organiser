@@ -171,8 +171,14 @@ export function findOwnedBlock(text: string, pairId: string, folderId: string): 
     const lines = text.split('\n');
     const hidden = nonBodyLines(lines);
     const visible = lines.map((l, i) => (hidden[i] ? l.replace(/[^\r]/g, ' ') : l)).join('\n');
-    for (let i = visible.indexOf(start); i !== -1; i = visible.indexOf(start, i + start.length)) starts.push(i);
-    for (let i = visible.indexOf(end); i !== -1; i = visible.indexOf(end, i + end.length)) ends.push(i);
+    // A marker is a managed-block marker only when it fills its line; the same text inside a sentence is prose.
+    const wholeLine = (at: number, marker: string): boolean => {
+        const before = at === 0 ? '\n' : visible[at - 1];
+        const after = visible[at + marker.length] ?? '\n';
+        return before === '\n' && (after === '\n' || after === '\r');
+    };
+    for (let i = visible.indexOf(start); i !== -1; i = visible.indexOf(start, i + start.length)) if (wholeLine(i, start)) starts.push(i);
+    for (let i = visible.indexOf(end); i !== -1; i = visible.indexOf(end, i + end.length)) if (wholeLine(i, end)) ends.push(i);
     if (starts.length === 0 && ends.length === 0) return ok(null);
     if (starts.length !== 1 || ends.length !== 1) return err('marker-conflict');
     if (ends[0] < starts[0]) return err('marker-conflict');
