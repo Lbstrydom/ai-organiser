@@ -9905,3 +9905,11 @@
     cursor: pointer;
     color: var(--text-muted);
 }
+
+/* Drive offload: before and after text of a link in the final review */
+.ai-organiser-offload-diff {
+    margin: 4px 0 8px;
+    padding: 6px 8px;
+    border-left: 3px solid var(--background-modifier-border);
+    overflow-wrap: anywhere;
+}

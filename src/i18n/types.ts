@@ -50,6 +50,7 @@ export interface Translations {
         'embed-scan': { label: string; desc: string };
         'agent-index': { label: string; desc: string };
         'cloud-inventory': { label: string; desc: string };
+        'cloud-offload': { label: string; desc: string };
         'onedrive-link': { label: string; desc: string };
     };
     // Shared workflow-stage labels — the unified taxonomy vocabulary used by BOTH the
@@ -1303,6 +1304,7 @@ export interface Translations {
         refreshCloudInventories: string;
         checkCloudInventories: string;
         setupCloudInventory: string;
+        resumeOffload: string;
         insertOneDriveLink: string;
         refreshOneDriveEmbed: string;
         editMermaidDiagram: string;
@@ -2811,6 +2813,7 @@ export interface Translations {
                 refreshCloudInventories: string;
                 checkCloudInventories: string;
                 setupCloudInventory: string;
+                resumeOffload: string;
                 insertOneDriveLink: string;
                 refreshOneDriveEmbed: string;
                 notebookLMGroup: string;
@@ -3776,6 +3779,52 @@ export interface Translations {
         columnType: string;
         columnSize: string;
         columnModified: string;
+    };
+    offload: {
+        localFolderName: string;
+        localFolderDesc: string;
+        localFolderPlaceholder: string;
+        checkFolder: string;
+        folderOk: string;
+        offloadAction: string;
+        modalTitle: string;
+        planHeading: string;
+        planFile: string;
+        planCopyTo: string;
+        planDriveFolder: string;
+        planLinks: string;
+        planNoLinks: string;
+        planStep1: string;
+        planStep2: string;
+        planStep3: string;
+        planStep4: string;
+        planLinkNote: string;
+        pairLabel: string;
+        startButton: string;
+        cancelButton: string;
+        working: string;
+        waitingSync: string;
+        checkAgain: string;
+        resumeLater: string;
+        reviewHeading: string;
+        reviewIntro: string;
+        reviewBefore: string;
+        reviewAfter: string;
+        skippedNote: string;
+        rewriteButton: string;
+        stopButton: string;
+        stopped: string;
+        doneNotice: string;
+        blockedNotice: string;
+        unavailable: string;
+        noPairChosen: string;
+        promptUnfinished: string;
+        promptOpen: string;
+        promptLater: string;
+        nothingToResume: string;
+        resumeTitle: string;
+        stepLabel: string;
+        fileMissing: string;
     };
 }
 

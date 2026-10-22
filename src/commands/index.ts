@@ -28,6 +28,7 @@ import { registerAudioNarrationCommands } from './audioNarrationCommands';
 import { registerOneDriveLinkCommands } from './oneDriveLinkCommands';
 import { registerAgentIndexCommands } from './agentIndexCommands';
 import { registerCloudInventoryCommands } from './cloudInventoryCommands';
+import { registerOffloadCommands } from './offloadCommands';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -73,6 +74,7 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     'onedrive-link': [registerOneDriveLinkCommands],
     'agent-index': [registerAgentIndexCommands],
     'cloud-inventory': [registerCloudInventoryCommands],
+    'cloud-offload': [registerOffloadCommands],
 };
 
 /**

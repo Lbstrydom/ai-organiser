@@ -14,7 +14,9 @@
 import { App, Modal, TFile, setIcon, Notice, type EventRef } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import type AIOrganiserPlugin from '../../main';
-import { assertWritable } from '../../core/protectedPaths';
+import { assertWritable, isProtectedPath } from '../../core/protectedPaths';
+import { openOffloadForFile } from '../../commands/offloadCommands';
+import { isOffloadAvailable } from '../../services/offload/offloadRuntime';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import {
     ChangeLog,
@@ -697,6 +699,25 @@ export class EmbedScanResultsModal extends Modal {
                     void navigator.clipboard.writeText(target.file!.path);
                     new Notice(embedScan.pathCopied);
                 }));
+
+                // Offload to Drive: desktop only, feature on, a large file that something refers to.
+                const ctx = this.ctx;
+                if (ctx && target.references.length > 0 && target.sizeBytes >= this.largeBytes
+                    && !target.ambiguous && !isProtectedPath(this.protectedFolders, target.file.path)
+                    && isOffloadAvailable(ctx.plugin)) {
+                    const offloadBtn = actionsRow.createEl('button', {
+                        text: ctx.plugin.t.offload.offloadAction,
+                        cls: 'ai-organiser-embed-scan-action-btn',
+                    });
+                    const offloadIcon = offloadBtn.createSpan();
+                    setIcon(offloadIcon, 'cloud-upload');
+                    offloadBtn.prepend(offloadIcon);
+                    this.renderCleanups.push(listen(offloadBtn, 'click', (e) => {
+                        e.stopPropagation();
+                        openOffloadForFile(ctx.plugin, target.file!);
+                        this.close();
+                    }));
+                }
             }
         }
     }

@@ -38,3 +38,22 @@ One guided setup (`Set up Drive folder inventory`, or Settings → Integrations)
 ## Reuse
 
 The F5 offload (planned) reuses `appsScriptClient.ts` and the per-pair mapping to a local Drive-for-desktop folder; it adds no second client.
+
+## Drive large-file offload (F5)
+
+Moves a large vault file into the user's own Google Drive for desktop folder and turns every reference to it into a Drive link. Default off (`cloud-offload`, stage Maintain, requires `cloud-inventory`), desktop only, never registered on mobile. Entry points: **Offload to Drive** on a large, referenced file in the Find embeds results, and **Resume offload** in the command palette (plus a prompt on load when one was left unfinished).
+
+The Apps Script stays read-only: the plugin copies into the Drive for desktop folder and Drive uploads it. Each pair gets an optional `localMountFolder` (settings, shown when the feature is on) with a **Check folder** button that writes nothing.
+
+| Piece | File | Notes |
+|---|---|---|
+| Typed occurrences | `services/offload/referenceOccurrences.ts` | Pure. Wikilinks, embeds, Markdown links and images, canvas `file` nodes, each with an exact span and a defined conversion. HTML tags, reference definitions, properties and canvas text cards are `unsupported`, which makes the file ineligible. Fenced and inline code are never rewritten. |
+| Plans | `services/offload/offloadPlan.ts` | Pure. The copy plan (approved at "Start offload") and the rewrite plan (built once the Drive id is known and approved in "Final review"), plus the remote match rule (name, size and `sha256Checksum` must all agree; no checksum = no match). |
+| Local copy | `services/offload/localMount.ts`, `fingerprint.ts` | Streamed with an incremental sha256, never buffered whole. `realpath` containment of the mount root and target, reserved names refused, exclusive open (`wx`) so nothing is overwritten: an identical file is reused, a different one gets `name-<8 hex>.ext`. |
+| Journal | `services/offload/offloadJournal.ts` | One signed record per operation in the plugin folder, temp-and-rename like the agent index. Steps: `planned → copied → remote-captured → rewrite-approved → rewriting → verified → trash-pending → trashed → done` (or `aborted` / `failed`). Abort only before the first rewrite. |
+| Orchestrator | `services/offload/offloadService.ts` | Recovery from observable postconditions: a referrer whose text already hashes to the planned after-text is done; one that hashes to the baseline is rewritten; anything else is a conflict that stops that referrer. A missing source after `trash-pending` completes the step; before it, the operation fails. |
+| Commit barrier | `services/offload/commitBarrier.ts` | Last gate before the trash: every referrer done, Drive file still matches a fresh listing, source still matches its fingerprint, protection holds, a fresh authoritative reference scan finds nothing, and no vault event invalidated the check (it re-runs up to three times). |
+| Canvas | `services/canvas/canvasWritePort.ts` | The only code that edits an existing canvas: a `file` node becomes a `link` node keeping id, position, size and colour; baseline-checked inside `vault.process`; protected canvases refused. |
+| Runtime | `services/offload/offloadRuntime.ts` | Connects the service to the vault: note edits through `applyNoteEdit` (full-replace with the exact baseline, no review modal because the Final review step is the gate), trash through `fileManager.trashFile`, listing through the shared `appsScriptClient`. |
+
+Invariants: a note edited after the plan is skipped and reported, never overwritten; the original file is trashed only after the barrier passes and only into the Obsidian trash; a protected source or referrer blocks the whole operation. Tests: `offloadReferenceOccurrences`, `offloadPlan`, `offloadLocalMount`, `offloadCommitBarrier`, `offloadJournal`, `offloadService`, `canvasWritePort`, `cloudOffloadOffPath`, `protectedWriteSites`.

@@ -50,7 +50,8 @@ export type FeatureId =
     | 'embed-scan'
     | 'onedrive-link'
     | 'agent-index'
-    | 'cloud-inventory';
+    | 'cloud-inventory'
+    | 'cloud-offload';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -147,6 +148,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     { id: 'onedrive-link', labelKey: 'features.onedrive-link.label', descKey: 'features.onedrive-link.desc', stage: 'capture', requires: [], defaultOn: false },
     // Drive folder inventory talks to the user's own Apps Script (external account) and only reads file names.
     { id: 'cloud-inventory', labelKey: 'features.cloud-inventory.label', descKey: 'features.cloud-inventory.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
+    // Drive offload moves a large vault file into the user's Drive for desktop folder and rewrites its references; it needs the inventory's pairs and script.
+    { id: 'cloud-offload', labelKey: 'features.cloud-offload.label', descKey: 'features.cloud-offload.desc', stage: 'maintain', requires: ['cloud-inventory'], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
 
 /** O(1) lookup by id. */

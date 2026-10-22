@@ -1187,6 +1187,9 @@ export default class AIOrganiserPlugin extends Plugin {
             () => { void import('./commands/chatCommands').then(m => m.openAIChat(this)); }
         );
 
+        // An offload left unfinished last time: offer to open it (desktop, feature on).
+        void import('./commands/offloadCommands').then((m) => m.promptUnfinishedOffload(this));
+
         // First-run intro (FT-7 / L2): point existing + new users at the new Features
         // section. Once-only — the persisted `featuresIntroShown` marker is set + saved
         // immediately so it never re-fires across reloads. Fires after layout settles.

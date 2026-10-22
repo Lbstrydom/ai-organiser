@@ -193,7 +193,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const maintain = cats.find(c => c.id === 'maintain')!;
             expect(maintain.commands.map(c => c.id)).toEqual([
-                'show-tag-network', 'collect-all-tags', 'find-embeds', 'maintain-bases', 'notebooklm-export',
+                'show-tag-network', 'collect-all-tags', 'resume-offload', 'find-embeds', 'maintain-bases', 'notebooklm-export',
             ]);
         });
         it('Bases sub-group contains migration + dashboard commands', () => {
@@ -259,18 +259,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 53 (50 unique + 3 cross-listings)', () => {
+        it('total picker rows = 54 (51 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(53);
+            expect(leafCount).toBe(54);
         });
-        it('unique command IDs = 50', () => {
+        it('unique command IDs = 51', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(50);
+            expect(uniqueIds.size).toBe(51);
         });
-        it('alphabetised ai-organiser:* callbacks (50 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (51 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -321,6 +321,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:refresh-onedrive-embed',
                 'ai-organiser:research-web',
                 'ai-organiser:resolve-pending-embeds',
+                'ai-organiser:resume-offload',
                 'ai-organiser:semantic-search',
                 'ai-organiser:setup-agent-index',
                 'ai-organiser:setup-cloud-inventory',
@@ -333,7 +334,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
             ]);
-            expect(unique.size).toBe(50);
+            expect(unique.size).toBe(51);
         });
     });
 });

@@ -1,4 +1,4 @@
-import { Notice, Setting } from 'obsidian';
+import { Notice, Platform, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -8,6 +8,9 @@ import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { validateScriptUrl } from '../../services/appsScriptClient';
 import { approvedRoots, inventoryConfigKey, testConnection, toTestResult } from '../../services/cloudInventory/cloudInventoryService';
 import { getInventorySecret, openCloudInventorySetup, runRefresh } from '../../commands/cloudInventoryCommands';
+import { isFeatureEnabled } from '../../services/featureService';
+import { checkMountFolder } from '../../services/offload/localMount';
+import { nodeDeps } from '../../services/offload/fingerprint';
 
 /**
  * Drive folder inventory settings: a status row, the paired folders, the script link with a
@@ -16,6 +19,29 @@ import { getInventorySecret, openCloudInventorySetup, runRefresh } from '../../c
 export class CloudInventorySettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
         super(plugin, containerEl, settingTab);
+    }
+
+    /** The folder inside Google Drive for desktop that matches this pair (used only by the offload). */
+    private renderLocalFolder(pair: (typeof this.plugin.settings.cloudInventoryPairs)[number]): void {
+        const o = this.plugin.t.offload;
+        const status = this.containerEl.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
+        new Setting(this.containerEl)
+            .setName(o.localFolderName)
+            .setDesc(o.localFolderDesc)
+            .addText((tx) => {
+                tx.setPlaceholder(o.localFolderPlaceholder).setValue(pair.localMountFolder ?? '').onChange((v) => {
+                    pair.localMountFolder = v.trim() === '' ? undefined : v.trim();
+                    void this.plugin.saveSettings();
+                });
+                tx.inputEl.setAttribute('aria-label', o.localFolderName);
+            })
+            .addButton((b) => b.setButtonText(o.checkFolder).onClick(() => {
+                void (async () => {
+                    const deps = nodeDeps();
+                    const res = deps ? await checkMountFolder(deps, pair.localMountFolder ?? '') : null;
+                    status.setText(res?.ok ? o.folderOk : formatGuidance(describeError(this.plugin.t, res ? res.error : 'mount-invalid')));
+                })();
+            }));
     }
 
     display(): void {
@@ -48,6 +74,7 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
                     s.cloudInventoryPairs = s.cloudInventoryPairs.filter((p) => p.id !== pair.id);
                     void this.plugin.saveSettings().then(() => this.settingTab.display());
                 }));
+            if (Platform.isDesktopApp && isFeatureEnabled(s, 'cloud-offload')) this.renderLocalFolder(pair);
         }
         new Setting(this.containerEl)
             .addButton((b) => b.setButtonText(c.addPair).setCta().onClick(() => openCloudInventorySetup(this.plugin, () => this.settingTab.display())))
