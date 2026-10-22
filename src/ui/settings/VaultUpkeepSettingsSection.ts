@@ -1,6 +1,7 @@
 import { Notice, Setting, TFolder } from 'obsidian';
 import { FolderSuggest } from './components/FolderSuggest';
 import { reportPathFor } from '../../services/upkeep/upkeepReport';
+import { logger } from '../../utils/logger';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
@@ -37,7 +38,12 @@ export class VaultUpkeepSettingsSection extends BaseSettingSection {
         });
         this.containerEl.createEl('p', { text: c.description, cls: 'setting-item-description' });
 
-        const save = (): void => { void this.plugin.saveSettings().then(() => this.plugin.syncUpkeep()); };
+        const save = (): void => {
+            void this.plugin.saveSettings().then(() => this.plugin.syncUpkeep()).catch((e: unknown) => {
+                logger.error('Upkeep', 'Could not save the upkeep settings', e);
+                new Notice(formatGuidance(describeError(this.plugin.t, 'write-failed')), 8000);
+            });
+        };
         new Setting(this.containerEl).setName(c.intervalName).addDropdown((d) => d
             .addOption('off', c.intervalOff).addOption('hourly', c.intervalHourly).addOption('daily', c.intervalDaily)
             .addOption('weekly', c.intervalWeekly).addOption('custom', c.intervalCustom)

@@ -330,11 +330,18 @@ describe('mergeExportStates: an export changes task states and nothing else', ()
 			{ id: id(1), text: 'a', context: '', sourcePath: 'Inbox/a.md', sourceHash: 'h1', evidence: 'e' },
 			{ id: id(2), text: 'b', context: '', sourcePath: 'Inbox/b.md', sourceHash: 'h2', evidence: 'e' },
 		] as never, dispositions: [] } as never);
-		const exported = { ...base, tasks: base.tasks.map((t, i) => (i === 0 ? { ...t, state: 'exported' as const } : t)) };
-		const renamedMeanwhile = { ...base, tasks: base.tasks.map((t, i) => (i === 1 ? { ...t, sourcePath: 'Moved/b.md' } : t)) };
+		const waiting = { ...base, tasks: base.tasks.map((t) => ({ ...t, state: 'reported' as const })) };
+		const exported = { ...waiting, tasks: waiting.tasks.map((t, i) => (i === 0 ? { ...t, state: 'exported' as const } : t)) };
+		const renamedMeanwhile = { ...waiting, tasks: waiting.tasks.map((t, i) => (i === 1 ? { ...t, sourcePath: 'Moved/b.md' } : t)) };
 		const merged = mergeExportStates(renamedMeanwhile, exported);
 		expect(merged.tasks[0].state).toBe('exported');
 		expect(merged.tasks[1].sourcePath).toBe('Moved/b.md'); // the rename survives
 		expect(mergeExportStates(undefined, exported)).toBe(exported);
+		// An export that started from an older picture never moves a task backwards or touches one it did not reach.
+		const liveAlreadyExported = { ...waiting, tasks: waiting.tasks.map((t) => ({ ...t, state: 'exported' as const })) };
+		const failsLater = { ...waiting, tasks: waiting.tasks.map((t) => ({ ...t, state: 'failed' as const, error: 'export-failed' })) };
+		expect(mergeExportStates(liveAlreadyExported, failsLater).tasks.map((t) => t.state)).toEqual(['exported', 'exported']); // never backwards
+		const oneFails = { ...waiting, tasks: waiting.tasks.map((t, i) => (i === 1 ? { ...t, state: 'failed' as const, error: 'export-failed' } : t)) };
+		expect(mergeExportStates(waiting, oneFails).tasks.map((t) => t.state)).toEqual(['reported', 'failed']); // only what the export reached
 	});
 });

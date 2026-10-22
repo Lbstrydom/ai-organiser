@@ -86,7 +86,7 @@ async function sign(path: string, records: readonly OffloadRecord[]): Promise<st
 async function parseSigned(path: string, text: string): Promise<OffloadRecord[] | null> {
     try {
         const file = JSON.parse(text) as Partial<JournalFile>;
-        if (file.generator !== JOURNAL_GENERATOR || file.path !== path || !Array.isArray(file.records) || typeof file.signature !== 'string') return null;
+        if (file.generator !== JOURNAL_GENERATOR || file.version !== 1 || file.path !== path || !Array.isArray(file.records) || typeof file.signature !== 'string') return null;
         return (await sign(path, file.records)) === file.signature ? file.records : null;
     } catch {
         return null;
@@ -111,7 +111,12 @@ export class JournalStore {
     private tmp(id: string): string { return `${this.path}.aio-${id}.tmp`; }
 
     /** Every record. A missing journal is empty; a file that is not ours is `journal-not-ours`. */
-    async load(): Promise<Result<OffloadRecord[]>> {
+    load(): Promise<Result<OffloadRecord[]>> {
+        // Same queue as the writes: a read must not see the moment a write has moved the journal aside.
+        return this.serialised(() => this.loadUnlocked());
+    }
+
+    private async loadUnlocked(): Promise<Result<OffloadRecord[]>> {
         try {
             if (await this.adapter.exists(this.path)) {
                 const records = await parseSigned(this.path, await this.adapter.read(this.path));
@@ -144,6 +149,11 @@ export class JournalStore {
 
     private async write(records: readonly OffloadRecord[]): Promise<Result<void>> {
         try {
+            // A publication that died between its two renames leaves only the signed backup. It is the sole
+            // copy: put it back first, so nothing below can delete it before a replacement exists.
+            if (!(await this.adapter.exists(this.path)) && (await this.adapter.exists(this.prev))) {
+                if (await parseSigned(this.path, await this.adapter.read(this.prev))) await this.adapter.rename(this.prev, this.path);
+            }
             if (await this.adapter.exists(this.path)) {
                 // Never replace something that is not our journal.
                 if (!(await parseSigned(this.path, await this.adapter.read(this.path)))) return err('journal-not-ours');
@@ -175,7 +185,7 @@ export class JournalStore {
     /** Insert or replace one record. */
     put(record: OffloadRecord): Promise<Result<void>> {
         return this.serialised(async () => {
-            const all = await this.load();
+            const all = await this.loadUnlocked();
             if (!all.ok) return err(all.error);
             const next = all.value.filter((r) => r.opId !== record.opId);
             next.push(record);

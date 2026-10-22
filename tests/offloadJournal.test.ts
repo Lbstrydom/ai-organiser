@@ -154,6 +154,39 @@ describe('JournalStore', () => {
 		expect(h.files.has(PATH)).toBe(true);
 	});
 
+	it('keeps the only signed copy when a save follows a crash between the two renames', async () => {
+		const h = makeAdapter();
+		const store = new JournalStore(h.adapter as never, PATH);
+		await store.put(newRecord(copy, 'T'));
+		h.files.set(`${PATH}.aio-prev`, h.files.get(PATH)!);
+		h.files.delete(PATH); // only the backup is left
+		h.failRename('.tmp>'); // and the next save cannot publish
+		const failed = await store.save([]);
+		expect(failed.ok).toBe(false);
+		h.failRename(null);
+		const loaded = await store.load();
+		expect(loaded.ok && loaded.value.map((r) => r.opId)).toEqual(['op1']); // the journal was not lost to the failed save
+	});
+
+	it('reads through the same queue as writes, so a read never sees a write half way', async () => {
+		const h = makeAdapter();
+		const store = new JournalStore(h.adapter as never, PATH);
+		await store.put(newRecord(copy, 'T'));
+		const writes = [store.put(newRecord({ ...copy, opId: 'op2' }, 'T')), store.put(newRecord({ ...copy, opId: 'op3' }, 'T'))];
+		const reads = await Promise.all([store.load(), store.load(), store.load()]);
+		await Promise.all(writes);
+		for (const r of reads) expect(r.ok).toBe(true);
+	});
+
+	it('does not read a journal that declares another version', async () => {
+		const h = makeAdapter();
+		const store = new JournalStore(h.adapter as never, PATH);
+		await store.put(newRecord(copy, 'T'));
+		const file = JSON.parse(h.files.get(PATH)!);
+		h.files.set(PATH, JSON.stringify({ ...file, version: 2 }));
+		expect(await store.load()).toEqual({ ok: false, error: 'journal-not-ours' });
+	});
+
 	it('puts the previous journal back when publishing fails', async () => {
 		const h = makeAdapter();
 		const store = new JournalStore(h.adapter as never, PATH);

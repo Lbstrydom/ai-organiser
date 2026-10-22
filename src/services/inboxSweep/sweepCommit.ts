@@ -97,7 +97,13 @@ export function mergeExportStates(current: ApprovalRecord | undefined, incoming:
         ...current,
         tasks: current.tasks.map((t) => {
             const next = incoming.tasks.find((x) => x.id === t.id);
-            return next ? { ...t, state: next.state, error: next.error } : t;
+            // Only an export outcome moves a task, and only a task that is waiting to be exported (or is being
+            // retried): one the live record already has as exported stays exported, and one the export did not
+            // reach keeps the state it has now.
+            const outcome = next && (next.state === 'exported' || next.state === 'failed');
+            const waiting = t.state === 'reported' || t.state === 'failed';
+            if (!next || !outcome || !waiting) return t;
+            return { ...t, state: next.state, error: next.error };
         }),
     };
 }

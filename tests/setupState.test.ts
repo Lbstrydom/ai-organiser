@@ -36,8 +36,10 @@ describe('evaluateSetup: generic rules (driven through a temporary spec)', () =>
 	const specs = SETUP_SPECS as Record<string, unknown>;
 
 	function withSpec(id: string, spec: unknown, fn: () => void) {
+		// Restore exactly what was there: the real spec of a feature must survive a test that borrows its id.
+		const original = Object.hasOwn(specs, id) ? specs[id] : undefined;
 		specs[id] = spec;
-		try { fn(); } finally { delete specs[id]; }
+		try { fn(); } finally { if (original === undefined) delete specs[id]; else specs[id] = original; }
 	}
 
 	it('returns not-set-up for an id with no spec (a feature can never read as ready by accident)', () => {
