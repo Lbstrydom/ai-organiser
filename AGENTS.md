@@ -594,6 +594,12 @@ The plugin is distributed through the Obsidian community store, which reads `man
 2. Tag the merge commit **without a `v` prefix** and push it: `git tag x.y.z && git push origin x.y.z`.
 3. `.github/workflows/release.yml` (`npm ci` → `build:quick` → provenance attestation) publishes `main.js`, `manifest.json`, `styles.css` on the release. The store picks it up from there; merging to `main` alone ships nothing to users.
 
+**Merging is not releasing — releases are batched, and only the owner decides.** Obsidian offers users an update only when a GitHub release carries a higher `manifest.json` version, and `release.yml` runs only on a pushed version tag. Community users must not be updated every few minutes, so:
+- Branches, PRs, CI and merges to `main` are ordinary work and reach no user.
+- **No PR or agent session may bump `manifest.json`, `versions.json` or the `package.json` version, or create or push a tag.** A PR that touches those outside a release PR is sent back.
+- **CI enforces it.** `.github/workflows/version-guard.yml` runs `scripts/check-version-bump.mjs` on every pull request and fails one that changes the release version in `manifest.json`, `versions.json`, `package.json` or `package-lock.json`, unless the PR carries the **`release` label**. The label is the marker (not a branch name): on a public repo only maintainers can apply a label, so an outside PR cannot exempt itself. The owner adds the label to the release PR; the check re-runs when it is added.
+- A release is one release PR (version bump plus changelog) and one tag, made only on the owner's explicit go. Propose one when a meaningful batch has landed, no more than about weekly, with a three-line changelog.
+
 ## ESLint (Obsidian Review Bot Compliance)
 
 **Config**: `eslint.config.mjs` using `eslint-plugin-obsidianmd` with `recommendedWithLocalesEn` — matches the exact config the Obsidian review bot runs on PR submissions.

@@ -71,6 +71,8 @@ scripts/*
 !scripts/check-private-staged.d.mts
 !scripts/install-private-hook.mjs
 !scripts/install-private-hook.d.mts
+!scripts/check-version-bump.mjs
+!scripts/check-version-bump.d.mts
 .github/skills/
 .github/appmod/
 .githooks/
