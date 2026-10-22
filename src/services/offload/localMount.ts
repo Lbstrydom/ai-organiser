@@ -110,7 +110,7 @@ async function copyExclusive(deps: NodeDeps, src: string, dest: string, options:
         // Wait for the destination to settle, then remove only a file this call created, never one that was already there.
         if (out && !out.closed) {
             const stream = out;
-            await new Promise<void>((resolve) => { const t = setTimeout(resolve, 2000); stream.once('close', () => { clearTimeout(t); resolve(); }); stream.destroy(); });
+            await new Promise<void>((resolve) => { const t = window.setTimeout(resolve, 2000); stream.once('close', () => { window.clearTimeout(t); resolve(); }); stream.destroy(); });
         }
         if (created) await deps.fs.promises.unlink(dest).catch(() => undefined);
         if (options.signal?.aborted) return err('cancelled');

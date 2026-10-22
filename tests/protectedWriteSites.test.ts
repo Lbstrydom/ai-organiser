@@ -65,9 +65,10 @@ const MANIFEST: Record<string, Entry> = {
 
 	'src/services/agentIndex/agentIndexService.ts': { count: 10, cls: 'guarded', exempt: 7, reason: 'every adapter write goes through an OutputPlan that only planOutput can build, and planOutput asserts writability of the index path and both sidecar names' },
 	'src/services/cloudInventory/cloudInventoryService.ts': { count: 2, cls: 'guarded', reason: 'hub note creation asserts writability first; updates go through applyNoteEdit' },
+	'src/services/inboxSweep/sweepCommit.ts': { count: 2, cls: 'guarded', reason: 'the report note is created after assertWritable and validateReportPath; updates go through applyNoteEdit' },
 	'src/services/canvas/canvasWritePort.ts': { count: 1, cls: 'guarded', reason: 'the only code that edits an existing canvas; asserts writability of the canvas path before vault.process' },
 	'src/services/offload/offloadRuntime.ts': { count: 1, cls: 'guarded', reason: 'the final trash asserts writability of the source file first; note edits go through applyNoteEdit and canvas edits through the canvas write port' },
-	'src/services/offload/offloadJournal.ts': { count: 7, cls: 'plugin-data', reason: 'the offload journal and its temp files live in the plugin folder' },
+	'src/services/offload/offloadJournal.ts': { count: 8, cls: 'plugin-data', reason: 'the offload journal and its temp files live in the plugin folder' },
 
 	// ── Plugin output roots (validated disjoint from protected folders) ─────────────────────
 	'src/commands/minutesCommands.ts': { count: 1, cls: 'output-root', reason: 'Word export under the minutes output folder' },

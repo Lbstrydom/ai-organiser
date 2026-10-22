@@ -51,7 +51,9 @@ export type FeatureId =
     | 'onedrive-link'
     | 'agent-index'
     | 'cloud-inventory'
-    | 'cloud-offload';
+    | 'cloud-offload'
+    | 'inbox-sweep'
+    | 'google-tasks-export';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -149,6 +151,10 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     // Drive folder inventory talks to the user's own Apps Script (external account) and only reads file names.
     { id: 'cloud-inventory', labelKey: 'features.cloud-inventory.label', descKey: 'features.cloud-inventory.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
     // Drive offload moves a large vault file into the user's Drive for desktop folder and rewrites its references; it needs the inventory's pairs and script.
+    // Inbox sweep sends note text to the user's AI provider after an exclusion guard; every item is reviewed before anything is written.
+    { id: 'inbox-sweep', labelKey: 'features.inbox-sweep.label', descKey: 'features.inbox-sweep.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
+    // One-way export of approved sweep tasks to the user's own Google Tasks list through their own Apps Script.
+    { id: 'google-tasks-export', labelKey: 'features.google-tasks-export.label', descKey: 'features.google-tasks-export.desc', stage: 'refine', boundary: ['external-account'], requires: ['inbox-sweep'], defaultOn: false },
     { id: 'cloud-offload', labelKey: 'features.cloud-offload.label', descKey: 'features.cloud-offload.desc', stage: 'maintain', requires: ['cloud-inventory'], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
 
@@ -187,6 +193,8 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-brand': 'export',
     'sub-agent-index': 'agent-index',
     'sub-cloud-inventory': 'cloud-inventory',
+    'sub-inbox-sweep': 'inbox-sweep',
+    'sub-google-tasks': 'google-tasks-export',
 });
 
 /**

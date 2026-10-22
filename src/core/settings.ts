@@ -6,6 +6,7 @@ import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
+import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -445,6 +446,32 @@ export interface AIOrganiserSettings {
     cloudInventoryLastChecked: Record<string, string>;
     /** The last "Test connection" result, tied to the configuration it tested. */
     cloudInventoryLastTest: CloudInventoryTestResult | null;
+
+    // === INBOX SWEEP (F6) ===
+    /** Folders whose notes are swept (notes that changed since they were last swept) */
+    sweepInboxFolders: string[];
+    sweepExcludedFolders: string[];
+    /** Tags (without #); a nested tag is excluded with its parent */
+    sweepExcludedTags: string[];
+    /** `key: value` pairs, for example `client: acme` */
+    sweepExcludedProperties: string[];
+    /** Plain words or names that keep a note out of the sweep wherever they appear */
+    sweepExcludedTerms: string[];
+    /** The user deliberately chose "Nothing to keep out" in the setup */
+    sweepNothingToExclude: boolean;
+    /** The living report note that gets one section per run */
+    sweepReportPath: string;
+    sweepMaxNotes: number;
+    sweepMaxChars: number;
+    sweepLedger: SweepLedger;
+    sweepApprovals: ApprovalRecord[];
+
+    // === GOOGLE TASKS EXPORT (F6) ===
+    tasksScriptUrl: string;
+    tasksListId: string;
+    tasksListName: string;
+    /** The last connection test, tied to the configuration it tested */
+    tasksLastTest: CloudInventoryTestResult | null;
 
     // === NEWSLETTER DIGEST ===
     newsletterEnabled: boolean;
@@ -959,6 +986,21 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     cloudInventoryDeadlineMinutes: 3,
     cloudInventoryLastChecked: {},
     cloudInventoryLastTest: null,
+    sweepInboxFolders: [],
+    sweepExcludedFolders: [],
+    sweepExcludedTags: [],
+    sweepExcludedProperties: [],
+    sweepExcludedTerms: [],
+    sweepNothingToExclude: false,
+    sweepReportPath: 'Inbox sweep report.md',
+    sweepMaxNotes: 20,
+    sweepMaxChars: 12000,
+    sweepLedger: {},
+    sweepApprovals: [],
+    tasksScriptUrl: '',
+    tasksListId: '',
+    tasksListName: '',
+    tasksLastTest: null,
 
     // Newsletter Digest Defaults
     newsletterEnabled: false,
@@ -1393,6 +1435,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateVisualSearchSettings(oldSettings);
     migrateProtectedAndAttachmentSettings(oldSettings);
     migrateAgentIndexAndInventorySettings(oldSettings);
+    migrateSweepSettings(oldSettings);
 
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
@@ -1476,6 +1519,68 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
                 scriptVersion: typeof test.scriptVersion === 'number' ? test.scriptVersion : undefined,
                 rootsHash: typeof test.rootsHash === 'string' ? test.rootsHash : undefined,
             }
+            : null;
+}
+
+/**
+ * Coerce the inbox sweep and Google Tasks settings to valid shapes. Order-safe and idempotent.
+ * Exclusion lists are never silently emptied: a lone string stays one entry.
+ */
+export function migrateSweepSettings(old: Record<string, unknown>): void {
+    const strings = (value: unknown): string[] => {
+        if (typeof value === 'string') return value.trim() === '' ? [] : [value.trim()];
+        return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '').map((v) => v.trim()) : [];
+    };
+    const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    const d = DEFAULT_SETTINGS;
+    for (const key of ['sweepInboxFolders', 'sweepExcludedFolders', 'sweepExcludedTags', 'sweepExcludedProperties', 'sweepExcludedTerms'] as const) {
+        old[key] = strings(old[key]);
+    }
+    old.sweepNothingToExclude = old.sweepNothingToExclude === true;
+    old.sweepReportPath = typeof old.sweepReportPath === 'string' && old.sweepReportPath.trim() !== '' ? old.sweepReportPath.trim() : d.sweepReportPath;
+    old.sweepMaxNotes = intIn(old.sweepMaxNotes, d.sweepMaxNotes, 1, 200);
+    old.sweepMaxChars = intIn(old.sweepMaxChars, d.sweepMaxChars, 500, 100000);
+
+    const ledger: SweepLedger = {};
+    if (old.sweepLedger && typeof old.sweepLedger === 'object' && !Array.isArray(old.sweepLedger)) {
+        for (const [path, entry] of Object.entries(old.sweepLedger as Record<string, unknown>)) {
+            const e = entry as Record<string, unknown> | null;
+            if (e && typeof e.sha256 === 'string' && typeof e.sweptAt === 'string' && typeof e.runId === 'string') ledger[path] = { sha256: e.sha256, sweptAt: e.sweptAt, runId: e.runId };
+        }
+    }
+    old.sweepLedger = ledger;
+
+    const states = ['approved', 'reported', 'exported', 'failed'];
+    const approvals: ApprovalRecord[] = [];
+    if (Array.isArray(old.sweepApprovals)) {
+        for (const raw of old.sweepApprovals) {
+            const r = raw as Record<string, unknown> | null;
+            if (!r || typeof r.runId !== 'string' || typeof r.createdAt !== 'string' || typeof r.reportPath !== 'string' || !Array.isArray(r.tasks) || !Array.isArray(r.dispositions)) continue;
+            const tasks = r.tasks.flatMap((t): ApprovalRecord['tasks'] => {
+                const x = t as Record<string, unknown> | null;
+                if (!x || typeof x.id !== 'string' || typeof x.text !== 'string' || typeof x.sourcePath !== 'string' || typeof x.sourceHash !== 'string' || typeof x.state !== 'string' || !states.includes(x.state)) return [];
+                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined }];
+            });
+            const dispositions = r.dispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
+                const x = dd as Record<string, unknown> | null;
+                return x && typeof x.sourcePath === 'string' && typeof x.sourceHash === 'string' && typeof x.markSwept === 'boolean' ? [{ sourcePath: x.sourcePath, sourceHash: x.sourceHash, markSwept: x.markSwept }] : [];
+            });
+            approvals.push({ runId: r.runId, createdAt: r.createdAt, reportPath: r.reportPath, listId: typeof r.listId === 'string' ? r.listId : undefined, tasks, dispositions, reportDone: r.reportDone === true, ledgerDone: r.ledgerDone === true });
+        }
+    }
+    old.sweepApprovals = approvals;
+
+    old.tasksScriptUrl = typeof old.tasksScriptUrl === 'string' ? old.tasksScriptUrl.trim() : '';
+    old.tasksListId = typeof old.tasksListId === 'string' ? old.tasksListId.trim() : '';
+    old.tasksListName = typeof old.tasksListName === 'string' ? old.tasksListName : '';
+    const test = old.tasksLastTest as Record<string, unknown> | null | undefined;
+    old.tasksLastTest =
+        test && typeof test === 'object' && typeof test.ok === 'boolean' && typeof test.configHash === 'string' && typeof test.at === 'string'
+            ? { ok: test.ok, configHash: test.configHash, at: test.at, scriptVersion: typeof test.scriptVersion === 'number' ? test.scriptVersion : undefined, rootsHash: typeof test.rootsHash === 'string' ? test.rootsHash : undefined }
             : null;
 }
 

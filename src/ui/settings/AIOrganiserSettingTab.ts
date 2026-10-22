@@ -30,6 +30,8 @@ import { FeaturesSettingsSection } from './FeaturesSettingsSection';
 import { ProtectedFoldersSettingsSection } from './ProtectedFoldersSettingsSection';
 import { AgentIndexSettingsSection } from './AgentIndexSettingsSection';
 import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
+import { InboxSweepSettingsSection } from './InboxSweepSettingsSection';
+import { GoogleTasksSettingsSection } from './GoogleTasksSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
@@ -332,6 +334,14 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-cloud-inventory', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-cloud-inventory', this.plugin.t.cloudInventory.sectionTitle, 'cloud');
                 new CloudInventorySettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-inbox-sweep', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-inbox-sweep', this.plugin.t.inboxSweep.sectionTitle, 'inbox');
+                new InboxSweepSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-google-tasks', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-google-tasks', this.plugin.t.googleTasks.sectionTitle, 'list-checks');
+                new GoogleTasksSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-export', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-export', t.export?.title || 'Document Export', 'file-output');

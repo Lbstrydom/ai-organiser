@@ -129,6 +129,18 @@ export const SETUP_SPECS: Readonly<Partial<Record<SetupId, SetupSpec>>> = {
         needsCompletionMarker: true,
         needsConnection: true,
     },
+    'inbox-sweep': {
+        required: ['sweepInboxFolders', 'sweepReportPath'],
+        folderKeys: ['sweepInboxFolders', 'sweepExcludedFolders'],
+        needsCompletionMarker: true,
+        needsConnection: false,
+    },
+    'google-tasks': {
+        required: ['tasksScriptUrl', 'tasksListId'],
+        folderKeys: [],
+        needsCompletionMarker: true,
+        needsConnection: true,
+    },
     'protected-folders': {
         required: ['protectedFolders'],
         folderKeys: ['protectedFolders'],

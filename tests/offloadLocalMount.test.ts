@@ -1,10 +1,13 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
 import { checkMountFolder, collisionName, isSafeFileName, placeFile, resolveDestination } from '../src/services/offload/localMount';
 import { hashStream, streamFingerprinter, type NodeDeps } from '../src/services/offload/fingerprint';
+
+// The mount code idles with window timers (Obsidian popout-window safe); node has no window.
+vi.stubGlobal('window', globalThis);
 
 const deps = { fs, path, crypto } as unknown as NodeDeps;
 const sha = (data: string | Buffer) => crypto.createHash('sha256').update(data).digest('hex');

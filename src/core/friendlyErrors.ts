@@ -54,6 +54,16 @@ export const GUIDANCE_CODES = [
     'marker-conflict',
     'drive-link-invalid',
     'no-secret',
+    // Inbox sweep and Google Tasks
+    'sweep-keepout-required',
+    'sweep-no-folders',
+    'sweep-report-invalid',
+    'sweep-report-conflict',
+    'sweep-no-provider',
+    'sweep-run-failed',
+    'tasks-no-list',
+    'tasks-not-ready',
+    'script-tasks-off',
     // Drive offload
     'mount-invalid',
     'mount-missing',

@@ -33,7 +33,8 @@ export type ScriptErrorCode =
     | 'script-bad-request'
     | 'script-drive-error'
     | 'script-network'
-    | 'script-bad-response';
+    | 'script-bad-response'
+    | 'script-tasks-off';
 
 /** What one HTTP exchange returned. */
 export interface ScriptHttpResponse {
@@ -71,6 +72,10 @@ const REMOTE_CODES: Record<string, ScriptErrorCode> = {
     'not-approved': 'script-not-approved',
     'bad-request': 'script-bad-request',
     'drive-error': 'script-drive-error',
+    // Google Tasks script: a busy lock and a Tasks API hiccup are retryable like a Drive hiccup.
+    busy: 'script-drive-error',
+    'tasks-error': 'script-drive-error',
+    'tasks-service-off': 'script-tasks-off',
 };
 
 const RETRYABLE = new Set<ScriptErrorCode>(['script-drive-error', 'script-network']);

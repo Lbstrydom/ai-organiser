@@ -277,6 +277,13 @@ Repo-wide rules that bind *every* subsystem are in
 | Drive large-file offload | Desktop-only move of a large file into Drive for desktop, typed link rewrites, signed resumable journal, destructive commit barrier before the trash | Touching offload steps, the canvas write port or anything that trashes after a rewrite |
 | Apps Script client | Shared `appsScriptClient.ts`: endpoint validation, secret-in-body POST, bounded retries, stable error codes | Adding any call to a user-owned Apps Script |
 
+### [Inbox Sweep & Google Tasks](docs/features/inbox-sweep.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Inbox sweep | Pre-LLM fail-closed exclusion guard, evidence-verified extraction, review-first approval, durable outbox and owned report sections | Changing what may reach the model, the prompt, or the commit order |
+| Google Tasks export | One-way, idempotent export of approved tasks through the user's own script locked to one list | Changing the script template, the export batches or the setup bootstrap |
+
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 
 | Subsystem | What it is | Read it when |

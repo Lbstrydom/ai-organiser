@@ -55,6 +55,8 @@ export const PLUGIN_SECRET_IDS = {
     AZURE_OPENAI: 'ai-organiser-azure-openai-key',
     // Shared secret between the plugin and the user's own Drive inventory Apps Script (F4).
     CLOUD_INVENTORY: 'ai-organiser-cloud-inventory-secret',
+    // Shared secret between the plugin and the user's own Google Tasks Apps Script (F6).
+    GOOGLE_TASKS: 'ai-organiser-google-tasks-secret',
     // Azure AI Speech (Cognitive Services) — dedicated key for the in-region
     // azure-speech surface. Falls back to the shared Foundry key when unset
     // (resolveAzureSpeechCredential, plan D9).

@@ -9913,3 +9913,36 @@
     border-left: 3px solid var(--background-modifier-border);
     overflow-wrap: anywhere;
 }
+
+/* Inbox sweep review */
+.ai-organiser-sweep-note {
+    margin: 12px 0;
+    padding: 8px 10px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+}
+
+.ai-organiser-sweep-item {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 8px;
+    margin: 6px 0;
+}
+
+.ai-organiser-sweep-text {
+    flex: 1 1 200px;
+    min-width: 0;
+}
+
+.ai-organiser-sweep-evidence {
+    flex-basis: 100%;
+    overflow-wrap: anywhere;
+}
+
+.ai-organiser-sweep-swept {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+}
