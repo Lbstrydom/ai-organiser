@@ -14,6 +14,7 @@ import { App, TFile } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { errFrom, ok, makeError } from './narrationTypes';
 import type { Result } from '../../core/result';
+import { assertWritableActive } from '../../core/protectedPaths';
 
 export const EMBED_START = '<!-- AIO-NARRATION:START -->';
 export const EMBED_END = '<!-- AIO-NARRATION:END -->';
@@ -57,6 +58,10 @@ export async function syncEmbed(
     mp3Path: string,
     enabled: boolean,
 ): Promise<Result<void>> {
+    // Protected folders: never add or remove the embed block in a protected note.
+    if (!assertWritableActive('modify', file.path).ok) {
+        return errFrom<void>(makeError('EMBED_FAILED', 'The note is in a protected folder; the audio link was not added.'));
+    }
     const mtimeAtStart = file.stat?.mtime;
     let content: string;
     try {

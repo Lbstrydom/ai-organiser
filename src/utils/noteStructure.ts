@@ -15,6 +15,7 @@
 import { Editor } from 'obsidian';
 import { AIOrganiserSettings } from '../core/settings';
 
+import { guardActiveNote } from './protectedGuard';
 // Section markers
 export const REFERENCES_HEADER = '## References';
 export const PENDING_INTEGRATION_HEADER = '## Pending Integration';
@@ -242,6 +243,7 @@ export function addToReferencesSection(
     const insertLine = structure.references.startLine;
     const insertPos = { line: insertLine, ch: 0 };
 
+    if (!guardActiveNote()) return;
     editor.replaceRange(referenceText + '\n', insertPos);
 }
 
@@ -407,6 +409,7 @@ export function addToPendingIntegration(
     const insertLine = structure.pendingIntegration.startLine;
     const insertPos = { line: insertLine, ch: 0 };
 
+    if (!guardActiveNote()) return;
     editor.replaceRange(pendingContent + '\n', insertPos);
 }
 
@@ -450,6 +453,7 @@ export function setPendingIntegrationContent(editor: Editor, content: string): v
 
     const trimmedContent = content.trim();
     const replacement = trimmedContent ? trimmedContent + '\n' : '\n';
+    if (!guardActiveNote()) return;
     editor.replaceRange(replacement, startPos, endPos);
 }
 
@@ -487,6 +491,7 @@ export function clearPendingIntegration(editor: Editor): void {
         ch: 0
     };
 
+    if (!guardActiveNote()) return;
     editor.replaceRange('\n', startPos, endPos);
 }
 
@@ -538,6 +543,7 @@ export function ensurePendingIntegrationExists(editor: Editor): boolean {
     // Create the section at the end of the document
     const insertLine = editor.lineCount();
     const insertContent = `${SECTION_DIVIDER}\n${PENDING_INTEGRATION_HEADER}\n\n`;
+    if (!guardActiveNote()) return false;
     editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
 
     return true; // Section was created
@@ -576,11 +582,13 @@ export function ensureReferencesExists(editor: Editor): boolean {
             insertLine--;
         }
         const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
+        if (!guardActiveNote()) return false;
         editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
     } else {
         // Insert at end of document
         const insertLine = editor.lineCount();
         const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
+        if (!guardActiveNote()) return false;
         editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
     }
 
@@ -665,6 +673,7 @@ export function replaceMainContent(editor: Editor, newContent: string): void {
 
     // Replace entire document
     const fullContent = newContent + preservedSections;
+    if (!guardActiveNote()) return;
     editor.setValue(fullContent);
 }
 

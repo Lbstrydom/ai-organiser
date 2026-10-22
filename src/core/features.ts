@@ -194,6 +194,7 @@ export const INFRA_SECTIONS: readonly string[] = Object.freeze([
     'sub-quick-commands', // Quick commands (configurable picker Pinned)
     'sub-interface',      // Language & Interface
     'sub-mobile',         // Mobile
+    'sub-protected-folders', // Protected folders (F1; a safety setting, not a feature toggle)
 ]);
 
 /**

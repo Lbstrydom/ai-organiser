@@ -10,6 +10,7 @@
 import { App, TFile } from 'obsidian';
 import { SelectionResult } from './types';
 import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
+import { assertWritableActive } from '../../core/protectedPaths';
 
 /**
  * Service for selecting notes for NotebookLM export
@@ -103,6 +104,8 @@ export class SelectionService {
      */
     async toggleSelection(file: TFile): Promise<boolean> {
         const hasSelectionTag = await this.hasTag(file, this.selectionTag);
+        // Protected folders: leave the note untouched; report its current state.
+        if (!assertWritableActive('modify', file.path).ok) return hasSelectionTag;
 
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
             // Initialize tags array if needed
@@ -140,6 +143,7 @@ export class SelectionService {
      */
     async clearSelection(files: TFile[]): Promise<void> {
         for (const file of files) {
+            if (!assertWritableActive('modify', file.path).ok) continue;
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
                 if (frontmatter.tags) {
                     if (typeof frontmatter.tags === 'string') {
@@ -169,6 +173,7 @@ export class SelectionService {
         const exportDate = new Date().toISOString();
 
         for (const file of files) {
+            if (!assertWritableActive('modify', file.path).ok) continue;
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
                 // Replace selection tag with archive tag
                 if (frontmatter.tags) {

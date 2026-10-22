@@ -264,6 +264,9 @@ Repo-wide rules that bind *every* subsystem are in
 | Obsidian Bases | Structured frontmatter metadata, migration, dashboards | Changing metadata properties or dashboard templates |
 | Canvas toolkit | Investigation / context / cluster boards as `.canvas` files | Changing layouts or board generation |
 | Find embeds | Vault hygiene scan with reference counts and orphan detection | Changing the embed scanner |
+| Protected folders | User-chosen folders the plugin never modifies; one guard at every write seam | Adding any code that writes, renames, trashes or creates anywhere |
+| Attachment helper | Canvas-aware scan, large-file and duplicate views, suggest-a-home, safe trash (extends Find embeds) | Changing trash eligibility or the results modal |
+| Setup kit | Guided setup modal, status row, folder list editor, friendly errors, shared by every opt-in feature | Adding a feature that needs first-run setup |
 
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 
@@ -334,6 +337,14 @@ a silent failure gets shipped.
   cannot do.
 - **Every Azure egress is paced** through the per-deployment pacer, and the lease is held
   only for the in-flight request — never across a backoff.
+- **Every write that can touch a user note honours protected folders** (`src/core/protectedPaths.ts`):
+  call `assertWritable` / `assertWritableActive` / `guardActiveNote` before the write, or confine
+  the write to a plugin output root. `tests/protectedWriteSites.test.ts` fails on any unclassified
+  write-API call site, so a new site must be added to its manifest with a class and a reason.
+  -> [vault-tools](docs/features/vault-tools.md)
+- **A user-facing failure says what to do next.** Return a stable code and add it to
+  `GUIDANCE_CODES` (`src/core/friendlyErrors.ts`); the compiler then requires its two-sentence
+  English guidance. Never show a raw code or exception text. -> [vault-tools](docs/features/vault-tools.md)
 
 **Rendering and caching**
 - **New slide CSS must have its CSSOM *longhands* allowlisted** in

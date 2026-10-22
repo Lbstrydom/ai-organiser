@@ -1,4 +1,6 @@
 import type { RefineErrorCode } from '../services/chat/refineDeckIrSelectiveTypes';
+import type { GuidanceCode, GuidanceEntry } from '../core/friendlyErrors';
+import type { SetupReason } from '../core/setupState';
 
 export interface Translations {
     // Features settings section (feature-toggle UI). Per-feature label/desc keyed by
@@ -1513,6 +1515,7 @@ export interface Translations {
         nothingToInsert: string;
         noteChangedReRun: string;
         couldNotWriteNote: string;
+        protectedNoteNotModified: string;
         insertionPointMovedAppended: string;
         summarizingChunk: string;
         combiningChunks: string;
@@ -3495,6 +3498,54 @@ export interface Translations {
         deselectAll: string;
         selectedCount: string;
         selectFile: string;
+        // Attachment helper
+        explainerTitle: string;
+        explainerBody: string;
+        explainerDismiss: string;
+        largeChip: string;
+        largeBadge: string;
+        duplicateBadge: string;
+        duplicateBadgeTitle: string;
+        findDuplicates: string;
+        findDuplicatesHelp: string;
+        duplicatesRunning: string;
+        duplicatesCancel: string;
+        duplicatesStopped: string;
+        duplicatesNone: string;
+        duplicatesFound: string;
+        duplicatesSkipped: string;
+        suggestHome: string;
+        suggestHomeLoading: string;
+        suggestHomeNone: string;
+        suggestHomeBasic: string;
+        suggestHomeSemantic: string;
+        suggestHomeDeclined: string;
+        suggestHomeError: string;
+        linkButton: string;
+        linkAriaLabel: string;
+        linkedNotice: string;
+        alreadyLinkedNotice: string;
+        protectedNotLinkable: string;
+        egressTitle: string;
+        egressBody: string;
+        egressSend: string;
+        egressBasic: string;
+        reasonReferenced: string;
+        reasonAmbiguous: string;
+        reasonCanvas: string;
+        reasonIncomplete: string;
+        reasonChanged: string;
+        reasonMissing: string;
+        reasonProtected: string;
+        couldNotReadTitle: string;
+        couldNotReadHelp: string;
+        outOfDate: string;
+        scanAgain: string;
+        coverageNote: string;
+        coverageAcknowledge: string;
+        keptNotice: string;
+        keptReasonsTitle: string;
+        revalidating: string;
         // Close
         closeButton: string;
     };
@@ -3549,6 +3600,56 @@ export interface Translations {
         statusCancelled: string;            // "Cancelled"
         cancelButton: string;               // "Cancel"
         cancelTooltip: string;              // "Cancel the current build"
+    };
+    setup: {
+        statusNotSetUp: string;
+        statusReady: string;
+        statusNeedsAttention: string;
+        setUpButton: string;
+        reviewSetupButton: string;
+        /** "Step {current} of {total}" */
+        stepLabel: string;
+        back: string;
+        next: string;
+        finish: string;
+        cancel: string;
+        previewButton: string;
+        addFolder: string;
+        chooseFolder: string;
+        removeFolder: string;
+        noFoldersYet: string;
+        /** "{count} notes" */
+        folderCount: string;
+        folderMissing: string;
+        folderMissingWarning: string;
+        reasons: Record<SetupReason, string>;
+    };
+    guidance: { unknown: GuidanceEntry } & Record<GuidanceCode, GuidanceEntry>;
+    protectedFolders: {
+        sectionTitle: string;
+        statusName: string;
+        description: string;
+        empty: string;
+        protectAction: string;
+        unprotectAction: string;
+        /** "{folder} is now protected ({count} notes)." */
+        nowProtected: string;
+        /** "{folder} is no longer protected." */
+        noLongerProtected: string;
+        alreadyProtected: string;
+        /** "Not saved: {label} would be inside a protected folder. Choose a different folder first." */
+        outputRefused: string;
+        /** "{label} is inside a protected folder, so it is turned off until you change it." */
+        outputOverlap: string;
+        /** "{count} protected notes were skipped." */
+        skipped: string;
+        wizardTitle: string;
+        wizardChooseTitle: string;
+        wizardChooseHelp: string;
+        wizardConfirmTitle: string;
+        /** "{count} notes in {folders} folders will be protected." */
+        wizardConfirmSummary: string;
+        wizardNothingChosen: string;
     };
 }
 

@@ -11,8 +11,26 @@
  * Accessibility: All interactive elements are keyboard-navigable with ARIA roles.
  */
 
-import { App, Modal, TFile, setIcon, Notice } from 'obsidian';
+import { App, Modal, TFile, setIcon, Notice, type EventRef } from 'obsidian';
 import type { Translations } from '../../i18n/types';
+import type AIOrganiserPlugin from '../../main';
+import { assertWritable } from '../../core/protectedPaths';
+import { describeError, formatGuidance } from '../../core/friendlyErrors';
+import {
+    ChangeLog,
+    createAppVaultPort,
+    eligibilityFromScan,
+    revalidate,
+    type Eligibility,
+    type FileIdentity,
+} from '../../services/attachmentEligibility';
+import { analyseDuplicates, type DuplicateResult } from '../../services/attachmentDuplicateService';
+import {
+    createHomeContext,
+    linkToNote,
+    suggestHomes,
+    type HomeSuggestion,
+} from '../../services/attachmentHomeService';
 import {
     EmbedTarget,
     EmbedScanResult,
@@ -86,6 +104,28 @@ const SIZE_PRESETS: SizePreset[] = [
     { label: '> 10 MB', bytes: 10 * 1024 * 1024 },
 ];
 
+// ─── Context & session state ─────────────────────────────────────────────────
+
+/** What the results modal needs from the plugin. Absent = read-only browsing (no helper actions). */
+export interface EmbedScanModalContext {
+    plugin: AIOrganiserPlugin;
+    /** Run the scan again (used by the out-of-date banner) */
+    onRescan?: () => void;
+}
+
+/** The user's answer to "send text to the embedding provider?", remembered for the session. */
+let sessionEgressChoice: boolean | null = null;
+
+/** Forget the session answer (called when the plugin loads). */
+export function resetEgressChoice(): void {
+    sessionEgressChoice = null;
+}
+
+type SuggestState =
+    | { status: 'loading' }
+    | { status: 'error' }
+    | { status: 'done'; suggestion: HomeSuggestion };
+
 // ─── Modal ───────────────────────────────────────────────────────────────────
 
 export class EmbedScanResultsModal extends Modal {
@@ -100,6 +140,21 @@ export class EmbedScanResultsModal extends Modal {
     /** Paths of selected targets and orphans */
     private selectedPaths: Set<string> = new Set();
     private cleanups: (() => void)[] = [];
+    private readonly ctx?: EmbedScanModalContext;
+    private readonly changeLog = new ChangeLog();
+    private vaultRefs: EventRef[] = [];
+    /** Files as they were when scanned (TFile.stat is live, so copy it now) */
+    private readonly scanIdentity = new Map<string, FileIdentity>();
+    private bannerEl!: HTMLElement;
+    private toolsEl!: HTMLElement;
+    private couldNotReadEl!: HTMLElement;
+    private stale = false;
+    private largeOnly = false;
+    private duplicates: DuplicateResult | null = null;
+    private duplicateProgress: { done: number; total: number } | null = null;
+    private duplicateAbort: AbortController | null = null;
+    private duplicateOf = new Map<string, string[]>();
+    private suggestions = new Map<string, SuggestState>();
 
     private filters: FilterState = {
         searchQuery: '',
@@ -109,10 +164,58 @@ export class EmbedScanResultsModal extends Modal {
         minSizeBytes: 0,
     };
 
-    constructor(app: App, t: Translations, scanResult: EmbedScanResult) {
+    constructor(app: App, t: Translations, scanResult: EmbedScanResult, ctx?: EmbedScanModalContext) {
         super(app);
         this.scanResult = scanResult;
         this.t = t;
+        this.ctx = ctx;
+        const remember = (f: TFile | null) => {
+            if (f) this.scanIdentity.set(f.path, { path: f.path, size: f.stat.size, mtime: f.stat.mtime });
+        };
+        for (const target of scanResult.targets) remember(target.file);
+        for (const orphan of scanResult.possiblyOrphaned) remember(orphan);
+    }
+
+    // ─── Helper-action context ───────────────────────────────────────────────
+
+    private get largeBytes(): number {
+        return (this.ctx?.plugin.settings.attachmentLargeFileMB ?? 20) * 1024 * 1024;
+    }
+
+    private get protectedFolders(): readonly string[] {
+        return this.ctx?.plugin.settings.protectedFolders ?? [];
+    }
+
+    /** Eligibility from the scan data (cheap, for display). The real check runs again at confirmation. */
+    private eligibilityOf(file: TFile, referenceCount: number, ambiguous: boolean): Eligibility {
+        const scanned = this.scanIdentity.get(file.path) ?? { path: file.path, size: file.stat.size, mtime: file.stat.mtime };
+        return eligibilityFromScan(scanned, referenceCount, ambiguous, this.scanResult.coverageFailures ?? [], this.protectedFolders);
+    }
+
+    private reasonText(e: Eligibility): string {
+        const es = this.t.embedScan;
+        const parts: string[] = [];
+        for (const reason of e.reasons) {
+            switch (reason) {
+                case 'still-referenced': parts.push(es.reasonReferenced.replace('{count}', String(e.referenceCount))); break;
+                case 'ambiguous-reference': parts.push(es.reasonAmbiguous); break;
+                case 'canvas-unreadable': parts.push(es.reasonCanvas); break;
+                case 'scan-incomplete': parts.push(es.reasonIncomplete); break;
+                case 'file-changed': parts.push(es.reasonChanged); break;
+                case 'target-missing': parts.push(es.reasonMissing); break;
+                case 'protected-path': parts.push(es.reasonProtected); break;
+            }
+        }
+        return parts.join(' · ');
+    }
+
+    private targetEligibility(target: EmbedTarget): Eligibility | null {
+        if (!target.file) return null;
+        return this.eligibilityOf(target.file, target.references.length, !!target.ambiguous);
+    }
+
+    private orphanEligibility(file: TFile): Eligibility {
+        return this.eligibilityOf(file, 0, (this.scanResult.ambiguousPaths ?? []).includes(file.path));
     }
 
     onOpen(): void {
@@ -128,9 +231,16 @@ export class EmbedScanResultsModal extends Modal {
             cls: 'ai-organiser-embed-scan-title'
         });
 
+        // ── Out-of-date banner ──
+        this.bannerEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-banner hidden', attr: { role: 'status' } });
+
         // ── Scan summary ──
         this.summaryEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-summary' });
         this.updateSummary();
+
+        // ── Helper tools (duplicate analysis) ──
+        this.toolsEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-tools' });
+        this.registerVaultEvents();
 
         // ── Filters row ──
         this.renderFilters(contentEl);
@@ -148,6 +258,9 @@ export class EmbedScanResultsModal extends Modal {
         if (this.scanResult.possiblyOrphaned.length > 0) {
             this.orphansContainer = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-orphans' });
         }
+
+        // ── Files that could not be read (block deleting anything) ──
+        this.couldNotReadEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-could-not-read' });
 
         // ── Close button ──
         const buttonRow = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-buttons' });
@@ -209,6 +322,25 @@ export class EmbedScanResultsModal extends Modal {
                     e.preventDefault();
                     this.toggleTypeFilter(type, chip);
                 }
+            }));
+        }
+
+        // "Large files" chip (at or above the size set in settings)
+        const hasLarge = this.scanResult.targets.some((x) => x.sizeBytes >= this.largeBytes)
+            || this.scanResult.possiblyOrphaned.some((f) => f.stat.size >= this.largeBytes);
+        if (hasLarge) {
+            const largeChip = typeChips.createEl('button', {
+                cls: `ai-organiser-embed-scan-chip ${this.largeOnly ? 'active' : ''}`,
+                attr: { role: 'checkbox', 'aria-checked': String(this.largeOnly), 'aria-label': embedScan.largeChip },
+            });
+            const largeIcon = largeChip.createSpan({ cls: 'ai-organiser-embed-scan-chip-icon' });
+            setIcon(largeIcon, 'hard-drive');
+            largeChip.createSpan({ text: embedScan.largeChip });
+            this.cleanups.push(listen(largeChip, 'click', () => {
+                this.largeOnly = !this.largeOnly;
+                largeChip.toggleClass('active', this.largeOnly);
+                largeChip.setAttribute('aria-checked', String(this.largeOnly));
+                this.applyFiltersAndRender();
             }));
         }
 
@@ -302,6 +434,9 @@ export class EmbedScanResultsModal extends Modal {
             this.renderOrphans();
         }
         this.updateSelectionToolbar();
+        this.renderBanner();
+        this.renderTools();
+        this.renderCouldNotRead();
     }
 
     private getFilteredTargets(): EmbedTarget[] {
@@ -310,6 +445,7 @@ export class EmbedScanResultsModal extends Modal {
             if (!this.filters.activeTypes.has(t.type)) return false;
             // Min size filter
             if (t.sizeBytes < this.filters.minSizeBytes) return false;
+            if (this.largeOnly && t.sizeBytes < this.largeBytes) return false;
             // Search query
             if (this.filters.searchQuery) {
                 const query = this.filters.searchQuery;
@@ -403,9 +539,10 @@ export class EmbedScanResultsModal extends Modal {
         header.setAttribute('tabindex', '0');
         header.setAttribute('aria-expanded', String(isExpanded));
 
-        // Checkbox (only for resolved files)
-        if (target.file) {
-            this.createCheckbox(header, target.file.path);
+        // Checkbox (only for resolved files, and only when it is safe to delete)
+        const eligibility = this.targetEligibility(target);
+        if (target.file && eligibility) {
+            this.createCheckbox(header, target.file.path, eligibility.eligible);
         }
 
         // Chevron
@@ -429,6 +566,8 @@ export class EmbedScanResultsModal extends Modal {
             sizeBadge.textContent = formatFileSize(target.sizeBytes);
         }
 
+        this.renderFlagBadges(badges, target.file, target.sizeBytes);
+
         // Reference count badge
         const refBadge = badges.createSpan({ cls: 'ai-organiser-embed-scan-badge refs' });
         const embedScan = this.t.embedScan;
@@ -443,6 +582,9 @@ export class EmbedScanResultsModal extends Modal {
         if (target.file) {
             const pathEl = header.createDiv({ cls: 'ai-organiser-embed-scan-path' });
             pathEl.textContent = target.file.path;
+        }
+        if (eligibility && !eligibility.eligible) {
+            header.createDiv({ cls: 'ai-organiser-embed-scan-reason', text: this.reasonText(eligibility) });
         }
 
         // Click / keyboard expand
@@ -555,10 +697,9 @@ export class EmbedScanResultsModal extends Modal {
         const embedScan = this.t.embedScan;
 
         const orphans = this.scanResult.possiblyOrphaned;
-        // Apply min-size filter to orphans too
-        const filteredOrphans = this.filters.minSizeBytes > 0
-            ? orphans.filter(f => f.stat.size >= this.filters.minSizeBytes)
-            : orphans;
+        // Apply min-size and large-file filters to orphans too
+        const filteredOrphans = orphans.filter(f =>
+            f.stat.size >= this.filters.minSizeBytes && (!this.largeOnly || f.stat.size >= this.largeBytes));
 
         if (filteredOrphans.length === 0) return;
 
@@ -586,8 +727,9 @@ export class EmbedScanResultsModal extends Modal {
             row.setAttribute('role', 'link');
             row.setAttribute('tabindex', '0');
 
-            // Checkbox
-            this.createCheckbox(row, file.path);
+            // Checkbox (disabled with a reason when it is not safe to delete)
+            const orphanEligibility = this.orphanEligibility(file);
+            this.createCheckbox(row, file.path, orphanEligibility.eligible);
 
             const icon = row.createSpan({ cls: 'ai-organiser-embed-scan-type-icon' });
             setIcon(icon, getEmbedTypeIcon(
@@ -601,9 +743,14 @@ export class EmbedScanResultsModal extends Modal {
             row.createSpan({ cls: 'ai-organiser-embed-scan-filename', text: file.name });
             const sizeBadge = row.createSpan({ cls: 'ai-organiser-embed-scan-badge size' });
             sizeBadge.textContent = formatFileSize(file.stat.size);
+            this.renderFlagBadges(row, file, file.stat.size);
 
             const pathEl = row.createDiv({ cls: 'ai-organiser-embed-scan-path' });
             pathEl.textContent = file.path;
+            if (!orphanEligibility.eligible) {
+                row.createDiv({ cls: 'ai-organiser-embed-scan-reason', text: this.reasonText(orphanEligibility) });
+            }
+            if (this.ctx) this.renderSuggestHome(orphanList, row, file);
 
             const navigateToOrphan = () => {
                 void this.app.workspace.openLinkText(file.path, '', false);
@@ -671,13 +818,14 @@ export class EmbedScanResultsModal extends Modal {
         const paths: string[] = [];
         const filtered = this.getFilteredTargets();
         for (const t of filtered) {
-            if (t.file) paths.push(t.file.path);
+            if (t.file && this.targetEligibility(t)?.eligible) paths.push(t.file.path);
         }
         if (this.scanResult.possiblyOrphaned.length > 0) {
-            const filteredOrphans = this.filters.minSizeBytes > 0
-                ? this.scanResult.possiblyOrphaned.filter(f => f.stat.size >= this.filters.minSizeBytes)
-                : this.scanResult.possiblyOrphaned;
-            for (const f of filteredOrphans) paths.push(f.path);
+            const filteredOrphans = this.scanResult.possiblyOrphaned.filter(f =>
+                f.stat.size >= this.filters.minSizeBytes && (!this.largeOnly || f.stat.size >= this.largeBytes));
+            for (const f of filteredOrphans) {
+                if (this.orphanEligibility(f).eligible) paths.push(f.path);
+            }
         }
         return paths;
     }
@@ -685,17 +833,51 @@ export class EmbedScanResultsModal extends Modal {
     // ─── Delete confirmation & execution ──────────────────────────────────
 
     private showDeleteConfirmation(): void {
-        const filesToDelete = this.getSelectedFiles();
-        if (filesToDelete.length === 0) return;
+        const selected = this.getSelectedFiles();
+        if (selected.length === 0) return;
+        void this.revalidateAndConfirm(selected);
+    }
 
-        const totalSize = filesToDelete.reduce((sum, f) => sum + f.stat.size, 0);
+    /**
+     * Rebuild the reference graph from the CURRENT vault, drop anything that is no longer safe,
+     * and only then ask for confirmation. Fails closed if the link index is not ready.
+     */
+    private async revalidateAndConfirm(selected: TFile[]): Promise<void> {
+        const es = this.t.embedScan;
+        const settings = this.ctx?.plugin.settings;
+        const checking = new Notice(es.revalidating, 0);
+        const identities = selected.map((f) => this.scanIdentity.get(f.path) ?? { path: f.path, size: f.stat.size, mtime: f.stat.mtime });
+        const res = await revalidate(createAppVaultPort(this.app), {
+            files: identities,
+            scanStartedAt: this.scanResult.scanStartedAt ?? 0,
+            occurrences: this.scanResult.occurrences ?? [],
+            priorFailures: this.scanResult.coverageFailures ?? [],
+            changes: this.changeLog.snapshot(),
+            protectedFolders: settings?.protectedFolders ?? [],
+        });
+        checking.hide();
+        if (!res.ok) {
+            new Notice(formatGuidance(describeError(this.t, res.error)), 8000);
+            return;
+        }
+        const safe = selected.filter((f) => res.value.get(f.path)?.eligible);
+        const kept = selected.filter((f) => !res.value.get(f.path)?.eligible);
+        if (kept.length > 0) {
+            for (const f of kept) this.selectedPaths.delete(f.path);
+            new Notice(es.keptNotice.replace('{count}', String(kept.length)), 8000);
+            this.stale = true;
+            this.applyFiltersAndRender();
+        }
+        if (safe.length === 0) return;
+
+        const totalSize = safe.reduce((sum, f) => sum + f.stat.size, 0);
         new DeleteConfirmModal(
             this.app,
             this.t,
-            filesToDelete,
+            safe,
             totalSize,
             async () => {
-                await this.executeDelete(filesToDelete);
+                await this.executeDelete(safe);
             }
         ).open();
     }
@@ -715,6 +897,10 @@ export class EmbedScanResultsModal extends Modal {
 
         for (const file of files) {
             try {
+                if (!assertWritable(this.ctx?.plugin.settings, 'delete', file.path).ok) {
+                    new Notice(formatGuidance(describeError(this.t, 'protected-path')), 6000);
+                    continue;
+                }
                 await this.app.fileManager.trashFile(file);
                 deletedCount++;
                 // Remove from scan result
@@ -746,12 +932,13 @@ export class EmbedScanResultsModal extends Modal {
 
     // ─── Checkbox helper ─────────────────────────────────────────────────
 
-    private createCheckbox(container: HTMLElement, path: string): HTMLElement {
+    private createCheckbox(container: HTMLElement, path: string, enabled = true): HTMLElement {
         const checkbox = container.createEl('input', {
             type: 'checkbox',
             cls: 'ai-organiser-embed-scan-checkbox',
         });
-        checkbox.checked = this.selectedPaths.has(path);
+        checkbox.checked = enabled && this.selectedPaths.has(path);
+        checkbox.disabled = !enabled;
         checkbox.setAttribute('aria-label', this.t.embedScan.selectFile);
         this.cleanups.push(listen(checkbox, 'click', (e) => {
             e.stopPropagation(); // Don't toggle row expand
@@ -772,9 +959,277 @@ export class EmbedScanResultsModal extends Modal {
         return checkbox;
     }
 
+    // ─── Badges ──────────────────────────────────────────────────────────────
+
+    /** "Large" and "Duplicate" badges. */
+    private renderFlagBadges(container: HTMLElement, file: TFile | null, sizeBytes: number): void {
+        const es = this.t.embedScan;
+        if (sizeBytes >= this.largeBytes) {
+            container.createSpan({ cls: 'ai-organiser-embed-scan-badge large', text: es.largeBadge });
+        }
+        if (file) {
+            const others = this.duplicateOf.get(file.path);
+            if (others && others.length > 0) {
+                const badge = container.createSpan({ cls: 'ai-organiser-embed-scan-badge duplicate', text: es.duplicateBadge });
+                badge.setAttribute('title', es.duplicateBadgeTitle.replace('{others}', others.join(', ')));
+            }
+        }
+    }
+
+    // ─── Out-of-date banner, could-not-read group ────────────────────────────
+
+    private registerVaultEvents(): void {
+        const touch = () => { if (!this.stale) { this.stale = true; this.renderBanner(); } };
+        const vault = this.app.vault;
+        this.vaultRefs.push(
+            vault.on('modify', (f) => { this.changeLog.recordModify(f.path); touch(); }),
+            vault.on('create', (f) => { this.changeLog.recordCreate(f.path); touch(); }),
+            vault.on('delete', (f) => { this.changeLog.recordDelete(f.path); touch(); }),
+            vault.on('rename', (f, oldPath) => { this.changeLog.recordRename(oldPath, f.path); touch(); }),
+        );
+    }
+
+    private renderBanner(): void {
+        if (!this.bannerEl) return;
+        this.bannerEl.empty();
+        if (!this.stale) {
+            this.bannerEl.addClass('hidden');
+            return;
+        }
+        this.bannerEl.removeClass('hidden');
+        this.bannerEl.createSpan({ text: this.t.embedScan.outOfDate });
+        if (this.ctx?.onRescan) {
+            const btn = this.bannerEl.createEl('button', { text: this.t.embedScan.scanAgain, attr: { type: 'button' } });
+            this.cleanups.push(listen(btn, 'click', () => {
+                this.close();
+                this.ctx?.onRescan?.();
+            }));
+        }
+    }
+
+    private renderCouldNotRead(): void {
+        if (!this.couldNotReadEl) return;
+        this.couldNotReadEl.empty();
+        const failures = this.scanResult.coverageFailures ?? [];
+        if (failures.length === 0) return;
+        const es = this.t.embedScan;
+        const details = this.couldNotReadEl.createEl('details', { cls: 'ai-organiser-embed-scan-orphan-section' });
+        details.open = true;
+        const summary = details.createEl('summary', { cls: 'ai-organiser-embed-scan-orphan-summary' });
+        const icon = summary.createSpan({ cls: 'ai-organiser-embed-scan-orphan-icon' });
+        setIcon(icon, 'alert-triangle');
+        summary.createSpan({ text: `${es.couldNotReadTitle} (${failures.length})` });
+        details.createDiv({ cls: 'ai-organiser-embed-scan-orphan-disclaimer', text: es.couldNotReadHelp });
+        const list = details.createEl('ul');
+        for (const failure of failures) list.createEl('li', { text: failure.path });
+    }
+
+    // ─── Duplicate analysis (opt-in) ─────────────────────────────────────────
+
+    private renderTools(): void {
+        if (!this.toolsEl || !this.ctx) return;
+        const es = this.t.embedScan;
+        this.toolsEl.empty();
+        const running = this.duplicateProgress !== null;
+        if (!running) {
+            const btn = this.toolsEl.createEl('button', { text: es.findDuplicates, attr: { type: 'button', 'aria-label': es.findDuplicates } });
+            this.cleanups.push(listen(btn, 'click', () => { void this.runDuplicates(); }));
+            this.toolsEl.createSpan({ cls: 'setting-item-description', text: es.findDuplicatesHelp });
+        } else {
+            this.toolsEl.createSpan({
+                text: es.duplicatesRunning
+                    .replace('{done}', String(this.duplicateProgress!.done))
+                    .replace('{total}', String(this.duplicateProgress!.total)),
+            });
+            const stop = this.toolsEl.createEl('button', { text: es.duplicatesCancel, attr: { type: 'button' } });
+            this.cleanups.push(listen(stop, 'click', () => this.duplicateAbort?.abort()));
+        }
+        const result = this.duplicates;
+        if (result && !running) {
+            const lines: string[] = [];
+            if (result.cancelled) lines.push(es.duplicatesStopped);
+            lines.push(result.groups.length === 0
+                ? es.duplicatesNone
+                : es.duplicatesFound.replace('{count}', String(result.groups.length)));
+            if (result.notAnalysed.length > 0) lines.push(es.duplicatesSkipped.replace('{count}', String(result.notAnalysed.length)));
+            this.toolsEl.createDiv({ cls: 'ai-organiser-embed-scan-duplicate-summary', text: lines.join(' '), attr: { role: 'status' } });
+        }
+    }
+
+    private async runDuplicates(): Promise<void> {
+        const plugin = this.ctx?.plugin;
+        if (!plugin) return;
+        const files = new Map<string, TFile>();
+        for (const target of this.scanResult.targets) if (target.file) files.set(target.file.path, target.file);
+        for (const orphan of this.scanResult.possiblyOrphaned) files.set(orphan.path, orphan);
+        const list = [...files.values()].map((f) => ({ path: f.path, size: f.stat.size }));
+        this.duplicateAbort = new AbortController();
+        this.duplicateProgress = { done: 0, total: list.length };
+        this.renderTools();
+        const result = await analyseDuplicates(
+            list,
+            { readBinary: async (path) => {
+                const f = files.get(path);
+                if (!f) throw new Error('missing');
+                return this.app.vault.readBinary(f);
+            } },
+            {
+                maxBytes: plugin.settings.attachmentDuplicateMaxMB * 1024 * 1024,
+                signal: this.duplicateAbort.signal,
+                onProgress: (done, total) => {
+                    this.duplicateProgress = { done, total };
+                    this.renderTools();
+                },
+            },
+        );
+        this.duplicateProgress = null;
+        this.duplicateAbort = null;
+        this.duplicates = result;
+        this.duplicateOf = new Map();
+        for (const group of result.groups) {
+            for (const path of group.paths) {
+                this.duplicateOf.set(path, group.paths.filter((p) => p !== path));
+            }
+        }
+        this.applyFiltersAndRender();
+    }
+
+    // ─── Suggest a home note ─────────────────────────────────────────────────
+
+    private renderSuggestHome(list: HTMLElement, row: HTMLElement, file: TFile): void {
+        const es = this.t.embedScan;
+        const state = this.suggestions.get(file.path);
+        const btn = row.createEl('button', {
+            text: es.suggestHome,
+            cls: 'ai-organiser-embed-scan-action-btn',
+            attr: { type: 'button', 'aria-label': `${es.suggestHome}: ${file.name}` },
+        });
+        this.cleanups.push(listen(btn, 'click', (e) => {
+            e.stopPropagation();
+            void this.loadSuggestion(file);
+        }));
+        if (!state) return;
+        const panel = list.createDiv({ cls: 'ai-organiser-embed-scan-suggestions' });
+        row.after(panel);
+        if (state.status === 'loading') {
+            panel.createSpan({ text: es.suggestHomeLoading, attr: { role: 'status' } });
+            return;
+        }
+        if (state.status === 'error') {
+            panel.createSpan({ text: es.suggestHomeError, attr: { role: 'status' } });
+            return;
+        }
+        const { suggestion } = state;
+        if (suggestion.candidates.length === 0) {
+            panel.createSpan({ text: es.suggestHomeNone, attr: { role: 'status' } });
+        }
+        if (suggestion.egressDeclined) panel.createDiv({ cls: 'setting-item-description', text: es.suggestHomeDeclined });
+        for (const cand of suggestion.candidates) {
+            const item = panel.createDiv({ cls: 'ai-organiser-embed-scan-suggestion' });
+            item.createSpan({ text: cand.title, cls: 'ai-organiser-embed-scan-filename' });
+            item.createSpan({ text: cand.path, cls: 'ai-organiser-embed-scan-path' });
+            item.createSpan({
+                cls: 'ai-organiser-embed-scan-badge',
+                text: cand.method === 'semantic' ? es.suggestHomeSemantic : es.suggestHomeBasic,
+            });
+            const link = item.createEl('button', {
+                text: es.linkButton,
+                cls: 'ai-organiser-embed-scan-action-btn',
+                attr: { type: 'button', 'aria-label': es.linkAriaLabel.replace('{file}', file.name).replace('{note}', cand.title) },
+            });
+            if (cand.protected) {
+                link.disabled = true;
+                link.setAttribute('aria-description', es.protectedNotLinkable);
+                link.setAttribute('title', es.protectedNotLinkable);
+                item.createSpan({ cls: 'ai-organiser-embed-scan-lock', text: es.protectedNotLinkable });
+            } else {
+                this.cleanups.push(listen(link, 'click', () => { void this.linkCandidate(file, cand.path, cand.title); }));
+            }
+        }
+    }
+
+    private async loadSuggestion(file: TFile): Promise<void> {
+        const plugin = this.ctx?.plugin;
+        if (!plugin) return;
+        this.suggestions.set(file.path, { status: 'loading' });
+        this.applyFiltersAndRender();
+        const res = await suggestHomes(createHomeContext(plugin, () => this.confirmEgress()), file.path);
+        this.suggestions.set(file.path, res.ok ? { status: 'done', suggestion: res.value } : { status: 'error' });
+        this.applyFiltersAndRender();
+    }
+
+    /** Ask once per session whether text may go to the (external) embedding provider. */
+    private confirmEgress(): Promise<boolean> {
+        if (sessionEgressChoice !== null) return Promise.resolve(sessionEgressChoice);
+        const es = this.t.embedScan;
+        const provider = this.ctx?.plugin.settings.embeddingProvider ?? '';
+        return new Promise<boolean>((resolve) => {
+            new EgressModal(this.app, es.egressTitle.replace('{provider}', provider), es.egressBody.replace('{provider}', provider), es.egressSend, es.egressBasic, (choice) => {
+                sessionEgressChoice = choice;
+                resolve(choice);
+            }).open();
+        });
+    }
+
+    private async linkCandidate(file: TFile, notePath: string, noteTitle: string): Promise<void> {
+        const plugin = this.ctx?.plugin;
+        if (!plugin) return;
+        const es = this.t.embedScan;
+        const res = await linkToNote(plugin, file.path, notePath, plugin.settings.attachmentLinkHeading);
+        if (!res.ok) {
+            new Notice(formatGuidance(describeError(this.t, res.error)), 8000);
+            return;
+        }
+        new Notice((res.value.changed ? es.linkedNotice : es.alreadyLinkedNotice).replace('{note}', noteTitle), 5000);
+    }
+
     onClose(): void {
+        this.duplicateAbort?.abort();
+        for (const ref of this.vaultRefs) this.app.vault.offref(ref);
+        this.vaultRefs = [];
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];
+        this.contentEl.empty();
+    }
+}
+
+// ─── Egress confirmation ───────────────────────────────────────────────────
+
+class EgressModal extends Modal {
+    private decided = false;
+
+    constructor(
+        app: App,
+        private readonly title: string,
+        private readonly body: string,
+        private readonly sendLabel: string,
+        private readonly basicLabel: string,
+        private readonly onChoice: (send: boolean) => void,
+    ) {
+        super(app);
+    }
+
+    onOpen(): void {
+        const { contentEl } = this;
+        contentEl.empty();
+        contentEl.createEl('h3', { text: this.title });
+        contentEl.createEl('p', { text: this.body });
+        const buttons = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-buttons' });
+        const basic = buttons.createEl('button', { text: this.basicLabel, cls: 'mod-cta', attr: { type: 'button' } });
+        const send = buttons.createEl('button', { text: this.sendLabel, attr: { type: 'button' } });
+        basic.addEventListener('click', () => { this.decide(false); });
+        send.addEventListener('click', () => { this.decide(true); });
+    }
+
+    private decide(send: boolean): void {
+        this.decided = true;
+        this.onChoice(send);
+        this.close();
+    }
+
+    onClose(): void {
+        // Esc or the close button means "do not send".
+        if (!this.decided) this.onChoice(false);
         this.contentEl.empty();
     }
 }
@@ -832,6 +1287,12 @@ class DeleteConfirmModal extends Modal {
             cls: 'ai-organiser-embed-scan-confirm-warning',
         });
 
+        // What was and was not checked, with an acknowledgement before the confirm button works.
+        contentEl.createEl('p', { text: embedScan.coverageNote, cls: 'ai-organiser-embed-scan-confirm-warning' });
+        const ackRow = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-ack' });
+        const ack = ackRow.createEl('input', { type: 'checkbox', attr: { id: 'ai-organiser-embed-scan-ack' } });
+        ackRow.createEl('label', { text: embedScan.coverageAcknowledge, attr: { for: 'ai-organiser-embed-scan-ack' } });
+
         // Buttons
         const buttons = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-buttons' });
         const cancelBtn = buttons.createEl('button', { text: embedScan.cancelButton });
@@ -841,6 +1302,8 @@ class DeleteConfirmModal extends Modal {
             text: embedScan.deleteSelected,
             cls: 'mod-warning',
         });
+        confirmBtn.disabled = true;
+        ack.addEventListener('change', () => { confirmBtn.disabled = !ack.checked; });
         const confirmIcon = confirmBtn.createSpan();
         setIcon(confirmIcon, 'trash-2');
         confirmBtn.prepend(confirmIcon);

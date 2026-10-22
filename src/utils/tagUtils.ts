@@ -3,6 +3,7 @@ import * as yaml from 'js-yaml';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { TAG_RANGE, TAG_PREDEFINED_RANGE, TAG_GENERATE_RANGE } from './constants';
 import { logger } from './logger';
+import { assertWritableActive } from '../core/protectedPaths';
 
 // Re-export constants for backward compatibility
 export { TAG_RANGE, TAG_PREDEFINED_RANGE, TAG_GENERATE_RANGE };
@@ -40,6 +41,13 @@ export interface TagOperationResult {
     suggestedTitle?: string;
     /** Suggested folder from AI */
     suggestedFolder?: string;
+    /** True when the note was skipped because it sits in a protected folder */
+    protected?: boolean;
+}
+
+/** Result for a note the plugin must not touch (protected folder). Counted as skipped, not failed. */
+function protectedSkip(): TagOperationResult {
+    return { success: true, message: 'Skipped: note is in a protected folder', tags: [], protected: true };
 }
 
 export class TagUtils {
@@ -127,6 +135,7 @@ export class TagUtils {
      * @returns Promise resolving to operation result
      */
     static async clearTags(app: App, file: TFile): Promise<TagOperationResult> {
+        if (!assertWritableActive('modify', file.path).ok) return protectedSkip();
         try {
             const content = await app.vault.read(file);
             const cache = app.metadataCache.getFileCache(file);
@@ -224,6 +233,7 @@ export class TagUtils {
         silent: boolean = false,
         replaceTags: boolean = true
     ): Promise<TagOperationResult> {
+        if (!assertWritableActive('modify', file.path).ok) return protectedSkip();
         try {
             debugLog(`updateNoteTags called with newTags:`, newTags);
             debugLog(`updateNoteTags called with matchedTags:`, matchedTags);
@@ -434,6 +444,11 @@ export class TagUtils {
         const folderPath = tagDir;
         const filePath = `${folderPath}/tags_${dateStr}.md`;
 
+        if (!assertWritableActive('create', filePath).ok) {
+            new Notice('That folder is protected. Choose another folder for the tags file.', 5000);
+            return Promise.resolve();
+        }
+
         // Show confirmation dialog
         const modal = new ConfirmationModal(
             app,
@@ -550,6 +565,7 @@ export class TagUtils {
         tags: string[], 
         replace: boolean = false
     ): Promise<TagOperationResult> {
+        if (!assertWritableActive('modify', file.path).ok) return protectedSkip();
         try {
             if (!Array.isArray(tags)) {
                 throw new Error('Tags parameter must be an array');

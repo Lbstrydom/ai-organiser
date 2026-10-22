@@ -13,6 +13,7 @@ import { getActivePresentationTarget } from '../ui/chat/presentation/presentatio
 import { SlidePickerModal, parseSlideEntries } from '../ui/modals/SlidePickerModal';
 import { isFeatureEnabled } from '../services/featureService';
 
+import { guardActiveNote } from '../utils/protectedGuard';
 function notify(message: string, duration?: number): Notice {
     return new Notice(message, duration);
 }
@@ -213,6 +214,7 @@ export function registerInsertRelatedNotesCommand(plugin: AIOrganiserPlugin): vo
 
                 // Insert at cursor or end
                 const cursor = editor.getCursor();
+                if (!guardActiveNote()) return;
                 editor.replaceRange(relatedSection, cursor);
                 ensureNoteStructureIfEnabled(editor, plugin.settings);
                 new Notice(plugin.t.messages.insertedRelatedNotes.replace('{count}', String(related.length)));

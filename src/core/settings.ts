@@ -373,6 +373,24 @@ export interface AIOrganiserSettings {
     /** Once-only marker for the first-run "new Features section" Notice (L2). */
     featuresIntroShown: boolean;
 
+    // === PROTECTED FOLDERS (F1) ===
+    /** Folders the plugin never modifies, renames, trashes or creates inside. Empty = no protection
+     *  (byte-identical behaviour). Vault-relative paths chosen by the user; see core/protectedPaths.ts. */
+    protectedFolders: string[];
+
+    // === ONBOARDING ===
+    /** ISO time a feature's setup wizard was finished, keyed by setup id (e.g. 'agent-index').
+     *  Separates an untouched default from a deliberately accepted one; health is derived, never stored. */
+    featureSetupCompletedAt: Record<string, string>;
+
+    // === ATTACHMENT HELPER (F2, extends Find embeds) ===
+    /** Files at or above this size (MB) get the "large" badge and filter chip. */
+    attachmentLargeFileMB: number;
+    /** Files above this size (MB) are skipped by the opt-in duplicate analysis ("not analysed"). */
+    attachmentDuplicateMaxMB: number;
+    /** Heading "Link to note" appends the attachment embed under. */
+    attachmentLinkHeading: string;
+
     // === NEWSLETTER DIGEST ===
     newsletterEnabled: boolean;
     newsletterSource: 'apps-script' | 'gmail-api';
@@ -857,6 +875,17 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     featureFlags: {},
     featuresIntroShown: false,
 
+    // Protected folders — empty list = feature unused, behaviour byte-identical
+    protectedFolders: [],
+
+    // Onboarding — no setup finished yet
+    featureSetupCompletedAt: {},
+
+    // Attachment helper
+    attachmentLargeFileMB: 20,
+    attachmentDuplicateMaxMB: 50,
+    attachmentLinkHeading: 'Attachments',
+
     // Newsletter Digest Defaults
     newsletterEnabled: false,
     newsletterSource: 'apps-script' as const,
@@ -1276,6 +1305,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     }
 
     migrateVisualSearchSettings(oldSettings);
+    migrateProtectedAndAttachmentSettings(oldSettings);
 
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
@@ -1284,6 +1314,35 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateLocalOnnxConsent(oldSettings);
 
     return oldSettings;
+}
+
+/**
+ * Coerce the protected-folder list, onboarding map and attachment-helper numbers to valid shapes.
+ * Order-safe and idempotent: a missing or invalid value becomes the default, a valid one is kept.
+ */
+export function migrateProtectedAndAttachmentSettings(old: Record<string, unknown>): void {
+    const folders = old.protectedFolders;
+    old.protectedFolders = Array.isArray(folders)
+        ? folders.filter((f): f is string => typeof f === 'string' && f.trim() !== '')
+        : [];
+
+    const done = old.featureSetupCompletedAt;
+    const cleaned: Record<string, string> = {};
+    if (done && typeof done === 'object' && !Array.isArray(done)) {
+        for (const [k, v] of Object.entries(done as Record<string, unknown>)) {
+            if (typeof v === 'string') cleaned[k] = v;
+        }
+    }
+    old.featureSetupCompletedAt = cleaned;
+
+    const clampMB = (value: unknown, fallback: number): number => {
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? Math.min(100_000, Math.max(1, Math.floor(n))) : fallback;
+    };
+    old.attachmentLargeFileMB = clampMB(old.attachmentLargeFileMB, DEFAULT_SETTINGS.attachmentLargeFileMB);
+    old.attachmentDuplicateMaxMB = clampMB(old.attachmentDuplicateMaxMB, DEFAULT_SETTINGS.attachmentDuplicateMaxMB);
+    const heading = typeof old.attachmentLinkHeading === 'string' ? old.attachmentLinkHeading.trim() : '';
+    old.attachmentLinkHeading = heading || DEFAULT_SETTINGS.attachmentLinkHeading;
 }
 
 /**

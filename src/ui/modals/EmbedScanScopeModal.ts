@@ -50,6 +50,20 @@ export class EmbedScanScopeModal extends Modal {
             cls: 'ai-organiser-scope-description'
         });
 
+        // One-time explainer: what the scan does and does not do
+        const explainerKey = 'embed-scan-explainer';
+        if (!this.plugin.settings.featureSetupCompletedAt[explainerKey]) {
+            const card = contentEl.createDiv({ cls: 'ai-organiser-setup-explainer', attr: { role: 'note' } });
+            card.createEl('strong', { text: es.explainerTitle });
+            card.createEl('p', { text: es.explainerBody });
+            const gotIt = card.createEl('button', { text: es.explainerDismiss, attr: { type: 'button' } });
+            gotIt.addEventListener('click', () => {
+                this.plugin.settings.featureSetupCompletedAt[explainerKey] = new Date().toISOString();
+                void this.plugin.saveSettings();
+                card.remove();
+            });
+        }
+
         // Context
         const activeFile = this.app.workspace.getActiveFile();
         const noteName = activeFile?.basename || es.noFileOpen;

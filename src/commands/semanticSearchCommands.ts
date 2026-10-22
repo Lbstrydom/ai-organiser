@@ -11,6 +11,7 @@ import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import { ManageIndexModal } from '../ui/modals/ManageIndexModal';
 import { FolderScopePickerModal } from '../ui/modals/FolderScopePickerModal';
 import { SearchResult } from '../services/vector/types';
+import { assertWritableActive } from '../core/protectedPaths';
 import { summarizeText, pluginContext } from '../services/llmFacade';
 
 /** Over-fetch multiplier to compensate for dedup (multiple chunks per file). */
@@ -615,6 +616,10 @@ class ExportSearchResultsModal extends Modal {
                     ? `${this.selectedFolder}/${filename}` 
                     : filename;
 
+                if (!assertWritableActive('create', filePath).ok) {
+                    new Notice(this.plugin.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
                 await this.app.vault.create(filePath, content);
                 new Notice(t.success.replace('{count}', this.results.length.toString()));
                 
@@ -630,6 +635,10 @@ class ExportSearchResultsModal extends Modal {
                     return;
                 }
 
+                if (!assertWritableActive('modify', this.selectedNote.path).ok) {
+                    new Notice(this.plugin.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
                 const existingContent = await this.app.vault.read(this.selectedNote);
                 const newContent = existingContent + '\n\n' + content;
                 await this.app.vault.modify(this.selectedNote, newContent);

@@ -4,6 +4,7 @@ import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { TagScopeModal, TagScope } from '../ui/modals/TagScopeModal';
 import { withProgress } from '../services/progress';
 
+import { guardActiveNote } from '../utils/protectedGuard';
 export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     // Command: Tag (scope modal)
     plugin.addCommand({
@@ -123,6 +124,7 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
 
     const result = r.value;
     if (selectedText && result.success) {
+        if (!guardActiveNote()) return;
         editor.replaceSelection(selectedText);
     }
     plugin.handleTagUpdateResult(result);

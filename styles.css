@@ -9766,3 +9766,120 @@
     margin: 4px 0 0 0;
     padding-left: 20px;
 }
+
+/* ── Setup kit (guided setup modal, status row, folder list) ─────────────────── */
+
+.ai-organiser-setup-body {
+    margin: 8px 0 12px;
+}
+
+.ai-organiser-setup-error {
+    min-height: 1.4em;
+    margin: 4px 0 8px;
+    color: var(--text-error);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-setup-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.ai-organiser-setup-buttons button {
+    min-height: 44px;
+    min-width: 88px;
+}
+
+.ai-organiser-setup-status-needs-attention .setting-item-description {
+    color: var(--text-warning);
+}
+
+.ai-organiser-setup-status-ready .setting-item-description {
+    color: var(--text-success);
+}
+
+.ai-organiser-setup-explainer {
+    margin: 8px 0 12px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary-alt);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-folder-list-hint {
+    margin: 4px 0;
+    color: var(--text-warning);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-folder-missing .setting-item-description {
+    color: var(--text-warning);
+}
+
+/* ── Attachment helper (Find embeds) ─────────────────────────────────────────── */
+
+.ai-organiser-embed-scan-banner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary-alt);
+    color: var(--text-warning);
+}
+
+.ai-organiser-embed-scan-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 6px 0;
+}
+
+.ai-organiser-embed-scan-reason {
+    flex-basis: 100%;
+    color: var(--text-warning);
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-embed-scan-badge.large {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+.ai-organiser-embed-scan-badge.duplicate {
+    background: var(--background-modifier-hover);
+    color: var(--text-accent);
+}
+
+.ai-organiser-embed-scan-suggestions {
+    margin: 4px 0 8px 28px;
+    padding: 6px 8px;
+    border-left: 2px solid var(--background-modifier-border);
+}
+
+.ai-organiser-embed-scan-suggestion {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+}
+
+.ai-organiser-embed-scan-lock {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-embed-scan-ack {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+}

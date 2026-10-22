@@ -29,6 +29,7 @@ vi.mock('../src/ui/settings/ResearchSettingsSection', () => ({ ResearchSettingsS
 vi.mock('../src/ui/settings/MermaidChatSettingsSection', () => ({ MermaidChatSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/AIChatSettingsSection', () => ({ AIChatSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/BrandSettingsSection', () => ({ BrandSettingsSection: class { display() {} } }));
+vi.mock('../src/ui/settings/ProtectedFoldersSettingsSection', () => ({ ProtectedFoldersSettingsSection: class { display() {} } }));
 // Features control panel renders OUTSIDE renderIfEnabled (it is the gate) — stub it too so
 // the render-spy exercises only the tab's gating logic.
 vi.mock('../src/ui/settings/FeaturesSettingsSection', () => ({ FeaturesSettingsSection: class { display() {} } }));

@@ -27,6 +27,7 @@ import { AIChatSettingsSection } from './AIChatSettingsSection';
 import { PresentationModelsSettingsSection } from './PresentationModelsSettingsSection';
 import { BrandSettingsSection } from './BrandSettingsSection';
 import { FeaturesSettingsSection } from './FeaturesSettingsSection';
+import { ProtectedFoldersSettingsSection } from './ProtectedFoldersSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
@@ -346,6 +347,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-interface', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-interface', t.interface?.title || 'Language & Interface', 'languages');
                 new InterfaceSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-protected-folders', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-protected-folders', this.plugin.t.protectedFolders.sectionTitle, 'shield');
+                new ProtectedFoldersSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-mobile', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-mobile', t.mobile?.title || 'Mobile', 'smartphone');

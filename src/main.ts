@@ -19,6 +19,8 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
+import { assertWritable } from './core/protectedPaths';
+import { registerProtectedFolders, unregisterProtectedFolders } from './commands/protectedFolderCommands';
 import { isFeatureEnabled } from './services/featureService';
 import { FEATURE_REGISTRY, type FeatureId } from './core/features';
 import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
@@ -1099,6 +1101,7 @@ export default class AIOrganiserPlugin extends Plugin {
         this.settingTab = new AIOrganiserSettingTab(this.app, this);
         this.addSettingTab(this.settingTab);
         registerCommands(this);
+        registerProtectedFolders(this);
         this.startNewsletterScheduler();
 
         // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
@@ -1347,6 +1350,7 @@ export default class AIOrganiserPlugin extends Plugin {
     // ─────────────────────────────────────────────────────────────────────────
 
     public onunload(): void {
+        unregisterProtectedFolders();
         this.stopNewsletterScheduler();
         this.narrationJobs.abortAll();
         // Clear pending attachment-modify debounce timers (audit H9 — no leaked timers/work
@@ -1868,6 +1872,10 @@ export default class AIOrganiserPlugin extends Plugin {
 
                 // Move file to new folder
                 const newPath = `${newFolder}/${file.name}`;
+                if (!assertWritable(this.settings, 'rename', [file.path, newPath]).ok) {
+                    new Notice(this.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
                 await this.app.fileManager.renameFile(file, newPath);
 
                 // Update reference to the moved file
@@ -1893,6 +1901,10 @@ export default class AIOrganiserPlugin extends Plugin {
                     return;
                 }
 
+                if (!assertWritable(this.settings, 'rename', [currentFile.path, newPath]).ok) {
+                    new Notice(this.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
                 await this.app.fileManager.renameFile(currentFile, newPath);
 
                 logger.debug('Core', `Renamed file to: ${newPath}`);

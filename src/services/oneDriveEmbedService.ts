@@ -17,6 +17,7 @@ import { ensureFolderExists, getAvailableFilePath, sanitizeFileName } from '../u
 import { logger } from '../utils/logger';
 import { Result, ok, err } from '../core/result';
 import type { OneDriveEmbedMarker } from '../ui/utils/oneDriveLinkUtils';
+import { assertWritableActive } from '../core/protectedPaths';
 
 /** 25 MB — matches this codebase's existing "large attachment" ceiling
  *  (Kindle/audio-compression conventions); above it, callers should fall
@@ -128,6 +129,7 @@ export async function refreshOneDriveEmbed(app: App, stale: StaleOneDriveEmbed):
 
     const vaultFile = app.vault.getAbstractFileByPath(stale.marker.vaultPath);
     if (!(vaultFile instanceof TFile)) return err('vault-copy-missing');
+    if (!assertWritableActive('modify', vaultFile.path).ok) return err('protected-path');
 
     try {
         await app.vault.modifyBinary(vaultFile, bytes);

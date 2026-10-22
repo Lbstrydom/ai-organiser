@@ -26,6 +26,7 @@
 
 import { App, Editor, MarkdownView, TFile } from 'obsidian';
 import { Result, ok, err } from '../../core/result';
+import { assertWritable, type ProtectedSource } from '../../core/protectedPaths';
 import { logger } from '../../utils/logger';
 
 /** Outcome of a pure content transform: the next full-note content + an optional advisory message. */
@@ -157,7 +158,15 @@ async function writeViaVault(app: App, file: TFile, apply: ApplyFn): Promise<Res
  * Commit a pure content transform to `file`, choosing the editor-transaction or
  * vault path automatically. Never throws — all failure is a typed `Result.err`.
  */
-export async function writeNote(app: App, file: TFile, apply: ApplyFn): Promise<Result<ApplyOutcome>> {
+export async function writeNote(
+    app: App,
+    file: TFile,
+    apply: ApplyFn,
+    protectedFolders?: ProtectedSource,
+): Promise<Result<ApplyOutcome>> {
+    // Protected folders (F1): refuse before any editor or vault write. Empty/absent list = no-op.
+    const allowed = assertWritable(protectedFolders, 'modify', file.path);
+    if (!allowed.ok) return err(allowed.error);
     const editor = findEditorForFile(app, file);
     if (editor) {
         return writeViaEditor(editor, apply);

@@ -9,13 +9,15 @@ import { logger } from '../utils/logger';
 import {
     scanNotes,
     getMarkdownFilesInFolder,
+    getCanvasFilesInFolder,
     EmbedScanOptions,
 } from '../services/embedScanService';
-import { EmbedScanResultsModal } from '../ui/modals/EmbedScanResultsModal';
+import { EmbedScanResultsModal, resetEgressChoice } from '../ui/modals/EmbedScanResultsModal';
 import { EmbedScanScopeModal, EmbedScanScope } from '../ui/modals/EmbedScanScopeModal';
 
 export function registerEmbedScanCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
+    resetEgressChoice();
 
     plugin.addCommand({
         id: 'find-embeds',
@@ -54,11 +56,15 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
                 new Notice(t.messages.pleaseOpenNote);
                 return;
             }
-            files = getMarkdownFilesInFolder(app, activeFile.parent);
+            // Notes and canvases in the folder: a canvas can reference a file too.
+            files = [...getMarkdownFilesInFolder(app, activeFile.parent), ...getCanvasFilesInFolder(activeFile.parent)];
             break;
         }
         case 'vault': {
-            files = plugin.getNonExcludedMarkdownFiles();
+            files = [
+                ...plugin.getNonExcludedMarkdownFiles(),
+                ...app.vault.getFiles().filter((f) => f.extension === 'canvas'),
+            ];
             break;
         }
     }
@@ -133,7 +139,10 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
         }
 
         // Show results modal
-        const modal = new EmbedScanResultsModal(app, t, result);
+        const modal = new EmbedScanResultsModal(app, t, result, {
+            plugin,
+            onRescan: () => { void executeScan(plugin, scope); },
+        });
         modal.open();
     } catch (error) {
         progressNotice?.hide();

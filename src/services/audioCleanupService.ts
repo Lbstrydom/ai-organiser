@@ -10,6 +10,7 @@ import type AIOrganiserPlugin from '../main';
 import type { CompressionAction } from '../ui/modals/CompressionConfirmModal';
 import type { TranscriptionResult } from './audioTranscriptionService';
 import { logger } from '../utils/logger';
+import { assertWritable } from '../core/protectedPaths';
 
 export interface AudioCleanupOptions {
     /** The vault file that was transcribed */
@@ -109,6 +110,10 @@ async function deleteAudioFile(
     plugin: AIOrganiserPlugin,
     file: TFile
 ): Promise<void> {
+    if (!assertWritable(plugin.settings, 'delete', file.path).ok) {
+        new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+        return;
+    }
     try {
         await plugin.app.fileManager.trashFile(file);
         new Notice(plugin.t.compression?.audioDeleted || 'Audio file deleted');

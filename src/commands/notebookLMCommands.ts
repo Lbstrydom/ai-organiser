@@ -11,6 +11,7 @@
 import { Notice, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
+import { assertWritable } from '../core/protectedPaths';
 import { getNotebookLMExportFullPath } from '../core/settings';
 import { NotebookLMExportModal } from '../ui/modals/NotebookLMExportModal';
 import { pluginContext, summarizeText } from '../services/llmFacade';
@@ -119,6 +120,11 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                 return;
             }
 
+            if (!assertWritable(plugin.settings, 'modify', file.path).ok) {
+                new Notice(t.messages.protectedNoteNotModified, 6000);
+                return;
+            }
+
             try {
                 const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
                 let wasAdded = false;
@@ -181,6 +187,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
                 const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
 
                 for (const file of files) {
+                    if (!assertWritable(plugin.settings, 'modify', file.path).ok) continue;
                     await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
                         if (frontmatter.tags) {
                             if (typeof frontmatter.tags === 'string') frontmatter.tags = [frontmatter.tags];
