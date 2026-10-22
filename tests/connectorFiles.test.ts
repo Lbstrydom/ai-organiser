@@ -18,7 +18,7 @@ function makePlugin(over: Record<string, unknown> = {}, existing: Record<string,
 		remove: async (p: string) => { files.delete(p); },
 		mkdir: async (p: string) => { folders.add(p); },
 	};
-	const plugin = { settings: { ...structuredClone(DEFAULT_SETTINGS), agentConnectorFolder: 'AI connectors', ...over }, app: { vault: { adapter } }, manifest: { version: '1.2.3' } };
+	const plugin = { settings: { ...structuredClone(DEFAULT_SETTINGS), agentConnectorFolder: 'AI connectors', featureFlags: { 'agent-index': true, 'agent-connectors': true }, ...over }, app: { vault: { adapter } }, manifest: { version: '1.2.3' } };
 	return { plugin: plugin as never, files };
 }
 
@@ -89,5 +89,13 @@ describe('saveConnectorFiles: nothing is half done', () => {
 		const old = makePlugin({}, { [SERVER]: '// ai-organiser/connector-server v0 protocol 2025-11-25\nold', [BUNDLE]: buildZip([{ name: 'x', data: new Uint8Array() }], 'ai-organiser/connector-bundle v0') });
 		expect((await saveConnectorFiles(old.plugin, '1.2.3')).ok).toBe(true);
 		expect(old.files.get(SERVER)).toBe(CONNECTOR_SERVER_SOURCE);
+	});
+});
+
+describe('saveConnectorFiles: gated by its feature', () => {
+	it('writes nothing while the feature is off', async () => {
+		const h = makePlugin({ featureFlags: {} });
+		expect(await saveConnectorFiles(h.plugin, '1.2.3')).toEqual({ ok: false, error: 'connector-feature-off' });
+		expect(h.files.size).toBe(0);
 	});
 });

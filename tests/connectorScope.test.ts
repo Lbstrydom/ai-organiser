@@ -204,3 +204,16 @@ describe('ScopePublisher: trust the content, not the label', () => {
 		expect(stale.at(-1)).toBe(true);
 	});
 });
+
+describe('ScopePublisher: a backup is restored only when it grants what is wanted', () => {
+	it('ignores a backup that is wider than the current settings and publishes the current ones', async () => {
+		const m = memoryAdapter();
+		const wide = publisher(() => settings({ agentIndexExcludeFolders: [] }), m.adapter as never);
+		await wide.p.sync();
+		m.files.set(`${CONNECTOR_SCOPE_PATH}.aio-prev`, m.files.get(CONNECTOR_SCOPE_PATH)!);
+		m.files.delete(CONNECTOR_SCOPE_PATH);
+		const narrow = publisher(() => settings({ agentIndexExcludeFolders: ['Private'] }), m.adapter as never);
+		expect(await narrow.p.sync()).toEqual({ ok: true, value: 'published' });
+		expect(parseScopeDocument(m.files.get(CONNECTOR_SCOPE_PATH)!)!.excludeFolders).toEqual(['Private']);
+	});
+});

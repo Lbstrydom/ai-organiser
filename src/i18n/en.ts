@@ -4083,7 +4083,7 @@ export const en: Translations = {
         copyLine: "Copy line",
         copySnippet: "Copy snippet",
         openTerminal: "Open vault folder in terminal",
-        terminalOpened: "Opened a terminal in your vault folder.",
+        terminalOpened: "Asked your computer to open a terminal in your vault folder. If none appeared, open one yourself in that folder.",
         docsHeading: "Documentation",
         docClaudeServers: "Claude Desktop: local servers",
         docClaudeExtensions: "Claude Desktop: extensions",

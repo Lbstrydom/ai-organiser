@@ -72,8 +72,9 @@ const LAUNCH_WAIT_MS = 1500;
 /**
  * Open a terminal in the vault folder: Windows and macOS only. The only value ever passed on is the
  * vault's own base path, as an argument or as the working directory, never inside a command string.
- * Resolves when the launcher reports that it started, or fails with the launcher's own error; a
- * launcher that says nothing within a moment is taken as started (it is detached from us).
+ * Resolves when the launcher exits cleanly, or fails with its own error or non-zero exit; a launcher
+ * that says nothing within a moment is taken as handed over (it is detached from us). Success means
+ * "the system was asked", not "a window is open".
  */
 export function openTerminalInVault(
     spawn: Spawner,
@@ -100,8 +101,8 @@ export function openTerminalInVault(
                 ? spawn('cmd.exe', ['/c', 'start', 'cmd.exe', '/K'], { cwd: valid.value, detached: true, stdio: 'ignore', windowsHide: false })
                 : spawn('open', ['-a', 'Terminal', valid.value], { detached: true, stdio: 'ignore' });
             child.on('error', () => finish(err('connector-needs-desktop')));
-            child.on('spawn', () => finish(ok(undefined)));
-            // The launcher exits non-zero when it could not open a window.
+            // These launchers start the terminal and exit; a non-zero exit means they could not. That the
+            // window actually appeared cannot be known from here, so the message says it was asked for.
             child.on('close', (code) => finish(code === 0 || code === null ? ok(undefined) : err('connector-needs-desktop')));
         } catch {
             finish(err('connector-needs-desktop'));

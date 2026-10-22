@@ -139,7 +139,9 @@ export class ScopePublisher {
             // Put an interrupted earlier publication right first, but never bring back permissions the
             // settings no longer grant: when the wanted state is "off", the backup is not restored.
             if (!wanted.value.disabled && assertWritable(this.deps.settings().protectedFolders, 'modify', CONNECTOR_SCOPE_PATH).ok && !(await adapter.exists(CONNECTOR_SCOPE_PATH)) && (await adapter.exists(PREV))) {
-                if (parseScopeDocument(await adapter.read(PREV))) await adapter.rename(PREV, CONNECTOR_SCOPE_PATH);
+                // Restored only when it grants exactly what is wanted now; anything wider or different is left for the publish below.
+                const backup = parseScopeDocument(await adapter.read(PREV));
+                if (backup && sameScope(backup, wanted.value)) await adapter.rename(PREV, CONNECTOR_SCOPE_PATH);
             }
             const current = await readOurs(adapter, CONNECTOR_SCOPE_PATH);
             if (!current.ok) {

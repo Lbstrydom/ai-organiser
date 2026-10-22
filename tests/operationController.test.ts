@@ -111,3 +111,15 @@ describe('OperationController', () => {
 		expect(seen).toEqual(['running', 'failed', 'failed']); // the second is the release after the job ended
 	});
 });
+
+describe('OperationController: group membership belongs to one run', () => {
+	it('does not keep an old group after the action ends or is run again without one', async () => {
+		const h = harness();
+		await h.controller.run('export', async () => ok(1), { ...opts, group: 'writes' });
+		const d = deferred<ReturnType<typeof ok<number>>>();
+		const ungrouped = h.controller.run('export', () => d.promise, opts);
+		expect(h.controller.isBusy('create-files', 'writes')).toBe(false); // the earlier grouped run left no trace
+		d.resolve(ok(2));
+		await ungrouped;
+	});
+});

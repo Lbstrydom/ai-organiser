@@ -59,7 +59,9 @@ export class OperationController {
         if (this.isBusy(id, options.group)) return false;
         this.states.set(id, { status: 'running' });
         this.inflight.add(id);
+        // The group belongs to this run only: a later run of the same action without one is not in it.
         if (options.group !== undefined) this.groups.set(id, options.group);
+        else this.groups.delete(id);
         this.emit();
         let settled = false;
         const settle = (next: OperationState<unknown>): void => {
@@ -78,6 +80,7 @@ export class OperationController {
         } finally {
             // Only now, when the job has really ended, is its place in the group released.
             this.inflight.delete(id);
+            this.groups.delete(id);
             this.emit();
         }
         return true;

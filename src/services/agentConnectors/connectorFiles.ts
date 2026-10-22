@@ -11,6 +11,7 @@
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
 import { assertWritable } from '../../core/protectedPaths';
+import { isFeatureEnabled } from '../featureService';
 import { logger } from '../../utils/logger';
 import {
     buildConnectorBundle,
@@ -100,6 +101,7 @@ export function saveConnectorFiles(plugin: AIOrganiserPlugin, pluginVersion: str
     return serialised(async () => {
         try {
             const s = plugin.settings;
+            if (!isFeatureEnabled(s, 'agent-connectors')) return err('connector-feature-off');
             const folder = connectorFolderPath(s.agentConnectorFolder, s.protectedFolders);
             if (!folder.ok) return err(folder.error);
             const adapter = plugin.app.vault.adapter;
