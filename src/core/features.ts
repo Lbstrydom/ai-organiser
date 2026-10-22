@@ -48,7 +48,9 @@ export type FeatureId =
     | 'bases'
     | 'export'
     | 'embed-scan'
-    | 'onedrive-link';
+    | 'onedrive-link'
+    | 'agent-index'
+    | 'cloud-inventory';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -133,6 +135,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     { id: 'bases', labelKey: 'features.bases.label', descKey: 'features.bases.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'notebooklm', labelKey: 'features.notebooklm.label', descKey: 'features.notebooklm.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'embed-scan', labelKey: 'features.embed-scan.label', descKey: 'features.embed-scan.desc', stage: 'maintain', requires: [], defaultOn: false },
+    // Agent index: a deterministic, privacy-scoped note index for AI coding tools. No LLM, no network.
+    { id: 'agent-index', labelKey: 'features.agent-index.label', descKey: 'features.agent-index.desc', stage: 'find', requires: [], defaultOn: false },
     // ── Integrations float (external-account boundary → settings "Integrations"; stage
     //    'capture' keeps them under Capture in the picker — the declared divergence) ─────
     { id: 'kindle', labelKey: 'features.kindle.label', descKey: 'features.kindle.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
@@ -141,6 +145,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     // accepts a manually-pasted share URL) — never authenticates to a remote Microsoft
     // account, so it carries no `boundary` despite the name (mirrors bases/notebooklm).
     { id: 'onedrive-link', labelKey: 'features.onedrive-link.label', descKey: 'features.onedrive-link.desc', stage: 'capture', requires: [], defaultOn: false },
+    // Drive folder inventory talks to the user's own Apps Script (external account) and only reads file names.
+    { id: 'cloud-inventory', labelKey: 'features.cloud-inventory.label', descKey: 'features.cloud-inventory.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
 
 /** O(1) lookup by id. */
@@ -176,6 +182,8 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-newsletter': 'newsletter',
     'sub-export': 'export',
     'sub-brand': 'export',
+    'sub-agent-index': 'agent-index',
+    'sub-cloud-inventory': 'cloud-inventory',
 });
 
 /**

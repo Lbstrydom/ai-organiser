@@ -117,6 +117,18 @@ export interface SetupSpec {
  * `not-set-up`, so an unfinished feature can never read as ready.
  */
 export const SETUP_SPECS: Readonly<Partial<Record<SetupId, SetupSpec>>> = {
+    'agent-index': {
+        required: [],
+        folderKeys: ['agentIndexIncludeFolders', 'agentIndexExcludeFolders'],
+        needsCompletionMarker: true,
+        needsConnection: false,
+    },
+    'cloud-inventory': {
+        required: ['cloudInventoryScriptUrl', 'cloudInventoryPairs'],
+        folderKeys: [],
+        needsCompletionMarker: true,
+        needsConnection: true,
+    },
     'protected-folders': {
         required: ['protectedFolders'],
         folderKeys: ['protectedFolders'],

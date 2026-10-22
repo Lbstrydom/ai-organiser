@@ -9883,3 +9883,25 @@
     gap: 8px;
     margin: 8px 0;
 }
+
+/* Drive inventory / agent index setup */
+.ai-organiser-inventory-preview {
+    max-height: 240px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-size: var(--font-smaller);
+    padding: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+    background: var(--background-secondary);
+}
+
+.ai-organiser-advanced-group {
+    margin: 8px 0;
+}
+
+.ai-organiser-advanced-group > summary {
+    cursor: pointer;
+    color: var(--text-muted);
+}

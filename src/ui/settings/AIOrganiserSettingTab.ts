@@ -28,6 +28,8 @@ import { PresentationModelsSettingsSection } from './PresentationModelsSettingsS
 import { BrandSettingsSection } from './BrandSettingsSection';
 import { FeaturesSettingsSection } from './FeaturesSettingsSection';
 import { ProtectedFoldersSettingsSection } from './ProtectedFoldersSettingsSection';
+import { AgentIndexSettingsSection } from './AgentIndexSettingsSection';
+import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
@@ -286,6 +288,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
                 const sub = this.createSubCollapsibleSection(content, 'sub-mermaid', this.plugin.t.modals?.mermaidChat?.settingsTitle || 'Mermaid Diagram Chat', 'share-2');
                 new MermaidChatSettingsSection(this.plugin, sub, this).display();
             });
+            await this.renderIfEnabled('sub-agent-index', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-agent-index', this.plugin.t.agentIndex.sectionTitle, 'list-tree');
+                new AgentIndexSettingsSection(this.plugin, sub, this).display();
+            });
             await this.renderIfEnabled('sub-research', async () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-research', t.research?.title || 'Research Assistant', 'telescope');
                 await new ResearchSettingsSection(this.plugin, sub, this).display();
@@ -322,6 +328,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-newsletter', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-newsletter', t.newsletter?.title || 'Newsletter Digest', 'mail');
                 new NewsletterSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-cloud-inventory', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-cloud-inventory', this.plugin.t.cloudInventory.sectionTitle, 'cloud');
+                new CloudInventorySettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-export', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-export', t.export?.title || 'Document Export', 'file-output');

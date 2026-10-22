@@ -63,6 +63,9 @@ const MANIFEST: Record<string, Entry> = {
 	'src/commands/semanticSearchCommands.ts': { count: 1, cls: 'guarded', reason: 'export-to-note create calls assertWritableActive; the append goes through applyNoteEdit' },
 	'src/utils/companionUtils.ts': { count: 1, cls: 'guarded', reason: 'companion create beside the source calls assertWritableActive' },
 
+	'src/services/agentIndex/agentIndexService.ts': { count: 10, cls: 'guarded', exempt: 7, reason: 'every adapter write goes through an OutputPlan that only planOutput can build, and planOutput asserts writability of the index path and both sidecar names' },
+	'src/services/cloudInventory/cloudInventoryService.ts': { count: 2, cls: 'guarded', reason: 'hub note creation asserts writability first; updates go through applyNoteEdit' },
+
 	// ── Plugin output roots (validated disjoint from protected folders) ─────────────────────
 	'src/commands/minutesCommands.ts': { count: 1, cls: 'output-root', reason: 'Word export under the minutes output folder' },
 	'src/services/audio/audioImportService.ts': { count: 3, cls: 'output-root', reason: 'audio import into the configured recordings folder' },

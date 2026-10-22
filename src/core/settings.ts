@@ -51,6 +51,30 @@ export interface ProviderApiKeys {
     'openai-compatible'?: string;
 }
 
+/** One vault folder paired with one Drive folder. */
+export interface CloudInventoryPair {
+    id: string;
+    /** Vault folder the hub note belongs to ('' = the vault root) */
+    vaultFolder: string;
+    /** Drive folder ID (not a link) */
+    driveFolderId: string;
+    label?: string;
+    /** Where the hub note goes: beside the folder (default) or inside it */
+    placement: 'beside' | 'inside';
+    /** Desktop only: the matching folder inside Drive for desktop (used by large-file offload) */
+    localMountFolder?: string;
+}
+
+/** What the last connection test learned. */
+export interface CloudInventoryTestResult {
+    ok: boolean;
+    /** Hash of the configuration that was tested; a changed configuration makes the result stale */
+    configHash: string;
+    at: string;
+    scriptVersion?: number;
+    rootsHash?: string;
+}
+
 export interface AIOrganiserSettings {
     serviceType: 'local' | 'cloud';
     localEndpoint: string;
@@ -390,6 +414,37 @@ export interface AIOrganiserSettings {
     attachmentDuplicateMaxMB: number;
     /** Heading "Link to note" appends the attachment embed under. */
     attachmentLinkHeading: string;
+
+    // === AGENT INDEX (F3) ===
+    /** Where the index is written (vault-relative; a dot-folder Obsidian does not index). */
+    agentIndexOutputPath: string;
+    /** Folders the index covers. Empty = the whole vault. */
+    agentIndexIncludeFolders: string[];
+    /** Folders kept out of the index entirely (their names never appear in it). */
+    agentIndexExcludeFolders: string[];
+    /** `off` = only on demand; `on-change` = rebuild shortly after notes change. */
+    agentIndexAutoRebuild: 'off' | 'on-change';
+    /** Opt-in free text: note aliases. */
+    agentIndexIncludeAliases: boolean;
+    /** Opt-in free text: H1 and H2 headings. */
+    agentIndexIncludeHeadings: boolean;
+    /** Opt-in free text: frontmatter keys the user names (other keys are never exported). */
+    agentIndexFrontmatterKeys: string[];
+    /** Opt-in: export the text of links to notes that do not exist. */
+    agentIndexExportUnresolvedLinks: boolean;
+
+    // === CLOUD FOLDER INVENTORY (F4) ===
+    /** The user's own Apps Script web app link (https://script.google.com/macros/s/<id>/exec). */
+    cloudInventoryScriptUrl: string;
+    /** Vault folder <-> Drive folder pairs. */
+    cloudInventoryPairs: CloudInventoryPair[];
+    cloudInventoryMaxFolders: number;
+    cloudInventoryMaxFiles: number;
+    cloudInventoryDeadlineMinutes: number;
+    /** ISO time each pair was last refreshed, kept here and not in the notes. */
+    cloudInventoryLastChecked: Record<string, string>;
+    /** The last "Test connection" result, tied to the configuration it tested. */
+    cloudInventoryLastTest: CloudInventoryTestResult | null;
 
     // === NEWSLETTER DIGEST ===
     newsletterEnabled: boolean;
@@ -886,6 +941,25 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     attachmentDuplicateMaxMB: 50,
     attachmentLinkHeading: 'Attachments',
 
+    // Agent index — off until the user turns the feature on; no free text is exported by default
+    agentIndexOutputPath: '.ai-organiser/agent-index.jsonl',
+    agentIndexIncludeFolders: [],
+    agentIndexExcludeFolders: [],
+    agentIndexAutoRebuild: 'off',
+    agentIndexIncludeAliases: false,
+    agentIndexIncludeHeadings: false,
+    agentIndexFrontmatterKeys: [],
+    agentIndexExportUnresolvedLinks: false,
+
+    // Cloud folder inventory
+    cloudInventoryScriptUrl: '',
+    cloudInventoryPairs: [],
+    cloudInventoryMaxFolders: 300,
+    cloudInventoryMaxFiles: 3000,
+    cloudInventoryDeadlineMinutes: 3,
+    cloudInventoryLastChecked: {},
+    cloudInventoryLastTest: null,
+
     // Newsletter Digest Defaults
     newsletterEnabled: false,
     newsletterSource: 'apps-script' as const,
@@ -1318,6 +1392,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
 
     migrateVisualSearchSettings(oldSettings);
     migrateProtectedAndAttachmentSettings(oldSettings);
+    migrateAgentIndexAndInventorySettings(oldSettings);
 
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
@@ -1326,6 +1401,77 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateLocalOnnxConsent(oldSettings);
 
     return oldSettings;
+}
+
+/** A Drive folder ID: letters, digits, `_` and `-`, at least 10 characters. */
+export const DRIVE_FOLDER_ID_PATTERN = /^[A-Za-z0-9_-]{10,}$/;
+
+/**
+ * Coerce the agent-index and cloud-inventory settings to valid shapes. Order-safe and idempotent;
+ * an invalid entry is dropped, never repaired by guessing.
+ */
+export function migrateAgentIndexAndInventorySettings(old: Record<string, unknown>): void {
+    const strings = (value: unknown): string[] =>
+        Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : [];
+    const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
+    const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    const d = DEFAULT_SETTINGS;
+
+    old.agentIndexOutputPath = typeof old.agentIndexOutputPath === 'string' && old.agentIndexOutputPath.trim() !== ''
+        ? old.agentIndexOutputPath.trim()
+        : d.agentIndexOutputPath;
+    old.agentIndexIncludeFolders = strings(old.agentIndexIncludeFolders);
+    old.agentIndexExcludeFolders = strings(old.agentIndexExcludeFolders);
+    old.agentIndexAutoRebuild = old.agentIndexAutoRebuild === 'on-change' ? 'on-change' : 'off';
+    old.agentIndexIncludeAliases = bool(old.agentIndexIncludeAliases, false);
+    old.agentIndexIncludeHeadings = bool(old.agentIndexIncludeHeadings, false);
+    old.agentIndexFrontmatterKeys = strings(old.agentIndexFrontmatterKeys);
+    old.agentIndexExportUnresolvedLinks = bool(old.agentIndexExportUnresolvedLinks, false);
+
+    old.cloudInventoryScriptUrl = typeof old.cloudInventoryScriptUrl === 'string' ? old.cloudInventoryScriptUrl.trim() : '';
+    const pairs = Array.isArray(old.cloudInventoryPairs) ? old.cloudInventoryPairs : [];
+    const seen = new Set<string>();
+    old.cloudInventoryPairs = pairs.flatMap((p): CloudInventoryPair[] => {
+        if (!p || typeof p !== 'object') return [];
+        const r = p as Record<string, unknown>;
+        if (typeof r.id !== 'string' || r.id === '' || seen.has(r.id)) return [];
+        if (typeof r.driveFolderId !== 'string' || !DRIVE_FOLDER_ID_PATTERN.test(r.driveFolderId)) return [];
+        seen.add(r.id);
+        return [{
+            id: r.id,
+            vaultFolder: typeof r.vaultFolder === 'string' ? r.vaultFolder : '',
+            driveFolderId: r.driveFolderId,
+            label: typeof r.label === 'string' && r.label.trim() !== '' ? r.label.trim() : undefined,
+            placement: r.placement === 'inside' ? 'inside' : 'beside',
+            localMountFolder: typeof r.localMountFolder === 'string' && r.localMountFolder.trim() !== '' ? r.localMountFolder.trim() : undefined,
+        }];
+    });
+    old.cloudInventoryMaxFolders = intIn(old.cloudInventoryMaxFolders, d.cloudInventoryMaxFolders, 1, 5000);
+    old.cloudInventoryMaxFiles = intIn(old.cloudInventoryMaxFiles, d.cloudInventoryMaxFiles, 1, 50000);
+    old.cloudInventoryDeadlineMinutes = intIn(old.cloudInventoryDeadlineMinutes, d.cloudInventoryDeadlineMinutes, 1, 30);
+
+    const checked = old.cloudInventoryLastChecked;
+    const cleaned: Record<string, string> = {};
+    if (checked && typeof checked === 'object' && !Array.isArray(checked)) {
+        for (const [k, v] of Object.entries(checked as Record<string, unknown>)) if (typeof v === 'string') cleaned[k] = v;
+    }
+    old.cloudInventoryLastChecked = cleaned;
+
+    const test = old.cloudInventoryLastTest as Record<string, unknown> | null | undefined;
+    old.cloudInventoryLastTest =
+        test && typeof test === 'object' && typeof test.ok === 'boolean' && typeof test.configHash === 'string' && typeof test.at === 'string'
+            ? {
+                ok: test.ok,
+                configHash: test.configHash,
+                at: test.at,
+                scriptVersion: typeof test.scriptVersion === 'number' ? test.scriptVersion : undefined,
+                rootsHash: typeof test.rootsHash === 'string' ? test.rootsHash : undefined,
+            }
+            : null;
 }
 
 /**

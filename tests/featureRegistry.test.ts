@@ -75,9 +75,10 @@ describe('FEATURE_REGISTRY structural invariants', () => {
 
     it('only genuinely-remote features carry the external-account boundary (Integrations float)', () => {
         const external = FEATURE_REGISTRY.filter((f) => (f.boundary ?? []).includes('external-account')).map((f) => f.id);
-        // Kindle (Amazon) + Newsletter (Gmail) authenticate to a remote account; local tools
-        // (bases, notebooklm) must NOT — mislabeling would pollute the privacy signal.
-        expect(external.sort()).toEqual(['kindle', 'newsletter']);
+        // Kindle (Amazon), Newsletter (Gmail) and the Drive inventory (the user's own Google script)
+        // talk to a remote account; local tools (bases, notebooklm, agent-index) must NOT —
+        // mislabeling would pollute the privacy signal.
+        expect(external.sort()).toEqual(['cloud-inventory', 'kindle', 'newsletter']);
     });
 
     it('labelKey/descKey are non-empty i18n paths', () => {

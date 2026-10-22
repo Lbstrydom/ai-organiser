@@ -339,3 +339,14 @@ Shared first-run pieces used by every opt-in feature, so an ordinary user finish
 - **Suggest a home / Link to note** (`attachmentHomeService.ts`): first 1,000 characters of extracted text as a semantic query (with a once-per-session disclosure when the embedding provider is external) or a basic title-word match; the link is appended under `attachmentLinkHeading` through `applyNoteEdit` and is idempotent. Protected notes show as "not linkable".
 - Settings: `attachmentLargeFileMB` (20), `attachmentDuplicateMaxMB` (50), `attachmentLinkHeading` (`Attachments`).
 - Tests: `embedScanCanvas`, `attachmentEligibility`, `embedScanDuplicates`, `attachmentHomeService`, `protectedWriteSites`, `protectedFoldersOffPath`.
+
+## Agent index (F3)
+
+`src/services/agentIndex/` builds a JSONL note index for AI coding tools. Default off (`agent-index`, stage Find); no LLM and no network.
+
+- **Projection** (`agentIndexProjection.ts`, pure): one record per included note plus a signed header (`generator`, `generatedAt`, scope hash). An excluded note never appears; a link to one becomes `{"excluded": true}`; unresolved links are omitted unless `agentIndexExportUnresolvedLinks`.
+- **Scope**: `agentIndexIncludeFolders` (empty = whole vault) minus `agentIndexExcludeFolders` and protected folders. Optional aliases, headings and named frontmatter keys.
+- **Publication** (`agentIndexService.ts`): `planOutput` accepts a vault-relative `.jsonl` path only (no drive letter, leading slash, `..`, or protected location). The index is written to a signed temp file, the previous one kept as a signed `.prev`, then swapped; `recoverPublication` finishes or rolls back an interrupted swap and never touches an unsigned file. A mutex serialises builds and a snapshot is retaken up to three times if the vault changed mid-build.
+- **Commands**: build, check (stale or not, no write), copy agent instructions (text for CLAUDE.md/AGENTS.md plus a Claude Code `permissions.deny` snippet derived from excluded and protected folders; the plugin never writes another tool's config), guided setup. Optional `agentIndexAutoRebuild: 'on-change'` debounces vault events.
+- **Documented deviation**: build progress is a Notice, not `ProgressReporter` (the build is local, fast and has nothing to cancel).
+- Tests: `agentIndexProjection`, `agentIndexService`, `agentIndexSetup`, `agentIndexOffPath`.

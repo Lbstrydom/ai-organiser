@@ -267,6 +267,14 @@ Repo-wide rules that bind *every* subsystem are in
 | Protected folders | User-chosen folders the plugin never modifies; one guard at every write seam | Adding any code that writes, renames, trashes or creates anywhere |
 | Attachment helper | Canvas-aware scan, large-file and duplicate views, suggest-a-home, safe trash (extends Find embeds) | Changing trash eligibility or the results modal |
 | Setup kit | Guided setup modal, status row, folder list editor, friendly errors, shared by every opt-in feature | Adding a feature that needs first-run setup |
+| Agent index | Deterministic, privacy-scoped JSONL note index for AI coding tools (no LLM, no network), signed recoverable publication, pasteable agent instructions | Changing the index projection, scope rules or publication |
+
+### [Drive Folder Inventory](docs/features/cloud-inventory.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Drive folder inventory | Read-only listing of user-approved Drive folders into an owned, marker-delimited block in a vault note, via the user's own Apps Script | Changing the script template, the block format or refresh |
+| Apps Script client | Shared `appsScriptClient.ts`: endpoint validation, secret-in-body POST, bounded retries, stable error codes | Adding any call to a user-owned Apps Script |
 
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 

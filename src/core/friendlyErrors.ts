@@ -37,6 +37,23 @@ export const GUIDANCE_CODES = [
     'not-linkable',
     'link-failed',
     'trash-failed',
+    // Agent index
+    'output-path-invalid',
+    'output-has-foreign-files',
+    'output-not-ours',
+    // Cloud inventory and Apps Script
+    'script-invalid-endpoint',
+    'script-login-page',
+    'script-auth',
+    'script-not-approved',
+    'script-bad-request',
+    'script-drive-error',
+    'script-network',
+    'script-bad-response',
+    'script-outdated',
+    'marker-conflict',
+    'drive-link-invalid',
+    'no-secret',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];
