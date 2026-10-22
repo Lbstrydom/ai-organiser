@@ -14,6 +14,7 @@ import { App, TFile } from 'obsidian';
 import { logger } from '../../utils/logger';
 import { errFrom, ok, makeError } from './narrationTypes';
 import type { Result } from '../../core/result';
+import { assertWritableActive } from '../../core/protectedPaths';
 
 export const EMBED_START = '<!-- AIO-NARRATION:START -->';
 export const EMBED_END = '<!-- AIO-NARRATION:END -->';
@@ -57,6 +58,10 @@ export async function syncEmbed(
     mp3Path: string,
     enabled: boolean,
 ): Promise<Result<void>> {
+    // Protected folders: never add or remove the embed block in a protected note.
+    if (!assertWritableActive('modify', file.path).ok) {
+        return errFrom<void>(makeError('EMBED_FAILED', 'The note is in a protected folder; the audio link was not added.'));
+    }
     const mtimeAtStart = file.stat?.mtime;
     let content: string;
     try {
@@ -116,6 +121,11 @@ export async function syncEmbed(
         return errFrom<void>(err);
     }
 
+    // Protection may have changed while the note was being read; check again at the commit.
+    if (!assertWritableActive('modify', file.path).ok) {
+        return errFrom<void>(makeError('EMBED_FAILED', 'The note is in a protected folder; the audio link was not added.'));
+    }
+
     // Prefer the transactional `vault.process` API when available (Obsidian
     // 1.4+) — it serialises read+write under the vault's lock. Fall back to
     // `vault.modify` on older versions.
@@ -127,6 +137,9 @@ export async function syncEmbed(
     try {
         if (typeof v.process === 'function') {
             await v.process(file, (latest) => {
+                // Protection decided again inside the locked callback.
+                // Throwing aborts the transaction; returning the text unchanged would still rewrite the file.
+                if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
                 if (latest !== content) {
                     // Underlying file changed between our read and the lock-protected
                     // re-read. Mark conflict so we can return EMBED_FAILED below

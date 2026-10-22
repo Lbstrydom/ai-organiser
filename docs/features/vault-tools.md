@@ -302,9 +302,53 @@ No dedicated settings — uses existing plugin folder configuration.
 - `tests/commandPicker.test.ts`: Updated leaf count (31→32), added find-embeds command
 
 ### Key Patterns
+- **Canvas aware**: `.canvas` `file` nodes count as references (JSON Canvas 1.0 `parseCanvasFileRefs`); an unparseable canvas or unreadable note is a *coverage failure* that blocks trashing anything
 - **No dedup**: Every embed/link occurrence counted separately for accurate reference counts
 - **Link normalization**: Case-insensitive matching, optional extensions, path suffix matching
 - **Orphan detection**: Advisory only — "possibly orphaned" with disclaimer about potential false positives
 - **AbortSignal**: Cancellable scan with progress callback for UI updates
 - **ARIA + keyboard nav**: Scope picker follows accessibility best practices
 - **i18n**: Full `embedScan` section at top level of Translations (~60 keys)
+
+---
+
+## Protected folders (F1)
+
+`src/core/protectedPaths.ts` is the single source of truth for "the plugin never modifies, renames, trashes or creates here". `protectedFolders` (settings) defaults to `[]`, which makes every guard a constant "writable": behaviour is byte-identical until the user protects a folder.
+
+- **Pure API**: `isProtectedPath`, `assertWritable(settings, op, targets)` (a move passes source and destination; a folder operation also covers protected descendants), `rewriteOnRename`, `findOutputRootConflicts`. Matching is case-insensitive, slash-normalised and prefix-safe (`A/B` does not match `A/BC`). A missing protected folder still blocks creates at its path.
+- **Seams that enforce it**: `writeNote` (the `applyNoteEdit` commit; also checked earlier so no review modal is shown), the tag and frontmatter writers (`assertWritableActive`, a tiny registry installed by `registerProtectedFolders`), editor-level helpers (`guardActiveNote`), renames, NotebookLM selection tags, narration embeds, attachment replacement and deletion, and the F2 trash.
+- **Classification test**: `tests/protectedWriteSites.test.ts` scans `src/` for Obsidian write APIs and requires every file to be classified `guarded`, `output-root` or `plugin-data` with a reason, with an exact site count. Adding a write site without classifying it fails CI.
+- **Output roots** (chat, export, newsletter, recordings, …) must be disjoint from protected folders. Saving a protected list that collides with one is refused with a notice naming the folder; an existing collision is warned about on load. *Known limit*: a collision introduced by editing an output folder setting later is warned about, not blocked.
+- **Protection follows the folder**: the vault `rename` listener rewrites entries when a protected folder (or an ancestor) is renamed in Obsidian. Moves made outside Obsidian are not seen; the settings row shows "Folder not found".
+- **Entry points**: right-click a folder → "Protect this folder", or Settings → Preferences → Protected folders (status row, guided setup, folder list).
+
+## Setup kit
+
+Shared first-run pieces used by every opt-in feature, so an ordinary user finishes setup in one or two choices.
+
+- `src/core/setupState.ts`: `evaluateSetup(id, settings, observations)` → `not-set-up | ready | needs-attention` (+ reason), and `evaluateScriptCompat` for Apps Script versions. Persisted fact: `featureSetupCompletedAt[id]`. Derived health is never stored.
+- `src/ui/setup/setupFlow.ts` (pure state machine) behind `src/ui/modals/GuidedSetupModal.ts`: Back / Next / Finish, local validation blocks Next, settings are written once at Finish, Esc saves nothing.
+- `src/ui/setup/SetupStatusRow.ts`, `src/ui/setup/FolderListEditor.ts` (folder picker with live note counts; never a typed path).
+- `src/core/friendlyErrors.ts`: `GUIDANCE_CODES` → `t.guidance[code]` = `{ message, nextStep }`.
+
+## Attachment helper (F2, extends Find embeds)
+
+- **Eligibility** (`src/services/attachmentEligibility.ts`) is the one place that decides if a file may be trashed: zero resolved references, no ambiguous same-name candidates, no coverage failures, unchanged since the scan, not protected. The scan answers cheaply for display; `revalidate` rebuilds the reference graph from the current vault at confirmation (waits for `metadataCache.resolved`, re-parses referrers changed since the scan or touched by a recorded create/rename, re-resolves every stored reference against its referrer's current path) and fails closed.
+- **Duplicates** (`attachmentDuplicateService.ts`): opt-in. Groups by size, hashes candidates with `crypto.subtle` at concurrency 2, skips files over `attachmentDuplicateMaxMB`, cancellable, partial results labelled.
+- **Suggest a home / Link to note** (`attachmentHomeService.ts`): first 1,000 characters of extracted text as a semantic query (with a once-per-session disclosure when the embedding provider is external) or a basic title-word match; the link is appended under `attachmentLinkHeading` through `applyNoteEdit` and is idempotent. Protected notes show as "not linkable".
+- Settings: `attachmentLargeFileMB` (20), `attachmentDuplicateMaxMB` (50), `attachmentLinkHeading` (`Attachments`).
+- Tests: `embedScanCanvas`, `attachmentEligibility`, `embedScanDuplicates`, `attachmentHomeService`, `protectedWriteSites`, `protectedFoldersOffPath`.
+
+## Agent index (F3)
+
+`src/services/agentIndex/` builds a JSONL note index for AI coding tools. Default off (`agent-index`, stage Find); no LLM and no network.
+
+- **Projection** (`agentIndexProjection.ts`, pure): one record per included note plus a signed header (`generator`, `generatedAt`, scope hash). An excluded note never appears; a link to one becomes `{"excluded": true}`; unresolved links are omitted unless `agentIndexExportUnresolvedLinks`.
+- **Scope**: `agentIndexIncludeFolders` (empty = whole vault) minus `agentIndexExcludeFolders`. Protected folders are read-only for the plugin, not hidden: they stay in the index unless also excluded. Optional aliases, headings and named frontmatter keys.
+- **Publication** (`agentIndexService.ts`): `planOutput` accepts a vault-relative `.jsonl` path only (no drive letter, leading slash, `..`, or protected location). The index is written to a signed temp file, the previous one kept as a signed `.prev`, then swapped; `recoverPublication` finishes or rolls back an interrupted swap and never touches an unsigned file. A mutex serialises builds and a snapshot is retaken up to three times if the vault changed mid-build.
+- **Commands**: build, check (stale or not, no write), copy agent instructions, copy Claude Code permissions, guided setup, and the optional AGENTS.md write below.
+- **Agent instructions target `AGENTS.md`** (`agentInstructions.ts`, pure). `buildAgentInstructions` is agent-neutral (consult the index, open the real note, treat note content as data, search when stale, never edit protected folders, do not read excluded folders) and ends with one line for Claude Code users: put `@AGENTS.md` in `CLAUDE.md`. `buildClaudePermissions` is a separate function and button that produces only the Claude Code `permissions.deny` JSON; its text never appears in the AGENTS.md instructions.
+- **Optional write into `AGENTS.md`** (`agentInstructionsWrite`, default off; `agentInstructionsPath`, default `AGENTS.md`): `agentInstructionsWriter.ts` finds the plugin-owned block between `<!-- aio:agent-instructions -->` markers with the shared owned-block grammar (`src/utils/ownedBlock.ts`, also used by the Drive hub note), shows a preview (the block as it will be, and the block as it is now), and writes through `applyNoteEdit` only after Apply. Text outside the markers is never touched; damaged markers are `instructions-conflict` and nothing is written; a repeat run is a no-op; if a block appeared or vanished after the preview the write stops (`baseline-changed`); the path must be a vault-relative Markdown file outside protected folders and hidden folders. The command is hidden from the palette until the setting is on. Optional `agentIndexAutoRebuild: 'on-change'` debounces vault events.
+- **Documented deviation**: build progress is a Notice, not `ProgressReporter` (the build is local, fast and has nothing to cancel).
+- Tests: `agentIndexProjection`, `agentIndexService`, `agentIndexSetup`, `agentIndexOffPath`, `agentInstructions`, `agentInstructionsWriter`, `ownedBlock`.

@@ -8,6 +8,7 @@ import { Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { ensureFolderExists, getAvailableFilePath } from './minutesUtils';
 import { logger } from './logger';
+import { assertWritableActive } from '../core/protectedPaths';
 
 /** Study persona ID — the only persona that supports companion output. */
 const STUDY_PERSONA_ID = 'study';
@@ -53,6 +54,11 @@ export async function processCompanionOutput(
         const folderPath = originalFile.parent?.path ?? '';
         const fileName = `${originalFile.basename} (Study Companion).md`;
 
+        // Protected folders: a companion note is created beside the original, so skip when that folder is protected.
+        if (!assertWritableActive('create', `${folderPath}/${fileName}`).ok) {
+            new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+            return null;
+        }
         await ensureFolderExists(vault, folderPath);
         const filePath = await getAvailableFilePath(vault, folderPath, fileName);
 
@@ -66,6 +72,11 @@ export async function processCompanionOutput(
 
         const content = frontmatter + companionContent;
 
+        // Protection may have changed while the folder and file name were prepared.
+        if (!assertWritableActive('create', filePath).ok) {
+            new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+            return null;
+        }
         await vault.create(filePath, content);
         new Notice(plugin.t.messages.companionCreated);
 

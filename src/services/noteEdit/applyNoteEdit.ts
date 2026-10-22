@@ -33,6 +33,7 @@ import { MarkdownView, Notice, TFile } from 'obsidian';
 import type { App, Editor } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
+import { assertWritable } from '../../core/protectedPaths';
 import { logger } from '../../utils/logger';
 import { showReviewOrApply } from '../../utils/reviewEditsHelper';
 import { writeNote, type ApplyFn, type ApplyOutcome } from './noteWritePort';
@@ -217,6 +218,10 @@ export async function applyNoteEdit(
         return err('target-missing');
     }
 
+    // 1b. Protected folders: refuse before any review modal is shown (the write port re-checks).
+    const allowed = assertWritable(plugin.settings, 'modify', file.path);
+    if (!allowed.ok) return finishWithError(allowed.error, plugin, target);
+
     // 2. Empty-output guard — never perform a destructive no-op write.
     if (isEmptyOutput(target)) {
         new Notice(m.nothingToInsert, 4000);
@@ -238,10 +243,10 @@ export async function applyNoteEdit(
     // 4. Review (or commit directly when the caller owns the gate).
     let commitRes: Result<ApplyOutcome> = err('not-committed');
     if (opts.review === false) {
-        commitRes = await writeNote(app, file, apply);
+        commitRes = await writeNote(app, file, apply, plugin.settings);
     } else {
         const action = await showReviewOrApply(plugin, target.baseline, candidate, async () => {
-            commitRes = await writeNote(app, file, apply);
+            commitRes = await writeNote(app, file, apply, plugin.settings);
         });
         if (action === 'reject' || action === 'copy') {
             // User chose not to apply (copy already wrote to clipboard via the modal).
@@ -278,6 +283,9 @@ function finishWithError(code: string, plugin: AIOrganiserPlugin, target: EditTa
         }
         case 'write-failed':
             new Notice(m.couldNotWriteNote, 6000);
+            return err(code);
+        case 'protected-path':
+            new Notice(m.protectedNoteNotModified, 6000);
             return err(code);
         default:
             logger.warn('NoteEdit', `Write not applied (${code}) for ${target.filePath}`);

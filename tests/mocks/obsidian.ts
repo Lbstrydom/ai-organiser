@@ -49,6 +49,12 @@ export function createTFolder(path: string): TFolder {
 
 export type TAbstractFile = TFile | TFolder;
 
+/** The desktop vault adapter: knows where the vault is on disk. */
+export class FileSystemAdapter {
+    constructor(private readonly base: string = '') {}
+    getBasePath(): string { return this.base; }
+}
+
 /** Minimal AbstractInputSuggest stub so modules that subclass it can load + be
  *  instantiated in tests. Real popover behaviour is not simulated. */
 export class AbstractInputSuggest<T> {

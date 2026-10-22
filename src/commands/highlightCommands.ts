@@ -7,6 +7,7 @@ import { Editor, MarkdownView, MarkdownFileInfo, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { HighlightColorModal, HighlightColor, HIGHLIGHT_COLORS } from '../ui/modals/HighlightColorModal';
 
+import { guardActiveNote } from '../utils/protectedGuard';
 export function registerHighlightCommands(plugin: AIOrganiserPlugin): void {
     // Command: Highlight selection with color picker
     plugin.addCommand({
@@ -88,6 +89,7 @@ function applyHighlight(editor: Editor, selection: string, color: HighlightColor
     // This provides the most flexibility and works in both edit and preview modes
     const highlighted = `<mark class="ao-highlight ao-highlight-${color.id}">${cleanedSelection}</mark>`;
 
+    if (!guardActiveNote(editor)) return;
     editor.replaceSelection(highlighted);
 }
 
@@ -96,6 +98,7 @@ function applyHighlight(editor: Editor, selection: string, color: HighlightColor
  */
 function removeHighlight(editor: Editor, selection: string): void {
     const cleanedSelection = stripExistingHighlight(selection);
+    if (!guardActiveNote(editor)) return;
     editor.replaceSelection(cleanedSelection);
 }
 

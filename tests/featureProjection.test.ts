@@ -27,9 +27,9 @@ describe('projectSettingsGroups — settings-surface projection', () => {
         expect(core.features.map((f) => f.id).sort()).toEqual(['chat', 'provider', 'tagging']);
     });
 
-    it('Integrations holds exactly the external-account features (kindle + newsletter)', () => {
+    it('Integrations holds exactly the external-account features (cloud-inventory + google-tasks-export + kindle + newsletter)', () => {
         const integ = groups.find((g) => g.groupKind === 'integrations')!;
-        expect(integ.features.map((f) => f.id).sort()).toEqual(['kindle', 'newsletter']);
+        expect(integ.features.map((f) => f.id).sort()).toEqual(['cloud-inventory', 'google-tasks-export', 'kindle', 'newsletter']);
     });
 
     it('local tools bases + notebooklm render under the Maintain stage, NOT Integrations', () => {

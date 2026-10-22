@@ -9,6 +9,8 @@
  */
 import { TFile, App } from 'obsidian';
 import { getAvailableFilePath } from '../utils/minutesUtils';
+import { assertWritableActive } from '../core/protectedPaths';
+import { referrersProtectedActive } from '../utils/protectedGuard';
 import {
     IMAGE_CONVERSION_REQUIRED,
     VLM_NATIVE_IMAGE_FORMATS,
@@ -549,6 +551,7 @@ export class ImageProcessorService {
      */
     async replaceOriginal(file: TFile, replacementBlob: ArrayBuffer, newMediaType: string): Promise<ReplaceResult> {
         const oldPath = file.path;
+        if (!assertWritableActive('modify', oldPath).ok || referrersProtectedActive(this.app, oldPath)) throw new Error('protected-path');
 
         // 1. Write compressed content to the ORIGINAL file
         await this.app.vault.modifyBinary(file, replacementBlob);

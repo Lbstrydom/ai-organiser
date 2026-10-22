@@ -115,12 +115,12 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
         });
     });
 
-    describe('Capture — pulls new content in (flat, 7 leaves)', () => {
-        it('contains research / web-reader / kindle / newsletter / record / onedrive-link', () => {
+    describe('Capture — pulls new content in (flat, 10 leaves)', () => {
+        it('contains research / cloud-inventory x3 / web-reader / kindle / newsletter / record / onedrive-link', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const capture = cats.find(c => c.id === 'capture')!;
             expect(capture.commands.map(c => c.id)).toEqual([
-                'research-web', 'web-reader', 'kindle-sync', 'newsletter-fetch', 'newsletter-mark-caught-up', 'record-audio', 'insert-onedrive-link',
+                'research-web', 'refresh-cloud-inventories', 'check-cloud-inventories', 'setup-cloud-inventory', 'web-reader', 'kindle-sync', 'newsletter-fetch', 'newsletter-mark-caught-up', 'record-audio', 'insert-onedrive-link',
             ]);
         });
     });
@@ -161,11 +161,11 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('Refine — improve, Pending sub-group, digitise, clear-tags', () => {
-        it('first-expansion has 5 rows (quick-peek moved to Find; refresh-onedrive-embed added)', () => {
+        it('first-expansion has 9 rows (quick-peek moved to Find; refresh-onedrive-embed added)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const refine = cats.find(c => c.id === 'refine')!;
             expect(refine.commands.map(c => c.id)).toEqual([
-                'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
+                'sweep-inbox', 'setup-inbox-sweep', 'send-tasks-to-google', 'setup-google-tasks', 'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
             ]);
         });
         it('Process pending sub-group contains the 3 pending commands', () => {
@@ -178,11 +178,12 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('Find — search verbs over existing vault content (flat)', () => {
-        it('contains chat + search (cross-listed) + related + quick-peek', () => {
+        it('contains chat + search (cross-listed) + related + quick-peek + agent-index x4 + connectors', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const find = cats.find(c => c.id === 'find')!;
             expect(find.commands.map(c => c.id)).toEqual([
                 'chat-with-ai', 'semantic-search', 'find-related', 'insert-related-notes', 'quick-peek',
+                'copy-claude-permissions', 'write-agent-instructions', 'build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'open-agent-connectors', 'export-vault-map', 'setup-agent-index',
             ]);
         });
     });
@@ -192,7 +193,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const maintain = cats.find(c => c.id === 'maintain')!;
             expect(maintain.commands.map(c => c.id)).toEqual([
-                'show-tag-network', 'collect-all-tags', 'find-embeds', 'maintain-bases', 'notebooklm-export',
+                'show-tag-network', 'collect-all-tags', 'resume-offload', 'run-vault-upkeep', 'open-upkeep-review', 'setup-vault-upkeep', 'find-embeds', 'maintain-bases', 'notebooklm-export',
             ]);
         });
         it('Bases sub-group contains migration + dashboard commands', () => {
@@ -258,18 +259,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 46 (43 unique + 3 cross-listings)', () => {
+        it('total picker rows = 65 (62 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(46);
+            expect(leafCount).toBe(65);
         });
-        it('unique command IDs = 43', () => {
+        it('unique command IDs = 62', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(43);
+            expect(uniqueIds.size).toBe(62);
         });
-        it('alphabetised ai-organiser:* callbacks (43 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (62 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -282,13 +283,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             const unique = new Set(mockExecuteCommand.mock.calls.map(call => call[0]));
             expect(Array.from(unique).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
                 'ai-organiser:add-to-pending-integration',
+                'ai-organiser:build-agent-index',
                 'ai-organiser:build-cluster-canvas',
                 'ai-organiser:build-context-canvas',
                 'ai-organiser:build-investigation-canvas',
                 'ai-organiser:build-presentation-from-storyline',
                 'ai-organiser:chat-with-ai',
+                'ai-organiser:check-agent-index',
+                'ai-organiser:check-cloud-inventories',
                 'ai-organiser:clear-tags',
                 'ai-organiser:collect-all-tags',
+                'ai-organiser:copy-agent-instructions',
+                'ai-organiser:copy-claude-permissions',
                 'ai-organiser:create-bases-dashboard',
                 'ai-organiser:create-meeting-minutes',
                 'ai-organiser:digitise-image',
@@ -297,6 +303,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:export-flashcards',
                 'ai-organiser:export-minutes-docx',
                 'ai-organiser:export-note',
+                'ai-organiser:export-vault-map',
                 'ai-organiser:find-embeds',
                 'ai-organiser:find-related',
                 'ai-organiser:insert-onedrive-link',
@@ -308,24 +315,37 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:newsletter-fetch',
                 'ai-organiser:newsletter-mark-caught-up',
                 'ai-organiser:notebooklm-export',
+                'ai-organiser:open-agent-connectors',
+                'ai-organiser:open-upkeep-review',
                 'ai-organiser:play-narration',
                 'ai-organiser:presentation-chat',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
+                'ai-organiser:refresh-cloud-inventories',
                 'ai-organiser:refresh-onedrive-embed',
                 'ai-organiser:research-web',
                 'ai-organiser:resolve-pending-embeds',
+                'ai-organiser:resume-offload',
+                'ai-organiser:run-vault-upkeep',
                 'ai-organiser:semantic-search',
+                'ai-organiser:send-tasks-to-google',
+                'ai-organiser:setup-agent-index',
+                'ai-organiser:setup-cloud-inventory',
+                'ai-organiser:setup-google-tasks',
+                'ai-organiser:setup-inbox-sweep',
+                'ai-organiser:setup-vault-upkeep',
                 'ai-organiser:show-tag-network',
                 'ai-organiser:smart-summarize',
                 'ai-organiser:smart-tag',
                 'ai-organiser:smart-translate',
+                'ai-organiser:sweep-inbox',
                 'ai-organiser:transcribe-audio',
                 'ai-organiser:upgrade-folder-metadata',
                 'ai-organiser:upgrade-metadata',
                 'ai-organiser:web-reader',
+                'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(43);
+            expect(unique.size).toBe(62);
         });
     });
 });

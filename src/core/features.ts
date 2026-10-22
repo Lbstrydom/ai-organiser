@@ -48,7 +48,14 @@ export type FeatureId =
     | 'bases'
     | 'export'
     | 'embed-scan'
-    | 'onedrive-link';
+    | 'onedrive-link'
+    | 'agent-index'
+    | 'cloud-inventory'
+    | 'cloud-offload'
+    | 'inbox-sweep'
+    | 'google-tasks-export'
+    | 'vault-upkeep'
+    | 'agent-connectors';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -133,6 +140,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     { id: 'bases', labelKey: 'features.bases.label', descKey: 'features.bases.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'notebooklm', labelKey: 'features.notebooklm.label', descKey: 'features.notebooklm.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'embed-scan', labelKey: 'features.embed-scan.label', descKey: 'features.embed-scan.desc', stage: 'maintain', requires: [], defaultOn: false },
+    // Agent index: a deterministic, privacy-scoped note index for AI coding tools. No LLM, no network.
+    { id: 'agent-index', labelKey: 'features.agent-index.label', descKey: 'features.agent-index.desc', stage: 'find', requires: [], defaultOn: false },
     // ── Integrations float (external-account boundary → settings "Integrations"; stage
     //    'capture' keeps them under Capture in the picker — the declared divergence) ─────
     { id: 'kindle', labelKey: 'features.kindle.label', descKey: 'features.kindle.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
@@ -141,6 +150,18 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     // accepts a manually-pasted share URL) — never authenticates to a remote Microsoft
     // account, so it carries no `boundary` despite the name (mirrors bases/notebooklm).
     { id: 'onedrive-link', labelKey: 'features.onedrive-link.label', descKey: 'features.onedrive-link.desc', stage: 'capture', requires: [], defaultOn: false },
+    // Drive folder inventory talks to the user's own Apps Script (external account) and only reads file names.
+    { id: 'cloud-inventory', labelKey: 'features.cloud-inventory.label', descKey: 'features.cloud-inventory.desc', stage: 'capture', boundary: ['external-account'], requires: [], defaultOn: false },
+    // Drive offload moves a large vault file into the user's Drive for desktop folder and rewrites its references; it needs the inventory's pairs and script.
+    // Inbox sweep sends note text to the user's AI provider after an exclusion guard; every item is reviewed before anything is written.
+    { id: 'inbox-sweep', labelKey: 'features.inbox-sweep.label', descKey: 'features.inbox-sweep.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
+    // One-way export of approved sweep tasks to the user's own Google Tasks list through their own Apps Script.
+    { id: 'google-tasks-export', labelKey: 'features.google-tasks-export.label', descKey: 'features.google-tasks-export.desc', stage: 'refine', boundary: ['external-account'], requires: ['inbox-sweep'], defaultOn: false },
+    // Vault upkeep: an optional scheduler that PROPOSES (index, Drive inventories, attachments) and never changes your notes.
+    // Connect an AI app: guided help for Claude Desktop, Codex and command-line agents, plus a vault map for chat projects.
+    { id: 'agent-connectors', labelKey: 'features.agent-connectors.label', descKey: 'features.agent-connectors.desc', stage: 'find', requires: ['agent-index'], defaultOn: false },
+    { id: 'vault-upkeep', labelKey: 'features.vault-upkeep.label', descKey: 'features.vault-upkeep.desc', stage: 'maintain', requires: [], defaultOn: false },
+    { id: 'cloud-offload', labelKey: 'features.cloud-offload.label', descKey: 'features.cloud-offload.desc', stage: 'maintain', requires: ['cloud-inventory'], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
 
 /** O(1) lookup by id. */
@@ -176,6 +197,12 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-newsletter': 'newsletter',
     'sub-export': 'export',
     'sub-brand': 'export',
+    'sub-agent-index': 'agent-index',
+    'sub-cloud-inventory': 'cloud-inventory',
+    'sub-inbox-sweep': 'inbox-sweep',
+    'sub-google-tasks': 'google-tasks-export',
+    'sub-vault-upkeep': 'vault-upkeep',
+    'sub-agent-connectors': 'agent-connectors',
 });
 
 /**
@@ -194,6 +221,7 @@ export const INFRA_SECTIONS: readonly string[] = Object.freeze([
     'sub-quick-commands', // Quick commands (configurable picker Pinned)
     'sub-interface',      // Language & Interface
     'sub-mobile',         // Mobile
+    'sub-protected-folders', // Protected folders (F1; a safety setting, not a feature toggle)
 ]);
 
 /**

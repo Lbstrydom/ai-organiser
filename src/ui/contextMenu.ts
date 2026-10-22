@@ -18,6 +18,7 @@ import { cursorInsideMermaidFence } from '../utils/mermaidUtils';
 import { detectEmbeddedContent, getQuickPeekSources } from '../utils/embeddedContentDetector';
 import { isFeatureEnabled } from '../services/featureService';
 
+import { guardActiveNote } from '../utils/protectedGuard';
 /** Image extensions for embed detection (without dots) */
 const IMAGE_EXTS = new Set(['png','jpg','jpeg','gif','webp','bmp','svg','heic','heif','tiff','tif','avif']);
 
@@ -44,11 +45,13 @@ export function lineHasImageEmbed(line: string): boolean {
 function applyHighlightFromMenu(editor: Editor, selection: string, color: HighlightColor): void {
     if (color.id === 'clear') {
         const cleaned = stripExistingHighlight(selection);
+        if (!guardActiveNote(editor)) return;
         editor.replaceSelection(cleaned);
         return;
     }
     const cleanedSelection = stripExistingHighlight(selection);
     const highlighted = `<mark class="ao-highlight ao-highlight-${color.id}">${cleanedSelection}</mark>`;
+    if (!guardActiveNote(editor)) return;
     editor.replaceSelection(highlighted);
 }
 
@@ -140,7 +143,7 @@ export function registerContextMenu(plugin: AIOrganiserPlugin): void {
                             menu.addItem((item) => {
                                 item.setTitle(plugin.t.commands.removeHighlight || 'Remove highlight')
                                     .setIcon('eraser')
-                                    .onClick(() => { editor.replaceSelection(stripped); });
+                                    .onClick(() => { if (guardActiveNote(editor)) editor.replaceSelection(stripped); });
                             });
                         }
                     }

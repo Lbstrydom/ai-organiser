@@ -15,6 +15,7 @@
 import { Editor } from 'obsidian';
 import { AIOrganiserSettings } from '../core/settings';
 
+import { guardActiveNote } from './protectedGuard';
 // Section markers
 export const REFERENCES_HEADER = '## References';
 export const PENDING_INTEGRATION_HEADER = '## Pending Integration';
@@ -231,17 +232,21 @@ export function addToReferencesSection(
     editor: Editor,
     source: SourceReference
 ): void {
+    // Decided once, before anything is created: a blocked note gets one notice, not one per step.
+    if (!guardActiveNote(editor)) return;
     // First ensure the section exists (idempotent - won't create duplicates)
     ensureReferencesExists(editor);
 
     // Now the section definitely exists, add content to it
     const structure = analyzeNoteStructure(editor);
+    if (!structure.references.found) return;
     const referenceText = formatSourceReference(source);
 
     // Add to the References section
     const insertLine = structure.references.startLine;
     const insertPos = { line: insertLine, ch: 0 };
 
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange(referenceText + '\n', insertPos);
 }
 
@@ -396,17 +401,20 @@ export function addToPendingIntegration(
     editor: Editor,
     source: PendingSource
 ): void {
+    if (!guardActiveNote(editor)) return;
     // First ensure the section exists (idempotent - won't create duplicates)
     ensurePendingIntegrationExists(editor);
 
     // Now the section definitely exists, add content to it
     const structure = analyzeNoteStructure(editor);
+    if (!structure.pendingIntegration.found) return;
     const pendingContent = formatPendingContent(source);
 
     // Add to the Pending Integration section
     const insertLine = structure.pendingIntegration.startLine;
     const insertPos = { line: insertLine, ch: 0 };
 
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange(pendingContent + '\n', insertPos);
 }
 
@@ -450,6 +458,7 @@ export function setPendingIntegrationContent(editor: Editor, content: string): v
 
     const trimmedContent = content.trim();
     const replacement = trimmedContent ? trimmedContent + '\n' : '\n';
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange(replacement, startPos, endPos);
 }
 
@@ -487,6 +496,7 @@ export function clearPendingIntegration(editor: Editor): void {
         ch: 0
     };
 
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange('\n', startPos, endPos);
 }
 
@@ -497,6 +507,7 @@ export function clearPendingIntegration(editor: Editor): void {
 export function ensureStandardStructure(editor: Editor): void {
     // Use the idempotent functions that have robust detection
     // Order matters: add Pending Integration first, then References (which goes before it)
+    if (!guardActiveNote(editor)) return;
     ensurePendingIntegrationExists(editor);
     ensureReferencesExists(editor);
 }
@@ -538,6 +549,7 @@ export function ensurePendingIntegrationExists(editor: Editor): boolean {
     // Create the section at the end of the document
     const insertLine = editor.lineCount();
     const insertContent = `${SECTION_DIVIDER}\n${PENDING_INTEGRATION_HEADER}\n\n`;
+    if (!guardActiveNote(editor)) return false;
     editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
 
     return true; // Section was created
@@ -576,11 +588,13 @@ export function ensureReferencesExists(editor: Editor): boolean {
             insertLine--;
         }
         const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
+        if (!guardActiveNote(editor)) return false;
         editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
     } else {
         // Insert at end of document
         const insertLine = editor.lineCount();
         const insertContent = `${SECTION_DIVIDER}\n${REFERENCES_HEADER}\n\n`;
+        if (!guardActiveNote(editor)) return false;
         editor.replaceRange(insertContent, { line: insertLine, ch: 0 });
     }
 
@@ -665,6 +679,7 @@ export function replaceMainContent(editor: Editor, newContent: string): void {
 
     // Replace entire document
     const fullContent = newContent + preservedSections;
+    if (!guardActiveNote(editor)) return;
     editor.setValue(fullContent);
 }
 

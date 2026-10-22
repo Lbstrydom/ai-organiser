@@ -6,6 +6,8 @@ import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
+import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
+import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -49,6 +51,30 @@ export interface ProviderApiKeys {
     grok?: string;
     mistral?: string;
     'openai-compatible'?: string;
+}
+
+/** One vault folder paired with one Drive folder. */
+export interface CloudInventoryPair {
+    id: string;
+    /** Vault folder the hub note belongs to ('' = the vault root) */
+    vaultFolder: string;
+    /** Drive folder ID (not a link) */
+    driveFolderId: string;
+    label?: string;
+    /** Where the hub note goes: beside the folder (default) or inside it */
+    placement: 'beside' | 'inside';
+    /** Desktop only: the matching folder inside Drive for desktop (used by large-file offload) */
+    localMountFolder?: string;
+}
+
+/** What the last connection test learned. */
+export interface CloudInventoryTestResult {
+    ok: boolean;
+    /** Hash of the configuration that was tested; a changed configuration makes the result stale */
+    configHash: string;
+    at: string;
+    scriptVersion?: number;
+    rootsHash?: string;
 }
 
 export interface AIOrganiserSettings {
@@ -372,6 +398,106 @@ export interface AIOrganiserSettings {
     featureFlags: Partial<Record<FeatureId, boolean>>;
     /** Once-only marker for the first-run "new Features section" Notice (L2). */
     featuresIntroShown: boolean;
+
+    // === PROTECTED FOLDERS (F1) ===
+    /** Folders the plugin never modifies, renames, trashes or creates inside. Empty = no protection
+     *  (byte-identical behaviour). Vault-relative paths chosen by the user; see core/protectedPaths.ts. */
+    protectedFolders: string[];
+
+    // === ONBOARDING ===
+    /** ISO time a feature's setup wizard was finished, keyed by setup id (e.g. 'agent-index').
+     *  Separates an untouched default from a deliberately accepted one; health is derived, never stored. */
+    featureSetupCompletedAt: Record<string, string>;
+
+    // === ATTACHMENT HELPER (F2, extends Find embeds) ===
+    /** Files at or above this size (MB) get the "large" badge and filter chip. */
+    attachmentLargeFileMB: number;
+    /** Files above this size (MB) are skipped by the opt-in duplicate analysis ("not analysed"). */
+    attachmentDuplicateMaxMB: number;
+    /** Heading "Link to note" appends the attachment embed under. */
+    attachmentLinkHeading: string;
+
+    // === AGENT INDEX (F3) ===
+    /** Where the index is written (vault-relative; a dot-folder Obsidian does not index). */
+    agentIndexOutputPath: string;
+    /** Folders the index covers. Empty = the whole vault. */
+    agentIndexIncludeFolders: string[];
+    /** Folders kept out of the index entirely (their names never appear in it). */
+    agentIndexExcludeFolders: string[];
+    /** `off` = only on demand; `on-change` = rebuild shortly after notes change. */
+    agentIndexAutoRebuild: 'off' | 'on-change';
+    /** Opt-in free text: note aliases. */
+    agentIndexIncludeAliases: boolean;
+    /** Opt-in free text: H1 and H2 headings. */
+    agentIndexIncludeHeadings: boolean;
+    /** Opt-in free text: frontmatter keys the user names (other keys are never exported). */
+    agentIndexFrontmatterKeys: string[];
+    /** Opt-in: export the text of links to notes that do not exist. */
+    agentIndexExportUnresolvedLinks: boolean;
+    /** Allow the optional "add or update the instructions block" write (default off) */
+    agentInstructionsWrite: boolean;
+    /** The note that holds the instructions block */
+    agentInstructionsPath: string;
+    /** Where generated connector files and the chat-project export go. Empty until the person chooses; never assumed. */
+    agentConnectorFolder: string;
+    /** The last attempt to publish the connector's scope failed, so existing access may be out of date */
+    agentConnectorScopeStale: boolean;
+
+    // === CLOUD FOLDER INVENTORY (F4) ===
+    /** The user's own Apps Script web app link (https://script.google.com/macros/s/<id>/exec). */
+    cloudInventoryScriptUrl: string;
+    /** Vault folder <-> Drive folder pairs. */
+    cloudInventoryPairs: CloudInventoryPair[];
+    cloudInventoryMaxFolders: number;
+    cloudInventoryMaxFiles: number;
+    cloudInventoryDeadlineMinutes: number;
+    /** ISO time each pair was last refreshed, kept here and not in the notes. */
+    cloudInventoryLastChecked: Record<string, string>;
+    /** The last "Test connection" result, tied to the configuration it tested. */
+    cloudInventoryLastTest: CloudInventoryTestResult | null;
+
+    // === VAULT UPKEEP ===
+    upkeepInterval: 'off' | 'hourly' | 'daily' | 'weekly' | 'custom';
+    upkeepCustomMinutes: number;
+    upkeepTasks: { agentIndex: boolean; inventories: boolean; attachments: boolean };
+    /** Rebuild the agent index automatically when it is stale (the only automatic write) */
+    upkeepAutoRefreshIndex: boolean;
+    upkeepIncludeDuplicates: boolean;
+    /** Folder for the optional saved report note; empty = the vault root */
+    upkeepReportFolder: string;
+    upkeepRunOnMobile: boolean;
+    upkeepRunCapSeconds: number;
+    upkeepLastRun: (RunSummary & { endedAt: number }) | null;
+    upkeepLastProposals: { items: Proposal[]; omitted: number } | null;
+    upkeepFailures: number;
+    /** Fingerprint of the last set of proposals announced, so an unchanged backlog is not announced again */
+    upkeepLastNotified: string;
+
+    // === INBOX SWEEP (F6) ===
+    /** Folders whose notes are swept (notes that changed since they were last swept) */
+    sweepInboxFolders: string[];
+    sweepExcludedFolders: string[];
+    /** Tags (without #); a nested tag is excluded with its parent */
+    sweepExcludedTags: string[];
+    /** `key: value` pairs, for example `client: acme` */
+    sweepExcludedProperties: string[];
+    /** Plain words or names that keep a note out of the sweep wherever they appear */
+    sweepExcludedTerms: string[];
+    /** The user deliberately chose "Nothing to keep out" in the setup */
+    sweepNothingToExclude: boolean;
+    /** The living report note that gets one section per run */
+    sweepReportPath: string;
+    sweepMaxNotes: number;
+    sweepMaxChars: number;
+    sweepLedger: SweepLedger;
+    sweepApprovals: ApprovalRecord[];
+
+    // === GOOGLE TASKS EXPORT (F6) ===
+    tasksScriptUrl: string;
+    tasksListId: string;
+    tasksListName: string;
+    /** The last connection test, tied to the configuration it tested */
+    tasksLastTest: CloudInventoryTestResult | null;
 
     // === NEWSLETTER DIGEST ===
     newsletterEnabled: boolean;
@@ -857,6 +983,67 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     featureFlags: {},
     featuresIntroShown: false,
 
+    // Protected folders — empty list = feature unused, behaviour byte-identical
+    protectedFolders: [],
+
+    // Onboarding — no setup finished yet
+    featureSetupCompletedAt: {},
+
+    // Attachment helper
+    attachmentLargeFileMB: 20,
+    attachmentDuplicateMaxMB: 50,
+    attachmentLinkHeading: 'Attachments',
+
+    // Agent index — off until the user turns the feature on; no free text is exported by default
+    agentIndexOutputPath: '.ai-organiser/agent-index.jsonl',
+    agentIndexIncludeFolders: [],
+    agentIndexExcludeFolders: [],
+    agentIndexAutoRebuild: 'off',
+    agentIndexIncludeAliases: false,
+    agentIndexIncludeHeadings: false,
+    agentIndexFrontmatterKeys: [],
+    agentIndexExportUnresolvedLinks: false,
+    agentInstructionsWrite: false,
+    agentInstructionsPath: 'AGENTS.md',
+    agentConnectorFolder: '',
+    agentConnectorScopeStale: false,
+
+    // Cloud folder inventory
+    cloudInventoryScriptUrl: '',
+    cloudInventoryPairs: [],
+    cloudInventoryMaxFolders: 300,
+    cloudInventoryMaxFiles: 3000,
+    cloudInventoryDeadlineMinutes: 3,
+    cloudInventoryLastChecked: {},
+    cloudInventoryLastTest: null,
+    upkeepInterval: 'off',
+    upkeepCustomMinutes: 1440,
+    upkeepTasks: { agentIndex: false, inventories: false, attachments: false },
+    upkeepAutoRefreshIndex: false,
+    upkeepIncludeDuplicates: false,
+    upkeepReportFolder: '',
+    upkeepRunOnMobile: false,
+    upkeepRunCapSeconds: 120,
+    upkeepLastRun: null,
+    upkeepLastProposals: null,
+    upkeepFailures: 0,
+    upkeepLastNotified: '',
+    sweepInboxFolders: [],
+    sweepExcludedFolders: [],
+    sweepExcludedTags: [],
+    sweepExcludedProperties: [],
+    sweepExcludedTerms: [],
+    sweepNothingToExclude: false,
+    sweepReportPath: 'Inbox sweep report.md',
+    sweepMaxNotes: 20,
+    sweepMaxChars: 12000,
+    sweepLedger: {},
+    sweepApprovals: [],
+    tasksScriptUrl: '',
+    tasksListId: '',
+    tasksListName: '',
+    tasksLastTest: null,
+
     // Newsletter Digest Defaults
     newsletterEnabled: false,
     newsletterSource: 'apps-script' as const,
@@ -1099,6 +1286,18 @@ export function getResearchOutputFullPath(settings: AIOrganiserSettings): string
 }
 
 /**
+ * Settings keys that decide where plugin output is written. Used to validate them against the
+ * protected-folder list and to revert a change that would collide with it.
+ */
+export const OUTPUT_ROOT_SETTING_KEYS = [
+    'pluginFolder', 'outputRootFolder', 'configFolderPath', 'transcriptFolder', 'transcriptOutputFolder',
+    'minutesOutputFolder', 'exportOutputFolder', 'flashcardFolder', 'chatExportFolder', 'chatRootFolder',
+    'presentationOutputFolder', 'canvasOutputFolder', 'webReaderOutputFolder', 'kindleOutputFolder',
+    'newsletterOutputFolder', 'notebooklmExportFolder', 'sketchOutputFolder', 'researchOutputFolder',
+    'audioNarrationOutputFolder',
+] as const;
+
+/**
  * Get all plugin-managed folders that should be auto-excluded from tagging.
  * When output root equals plugin folder, just exclude pluginFolder (current behavior).
  * When split, exclude config root + each managed output subfolder individually.
@@ -1276,6 +1475,10 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     }
 
     migrateVisualSearchSettings(oldSettings);
+    migrateProtectedAndAttachmentSettings(oldSettings);
+    migrateAgentIndexAndInventorySettings(oldSettings);
+    migrateSweepSettings(oldSettings);
+    migrateUpkeepSettings(oldSettings);
 
     migrateAzureSettings(oldSettings);
     migrateBrandSettings(oldSettings);
@@ -1284,6 +1487,229 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateLocalOnnxConsent(oldSettings);
 
     return oldSettings;
+}
+
+/** A Drive folder ID: letters, digits, `_` and `-`, at least 10 characters. */
+export const DRIVE_FOLDER_ID_PATTERN = /^[A-Za-z0-9_-]{10,}$/;
+
+/**
+ * Coerce the agent-index and cloud-inventory settings to valid shapes. Order-safe and idempotent;
+ * an invalid entry is dropped, never repaired by guessing.
+ */
+export function migrateAgentIndexAndInventorySettings(old: Record<string, unknown>): void {
+    const strings = (value: unknown): string[] => {
+        // A lone string is one folder, never "nothing": dropping it would widen an include list to the whole vault.
+        if (typeof value === 'string') return value.trim() === '' ? [] : [value.trim()];
+        return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '') : [];
+    };
+    const bool = (value: unknown, fallback: boolean): boolean => (typeof value === 'boolean' ? value : fallback);
+    const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    const d = DEFAULT_SETTINGS;
+
+    old.agentIndexOutputPath = typeof old.agentIndexOutputPath === 'string' && old.agentIndexOutputPath.trim() !== ''
+        ? old.agentIndexOutputPath.trim()
+        : d.agentIndexOutputPath;
+    old.agentIndexIncludeFolders = strings(old.agentIndexIncludeFolders);
+    old.agentIndexExcludeFolders = strings(old.agentIndexExcludeFolders);
+    old.agentIndexAutoRebuild = old.agentIndexAutoRebuild === 'on-change' ? 'on-change' : 'off';
+    old.agentIndexIncludeAliases = bool(old.agentIndexIncludeAliases, false);
+    old.agentIndexIncludeHeadings = bool(old.agentIndexIncludeHeadings, false);
+    old.agentIndexFrontmatterKeys = strings(old.agentIndexFrontmatterKeys);
+    old.agentIndexExportUnresolvedLinks = bool(old.agentIndexExportUnresolvedLinks, false);
+    old.agentInstructionsWrite = old.agentInstructionsWrite === true;
+    old.agentConnectorScopeStale = old.agentConnectorScopeStale === true;
+    old.agentConnectorFolder = typeof old.agentConnectorFolder === 'string' ? old.agentConnectorFolder.trim() : d.agentConnectorFolder;
+    old.agentInstructionsPath = typeof old.agentInstructionsPath === 'string' && old.agentInstructionsPath.trim() !== '' ? old.agentInstructionsPath.trim() : d.agentInstructionsPath;
+
+    old.cloudInventoryScriptUrl = typeof old.cloudInventoryScriptUrl === 'string' ? old.cloudInventoryScriptUrl.trim() : '';
+    const pairs = Array.isArray(old.cloudInventoryPairs) ? old.cloudInventoryPairs : [];
+    const seen = new Set<string>();
+    old.cloudInventoryPairs = pairs.flatMap((p): CloudInventoryPair[] => {
+        if (!p || typeof p !== 'object') return [];
+        const r = p as Record<string, unknown>;
+        if (typeof r.id !== 'string' || r.id === '' || seen.has(r.id)) return [];
+        if (typeof r.driveFolderId !== 'string' || !DRIVE_FOLDER_ID_PATTERN.test(r.driveFolderId)) return [];
+        // An empty string is the vault root; anything that is not a string is not a destination at all.
+        if (typeof r.vaultFolder !== 'string') return [];
+        seen.add(r.id);
+        return [{
+            id: r.id,
+            vaultFolder: r.vaultFolder,
+            driveFolderId: r.driveFolderId,
+            label: typeof r.label === 'string' && r.label.trim() !== '' ? r.label.trim() : undefined,
+            placement: r.placement === 'inside' ? 'inside' : 'beside',
+            localMountFolder: typeof r.localMountFolder === 'string' && r.localMountFolder.trim() !== '' ? r.localMountFolder.trim() : undefined,
+        }];
+    });
+    old.cloudInventoryMaxFolders = intIn(old.cloudInventoryMaxFolders, d.cloudInventoryMaxFolders, 1, 5000);
+    old.cloudInventoryMaxFiles = intIn(old.cloudInventoryMaxFiles, d.cloudInventoryMaxFiles, 1, 50000);
+    old.cloudInventoryDeadlineMinutes = intIn(old.cloudInventoryDeadlineMinutes, d.cloudInventoryDeadlineMinutes, 1, 30);
+
+    const checked = old.cloudInventoryLastChecked;
+    const cleaned: Record<string, string> = {};
+    if (checked && typeof checked === 'object' && !Array.isArray(checked)) {
+        for (const [k, v] of Object.entries(checked as Record<string, unknown>)) if (typeof v === 'string') cleaned[k] = v;
+    }
+    old.cloudInventoryLastChecked = cleaned;
+
+    const test = old.cloudInventoryLastTest as Record<string, unknown> | null | undefined;
+    old.cloudInventoryLastTest =
+        test && typeof test === 'object' && typeof test.ok === 'boolean' && typeof test.configHash === 'string' && typeof test.at === 'string'
+            ? {
+                ok: test.ok,
+                configHash: test.configHash,
+                at: test.at,
+                scriptVersion: typeof test.scriptVersion === 'number' ? test.scriptVersion : undefined,
+                rootsHash: typeof test.rootsHash === 'string' ? test.rootsHash : undefined,
+            }
+            : null;
+}
+
+/** Coerce the vault upkeep settings to valid shapes. Order-safe and idempotent. */
+export function migrateUpkeepSettings(old: Record<string, unknown>): void {
+    const d = DEFAULT_SETTINGS;
+    const intervals = ['off', 'hourly', 'daily', 'weekly', 'custom'];
+    old.upkeepInterval = typeof old.upkeepInterval === 'string' && intervals.includes(old.upkeepInterval) ? old.upkeepInterval : d.upkeepInterval;
+    const num = (v: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof v !== 'number' && typeof v !== 'string') return fallback;
+        const n = Number(v);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    old.upkeepCustomMinutes = num(old.upkeepCustomMinutes, d.upkeepCustomMinutes, 15, 10080);
+    const t = (old.upkeepTasks && typeof old.upkeepTasks === 'object' ? old.upkeepTasks : {}) as Record<string, unknown>;
+    old.upkeepTasks = { agentIndex: t.agentIndex === true, inventories: t.inventories === true, attachments: t.attachments === true };
+    old.upkeepAutoRefreshIndex = old.upkeepAutoRefreshIndex === true;
+    old.upkeepIncludeDuplicates = old.upkeepIncludeDuplicates === true;
+    old.upkeepReportFolder = typeof old.upkeepReportFolder === 'string' ? old.upkeepReportFolder.trim() : '';
+    old.upkeepRunOnMobile = old.upkeepRunOnMobile === true;
+    old.upkeepRunCapSeconds = num(old.upkeepRunCapSeconds, d.upkeepRunCapSeconds, 10, 900);
+    const last = old.upkeepLastRun as Record<string, unknown> | null | undefined;
+    const taskNames = ['agentIndex', 'inventories', 'attachments'];
+    const taskStatuses = ['ok', 'skipped', 'failed', 'cancelled'];
+    const outcomes = last && Array.isArray(last.outcomes)
+        ? last.outcomes.map((o) => {
+            const x = o as Record<string, unknown> | null;
+            return x && typeof x === 'object' && typeof x.task === 'string' && taskNames.includes(x.task) && typeof x.status === 'string' && taskStatuses.includes(x.status)
+                ? { task: x.task, status: x.status, reason: typeof x.reason === 'string' ? x.reason : undefined, counts: x.counts && typeof x.counts === 'object' ? x.counts : {}, omitted: typeof x.omitted === 'number' ? x.omitted : 0 }
+                : null;
+        })
+        : [];
+    // Rebuild the record from validated parts; one bad outcome discards the whole saved run.
+    old.upkeepLastRun = last && typeof last === 'object' && typeof last.startedAt === 'string' && typeof last.endedAt === 'number' && typeof last.durationMs === 'number'
+        && typeof last.status === 'string' && ['ok', 'partial', 'failed'].includes(last.status) && Array.isArray(last.outcomes) && outcomes.length === last.outcomes.length && outcomes.every(Boolean)
+        ? { startedAt: last.startedAt, endedAt: last.endedAt, durationMs: last.durationMs, trigger: last.trigger === 'scheduled' ? 'scheduled' : last.trigger === 'preview' ? 'preview' : 'manual', status: last.status, outcomes, totals: last.totals && typeof last.totals === 'object' ? last.totals : {} }
+        : null;
+    const kept = old.upkeepLastProposals as Record<string, unknown> | null | undefined;
+    old.upkeepLastProposals = kept && typeof kept === 'object' && Array.isArray(kept.items) && typeof kept.omitted === 'number'
+        ? { items: kept.items.filter((p) => p && typeof p === 'object' && typeof (p as { kind?: unknown }).kind === 'string').slice(0, 200), omitted: Math.max(0, Math.floor(kept.omitted)) }
+        : null;
+    old.upkeepFailures = num(old.upkeepFailures, 0, 0, 100);
+    old.upkeepLastNotified = typeof old.upkeepLastNotified === 'string' ? old.upkeepLastNotified : '';
+}
+
+/**
+ * Coerce the inbox sweep and Google Tasks settings to valid shapes. Order-safe and idempotent.
+ * Exclusion lists are never silently emptied: a lone string stays one entry.
+ */
+export function migrateSweepSettings(old: Record<string, unknown>): void {
+    const strings = (value: unknown): string[] => {
+        if (typeof value === 'string') return value.trim() === '' ? [] : [value.trim()];
+        return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string' && v.trim() !== '').map((v) => v.trim()) : [];
+    };
+    const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    const d = DEFAULT_SETTINGS;
+    for (const key of ['sweepInboxFolders', 'sweepExcludedFolders', 'sweepExcludedTags', 'sweepExcludedProperties', 'sweepExcludedTerms'] as const) {
+        old[key] = strings(old[key]);
+    }
+    old.sweepNothingToExclude = old.sweepNothingToExclude === true;
+    old.sweepReportPath = typeof old.sweepReportPath === 'string' && old.sweepReportPath.trim() !== '' ? old.sweepReportPath.trim() : d.sweepReportPath;
+    old.sweepMaxNotes = intIn(old.sweepMaxNotes, d.sweepMaxNotes, 1, 200);
+    old.sweepMaxChars = intIn(old.sweepMaxChars, d.sweepMaxChars, 500, 100000);
+
+    const ledger: SweepLedger = {};
+    if (old.sweepLedger && typeof old.sweepLedger === 'object' && !Array.isArray(old.sweepLedger)) {
+        for (const [path, entry] of Object.entries(old.sweepLedger as Record<string, unknown>)) {
+            const e = entry as Record<string, unknown> | null;
+            if (e && typeof e.sha256 === 'string' && typeof e.sweptAt === 'string' && typeof e.runId === 'string') ledger[path] = { sha256: e.sha256, sweptAt: e.sweptAt, runId: e.runId };
+        }
+    }
+    old.sweepLedger = ledger;
+
+    const states = ['approved', 'reported', 'exported', 'failed'];
+    const approvals: ApprovalRecord[] = [];
+    if (Array.isArray(old.sweepApprovals)) {
+        for (const raw of old.sweepApprovals) {
+            const r = raw as Record<string, unknown> | null;
+            if (!r || typeof r.runId !== 'string' || typeof r.createdAt !== 'string' || typeof r.reportPath !== 'string' || !Array.isArray(r.tasks) || !Array.isArray(r.dispositions)) continue;
+            const rawTasks = r.tasks as unknown[];
+            const rawDispositions = r.dispositions as unknown[];
+            const tasks = rawTasks.flatMap((t): ApprovalRecord['tasks'] => {
+                const x = t as Record<string, unknown> | null;
+                if (!x || typeof x.id !== 'string' || typeof x.text !== 'string' || typeof x.sourcePath !== 'string' || typeof x.sourceHash !== 'string' || typeof x.state !== 'string' || !states.includes(x.state)) return [];
+                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined }];
+            });
+            const dispositions = rawDispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
+                const x = dd as Record<string, unknown> | null;
+                return x && typeof x.sourcePath === 'string' && typeof x.sourceHash === 'string' && typeof x.markSwept === 'boolean' ? [{ sourcePath: x.sourcePath, sourceHash: x.sourceHash, markSwept: x.markSwept }] : [];
+            });
+            // A record is one unit: if any task or disposition is unusable, none of it can be trusted, and
+            // half a record (tasks without their dispositions, or the reverse) would corrupt recovery.
+            if (tasks.length !== rawTasks.length || dispositions.length !== rawDispositions.length) continue;
+            approvals.push({ runId: r.runId, createdAt: r.createdAt, reportPath: r.reportPath, listId: typeof r.listId === 'string' ? r.listId : undefined, tasks, dispositions, reportDone: r.reportDone === true, ledgerDone: r.ledgerDone === true });
+        }
+    }
+    old.sweepApprovals = approvals;
+
+    old.tasksScriptUrl = typeof old.tasksScriptUrl === 'string' ? old.tasksScriptUrl.trim() : '';
+    old.tasksListId = typeof old.tasksListId === 'string' ? old.tasksListId.trim() : '';
+    old.tasksListName = typeof old.tasksListName === 'string' ? old.tasksListName : '';
+    const test = old.tasksLastTest as Record<string, unknown> | null | undefined;
+    old.tasksLastTest =
+        test && typeof test === 'object' && typeof test.ok === 'boolean' && typeof test.configHash === 'string' && typeof test.at === 'string'
+            ? { ok: test.ok, configHash: test.configHash, at: test.at, scriptVersion: typeof test.scriptVersion === 'number' ? test.scriptVersion : undefined, rootsHash: typeof test.rootsHash === 'string' ? test.rootsHash : undefined }
+            : null;
+}
+
+/**
+ * Coerce the protected-folder list, onboarding map and attachment-helper numbers to valid shapes.
+ * Order-safe and idempotent: a missing or invalid value becomes the default, a valid one is kept.
+ */
+export function migrateProtectedAndAttachmentSettings(old: Record<string, unknown>): void {
+    // A malformed value must not silently weaken protection: a lone string is kept as one folder.
+    const folders = typeof old.protectedFolders === 'string' && old.protectedFolders.trim() !== ''
+        ? [old.protectedFolders]
+        : old.protectedFolders;
+    old.protectedFolders = Array.isArray(folders)
+        ? folders.filter((f): f is string => typeof f === 'string' && f.trim() !== '')
+        : [];
+
+    const done = old.featureSetupCompletedAt;
+    const cleaned: Record<string, string> = {};
+    if (done && typeof done === 'object' && !Array.isArray(done)) {
+        for (const [k, v] of Object.entries(done as Record<string, unknown>)) {
+            if (typeof v === 'string') cleaned[k] = v;
+        }
+    }
+    old.featureSetupCompletedAt = cleaned;
+
+    const clampMB = (value: unknown, fallback: number): number => {
+        // Only a number or a numeric string is converted; any other JSON value takes the fallback.
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) && n > 0 ? Math.min(100_000, Math.max(1, Math.floor(n))) : fallback;
+    };
+    old.attachmentLargeFileMB = clampMB(old.attachmentLargeFileMB, DEFAULT_SETTINGS.attachmentLargeFileMB);
+    old.attachmentDuplicateMaxMB = clampMB(old.attachmentDuplicateMaxMB, DEFAULT_SETTINGS.attachmentDuplicateMaxMB);
+    const heading = typeof old.attachmentLinkHeading === 'string' ? old.attachmentLinkHeading.trim() : '';
+    old.attachmentLinkHeading = heading || DEFAULT_SETTINGS.attachmentLinkHeading;
 }
 
 /**

@@ -10,6 +10,7 @@ import type AIOrganiserPlugin from '../main';
 import type { CompressionAction } from '../ui/modals/CompressionConfirmModal';
 import type { TranscriptionResult } from './audioTranscriptionService';
 import { logger } from '../utils/logger';
+import { assertWritable } from '../core/protectedPaths';
 
 export interface AudioCleanupOptions {
     /** The vault file that was transcribed */
@@ -49,15 +50,14 @@ export async function offerPostTranscriptionCleanup(
     // Auto-policies
     if (policy === 'keep-compressed') {
         if (worthCompressing) {
-            await replaceWithCompressed(plugin, file, transcriptionResult);
-            return 'keep-compressed';
+            // Reported as kept-compressed only when the replacement really happened.
+            return (await replaceWithCompressed(plugin, file, transcriptionResult)) ? 'keep-compressed' : 'keep-original';
         }
         return 'keep-original'; // Nothing to compress
     }
 
     if (policy === 'delete') {
-        await deleteAudioFile(plugin, file);
-        return 'delete';
+        return (await deleteAudioFile(plugin, file)) ? 'delete' : 'keep-original';
     }
 
     // policy === 'ask' → show modal
@@ -74,21 +74,25 @@ export async function offerPostTranscriptionCleanup(
 
     // Execute the chosen action
     if (choice.action === 'keep-compressed' && worthCompressing) {
-        await replaceWithCompressed(plugin, file, transcriptionResult);
+        if (!(await replaceWithCompressed(plugin, file, transcriptionResult))) return 'keep-original';
     } else if (choice.action === 'delete') {
-        await deleteAudioFile(plugin, file);
+        if (!(await deleteAudioFile(plugin, file))) return 'keep-original';
     }
 
     return choice.action;
 }
 
-/** Replace an audio file with its compressed version (backlink-safe). */
+/** Replace an audio file with its compressed version (backlink-safe). True only when it was replaced. */
 async function replaceWithCompressed(
     plugin: AIOrganiserPlugin,
     file: TFile,
     transcriptionResult: Pick<TranscriptionResult, 'compressedData' | 'originalSizeBytes'>
-): Promise<void> {
-    if (!transcriptionResult.compressedData) return;
+): Promise<boolean> {
+    if (!transcriptionResult.compressedData) return false;
+    if (!assertWritable(plugin.settings, 'modify', file.path).ok) {
+        new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+        return false;
+    }
 
     try {
         const { replaceAudioFile } = await import('./audioCompressionService');
@@ -98,9 +102,16 @@ async function replaceWithCompressed(
             ? `${t?.replaceSuccess || 'File replaced'} (${(t?.backlinksMigrated || '{n} backlinks updated').replace('{n}', String(result.backlinksMigrated))})`
             : t?.replaceSuccess || 'File replaced successfully';
         new Notice(msg);
+        return true;
     } catch (err) {
+        // A linking note in a protected folder stops the replacement: say so, and nothing was changed.
+        if (err instanceof Error && err.message === 'protected-path') {
+            new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+            return false;
+        }
         logger.error('Audio', 'Replace failed:', err);
         new Notice(plugin.t.compression?.replaceFailed || 'Failed to replace file');
+        return false;
     }
 }
 
@@ -108,12 +119,18 @@ async function replaceWithCompressed(
 async function deleteAudioFile(
     plugin: AIOrganiserPlugin,
     file: TFile
-): Promise<void> {
+): Promise<boolean> {
+    if (!assertWritable(plugin.settings, 'delete', file.path).ok) {
+        new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+        return false;
+    }
     try {
         await plugin.app.fileManager.trashFile(file);
         new Notice(plugin.t.compression?.audioDeleted || 'Audio file deleted');
+        return true;
     } catch (err) {
         logger.error('Audio', 'Delete failed:', err);
         new Notice('Failed to delete audio file');
+        return false;
     }
 }

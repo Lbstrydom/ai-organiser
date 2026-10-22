@@ -19,6 +19,9 @@ import { CommandPickerModal, buildCommandCategories } from './ui/modals/CommandP
 import { TagUtils, TagOperationResult, setGlobalDebugMode } from './utils/tagUtils';
 import { logger } from './utils/logger';
 import { registerCommands } from './commands/index';
+import { assertWritable, setActiveProtection } from './core/protectedPaths';
+import { referrersProtectedActive } from './utils/protectedGuard';
+import { registerProtectedFolders, unregisterProtectedFolders, enforceOutputDisjointness } from './commands/protectedFolderCommands';
 import { isFeatureEnabled } from './services/featureService';
 import { FEATURE_REGISTRY, type FeatureId } from './core/features';
 import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
@@ -43,6 +46,9 @@ import { isAzureMode } from './services/azure/endpointResolver';
 import { ProviderProfile, resolveProviderProfile } from './services/providerProfile';
 import { NullLLMService } from './services/llm/nullLLMService';
 import { ForegroundGate } from './services/foregroundGate';
+import { UpkeepController } from './services/upkeep/upkeepRuntime';
+import { ScopePublisher } from './services/agentConnectors/connectorScope';
+import { describeError, formatGuidance } from './core/friendlyErrors';
 import { EmbeddingCooldown } from './services/embeddings/embeddingCooldown';
 import { EmbeddingQueue, GenericEmbeddingQueue } from './services/vector/embeddingQueue';
 import { PdfHandlePool } from './services/pdf/pdfHandlePool';
@@ -148,6 +154,13 @@ export default class AIOrganiserPlugin extends Plugin {
     public mermaidChangeDetector = new MermaidChangeDetector();
     public narrationJobs = new NarrationJobRegistry();
     private newsletterFetchTimer: number | null = null;
+    /** The vault upkeep scheduler; created only while the feature is on */
+    public upkeep: UpkeepController | null = null;
+    private lastUpkeepKey = '';
+    /** Keeps the read-only connector's scope file true to the settings (created on first use) */
+    private connectorScope: ScopePublisher | null = null;
+    /** The stale flag as last saved to disk (null = not yet known); a failed save never counts as saved */
+    private connectorStalePersisted: boolean | null = null;
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     public newsletterSeenIds: string[] = [];
@@ -269,6 +282,8 @@ export default class AIOrganiserPlugin extends Plugin {
     }
 
     public async saveSettings(): Promise<void> {
+        // An output-folder edit that would land inside a protected folder is undone here.
+        enforceOutputDisjointness(this);
         const embeddingSettingsChanged =
             this.settings.embeddingProvider !== this.lastEmbeddingConfig.provider ||
             this.settings.embeddingModel !== this.lastEmbeddingConfig.model ||
@@ -309,6 +324,8 @@ export default class AIOrganiserPlugin extends Plugin {
         if (newsletterSettingsChanged) {
             this.startNewsletterScheduler();
         }
+        this.syncUpkeep();
+        this.syncConnectorScope();
         this.lastNewsletterConfig = {
             // FT-11: snapshot the FEATURE state (newsletter absorbed newsletterEnabled).
             enabled: isFeatureEnabled(this.settings, 'newsletter'),
@@ -971,6 +988,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public async onload(): Promise<void> {
         await this.loadSettings();
+        // Protected folders apply from the first moment settings exist, before any service starts.
+        setActiveProtection(() => this.settings);
         await this.initializeLLMService();
 
         // Initialize configuration service with full path (pluginFolder/configFolderPath)
@@ -1099,7 +1118,10 @@ export default class AIOrganiserPlugin extends Plugin {
         this.settingTab = new AIOrganiserSettingTab(this.app, this);
         this.addSettingTab(this.settingTab);
         registerCommands(this);
+        registerProtectedFolders(this);
         this.startNewsletterScheduler();
+        // Vault upkeep starts once the workspace is ready, so an overdue run never slows start-up.
+        this.app.workspace.onLayoutReady(() => { this.syncUpkeep(); this.syncConnectorScope(); });
 
         // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
         // a small playback-speed toolbar (0.75×…2×). Obsidian's default
@@ -1178,6 +1200,11 @@ export default class AIOrganiserPlugin extends Plugin {
             this.t.commands.chatWithAI || 'Chat with AI',
             () => { void import('./commands/chatCommands').then(m => m.openAIChat(this)); }
         );
+
+        // An offload left unfinished last time: offer to open it (desktop, feature on).
+        void import('./commands/offloadCommands')
+            .then((m) => m.promptUnfinishedOffload(this))
+            .catch((e: unknown) => logger.warn('Offload', 'Could not set up the unfinished-offload prompt', e));
 
         // First-run intro (FT-7 / L2): point existing + new users at the new Features
         // section. Once-only — the persisted `featuresIntroShown` marker is set + saved
@@ -1297,6 +1324,53 @@ export default class AIOrganiserPlugin extends Plugin {
         this.newsletterFetchTimer = window.setInterval(() => void this.runScheduledNewsletterFetch(), intervalMs);
     }
 
+    /**
+     * Publish the read-only connector's scope for the current settings (or its stop marker when the
+     * feature or the index it needs was switched off). Serialised inside the publisher; a failure is
+     * remembered and shown once, never thrown.
+     */
+    public syncConnectorScope(): void {
+        const adapter = this.app?.vault?.adapter;
+        if (!adapter) return;
+        this.connectorScope ??= new ScopePublisher({
+            adapter,
+            settings: () => this.settings,
+            now: () => new Date().toISOString(),
+            setStale: async (stale) => {
+                if (this.connectorStalePersisted === stale) return;
+                const previous = this.settings.agentConnectorScopeStale;
+                this.settings.agentConnectorScopeStale = stale;
+                try {
+                    await saveSettingsData(this, this.settings);
+                    this.connectorStalePersisted = stale;
+                } catch (e) {
+                    this.settings.agentConnectorScopeStale = previous;
+                    throw e;
+                }
+                // One notice per healthy-to-stale change, decided where the change is committed.
+                if (stale && !previous) new Notice(formatGuidance(describeError(this.t, 'connector-scope-write-failed')), 12000);
+            },
+        });
+        void this.connectorScope.sync();
+    }
+
+    /** Create, restart or stop the vault upkeep scheduler to match the settings. Idempotent. */
+    public syncUpkeep(): void {
+        const on = isFeatureEnabled(this.settings, 'vault-upkeep');
+        const key = JSON.stringify([on, this.settings.upkeepInterval, this.settings.upkeepCustomMinutes]);
+        if (key === this.lastUpkeepKey) return;
+        this.lastUpkeepKey = key;
+        if (!on) { this.upkeep?.stop(); return; }
+        this.ensureUpkeep()?.start();
+    }
+
+    /** The scheduler, created on first use while the feature is on; null while it is off. */
+    public ensureUpkeep(): UpkeepController | null {
+        if (!isFeatureEnabled(this.settings, 'vault-upkeep')) return null;
+        this.upkeep ??= new UpkeepController(this);
+        return this.upkeep;
+    }
+
     public stopNewsletterScheduler(): void {
         if (this.newsletterFetchTimer !== null) {
             window.clearInterval(this.newsletterFetchTimer);
@@ -1347,7 +1421,9 @@ export default class AIOrganiserPlugin extends Plugin {
     // ─────────────────────────────────────────────────────────────────────────
 
     public onunload(): void {
+        unregisterProtectedFolders();
         this.stopNewsletterScheduler();
+        this.upkeep?.stop();
         this.narrationJobs.abortAll();
         // Clear pending attachment-modify debounce timers (audit H9 — no leaked timers/work
         // after unload). The vault event handlers themselves are auto-unregistered by Obsidian.
@@ -1860,6 +1936,15 @@ export default class AIOrganiserPlugin extends Plugin {
             if (suggestions.applyFolder && suggestions.folder) {
                 const newFolder = suggestions.folder;
 
+                // Protected folders: check the whole footprint (source, destination and the notes whose
+                // links the move rewrites) BEFORE creating anything.
+                const newPath = `${newFolder}/${file.name}`;
+                if (!assertWritable(this.settings, 'rename', [file.path, newPath, { path: newFolder, folder: false }]).ok
+                    || referrersProtectedActive(this.app, file.path)) {
+                    new Notice(this.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
+
                 // Create folder if it doesn't exist
                 const folderExists = this.app.vault.getAbstractFileByPath(newFolder);
                 if (!folderExists) {
@@ -1867,7 +1952,6 @@ export default class AIOrganiserPlugin extends Plugin {
                 }
 
                 // Move file to new folder
-                const newPath = `${newFolder}/${file.name}`;
                 await this.app.fileManager.renameFile(file, newPath);
 
                 // Update reference to the moved file
@@ -1893,6 +1977,11 @@ export default class AIOrganiserPlugin extends Plugin {
                     return;
                 }
 
+                if (!assertWritable(this.settings, 'rename', [currentFile.path, newPath]).ok
+                    || referrersProtectedActive(this.app, currentFile.path)) {
+                    new Notice(this.t.messages.protectedNoteNotModified, 6000);
+                    return;
+                }
                 await this.app.fileManager.renameFile(currentFile, newPath);
 
                 logger.debug('Core', `Renamed file to: ${newPath}`);

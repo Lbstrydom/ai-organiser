@@ -37,6 +37,7 @@ import { cleanMermaidOutput } from '../../services/prompts/diagramPrompts';
 import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { getServiceType, summarizeText, summarizeTextStream, pluginContext } from '../../services/llmFacade';
 
+import { guardActiveNote } from '../../utils/protectedGuard';
 interface ConversationTurn {
     role: 'user' | 'assistant';
     content: string;
@@ -660,6 +661,7 @@ export class MermaidChatModal extends Modal {
             (now - this.lastApplyMs) < MermaidChatModal.COALESCE_WINDOW_MS;
 
         if (withinWindow && this.lastApplyFrom && this.lastApplyTo) {
+            if (!guardActiveNote(this.editor)) return;
             this.editor.replaceRange(newFenceContent, this.lastApplyFrom, this.lastApplyTo);
             this.trackApplyRange(this.lastApplyFrom.line, newFenceContent, now);
             this.changeDetector.captureSnapshot(this.blockFingerprint, this.editor.getValue());
@@ -691,6 +693,7 @@ export class MermaidChatModal extends Modal {
         const resolved = resolveBlockByFingerprint(content, this.blockFingerprint, this.originalStartLine);
         if (!resolved) return false;
 
+        if (!guardActiveNote(this.editor)) return false;
         this.editor.replaceRange(
             newFenceContent,
             { line: resolved.startLine, ch: 0 },
@@ -716,6 +719,7 @@ export class MermaidChatModal extends Modal {
     private insertAtCursor(): void {
         const cursor = this.editor.getCursor();
         const fenceContent = '\n\n```mermaid\n' + this.currentDiagram + '\n```\n\n';
+        if (!guardActiveNote(this.editor)) return;
         this.editor.replaceRange(fenceContent, cursor);
 
         // Track the inserted block so subsequent applies update in-place (not duplicate)

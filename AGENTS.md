@@ -264,6 +264,38 @@ Repo-wide rules that bind *every* subsystem are in
 | Obsidian Bases | Structured frontmatter metadata, migration, dashboards | Changing metadata properties or dashboard templates |
 | Canvas toolkit | Investigation / context / cluster boards as `.canvas` files | Changing layouts or board generation |
 | Find embeds | Vault hygiene scan with reference counts and orphan detection | Changing the embed scanner |
+| Protected folders | User-chosen folders the plugin never modifies; one guard at every write seam | Adding any code that writes, renames, trashes or creates anywhere |
+| Attachment helper | Canvas-aware scan, large-file and duplicate views, suggest-a-home, safe trash (extends Find embeds) | Changing trash eligibility or the results modal |
+| Setup kit | Guided setup modal, status row, folder list editor, friendly errors, shared by every opt-in feature | Adding a feature that needs first-run setup |
+| Agent index | Deterministic, privacy-scoped JSONL note index for AI coding tools (no LLM, no network), signed recoverable publication, pasteable agent instructions | Changing the index projection, scope rules or publication |
+
+### [Drive Folder Inventory](docs/features/cloud-inventory.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Drive folder inventory | Read-only listing of user-approved Drive folders into an owned, marker-delimited block in a vault note, via the user's own Apps Script | Changing the script template, the block format or refresh |
+| Drive large-file offload | Desktop-only move of a large file into Drive for desktop, typed link rewrites, signed resumable journal, destructive commit barrier before the trash | Touching offload steps, the canvas write port or anything that trashes after a rewrite |
+| Apps Script client | Shared `appsScriptClient.ts`: endpoint validation, secret-in-body POST, bounded retries, stable error codes | Adding any call to a user-owned Apps Script |
+
+### [Inbox Sweep & Google Tasks](docs/features/inbox-sweep.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Inbox sweep | Pre-LLM fail-closed exclusion guard, evidence-verified extraction, review-first approval, durable outbox and owned report sections | Changing what may reach the model, the prompt, or the commit order |
+| Google Tasks export | One-way, idempotent export of approved tasks through the user's own script locked to one list | Changing the script template, the export batches or the setup bootstrap |
+
+### [Vault Upkeep](docs/features/vault-upkeep.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Vault upkeep sweep | Optional single-flight scheduler that proposes (stale index, differing Drive inventories, attachment findings); runs never write a note | Changing the scheduler, the tasks, the review, or anything that could write during a run |
+
+### [Agent Connectors](docs/features/agent-connectors.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Connect an AI app | Guides for Claude Desktop, Codex and command-line agents that state what each route enforces; a chat-project vault map built from the index scope; the plugin never edits another app's config | Changing a guide, a snippet, the export, or any claim about what is enforced |
+| Read-only connector | A dependency-free local MCP server (both protocol eras) that serves only notes inside the index scope; scope read per request and fail-closed; revocation published and verified; `.mcpb` bundle for Claude Desktop, file plus TOML for Codex | Touching the server source (**mirror any change to `isInIndexScope`**), the scope publisher, containment, or the bundle |
 
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 
@@ -334,6 +366,14 @@ a silent failure gets shipped.
   cannot do.
 - **Every Azure egress is paced** through the per-deployment pacer, and the lease is held
   only for the in-flight request — never across a backoff.
+- **Every write that can touch a user note honours protected folders** (`src/core/protectedPaths.ts`):
+  call `assertWritable` / `assertWritableActive` / `guardActiveNote` before the write, or confine
+  the write to a plugin output root. `tests/protectedWriteSites.test.ts` fails on any unclassified
+  write-API call site, so a new site must be added to its manifest with a class and a reason.
+  -> [vault-tools](docs/features/vault-tools.md)
+- **A user-facing failure says what to do next.** Return a stable code and add it to
+  `GUIDANCE_CODES` (`src/core/friendlyErrors.ts`); the compiler then requires its two-sentence
+  English guidance. Never show a raw code or exception text. -> [vault-tools](docs/features/vault-tools.md)
 
 **Rendering and caching**
 - **New slide CSS must have its CSSOM *longhands* allowlisted** in

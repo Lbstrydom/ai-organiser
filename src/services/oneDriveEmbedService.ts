@@ -17,6 +17,7 @@ import { ensureFolderExists, getAvailableFilePath, sanitizeFileName } from '../u
 import { logger } from '../utils/logger';
 import { Result, ok, err } from '../core/result';
 import type { OneDriveEmbedMarker } from '../ui/utils/oneDriveLinkUtils';
+import { assertWritableActive } from '../core/protectedPaths';
 
 /** 25 MB — matches this codebase's existing "large attachment" ceiling
  *  (Kindle/audio-compression conventions); above it, callers should fall
@@ -65,9 +66,12 @@ export async function copyOneDriveFileIntoVault(app: App, absolutePath: string):
     }
 
     const fileName = sanitizeFileName(absolutePath.split(/[\\/]/).pop() ?? 'file');
+    // Protected folders: refuse before any folder or file is created.
+    if (!assertWritableActive('create', `${ONEDRIVE_EMBED_FOLDER}/${fileName}`).ok) return err('protected-path');
     try {
         await ensureFolderExists(app.vault, ONEDRIVE_EMBED_FOLDER);
         const vaultPath = await getAvailableFilePath(app.vault, ONEDRIVE_EMBED_FOLDER, fileName);
+        if (!assertWritableActive('create', vaultPath).ok) return err('protected-path');
         await app.vault.createBinary(vaultPath, bytes);
         return ok({ vaultPath: normalizePath(vaultPath), mtimeMs: stat.mtimeMs });
     } catch (error) {
@@ -119,6 +123,7 @@ export async function refreshOneDriveEmbed(app: App, stale: StaleOneDriveEmbed):
 
     let bytes: ArrayBuffer;
     try {
+        if (fs.statSync(stale.marker.source).size > ONEDRIVE_EMBED_MAX_BYTES) return err('too-large');
         const buf = fs.readFileSync(stale.marker.source);
         bytes = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
     } catch (error) {
@@ -128,6 +133,7 @@ export async function refreshOneDriveEmbed(app: App, stale: StaleOneDriveEmbed):
 
     const vaultFile = app.vault.getAbstractFileByPath(stale.marker.vaultPath);
     if (!(vaultFile instanceof TFile)) return err('vault-copy-missing');
+    if (!assertWritableActive('modify', vaultFile.path).ok) return err('protected-path');
 
     try {
         await app.vault.modifyBinary(vaultFile, bytes);

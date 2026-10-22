@@ -13,6 +13,8 @@ import { App, TFile, Platform } from 'obsidian';
 import { desktopRequire, getFs, getPath, getOs } from '../utils/desktopRequire';
 import { MAX_FILE_SIZE_BYTES, formatFileSize } from './audioTranscriptionService';
 import { getAvailableFilePath } from '../utils/minutesUtils';
+import { assertWritableActive } from '../core/protectedPaths';
+import { referrersProtectedActive } from '../utils/protectedGuard';
 
 // Desktop-only Node modules. This service only runs on desktop (FFmpeg subprocess
 // via child_process). All access is guarded via the helpers below.
@@ -468,6 +470,7 @@ export async function replaceAudioFile(
     targetExtension: string
 ): Promise<AudioReplaceResult> {
     const oldPath = originalFile.path;
+    if (!assertWritableActive('modify', oldPath).ok || referrersProtectedActive(app, oldPath)) throw new Error('protected-path');
 
     // 1. Write compressed bytes to the original file (exact-slice to avoid subarray corruption)
     const exactBuffer = compressedData.buffer.slice(

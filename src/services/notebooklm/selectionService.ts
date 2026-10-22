@@ -10,6 +10,7 @@
 import { App, TFile } from 'obsidian';
 import { SelectionResult } from './types';
 import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
+import { assertWritableActive } from '../../core/protectedPaths';
 
 /**
  * Service for selecting notes for NotebookLM export
@@ -103,8 +104,11 @@ export class SelectionService {
      */
     async toggleSelection(file: TFile): Promise<boolean> {
         const hasSelectionTag = await this.hasTag(file, this.selectionTag);
+        // Protected folders: leave the note untouched; report its current state.
+        if (!assertWritableActive('modify', file.path).ok) return hasSelectionTag;
 
         await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+            if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
             // Initialize tags array if needed
             if (!frontmatter.tags) {
                 frontmatter.tags = [];
@@ -138,9 +142,12 @@ export class SelectionService {
      * Clear selection tag from files
      * @param files Files to clear tag from
      */
-    async clearSelection(files: TFile[]): Promise<void> {
+    async clearSelection(files: TFile[]): Promise<{ skippedProtected: string[] }> {
+        const skippedProtected: string[] = [];
         for (const file of files) {
+            if (!assertWritableActive('modify', file.path).ok) { skippedProtected.push(file.path); continue; }
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
                 if (frontmatter.tags) {
                     if (typeof frontmatter.tags === 'string') {
                         frontmatter.tags = [frontmatter.tags];
@@ -156,6 +163,7 @@ export class SelectionService {
                 }
             });
         }
+        return { skippedProtected };
     }
 
     /**
@@ -164,12 +172,15 @@ export class SelectionService {
      * @param packId Pack ID to add to metadata
      * @param revision Revision number
      */
-    async archiveSelection(files: TFile[], packId: string, revision: number): Promise<void> {
+    async archiveSelection(files: TFile[], packId: string, revision: number): Promise<{ skippedProtected: string[] }> {
         const archiveTag = 'notebooklm/exported';
         const exportDate = new Date().toISOString();
+        const skippedProtected: string[] = [];
 
         for (const file of files) {
+            if (!assertWritableActive('modify', file.path).ok) { skippedProtected.push(file.path); continue; }
             await this.app.fileManager.processFrontMatter(file, (frontmatter) => {
+                if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
                 // Replace selection tag with archive tag
                 if (frontmatter.tags) {
                     if (typeof frontmatter.tags === 'string') {
@@ -191,6 +202,7 @@ export class SelectionService {
                 frontmatter.notebooklm_exported_at = exportDate;
             });
         }
+        return { skippedProtected };
     }
 
     /**

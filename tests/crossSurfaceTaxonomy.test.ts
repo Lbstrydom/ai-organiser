@@ -114,7 +114,7 @@ describe('cross-surface taxonomy — declared divergences only (no un-mirrored h
         const groups = projectSettingsGroups(FEATURE_REGISTRY);
         const integ = groups.find(g => g.groupKind === 'integrations');
         const integIds = (integ?.features ?? []).map(f => f.id).sort();
-        expect(integIds).toEqual(['kindle', 'newsletter']);
+        expect(integIds).toEqual(['cloud-inventory', 'google-tasks-export', 'kindle', 'newsletter']);
         // The local tools must NOT float, even though they relate to external products.
         for (const id of ['bases', 'notebooklm'] as const) {
             expect((FEATURE_BY_ID[id].boundary ?? []).includes('external-account')).toBe(false);

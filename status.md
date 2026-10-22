@@ -1,5 +1,22 @@
 # Project Status Log
 
+
+## 2026-10-22 — Vault hygiene, agent index and connectors (protected folders, attachment helper, Drive inventory/offload, inbox sweep, upkeep, agent connectors)
+
+Built autonomously on `claude/xenodochial-kapitsa-9777fb` from an audited plan (GPT plan audit 3 rounds + Gemini 2; per-cluster GPT code audits; consolidated Gemini gates). Every capability is default-off and byte-identical when off; folders are user-chosen and nothing assumes PARA.
+
+- **Guard**: opt-in staged-file guard + hook installer (`scripts/check-private-staged.mjs`, `scripts/install-private-hook.mjs`); `.vault-private/` gitignored.
+- **F1 Protected folders** + setup kit; a write-site test fails on any unclassified plugin write path.
+- **F2 Attachment helper** (extends Find embeds): canvas-aware references, sizes, opt-in duplicates, suggest a home note, one-click link, trash eligibility re-validated at confirmation.
+- **F3 Agent index** and **F4 Drive folder inventory** (owned-block hub notes, user-deployed Apps Script).
+- **F5 Drive large-file offload** (desktop-only, journalled, md5-verified). **F6 Inbox sweep + one-way Google Tasks export** (excluded/corporate guard before any LLM call).
+- **Vault upkeep sweep**: interval or manual run that proposes changes; agent instructions target `AGENTS.md`.
+- **Agent connectors**: guided Claude Desktop / Codex / CLI setup, chat-project export, and a dependency-free read-only scoped MCP server with a `.mcpb` bundle and Codex config.
+- Docs: `docs/features/{vault-tools,cloud-inventory,inbox-sweep,vault-upkeep,agent-connectors}.md`.
+
+Verified (by the build session, not re-run here): 7,726 tests, lint, build, verify:build and the context-drift check pass. Final Gemini gate approved with no findings but saw only part of the 202-file diff. Coordinator scan of the whole diff found no personal or vault-derived content. Not verified: any of this in a real Obsidian session or on Android; connector setup steps for Claude Desktop and Codex are from current docs per the build session, untested on a live install. Regression-lock nudge: 103 audited code fixes have no recorded lock spec (covered by unit tests, not recorded as locks).
+Backlog: unremediated acceptances 0 · persona UX gate silent (no sessions for this repo).
+
 ## 2026-10-06 — Azure API Management gateway advice (released as 1.0.30)
 
 Field-caught 2026-10-05: a colleague set the OpenAI endpoint to an APIM host

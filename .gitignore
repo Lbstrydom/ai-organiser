@@ -67,6 +67,10 @@ scripts/*
 !scripts/setImmediatePolyfillSignature.d.mts
 !scripts/jspdfPdfObjectNeutraliser.mjs
 !scripts/jspdfPdfObjectNeutraliser.d.mts
+!scripts/check-private-staged.mjs
+!scripts/check-private-staged.d.mts
+!scripts/install-private-hook.mjs
+!scripts/install-private-hook.d.mts
 !scripts/check-version-bump.mjs
 !scripts/check-version-bump.d.mts
 .github/skills/
@@ -183,3 +187,6 @@ deploy.local.json
 
 # ad hoc analysis reports — never committed, any repo
 docs/ibm-fs-*.md
+
+# Private vault-derived artefacts (never committed; see scripts/check-private-staged.mjs)
+.vault-private/

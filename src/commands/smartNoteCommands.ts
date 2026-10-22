@@ -31,6 +31,8 @@ import { withProgress } from '../services/progress';
 
 
 
+import { guardActiveNote } from '../utils/protectedGuard';
+import { assertWritableActive } from '../core/protectedPaths';
 export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
 
     // Command: Enhance note (action menu)
@@ -275,6 +277,7 @@ async function generateMermaidDiagram(
     const cleanedDiagram = cleanMermaidOutput(r.value!);
     const wrappedDiagram = wrapInCodeFence(cleanedDiagram);
     const cursor = editor.getCursor();
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange('\n\n' + wrappedDiagram + '\n\n', cursor);
     ensureNoteStructureIfEnabled(editor, plugin.settings);
     new Notice(t.messages.diagramGenerated, 3000);
@@ -391,6 +394,10 @@ async function applyImprovement(
             const baseName = file?.basename || 'Note';
             const fileName = `${baseName} (improved).md`;
             const safePath = await getAvailableFilePath(plugin.app.vault, folder, fileName);
+            if (!assertWritableActive('create', safePath).ok) {
+                new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+                break;
+            }
             const newContent = frontmatter + content;
             const newFile = await plugin.app.vault.create(safePath, newContent);
             await plugin.app.workspace.getLeaf(true).openFile(newFile);

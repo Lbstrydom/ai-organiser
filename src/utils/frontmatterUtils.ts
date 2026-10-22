@@ -6,6 +6,7 @@
 import { App, TFile } from 'obsidian';
 import { AIO_META, SUMMARY_HOOK_MAX_LENGTH, ContentType, StatusValue, SourceType } from '../core/constants';
 import { logger } from './logger';
+import { assertWritableActive } from '../core/protectedPaths';
 
 /**
  * AI Organiser metadata structure
@@ -33,10 +34,14 @@ export async function updateAIOMetadata(
     file: TFile,
     metadata: Partial<AIOMetadata>
 ): Promise<boolean> {
+    // Protected folders: never write metadata into a protected note (counted as "not updated").
+    if (!assertWritableActive('modify', file.path).ok) return false;
     try {
         // Use Obsidian's processFrontMatter API which properly syncs with editor
         // This avoids race conditions with vault.read() missing unsaved editor changes
         await app.fileManager.processFrontMatter(file, (frontmatter) => {
+            // Decide again at the mutation, against the file's current path (it may have moved meanwhile).
+            if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
             // Merge new AIO metadata with existing frontmatter
             for (const [key, value] of Object.entries(metadata)) {
                 if (value !== undefined && value !== null) {

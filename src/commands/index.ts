@@ -26,6 +26,12 @@ import { registerQuickPeekCommands } from './quickPeekCommands';
 import { registerNewsletterCommands } from './newsletterCommands';
 import { registerAudioNarrationCommands } from './audioNarrationCommands';
 import { registerOneDriveLinkCommands } from './oneDriveLinkCommands';
+import { registerAgentIndexCommands } from './agentIndexCommands';
+import { registerCloudInventoryCommands } from './cloudInventoryCommands';
+import { registerOffloadCommands } from './offloadCommands';
+import { registerUpkeepCommands } from './upkeepCommands';
+import { registerAgentConnectorCommands } from './agentConnectorCommands';
+import { registerGoogleTasksCommands, registerInboxSweepCommands } from './inboxSweepCommands';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -69,6 +75,13 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     'audio-narration': [registerAudioNarrationCommands],
     'mermaid-chat': [registerMermaidChatCommand],
     'onedrive-link': [registerOneDriveLinkCommands],
+    'agent-index': [registerAgentIndexCommands],
+    'cloud-inventory': [registerCloudInventoryCommands],
+    'cloud-offload': [registerOffloadCommands],
+    'vault-upkeep': [registerUpkeepCommands],
+    'agent-connectors': [registerAgentConnectorCommands],
+    'inbox-sweep': [registerInboxSweepCommands],
+    'google-tasks-export': [registerGoogleTasksCommands],
 };
 
 /**

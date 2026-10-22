@@ -15,6 +15,7 @@ import { removeProcessedSources } from '../../utils/sourceDetection';
 import { insertOrReplaceQuickPeekSection } from '../../utils/editorUtils';
 import { openQuickPeekFullSummary } from '../../commands/summarizeCommands';
 
+import { guardActiveNote } from '../../utils/protectedGuard';
 type Phase = 'detecting' | 'extracting' | 'triaging' | 'done';
 
 const CONTENT_TYPE_ICON: Record<string, string> = {
@@ -289,6 +290,7 @@ export class QuickPeekModal extends Modal {
         const urls = source.detected.isExternal ? [source.detected.url] : [];
         const vaultFiles = source.detected.isExternal ? undefined : [source.detected.url];
         const cleaned = removeProcessedSources(originalContent, urls, vaultFiles);
+        if (!guardActiveNote(this.editor)) return;
         this.editor.setValue(cleaned);
 
         // Prune from sources so Insert All Peeks doesn't re-insert removed items
@@ -300,6 +302,7 @@ export class QuickPeekModal extends Modal {
         // 5s undo notice
         const notice = new Notice('Source removed. Click to undo.', 5000);
         notice.messageEl.addEventListener('click', () => {
+            if (!guardActiveNote(this.editor)) return;
             this.editor.setValue(originalContent);
             notice.hide();
         });

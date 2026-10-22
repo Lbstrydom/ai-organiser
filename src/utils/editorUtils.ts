@@ -1,5 +1,6 @@
 import { Editor } from 'obsidian';
 
+import { guardActiveNote } from './protectedGuard';
 /**
  * Low-level editor insertion helpers.
  *
@@ -16,6 +17,7 @@ import { Editor } from 'obsidian';
 export function insertAtCursor(editor: Editor, content: string): void {
     const cursor = editor.getCursor();
     const padded = `\n\n${content}\n`;
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange(padded, cursor);
 }
 
@@ -40,6 +42,7 @@ export function appendAsNewSections(editor: Editor, content: string): void {
     const fullText = editor.getValue();
     const insertPos = findAppendSectionOffset(fullText);
     const padded = `\n\n${content}\n`;
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange(padded, editor.offsetToPos(insertPos));
 }
 
@@ -54,6 +57,7 @@ export function insertOrReplaceQuickPeekSection(editor: Editor, newSection: stri
     if (headMatch) {
         const from = editor.offsetToPos(0);
         const to = editor.offsetToPos(headMatch[0].length);
+        if (!guardActiveNote(editor)) return;
         editor.replaceRange(newSection, from, to);
         return;
     }
@@ -64,5 +68,6 @@ export function insertOrReplaceQuickPeekSection(editor: Editor, newSection: stri
     }
     const from = editor.offsetToPos(midMatch.index);
     const to = editor.offsetToPos(midMatch.index + midMatch[0].length);
+    if (!guardActiveNote(editor)) return;
     editor.replaceRange('\n' + newSection, from, to);
 }
