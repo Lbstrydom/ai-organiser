@@ -303,9 +303,11 @@ export function collectOccurrences(
                 if (isExternalUrl(raw.path)) continue;
                 const normalized = normalizeEmbedPath(raw.path);
                 if (!normalized || !pointsAtNonMarkdown(normalized)) continue;
-                const occ: StoredOccurrence = { referrerPath, kind: 'canvas', linktext: normalized, lineNumber: 0 };
+                // A link inside a text node follows Markdown link rules (relative to the canvas), not the
+                // vault-path rule of a file node, so it is recorded as a markdown-style reference.
+                const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, lineNumber: 0 };
                 occurrences.push(occ);
-                embedded.set(occ, { path: normalized, lineNumber: 0, isEmbedded: raw.isEmbedded, originalText: 'text node' });
+                embedded.set(occ, { path: normalized, lineNumber: 0, isEmbedded: raw.isEmbedded, originalText: 'canvas text node' });
             }
         }
         return { occurrences, embedded };
@@ -406,7 +408,7 @@ export async function scanNotes(
 
             // Resolve to a vault file. A canvas node holds a vault-relative path.
             let resolved: TFile | null;
-            if (isCanvas) {
+            if (occ.kind === 'canvas') {
                 const direct = app.vault.getAbstractFileByPath(normalized);
                 resolved = direct instanceof TFile ? direct : app.metadataCache.getFirstLinkpathDest(normalized, sourceFile.path);
             } else {
@@ -420,7 +422,7 @@ export async function scanNotes(
             occurrences.push(occ);
 
             const candidates = candidatesFor(normalized);
-            const isAmbiguous = !isCanvas && candidates.length > 1;
+            const isAmbiguous = occ.kind === 'markdown' && candidates.length > 1;
             if (isAmbiguous) for (const c of candidates) ambiguous.add(c);
 
             const mapKey = resolved ? resolved.path : normalized.toLowerCase();
@@ -444,9 +446,9 @@ export async function scanNotes(
                 sourceFile,
                 lineNumber: raw.lineNumber,
                 isEmbedded: raw.isEmbedded,
-                originalText: isCanvas ? `canvas node ${raw.originalText}` : raw.originalText,
-                kind: isCanvas ? 'canvas' : 'markdown',
-                nodeId: isCanvas ? raw.originalText : undefined,
+                originalText: occ.kind === 'canvas' ? `canvas node ${raw.originalText}` : raw.originalText,
+                kind: occ.kind,
+                nodeId: occ.kind === 'canvas' ? raw.originalText : undefined,
             });
         }
 

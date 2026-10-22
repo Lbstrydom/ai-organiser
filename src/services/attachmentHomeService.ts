@@ -219,19 +219,20 @@ export function nonBodyLines(lines: readonly string[]): boolean[] {
     return out;
 }
 
-/** True when the last line is still inside an open fenced code block. */
-function endsInsideFence(lines: readonly string[]): boolean {
+/** Index of the line that opens a fence which is never closed, or -1 when every fence is closed. */
+function unterminatedFenceStart(lines: readonly string[]): number {
     let fence: { ch: string; len: number } | null = null;
+    let openedAt = -1;
     const start = lines.length > 0 && lines[0].trim() === '---' ? lines.findIndex((l, i) => i > 0 && (l.trim() === '---' || l.trim() === '...')) + 1 : 0;
     for (let i = Math.max(0, start); i < lines.length; i++) {
         const m = lines[i].match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
         if (!fence) {
-            if (m && !(m[1][0] === '`' && m[2].includes('`'))) fence = { ch: m[1][0], len: m[1].length };
+            if (m && !(m[1][0] === '`' && m[2].includes('`'))) { fence = { ch: m[1][0], len: m[1].length }; openedAt = i; }
             continue;
         }
         if (m && m[1][0] === fence.ch && m[1].length >= fence.len && m[2].trim() === '') fence = null;
     }
-    return fence !== null;
+    return fence !== null ? openedAt : -1;
 }
 
 /** Link text of every wiki link or embed in `text` (alias and subpath removed), outside code and frontmatter. */
@@ -242,7 +243,7 @@ function wikiLinkTargets(text: string): string[] {
     for (let i = 0; i < lines.length; i++) {
         if (skip[i]) continue;
         // Inline code spans are not links.
-        const visible = lines[i].replace(/(`+)[^`]*?\1/g, '');
+        const visible = lines[i].replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, '');
         for (const m of visible.matchAll(/!?\[\[([^\]]+)\]\]/g)) {
             targets.push(m[1].split('|')[0].split('#')[0].trim());
         }
@@ -280,12 +281,13 @@ export function appendAttachmentLink(
     const lines = current.split('\n');
     // Headings inside frontmatter or fenced code blocks are not headings.
     const fencedLine = nonBodyLines(lines);
-    // A fence that never closes swallows the rest of the note: appending there would put the link
-    // inside the code block, so refuse rather than write something that does not read as a link.
-    if (lines.length > 0 && endsInsideFence(lines)) return err('link-failed');
+    // A fence that never closes swallows the rest of the note. Inserting before it is fine; inserting
+    // at or after it would put the link inside the code block, so that case is refused.
+    const openFence = unterminatedFenceStart(lines);
     const headingRe = new RegExp(`^(#{1,6})\\s+${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*#*\\s*$`, 'i');
     const start = lines.findIndex((l, i) => !fencedLine[i] && headingRe.test(l));
     if (start === -1) {
+        if (openFence !== -1) return err('link-failed'); // a new section at the end would land inside the open fence
         const body = current.replace(/\s+$/, '');
         const prefix = body === '' ? '' : body + '\n\n';
         return ok({ content: `${prefix}## ${heading}\n${link}\n`, info: 'heading-created' });
@@ -300,6 +302,11 @@ export function appendAttachmentLink(
     // Insert after the last non-blank line of the section.
     let insertAt = end;
     while (insertAt > start + 1 && lines[insertAt - 1].trim() === '') insertAt--;
+    if (openFence !== -1 && insertAt > openFence) {
+        // The section runs into the unclosed fence: put the link just above it, after the last body line.
+        insertAt = openFence;
+        while (insertAt > start + 1 && lines[insertAt - 1].trim() === '') insertAt--;
+    }
     lines.splice(insertAt, 0, link);
     return ok({ content: lines.join('\n') });
 }

@@ -87,6 +87,8 @@ export interface ReferrerInfo {
 export interface AttachmentVaultPort {
     /** Called at the start of every revalidation attempt: drop anything cached from an earlier one. */
     beginAttempt?(): void;
+    /** A value that changes whenever a file is added, removed or renamed anywhere in the vault. */
+    namespaceSignature?(): string;
     isResolved(): boolean;
     /** Wait up to `timeoutMs` for Obsidian's link index to settle. Resolves false on timeout. */
     waitResolved(timeoutMs: number): Promise<boolean>;
@@ -147,9 +149,9 @@ export async function revalidate(
         port.beginAttempt?.();
         const ready = port.isResolved() || (await port.waitResolved(input.waitMs ?? 5000));
         if (!ready) return err('metadata-not-ready');
-        const before = referrerSignature(port.listReferrers());
+        const before = referrerSignature(port.listReferrers()) + (port.namespaceSignature?.() ?? '');
         const built = await buildEligibility(port, input);
-        if (referrerSignature(port.listReferrers()) === before) return ok(built);
+        if (referrerSignature(port.listReferrers()) + (port.namespaceSignature?.() ?? '') === before) return ok(built);
     }
     return err('scan-out-of-date');
 }
@@ -244,6 +246,7 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
     };
     return {
         beginAttempt: () => { index = null; },
+        namespaceSignature: () => app.vault.getFiles().map((f) => f.path).sort().join('\u0001'),
         isResolved: () => (app.metadataCache as unknown as { resolved?: boolean }).resolved !== false,
         waitResolved: (timeoutMs) =>
             new Promise<boolean>((resolve) => {

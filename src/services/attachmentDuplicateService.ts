@@ -87,7 +87,9 @@ export async function analyseDuplicates(
     let hashed = 0;
     let cancelled = false;
     let next = 0;
-    const concurrency = Math.max(1, options.concurrency ?? 2);
+    // Only a finite positive integer is honoured; anything else (NaN, 0, negative) uses the default.
+    const requested = options.concurrency;
+    const concurrency = typeof requested === 'number' && Number.isFinite(requested) && requested >= 1 ? Math.floor(requested) : 2;
 
     const worker = async (): Promise<void> => {
         for (;;) {

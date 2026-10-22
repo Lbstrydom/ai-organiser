@@ -92,7 +92,9 @@ describe('canvas text nodes', () => {
 	it('counts a link inside a text node as a reference to the file', () => {
 		const { occurrences } = collectOccurrences('Board.canvas', 'canvas', canvas);
 		expect(occurrences.map((o) => o.linktext).sort()).toEqual(['Docs/report.pdf', 'Docs/spec.docx', 'img/pic.png']);
-		expect(occurrences.every((o) => o.kind === 'canvas')).toBe(true);
+		// file nodes use vault-path rules; links in text nodes follow Markdown link rules
+		expect(occurrences.filter((o) => o.kind === 'canvas').map((o) => o.linktext)).toEqual(['Docs/spec.docx']);
+		expect(occurrences.filter((o) => o.kind === 'markdown').map((o) => o.linktext).sort()).toEqual(['Docs/report.pdf', 'img/pic.png']);
 	});
 });
 

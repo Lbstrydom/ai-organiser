@@ -22,6 +22,8 @@ export class SetupFlow {
     private finished = false;
     private cancelledFlag = false;
     private finishing = false;
+    /** True only while onFinish runs; cancelling is possible up to that moment. */
+    private persisting = false;
 
     constructor(
         private readonly steps: readonly FlowStep[],
@@ -37,6 +39,8 @@ export class SetupFlow {
     get isLast(): boolean { return this.index === this.steps.length - 1; }
     get isFinished(): boolean { return this.finished; }
     get isCancelled(): boolean { return this.cancelledFlag; }
+    /** True while the save is in flight; closing the dialog at this point does not cancel it. */
+    get isFinishing(): boolean { return this.persisting; }
 
     /** Advance after validating the current step. Stays put and returns the error on failure. */
     async next(): Promise<Result<void>> {
@@ -62,10 +66,13 @@ export class SetupFlow {
             // Closing the dialog while validation was pending must still stop the save.
             if (this.cancelledFlag) return err('invalid-state');
             let saved: Result<void>;
+            this.persisting = true;
             try {
                 saved = await this.onFinish();
             } catch {
                 saved = err('write-failed');
+            } finally {
+                this.persisting = false;
             }
             if (saved.ok) this.finished = true;
             return saved;
@@ -76,7 +83,9 @@ export class SetupFlow {
 
     /** Close without saving. After this `finish` refuses. */
     cancel(): void {
-        if (!this.finished) this.cancelledFlag = true;
+        // Once the save has started it is not cancellable: claiming "cancelled" while it completes
+        // would leave the flow and the dialog disagreeing about what was saved.
+        if (!this.finished && !this.persisting) this.cancelledFlag = true;
     }
 
     private async validateCurrent(): Promise<Result<void>> {

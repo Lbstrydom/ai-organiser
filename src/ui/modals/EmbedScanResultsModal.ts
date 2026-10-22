@@ -160,6 +160,8 @@ export class EmbedScanResultsModal extends Modal {
     private closed = false;
     /** Listener disposers for the tools row only; replaced on every progress render. */
     private toolsCleanups: (() => void)[] = [];
+    /** Listeners of the re-rendered regions (rows, banner, toolbar); disposed before every render. */
+    private renderCleanups: (() => void)[] = [];
 
     private filters: FilterState = {
         searchQuery: '',
@@ -431,6 +433,8 @@ export class EmbedScanResultsModal extends Modal {
     // ─── Filter + Sort + Render ──────────────────────────────────────────────
 
     private applyFiltersAndRender(): void {
+        for (const dispose of this.renderCleanups) dispose();
+        this.renderCleanups = [];
         this.updateSummary();
         const filtered = this.getFilteredTargets();
         this.updateStatus(filtered.length);
@@ -498,7 +502,7 @@ export class EmbedScanResultsModal extends Modal {
         selectAllCb.checked = allSelected;
         selectAllCb.indeterminate = someSelected && !allSelected;
         selectAllCb.setAttribute('aria-label', allSelected ? embedScan.deselectAll : embedScan.selectAll);
-        this.cleanups.push(listen(selectAllCb, 'change', () => {
+        this.renderCleanups.push(listen(selectAllCb, 'change', () => {
             if (selectAllCb.checked) {
                 for (const p of allVisible) this.selectedPaths.add(p);
             } else {
@@ -601,8 +605,8 @@ export class EmbedScanResultsModal extends Modal {
             }
             this.applyFiltersAndRender();
         };
-        this.cleanups.push(listen(header, 'click', toggleExpand));
-        this.cleanups.push(listen(header, 'keydown', (e) => {
+        this.renderCleanups.push(listen(header, 'click', toggleExpand));
+        this.renderCleanups.push(listen(header, 'keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
                 toggleExpand();
@@ -653,8 +657,8 @@ export class EmbedScanResultsModal extends Modal {
                     void this.app.workspace.openLinkText(data.file.path, '', false);
                     this.close();
                 };
-                this.cleanups.push(listen(refRow, 'click', navigateToRef));
-                this.cleanups.push(listen(refRow, 'keydown', (e) => {
+                this.renderCleanups.push(listen(refRow, 'click', navigateToRef));
+                this.renderCleanups.push(listen(refRow, 'keydown', (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
                         navigateToRef();
@@ -672,7 +676,7 @@ export class EmbedScanResultsModal extends Modal {
                 const openIcon = openBtn.createSpan();
                 setIcon(openIcon, 'external-link');
                 openBtn.prepend(openIcon);
-                this.cleanups.push(listen(openBtn, 'click', (e) => {
+                this.renderCleanups.push(listen(openBtn, 'click', (e) => {
                     e.stopPropagation();
                     void this.app.workspace.openLinkText(target.file!.path, '', false);
                     this.close();
@@ -686,7 +690,7 @@ export class EmbedScanResultsModal extends Modal {
                 const copyIcon = copyBtn.createSpan();
                 setIcon(copyIcon, 'copy');
                 copyBtn.prepend(copyIcon);
-                this.cleanups.push(listen(copyBtn, 'click', (e) => {
+                this.renderCleanups.push(listen(copyBtn, 'click', (e) => {
                     e.stopPropagation();
                     void navigator.clipboard.writeText(target.file!.path);
                     new Notice(embedScan.pathCopied);
@@ -761,8 +765,8 @@ export class EmbedScanResultsModal extends Modal {
                 void this.app.workspace.openLinkText(file.path, '', false);
                 this.close();
             };
-            this.cleanups.push(listen(row, 'click', navigateToOrphan));
-            this.cleanups.push(listen(row, 'keydown', (e) => {
+            this.renderCleanups.push(listen(row, 'click', navigateToOrphan));
+            this.renderCleanups.push(listen(row, 'keydown', (e) => {
                 if (e.key === 'Enter') {
                     e.preventDefault();
                     navigateToOrphan();
@@ -798,7 +802,7 @@ export class EmbedScanResultsModal extends Modal {
             text: allSelected ? embedScan.deselectAll : embedScan.selectAll,
             cls: 'ai-organiser-embed-scan-selection-btn',
         });
-        this.cleanups.push(listen(toggleBtn, 'click', () => {
+        this.renderCleanups.push(listen(toggleBtn, 'click', () => {
             if (allSelected) {
                 for (const p of allVisible) this.selectedPaths.delete(p);
             } else {
@@ -815,7 +819,7 @@ export class EmbedScanResultsModal extends Modal {
         const deleteIcon = deleteBtn.createSpan();
         setIcon(deleteIcon, 'trash-2');
         deleteBtn.prepend(deleteIcon);
-        this.cleanups.push(listen(deleteBtn, 'click', () => this.showDeleteConfirmation()));
+        this.renderCleanups.push(listen(deleteBtn, 'click', () => this.showDeleteConfirmation()));
     }
 
     /** Returns paths of all currently visible (filtered) targets + orphans that have a vault file */
@@ -970,15 +974,15 @@ export class EmbedScanResultsModal extends Modal {
         checkbox.checked = enabled && this.selectedPaths.has(path);
         checkbox.disabled = !enabled;
         checkbox.setAttribute('aria-label', this.t.embedScan.selectFile);
-        this.cleanups.push(listen(checkbox, 'click', (e) => {
+        this.renderCleanups.push(listen(checkbox, 'click', (e) => {
             e.stopPropagation(); // Don't toggle row expand
         }));
-        this.cleanups.push(listen(checkbox, 'keydown', (e) => {
+        this.renderCleanups.push(listen(checkbox, 'keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.stopPropagation(); // Don't trigger row expand/navigate
             }
         }));
-        this.cleanups.push(listen(checkbox, 'change', () => {
+        this.renderCleanups.push(listen(checkbox, 'change', () => {
             if (checkbox.checked) {
                 this.selectedPaths.add(path);
             } else {
@@ -998,7 +1002,8 @@ export class EmbedScanResultsModal extends Modal {
             container.createSpan({ cls: 'ai-organiser-embed-scan-badge large', text: es.largeBadge });
         }
         if (file) {
-            const others = this.duplicateOf.get(file.path);
+            const members = this.duplicateOf.get(file.path);
+            const others = members?.filter((p) => p !== file.path);
             if (others && others.length > 0) {
                 const badge = container.createSpan({ cls: 'ai-organiser-embed-scan-badge duplicate', text: es.duplicateBadge });
                 badge.setAttribute('title', es.duplicateBadgeTitle.replace('{others}', others.join(', ')));
@@ -1030,7 +1035,7 @@ export class EmbedScanResultsModal extends Modal {
         this.bannerEl.createSpan({ text: this.t.embedScan.outOfDate });
         if (this.ctx?.onRescan) {
             const btn = this.bannerEl.createEl('button', { text: this.t.embedScan.scanAgain, attr: { type: 'button' } });
-            this.cleanups.push(listen(btn, 'click', () => {
+            this.renderCleanups.push(listen(btn, 'click', () => {
                 this.close();
                 this.ctx?.onRescan?.();
             }));
@@ -1127,9 +1132,8 @@ export class EmbedScanResultsModal extends Modal {
         this.duplicates = result;
         this.duplicateOf = new Map();
         for (const group of result.groups) {
-            for (const path of group.paths) {
-                this.duplicateOf.set(path, group.paths.filter((p) => p !== path));
-            }
+            // One shared array per group (not one peer list per file); a row removes itself when it needs "the others".
+            for (const path of group.paths) this.duplicateOf.set(path, group.paths);
         }
         this.applyFiltersAndRender();
     }
@@ -1144,7 +1148,7 @@ export class EmbedScanResultsModal extends Modal {
             cls: 'ai-organiser-embed-scan-action-btn',
             attr: { type: 'button', 'aria-label': `${es.suggestHome}: ${file.name}` },
         });
-        this.cleanups.push(listen(btn, 'click', (e) => {
+        this.renderCleanups.push(listen(btn, 'click', (e) => {
             e.stopPropagation();
             void this.loadSuggestion(file);
         }));
@@ -1183,7 +1187,7 @@ export class EmbedScanResultsModal extends Modal {
                 link.setAttribute('title', es.protectedNotLinkable);
                 item.createSpan({ cls: 'ai-organiser-embed-scan-lock', text: es.protectedNotLinkable });
             } else {
-                this.cleanups.push(listen(link, 'click', () => { void this.linkCandidate(file, cand.path, cand.title); }));
+                this.renderCleanups.push(listen(link, 'click', () => { void this.linkCandidate(file, cand.path, cand.title); }));
             }
         }
     }
@@ -1230,6 +1234,8 @@ export class EmbedScanResultsModal extends Modal {
         this.closed = true;
         for (const dispose of this.toolsCleanups) dispose();
         this.toolsCleanups = [];
+        for (const dispose of this.renderCleanups) dispose();
+        this.renderCleanups = [];
         this.duplicateAbort?.abort();
         for (const ref of this.vaultRefs) this.app.vault.offref(ref);
         this.vaultRefs = [];

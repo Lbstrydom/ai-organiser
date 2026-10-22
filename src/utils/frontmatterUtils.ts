@@ -40,6 +40,8 @@ export async function updateAIOMetadata(
         // Use Obsidian's processFrontMatter API which properly syncs with editor
         // This avoids race conditions with vault.read() missing unsaved editor changes
         await app.fileManager.processFrontMatter(file, (frontmatter) => {
+            // Decide again at the mutation, against the file's current path (it may have moved meanwhile).
+            if (!assertWritableActive('modify', file.path).ok) throw new Error('protected-path');
             // Merge new AIO metadata with existing frontmatter
             for (const [key, value] of Object.entries(metadata)) {
                 if (value !== undefined && value !== null) {

@@ -12,6 +12,7 @@ import { Result } from '../../core/result';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { SetupFlow, type FlowStep } from '../setup/setupFlow';
 import { listen } from '../utils/domUtils';
+import { logger } from '../../utils/logger';
 
 export interface GuidedStep extends FlowStep {
     title: string;
@@ -62,9 +63,17 @@ export class GuidedSetupModal extends Modal {
         });
 
         const body = contentEl.createDiv({ cls: 'ai-organiser-setup-body' });
-        await step.render(body);
+        let renderFailed = false;
+        try {
+            await step.render(body);
+        } catch (e) {
+            // A step that fails to draw must leave a usable dialog (Back / Cancel), not a blank one.
+            renderFailed = true;
+            logger.error('Setup', 'Step failed to render', e);
+        }
 
         this.errorEl = contentEl.createDiv({ cls: 'ai-organiser-setup-error', attr: { role: 'alert' } });
+        if (renderFailed) this.showError('validation-failed');
 
         const buttons = contentEl.createDiv({ cls: 'ai-organiser-setup-buttons' });
         if (!this.flow.isFirst) {
@@ -116,7 +125,7 @@ export class GuidedSetupModal extends Modal {
     }
 
     onClose(): void {
-        if (!this.flow.isFinished) {
+        if (!this.flow.isFinished && !this.flow.isFinishing) {
             this.flow.cancel();
             this.opts.onCancel?.();
         }

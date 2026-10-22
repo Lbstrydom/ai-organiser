@@ -39,17 +39,31 @@ export function outputConflicts(plugin: AIOrganiserPlugin, protectedFolders: rea
  */
 let updateChain: Promise<unknown> = Promise.resolve();
 
-/**
- * Updates run one at a time, so a failed save can only roll back state that is still its own:
- * an overlapping update waits its turn instead of racing it.
- */
-export function applyProtectedFolders(plugin: AIOrganiserPlugin, next: readonly string[]): Promise<Result<void>> {
-    const run = updateChain.then(() => applyProtectedFoldersNow(plugin, next));
+/** Every writer of the protected list (settings, wizard, menu, folder renames) goes through this queue. */
+function enqueueProtectionUpdate<T>(job: () => Promise<T>): Promise<T> {
+    const run = updateChain.then(job);
     updateChain = run.catch(() => undefined);
     return run;
 }
 
-async function applyProtectedFoldersNow(plugin: AIOrganiserPlugin, next: readonly string[]): Promise<Result<void>> {
+/**
+ * Updates run one at a time, so a failed save can only roll back state that is still its own:
+ * an overlapping update waits its turn instead of racing it. `alsoSet` changes other settings in
+ * the SAME save (for example the setup-completed time), so the pair is stored together or not at all.
+ */
+export function applyProtectedFolders(
+    plugin: AIOrganiserPlugin,
+    next: readonly string[],
+    alsoSet?: (settings: AIOrganiserPlugin['settings']) => void,
+): Promise<Result<void>> {
+    return enqueueProtectionUpdate(() => applyProtectedFoldersNow(plugin, next, alsoSet));
+}
+
+async function applyProtectedFoldersNow(
+    plugin: AIOrganiserPlugin,
+    next: readonly string[],
+    alsoSet?: (settings: AIOrganiserPlugin['settings']) => void,
+): Promise<Result<void>> {
     const list = resolveProtectedFolders(next);
     const conflicts = outputConflicts(plugin, list);
     if (conflicts.length > 0) {
@@ -58,11 +72,14 @@ async function applyProtectedFoldersNow(plugin: AIOrganiserPlugin, next: readonl
     // Stage, persist, and put the previous list back if saving fails, so the live settings never
     // claim a protection that was not stored.
     const previous = plugin.settings.protectedFolders;
+    const previousCompleted = { ...plugin.settings.featureSetupCompletedAt };
     plugin.settings.protectedFolders = list;
+    alsoSet?.(plugin.settings);
     try {
         await plugin.saveSettings();
     } catch (e) {
         plugin.settings.protectedFolders = previous;
+        plugin.settings.featureSetupCompletedAt = previousCompleted;
         logger.error('Protected', 'Could not save protected folders', e);
         return err(formatGuidance(describeError(plugin.t, 'write-failed')));
     }
@@ -171,13 +188,14 @@ export function openProtectedFoldersSetup(plugin: AIOrganiserPlugin, onDone?: ()
             },
         ],
         onFinish: async () => {
-            const res = await applyProtectedFolders(plugin, draft);
+            // The list and the completed-setup time are saved together, once.
+            const res = await applyProtectedFolders(plugin, draft, (settings) => {
+                settings.featureSetupCompletedAt['protected-folders'] = new Date().toISOString();
+            });
             if (!res.ok) {
                 new Notice(res.error, 8000);
                 return err('output-overlap');
             }
-            plugin.settings.featureSetupCompletedAt['protected-folders'] = new Date().toISOString();
-            await plugin.saveSettings();
             onDone?.();
             return ok(undefined);
         },
@@ -229,10 +247,20 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
 
     plugin.registerEvent(plugin.app.vault.on('rename', (file, oldPath) => {
         if (!(file instanceof TFolder)) return;
-        const res = rewriteOnRename(plugin.settings.protectedFolders, oldPath, file.path);
-        if (!res.changed) return;
-        plugin.settings.protectedFolders = res.list;
-        void plugin.saveSettings();
+        // Protection must follow the folder, so this is not refused for output-folder overlap; it
+        // still waits its turn behind any update in flight and starts from the latest list.
+        void enqueueProtectionUpdate(async () => {
+            const res = rewriteOnRename(plugin.settings.protectedFolders, oldPath, file.path);
+            if (!res.changed) return;
+            const previous = plugin.settings.protectedFolders;
+            plugin.settings.protectedFolders = res.list;
+            try {
+                await plugin.saveSettings();
+            } catch (e) {
+                plugin.settings.protectedFolders = previous;
+                logger.error('Protected', 'Could not save a renamed protected folder', e);
+            }
+        });
     }));
 
     plugin.registerEvent(plugin.app.workspace.on('file-menu', (menu, file) => addMenuItems(plugin, menu, file)));
