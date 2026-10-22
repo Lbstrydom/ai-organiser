@@ -158,14 +158,14 @@ export class OffloadPlanModal extends Modal {
         }
         if (!outcome) { el.empty(); el.createEl('p', { text: this.guidance('write-failed') }); this.addClose(el); return; }
         if (outcome.error) { el.empty(); el.createEl('p', { text: this.guidance(outcome.error) }); this.addClose(el); return; }
-        await this.show(outcome.record, outcome.waiting);
-        // The operation moved on but its progress could not be written down: say so, so a later restart is not a surprise.
-        if (outcome.persistError) this.body().createEl('p', { text: this.guidance(outcome.persistError), cls: 'mod-warning' });
+        await this.show(outcome.record, outcome.waiting, outcome.persistError);
     }
 
-    private async show(record: OffloadRecord, waiting?: AdvanceOutcome['waiting']): Promise<void> {
+    private async show(record: OffloadRecord, waiting?: AdvanceOutcome['waiting'], persistError?: string): Promise<void> {
         const o = this.o;
         const el = this.body();
+        // The operation moved on but its progress could not be written down: say so, so a later restart is not a surprise.
+        if (persistError) el.createEl('p', { text: this.guidance(persistError), cls: 'mod-warning' });
         el.createEl('p', { text: o.stepLabel.replace('{step}', record.step), cls: 'setting-item-description' });
 
         if (record.step === 'done') {
