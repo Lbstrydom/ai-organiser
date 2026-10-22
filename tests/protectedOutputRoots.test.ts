@@ -79,6 +79,16 @@ describe('applyProtectedFolders', () => {
 		expect(plugin.settings.protectedFolders).toEqual([]);
 	});
 
+	it('lets an unrelated change through while an overlap that was already there stays, but still refuses a new one', async () => {
+		plugin = makePlugin({ protectedFolders: ['AI-Organiser', 'Courses/Live'] }); // the first already contains an output root
+		const removed = await applyProtectedFolders(plugin as never, ['AI-Organiser']); // unprotect an unrelated folder
+		expect(removed.ok).toBe(true);
+		expect(plugin.settings.protectedFolders).toEqual(['AI-Organiser']);
+		plugin = makePlugin({ protectedFolders: ['Courses/Live'] });
+		const added = await applyProtectedFolders(plugin as never, ['Courses/Live', 'AI-Organiser']); // a new overlap
+		expect(added.ok).toBe(false);
+	});
+
 	it('saves a disjoint list', async () => {
 		plugin = makePlugin();
 		const res = await applyProtectedFolders(plugin as never, ['Courses/Live']);

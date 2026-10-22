@@ -87,6 +87,21 @@ function replaceRecord(plugin: AIOrganiserPlugin, record: ApprovalRecord): void 
  * failure they are put back, so recovery decisions (which read the live settings) never rest on a
  * checkpoint that was not written.
  */
+/**
+ * What an export changes in a record is the state of its tasks. Merge only that into the record as it is
+ * NOW, so a rename or another commit that touched the same record during the network calls is kept.
+ */
+export function mergeExportStates(current: ApprovalRecord | undefined, incoming: ApprovalRecord): ApprovalRecord {
+    if (!current) return incoming;
+    return {
+        ...current,
+        tasks: current.tasks.map((t) => {
+            const next = incoming.tasks.find((x) => x.id === t.id);
+            return next ? { ...t, state: next.state, error: next.error } : t;
+        }),
+    };
+}
+
 async function saveRecord(plugin: AIOrganiserPlugin, record: ApprovalRecord): Promise<Result<void>> {
     const before = [...plugin.settings.sweepApprovals];
     replaceRecord(plugin, record);
@@ -288,7 +303,7 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
             signal,
             listId: s.tasksListId,
             checkSource: (task) => checkSource(plugin, task.sourcePath, task.sourceHash),
-            persist: (r) => runExclusive(() => saveRecord(plugin, r)),
+            persist: (r) => runExclusive(() => saveRecord(plugin, mergeExportStates(plugin.settings.sweepApprovals.find((x) => x.runId === r.runId), r))),
         });
         total.exported += out.summary.exported;
         total.failed += out.summary.failed;

@@ -24,7 +24,7 @@ import { estimateSweep, runSweep, type NoteProposals, type SweepDeps } from '../
 import { commitReview, repairApprovals, sendApproved, sweepPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
 import { validateReportPath } from '../services/inboxSweep/sweepReport';
-import { guardSnapshot, policyRevisionOf } from '../services/inboxSweep/sweepGuard';
+import { guardSnapshot, policyRevisionOf, propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
 import { buildSnapshot } from '../services/inboxSweep/noteSnapshot';
 import { buildTasksScript } from '../services/inboxSweep/tasksScriptTemplate';
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
@@ -75,6 +75,7 @@ export function sweepBlocker(plugin: AIOrganiserPlugin): string | null {
     if (s.sweepInboxFolders.length === 0) return 'sweep-no-folders';
     const anyExclusion = s.sweepExcludedFolders.length + s.sweepExcludedTags.length + s.sweepExcludedProperties.length + s.sweepExcludedTerms.length > 0;
     if (!anyExclusion && !s.sweepNothingToExclude) return 'sweep-keepout-required';
+    if (!propertiesAreReadable(s.sweepExcludedProperties)) return 'sweep-property-invalid';
     if (!validateReportPath(s.sweepReportPath, s.protectedFolders).ok) return 'sweep-report-invalid';
     if (!plugin.llmService) return 'sweep-no-provider';
     return null;
@@ -196,8 +197,12 @@ export function ensureTasksSecret(plugin: AIOrganiserPlugin): Promise<{ secret: 
     return secretInFlight;
 }
 
+let sendingApproved = false;
+
 export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> {
     const t = plugin.t.inboxSweep;
+    if (sendingApproved) { new Notice(t.alreadyRunning, 5000); return; }
+    sendingApproved = true;
     const ctl = new AbortController();
     const working = cancellableNotice(t.sending, plugin.t.modals.cancel, () => ctl.abort());
     try {
@@ -211,12 +216,15 @@ export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> 
         guidanceNotice(plugin, 'unknown');
     } finally {
         working.hide();
+        sendingApproved = false;
     }
 }
 
 // ─── Guided setup: inbox sweep ──────────────────────────────────────────────
 
 const lines = (text: string): string[] => text.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
+/** One entry per line, commas kept: a property value may contain one. */
+const propertyLines = (text: string): string[] => text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
 
 export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => void): void {
     const t = plugin.t;
@@ -231,7 +239,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
         nothing: s.sweepNothingToExclude,
         report: s.sweepReportPath,
     };
-    const exclusionCount = (): number => draft.excludedFolders.length + lines(draft.tags).length + lines(draft.properties).length + lines(draft.terms).length;
+    const exclusionCount = (): number => draft.excludedFolders.length + lines(draft.tags).length + propertyLines(draft.properties).length + lines(draft.terms).length;
 
     new GuidedSetupModal(plugin.app, t, {
         title: c.wizardTitle,
@@ -255,7 +263,10 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
             {
                 id: 'keepout',
                 title: c.stepKeepOut,
-                validate: () => (exclusionCount() === 0 && !draft.nothing ? err('sweep-keepout-required') : ok(undefined)),
+                validate: () => {
+                    if (!propertiesAreReadable(propertyLines(draft.properties))) return err('sweep-property-invalid');
+                    return exclusionCount() === 0 && !draft.nothing ? err('sweep-keepout-required') : ok(undefined);
+                },
                 render: (el) => {
                     el.createEl('p', { text: c.keepOutHelp });
                     el.createEl('h4', { text: c.keepOutFolders });
@@ -277,7 +288,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
                         ...sweepPolicy(plugin),
                         excludedFolders: draft.excludedFolders,
                         excludedTags: lines(draft.tags),
-                        excludedProperties: lines(draft.properties),
+                        excludedProperties: propertyLines(draft.properties),
                         excludedTerms: lines(draft.terms),
                     };
                     const revision = await policyRevisionOf(policy);
@@ -305,7 +316,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
             };
             const set = {
                 inbox: draft.inbox, excludedFolders: draft.excludedFolders,
-                tags: lines(draft.tags).map((x) => x.replace(/^#/, '')), props: lines(draft.properties), terms: lines(draft.terms),
+                tags: lines(draft.tags).map((x) => x.replace(/^#/, '')), props: propertyLines(draft.properties), terms: lines(draft.terms),
                 nothing: exclusionCount() === 0 && draft.nothing, report: path.value, done: new Date().toISOString(),
             };
             s.sweepInboxFolders = set.inbox;
@@ -451,12 +462,27 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
             },
         ],
         onFinish: async (): Promise<Result<void>> => {
-            s.tasksScriptUrl = draft.url;
-            s.tasksListId = draft.listId;
-            s.tasksListName = listName();
-            s.tasksLastTest = { ok: true, configHash: tasksConfigKey(draft.url, draft.listId), at: new Date().toISOString() };
-            s.featureSetupCompletedAt['google-tasks'] = new Date().toISOString();
-            await plugin.saveSettings();
+            const before = { url: s.tasksScriptUrl, listId: s.tasksListId, listName: s.tasksListName, lastTest: s.tasksLastTest, done: s.featureSetupCompletedAt['google-tasks'] };
+            const set = { url: draft.url, listId: draft.listId, listName: listName(), lastTest: { ok: true as const, configHash: tasksConfigKey(draft.url, draft.listId), at: new Date().toISOString() }, done: new Date().toISOString() };
+            s.tasksScriptUrl = set.url;
+            s.tasksListId = set.listId;
+            s.tasksListName = set.listName;
+            s.tasksLastTest = set.lastTest;
+            s.featureSetupCompletedAt['google-tasks'] = set.done;
+            try {
+                await plugin.saveSettings();
+            } catch (e) {
+                // Not saved: put back only what THIS setup set, and only where nothing else changed it since.
+                logger.error('Sweep', 'Could not save the Google Tasks setup', e);
+                if (s.tasksScriptUrl === set.url) s.tasksScriptUrl = before.url;
+                if (s.tasksListId === set.listId) s.tasksListId = before.listId;
+                if (s.tasksListName === set.listName) s.tasksListName = before.listName;
+                if (s.tasksLastTest === set.lastTest) s.tasksLastTest = before.lastTest;
+                if (s.featureSetupCompletedAt['google-tasks'] === set.done) {
+                    if (before.done === undefined) delete s.featureSetupCompletedAt['google-tasks']; else s.featureSetupCompletedAt['google-tasks'] = before.done;
+                }
+                return err('write-failed');
+            }
             onDone?.();
             return ok(undefined);
         },

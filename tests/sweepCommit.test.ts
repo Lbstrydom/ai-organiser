@@ -322,3 +322,19 @@ describe('settings migration for the sweep', () => {
 		expect(migrateOldSettings(structuredClone(once))).toEqual(once);
 	});
 });
+
+describe('mergeExportStates: an export changes task states and nothing else', () => {
+	it('keeps what changed in the record during the network calls and takes only the task states', async () => {
+		const { mergeExportStates } = await import('../src/services/inboxSweep/sweepCommit');
+		const base = newApproval({ runId: 'run-1', now: 'T', reportPath: 'Report.md', tasks: [
+			{ id: id(1), text: 'a', context: '', sourcePath: 'Inbox/a.md', sourceHash: 'h1', evidence: 'e' },
+			{ id: id(2), text: 'b', context: '', sourcePath: 'Inbox/b.md', sourceHash: 'h2', evidence: 'e' },
+		] as never, dispositions: [] } as never);
+		const exported = { ...base, tasks: base.tasks.map((t, i) => (i === 0 ? { ...t, state: 'exported' as const } : t)) };
+		const renamedMeanwhile = { ...base, tasks: base.tasks.map((t, i) => (i === 1 ? { ...t, sourcePath: 'Moved/b.md' } : t)) };
+		const merged = mergeExportStates(renamedMeanwhile, exported);
+		expect(merged.tasks[0].state).toBe('exported');
+		expect(merged.tasks[1].sourcePath).toBe('Moved/b.md'); // the rename survives
+		expect(mergeExportStates(undefined, exported)).toBe(exported);
+	});
+});

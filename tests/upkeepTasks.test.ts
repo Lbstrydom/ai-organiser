@@ -111,6 +111,15 @@ describe('attachments task', () => {
 		expect(res.ok && res.value.omitted).toBe(30 + 30);
 	});
 
+	it('ends cancelled, not ok, when the run is stopped during the link pass', async () => {
+		let polls = 0;
+		// Not stopped when the link pass starts; stopped by the time it has run.
+		const stoppedLater = ctx({ now: () => (polls++ < 1 ? 0 : 1e12), deadline: 1e6 });
+		const attachments = [{ path: 'F/alpha-beta.pdf', sizeBytes: 1, referenceCount: 0, unreferenced: true }];
+		const res = await runAttachmentsTask(env({ scanAttachments: async () => ok({ attachments, notes: ['N/Alpha beta.md'], duplicates: [] }) }), config, stoppedLater);
+		expect(res).toEqual({ ok: false, error: 'cancelled' });
+	});
+
 	it('passes a failed scan through', async () => {
 		expect(await runAttachmentsTask(env({ scanAttachments: async () => err('scan-incomplete') }), config, ctx())).toEqual({ ok: false, error: 'scan-incomplete' });
 	});

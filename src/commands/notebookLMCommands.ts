@@ -186,8 +186,10 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
 
                 const selectionTag = plugin.settings.notebooklmSelectionTag || 'notebooklm';
 
+                let cleared = 0;
                 for (const file of files) {
                     if (!assertWritable(plugin.settings, 'modify', file.path).ok) continue;
+                    cleared++;
                     await plugin.app.fileManager.processFrontMatter(file, (frontmatter) => {
                         if (frontmatter.tags) {
                             if (typeof frontmatter.tags === 'string') frontmatter.tags = [frontmatter.tags];
@@ -201,7 +203,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
 
                 new Notice(
                     (t.messages?.notebookLMSelectionCleared || 'Cleared selection from {count} notes')
-                        .replace('{count}', String(files.length))
+                        .replace('{count}', String(cleared)) // only the notes actually changed: protected ones were skipped
                 );
                 plugin.updateNotebookLMStatus();
 

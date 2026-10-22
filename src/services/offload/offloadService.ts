@@ -200,7 +200,10 @@ async function rewriteStage(deps: OffloadDeps, start: OffloadRecord): Promise<Ad
         const saved = await save(deps, record);
         if (!saved.ok) return fail(deps, record, saved.error);
     }
-    if (plan.items.some((i) => record.referrers[i.path] !== 'done')) return hold(deps, record, 'referrer-conflict', 'blocked');
+    // Every referrer of the plan counts, including one skipped because it changed after the plan was made:
+    // its link still points at the local file, so the file must not be trashed.
+    const unfinished = record.copy.referrers.some((r) => (record.referrers[r.path] ?? 'pending') !== 'done');
+    if (unfinished) return hold(deps, record, 'referrer-conflict', 'blocked');
     const verified = transition(record, 'verified', deps.now());
     if (!verified.ok) return fail(deps, record, verified.error);
     const saved = await save(deps, verified.value);
@@ -335,7 +338,7 @@ export async function continueOffload(deps: OffloadDeps, record: OffloadRecord):
     }
 }
 
-/** Abandon the operation. Allowed only before any reference was rewritten. */
+/** Abandon the operation. Allowed until the barrier has passed; the local file is never trashed on the way out. */
 export async function abortOffload(deps: OffloadDeps, record: OffloadRecord): Promise<Result<OffloadRecord>> {
     const next = transition(record, 'aborted', deps.now());
     if (!next.ok) return err('invalid-transition');

@@ -171,6 +171,8 @@ function isNonEmpty(value: unknown): boolean {
             return false;
         });
     }
+    // A switch that is off is not a value; any other present value (a number, an object) is.
+    if (typeof value === 'boolean') return value;
     return value !== undefined && value !== null;
 }
 

@@ -61,6 +61,11 @@ function parseProperty(entry: string): { key: string; value: string } | null {
     return key && value ? { key, value } : null;
 }
 
+/** True when every non-blank property entry reads as "key: value". */
+export function propertiesAreReadable(entries: readonly string[]): boolean {
+    return entries.every((e) => e.trim() === '' || parseProperty(e) !== null);
+}
+
 /** The decision, without producing a branded snapshot. Shared by `guardSnapshot` and `recheck`. */
 export function exclusionReason(path: string, text: unknown, policy: SweepPolicy): ExclusionReason | null {
     if (typeof path !== 'string' || normalisePath(path) === '') return 'unknown';
@@ -75,8 +80,11 @@ export function exclusionReason(path: string, text: unknown, policy: SweepPolicy
     const wantedTags = policy.excludedTags.map(normaliseTag).filter(Boolean);
     if (meta.tags.some((tag) => wantedTags.some((w) => tag === w || tag.startsWith(`${w}/`)))) return 'tag';
     for (const entry of policy.excludedProperties) {
+        if (entry.trim() === '') continue;
         const prop = parseProperty(entry);
-        if (!prop) continue;
+        // A keep-out entry that cannot be read must stop the note, not be ignored: ignoring it would send
+        // a note the person meant to keep out.
+        if (!prop) return 'unknown';
         if ((Object.hasOwn(meta.properties, prop.key) ? meta.properties[prop.key] : []).some((v) => v.trim().toLowerCase() === prop.value)) return 'property';
     }
     const lower = text.toLowerCase();

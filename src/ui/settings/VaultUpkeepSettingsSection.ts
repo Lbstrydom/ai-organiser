@@ -1,4 +1,7 @@
-import { Setting, TFolder } from 'obsidian';
+import { Notice, Setting, TFolder } from 'obsidian';
+import { FolderSuggest } from './components/FolderSuggest';
+import { reportPathFor } from '../../services/upkeep/upkeepReport';
+import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
@@ -75,7 +78,17 @@ export class VaultUpkeepSettingsSection extends BaseSettingSection {
         details.createEl('summary', { text: c.advancedTitle });
         new Setting(details).setName(c.autoRefreshName).setDesc(c.autoRefreshDesc).addToggle((tg) => tg.setValue(s.upkeepAutoRefreshIndex).onChange((v) => { s.upkeepAutoRefreshIndex = v; save(); }));
         new Setting(details).setName(c.duplicatesName).setDesc(c.duplicatesDesc).addToggle((tg) => tg.setValue(s.upkeepIncludeDuplicates).onChange((v) => { s.upkeepIncludeDuplicates = v; save(); }));
-        new Setting(details).setName(c.reportFolderName).setDesc(c.reportFolderDesc).addText((tx) => tx.setValue(s.upkeepReportFolder).onChange((v) => { s.upkeepReportFolder = v.trim(); save(); }));
+        new Setting(details).setName(c.reportFolderName).setDesc(c.reportFolderDesc).addText((tx) => {
+            // A folder the report could not be written to is said so when the field is left, not when the report is saved.
+            const check = (): void => {
+                const checked = reportPathFor(s.upkeepReportFolder, s.protectedFolders);
+                if (s.upkeepReportFolder !== '' && !checked.ok) new Notice(formatGuidance(describeError(this.plugin.t, checked.error)), 8000);
+            };
+            const apply = (v: string): void => { s.upkeepReportFolder = v.trim(); save(); };
+            tx.setValue(s.upkeepReportFolder).onChange(apply);
+            new FolderSuggest(this.plugin.app, tx.inputEl, (v) => { apply(v); check(); });
+            tx.inputEl.addEventListener('blur', check);
+        });
         new Setting(details).setName(c.mobileName).setDesc(c.mobileDesc).addToggle((tg) => tg.setValue(s.upkeepRunOnMobile).onChange((v) => { s.upkeepRunOnMobile = v; save(); }));
         new Setting(details).setName(c.capName).addText((tx) => tx.setValue(String(s.upkeepRunCapSeconds)).onChange((v) => {
             const n = Math.floor(Number(v));

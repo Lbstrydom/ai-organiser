@@ -133,3 +133,27 @@ describe('findOccurrences (canvas)', () => {
 
 // keep the type import used
 export type _Unused = Occurrence;
+
+describe('inline code inside a link label or alias', () => {
+	it('keeps the text as written, so a rewrite never turns the label into blanks', () => {
+		const text = 'See [`report` v2](Attachments/Big report.pdf) and [[Attachments/Big report.pdf|the `final` one]] here.';
+		const res = findOccurrences('Notes/a.md', text, 'md', TARGET);
+		if (!res.ok) throw new Error(res.error);
+		const md = res.value.find((o) => o.kind === 'markdown-link');
+		const wiki = res.value.find((o) => o.kind === 'wikilink');
+		expect(md?.original).toBe('[`report` v2](Attachments/Big report.pdf)');
+		expect(md?.display).toBe('`report` v2');
+		expect(wiki?.original).toBe('[[Attachments/Big report.pdf|the `final` one]]');
+		expect(wiki?.display).toBe('the `final` one');
+		// Offsets still point at the whole link in the real text.
+		for (const o of res.value) expect(text.slice(o.start, o.end)).toBe(o.original);
+		const out = applyEdits(text, res.value.map((o) => ({ start: o.start, end: o.end, text: renderLink(o, INFO) })));
+		expect(out).toContain('`report` v2');
+		expect(out).toContain('the `final` one');
+	});
+
+	it('still ignores a link shown inside inline code', () => {
+		const res = findOccurrences('Notes/a.md', 'Write `[[Attachments/Big report.pdf]]` to link it.', 'md', TARGET);
+		expect(res).toEqual({ ok: true, value: [] });
+	});
+});

@@ -41,10 +41,10 @@ describe('step machine', () => {
 		expect(canTransition('copied', 'planned')).toBe(false);
 	});
 
-	it('allows failure from any live step and abort only before a rewrite starts', () => {
+	it('allows failure from any live step and abort until the barrier has passed', () => {
 		expect(canTransition('verified', 'failed')).toBe(true);
-		for (const s of ['planned', 'copied', 'remote-captured', 'rewrite-approved'] as const) expect(canTransition(s, 'aborted')).toBe(true);
-		for (const s of ['rewriting', 'verified', 'trash-pending', 'trashed'] as const) expect(canTransition(s, 'aborted')).toBe(false);
+		for (const s of ['planned', 'copied', 'remote-captured', 'rewrite-approved', 'rewriting'] as const) expect(canTransition(s, 'aborted')).toBe(true);
+		for (const s of ['verified', 'trash-pending', 'trashed'] as const) expect(canTransition(s, 'aborted')).toBe(false);
 	});
 
 	it('treats done, aborted and failed as final', () => {

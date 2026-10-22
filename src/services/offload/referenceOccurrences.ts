@@ -114,16 +114,21 @@ function findInMarkdown(referrerPath: string, text: string, target: ScanTarget):
         const escaped = (index: number): boolean => { let n = 0; for (let k = index - 1; k >= 0 && work[k] === '\\'; k--) n++; return n % 2 === 1; };
         for (const m of work.matchAll(WIKILINK)) {
             if (escaped(m.index ?? 0)) continue;
-            const { link, alias } = splitAlias(m[2]);
+            const { link } = splitAlias(m[2]);
             const { path, subpath } = splitSubpath(link.trim());
             if (path === '' || target.resolve(path, referrerPath) !== target.path) continue;
+            // The masked copy only decides WHERE a link is; the text kept and shown comes from the line itself,
+            // so an alias that contains inline code is not turned into blanks.
+            const at = m.index ?? 0;
+            const innerStart = at + m[1].length + 2;
+            const rawAlias = splitAlias(line.slice(innerStart, innerStart + m[2].length)).alias;
             found.push({
                 referrerPath,
                 kind: m[1] ? 'wikilink-embed' : 'wikilink',
-                start: lineStart + (m.index ?? 0),
-                end: lineStart + (m.index ?? 0) + m[0].length,
-                original: m[0],
-                display: alias?.trim() || undefined,
+                start: lineStart + at,
+                end: lineStart + at + m[0].length,
+                original: line.slice(at, at + m[0].length),
+                display: rawAlias?.trim() || undefined,
                 subpath,
             });
         }
@@ -133,13 +138,15 @@ function findInMarkdown(referrerPath: string, text: string, target: ScanTarget):
             if (EXTERNAL.test(dest)) continue;
             const { path, subpath } = splitSubpath(dest);
             if (path === '' || target.resolve(path, referrerPath) !== target.path) continue;
+            const mdAt = m.index ?? 0;
+            const labelStart = mdAt + m[1].length + 1;
             found.push({
                 referrerPath,
                 kind: m[1] ? 'markdown-embed' : 'markdown-link',
-                start: lineStart + (m.index ?? 0),
-                end: lineStart + (m.index ?? 0) + m[0].length,
-                original: m[0],
-                display: m[2].trim() || undefined,
+                start: lineStart + mdAt,
+                end: lineStart + mdAt + m[0].length,
+                original: line.slice(mdAt, mdAt + m[0].length),
+                display: line.slice(labelStart, labelStart + m[2].length).trim() || undefined,
                 displayIsMarkdown: true,
                 subpath,
             });

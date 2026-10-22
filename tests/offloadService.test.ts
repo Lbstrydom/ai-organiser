@@ -202,11 +202,18 @@ describe('rewrite and recovery', () => {
 		const approved = await approveRewrite(h.deps, adv.record, prep.value.plan, prep.value.changed);
 		if (!approved.ok) throw new Error(approved.error);
 		const out = await continueOffload(h.deps, approved.value);
-		expect(out.record.step).toBe('verified');
-		expect(out.record.blocked).toBe('barrier-referrer-not-done');
+		// A skipped referrer is unfinished work: the operation waits at the rewrite step instead of moving on to a
+		// verified step it can never leave.
+		expect(out.record.step).toBe('rewriting');
+		expect(out.record.blocked).toBe('referrer-conflict');
 		expect(h.trashed).toEqual([]);
 		expect(h.present.has(SRC)).toBe(true);
 		expect(h.vault.get('Notes/a.md')).toBe(NOTE + ' (edited)'); // the newer edit is never overwritten
+		// ... and it can be given up, which leaves the local file and the Drive copy both in place.
+		const stopped = await abortOffload(h.deps, out.record);
+		expect(stopped).toMatchObject({ ok: true, value: { step: 'aborted' } });
+		expect(h.trashed).toEqual([]);
+		expect(h.present.has(SRC)).toBe(true);
 	});
 
 	it('marks a referrer changed between approval and write as a conflict and stops', async () => {
@@ -439,11 +446,11 @@ describe('abort', () => {
 		expect(h.present.has(SRC)).toBe(true);
 	});
 
-	it('is refused once references are being rewritten', async () => {
+	it('is refused once the barrier has passed (verified and later)', async () => {
 		const h = await setup();
 		const approved = await toApproved(h);
 		const out = await continueOffload(h.deps, approved);
-		const verified = out.record.step === 'done' ? { ...out.record, step: 'rewriting' as const } : out.record;
+		const verified = out.record.step === 'done' ? { ...out.record, step: 'verified' as const } : out.record;
 		expect(await abortOffload(h.deps, verified)).toEqual({ ok: false, error: 'invalid-transition' });
 	});
 });

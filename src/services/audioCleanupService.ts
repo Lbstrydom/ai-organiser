@@ -50,8 +50,8 @@ export async function offerPostTranscriptionCleanup(
     // Auto-policies
     if (policy === 'keep-compressed') {
         if (worthCompressing) {
-            await replaceWithCompressed(plugin, file, transcriptionResult);
-            return 'keep-compressed';
+            // Reported as kept-compressed only when the replacement really happened.
+            return (await replaceWithCompressed(plugin, file, transcriptionResult)) ? 'keep-compressed' : 'keep-original';
         }
         return 'keep-original'; // Nothing to compress
     }
@@ -74,7 +74,7 @@ export async function offerPostTranscriptionCleanup(
 
     // Execute the chosen action
     if (choice.action === 'keep-compressed' && worthCompressing) {
-        await replaceWithCompressed(plugin, file, transcriptionResult);
+        if (!(await replaceWithCompressed(plugin, file, transcriptionResult))) return 'keep-original';
     } else if (choice.action === 'delete') {
         if (!(await deleteAudioFile(plugin, file))) return 'keep-original';
     }
@@ -82,16 +82,16 @@ export async function offerPostTranscriptionCleanup(
     return choice.action;
 }
 
-/** Replace an audio file with its compressed version (backlink-safe). */
+/** Replace an audio file with its compressed version (backlink-safe). True only when it was replaced. */
 async function replaceWithCompressed(
     plugin: AIOrganiserPlugin,
     file: TFile,
     transcriptionResult: Pick<TranscriptionResult, 'compressedData' | 'originalSizeBytes'>
-): Promise<void> {
-    if (!transcriptionResult.compressedData) return;
+): Promise<boolean> {
+    if (!transcriptionResult.compressedData) return false;
     if (!assertWritable(plugin.settings, 'modify', file.path).ok) {
         new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
-        return;
+        return false;
     }
 
     try {
@@ -102,9 +102,16 @@ async function replaceWithCompressed(
             ? `${t?.replaceSuccess || 'File replaced'} (${(t?.backlinksMigrated || '{n} backlinks updated').replace('{n}', String(result.backlinksMigrated))})`
             : t?.replaceSuccess || 'File replaced successfully';
         new Notice(msg);
+        return true;
     } catch (err) {
+        // A linking note in a protected folder stops the replacement: say so, and nothing was changed.
+        if (err instanceof Error && err.message === 'protected-path') {
+            new Notice(plugin.t.messages.protectedNoteNotModified, 6000);
+            return false;
+        }
         logger.error('Audio', 'Replace failed:', err);
         new Notice(plugin.t.compression?.replaceFailed || 'Failed to replace file');
+        return false;
     }
 }
 

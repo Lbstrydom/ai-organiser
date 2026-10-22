@@ -201,7 +201,7 @@ export class OffloadPlanModal extends Modal {
         if (!isTerminal(record.step)) {
             const retry = buttons.createEl('button', { text: o.checkAgain, cls: 'mod-cta' });
             this.cleanups.push(listen(retry, 'click', () => { if (!this.busy) void this.run((deps) => continueOffload(deps, record)); }));
-            if (record.step === 'rewrite-approved') this.addStop(buttons, record);
+            if (record.step === 'rewrite-approved' || record.step === 'rewriting') this.addStop(buttons, record);
         }
         const close = buttons.createEl('button', { text: o.resumeLater });
         this.cleanups.push(listen(close, 'click', () => this.close()));

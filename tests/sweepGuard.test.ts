@@ -55,9 +55,11 @@ describe('exclusionReason', () => {
 		expect(exclusionReason('a.md', '---\nkey: [unclosed\n---\nbody', policy())).toBe('unreadable');
 	});
 
-	it('ignores malformed exclusion entries instead of treating them as a match', () => {
-		const p = policy({ excludedProperties: ['no-colon', ': empty', 'key:'], excludedTerms: ['', '   '], excludedTags: ['', '#'] });
-		expect(exclusionReason('a.md', 'plain note', p)).toBeNull();
+	it('ignores blank tag and term entries, but a property entry it cannot read stops the note', () => {
+		expect(exclusionReason('a.md', 'plain note', policy({ excludedTerms: ['', '   '], excludedTags: ['', '#'] }))).toBeNull();
+		for (const bad of ['no-colon', ': empty', 'key:']) {
+			expect(exclusionReason('a.md', 'plain note', policy({ excludedProperties: [bad] })), bad).toBe('unknown');
+		}
 	});
 });
 
@@ -138,5 +140,17 @@ describe('parseSnapshotMetadata', () => {
 	it('flags unreadable frontmatter instead of pretending there is none', () => {
 		expect(parseSnapshotMetadata('---\n: : :\n  bad: [\n---\nx').frontmatterOk).toBe(false);
 		expect(parseSnapshotMetadata('no frontmatter').frontmatterOk).toBe(true);
+	});
+});
+
+describe('a keep-out entry that cannot be read', () => {
+	it('stops the note instead of being skipped', async () => {
+		const { propertiesAreReadable } = await import('../src/services/inboxSweep/sweepGuard');
+		expect(exclusionReason('a.md', 'plain note', policy({ excludedProperties: ['confidential'] }))).toBe('unknown');
+		expect(exclusionReason('a.md', 'plain note', policy({ excludedProperties: ['status:'] }))).toBe('unknown');
+		expect(exclusionReason('a.md', 'plain note', policy({ excludedProperties: ['  ', 'status: private'] }))).toBeNull();
+		expect(propertiesAreReadable(['status: private', 'owner: a, b', ''])).toBe(true);
+		expect(propertiesAreReadable(['confidential'])).toBe(false);
+		expect(propertiesAreReadable([': value'])).toBe(false);
 	});
 });

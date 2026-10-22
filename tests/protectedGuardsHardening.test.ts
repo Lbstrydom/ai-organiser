@@ -122,3 +122,23 @@ describe('scan revision evidence', () => {
 		]);
 	});
 });
+
+describe('guardActiveNote without an editor', () => {
+	it('refuses while a folder is protected and no way to identify the active note was installed', () => {
+		setActiveProtection(() => ['Course']);
+		installActiveNoteGuard(null, null);
+		expect(guardActiveNote()).toBe(false);
+	});
+
+	it('allows when nothing is protected, and when there is no active note to protect', () => {
+		installActiveNoteGuard(null, null);
+		expect(guardActiveNote()).toBe(true); // nothing protected
+		setActiveProtection(() => ['Course']);
+		installActiveNoteGuard(() => null, null);
+		expect(guardActiveNote()).toBe(true); // the provider answers: there is no active note
+		installActiveNoteGuard(() => 'Course/a.md', null);
+		expect(guardActiveNote()).toBe(false);
+		installActiveNoteGuard(() => 'Other/a.md', null);
+		expect(guardActiveNote()).toBe(true);
+	});
+});

@@ -81,7 +81,9 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
             .addButton((b) => b.setButtonText(c.refreshAll).onClick(() => { void runRefresh(this.plugin); }));
 
         const status = this.containerEl.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
-        status.setText(s.cloudInventoryLastTest ? (s.cloudInventoryLastTest.ok ? c.connectedNoFolder : c.notTested) : c.notTested);
+        // A test counts only for the configuration it was made for: changed address or folders mean "not tested".
+        const tested = s.cloudInventoryLastTest;
+        status.setText(tested?.ok && tested.configHash === inventoryConfigKey(s.cloudInventoryScriptUrl, s.cloudInventoryPairs) ? c.connectedNoFolder : c.notTested);
         new Setting(this.containerEl)
             .setName(c.scriptUrlName)
             .setDesc(c.scriptUrlDesc)
@@ -102,6 +104,7 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
                     await this.plugin.saveSettings();
                     if (!res.ok) { status.setText(formatGuidance(describeError(t, res.error))); new Notice(formatGuidance(describeError(t, res.error)), 8000); return; }
                     status.setText(c.connectedNoFolder);
+                    this.settingTab.display(); // the setup badge above reads the same result
                 })();
             }));
 

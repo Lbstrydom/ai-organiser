@@ -56,6 +56,7 @@ export const GUIDANCE_CODES = [
     'no-secret',
     // Inbox sweep and Google Tasks
     'sweep-keepout-required',
+    'sweep-property-invalid',
     'sweep-no-folders',
     'sweep-report-invalid',
     'sweep-report-conflict',

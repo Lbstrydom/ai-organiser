@@ -37,7 +37,12 @@ export function guardActiveNote(editor?: Editor): boolean {
     // An editor whose note cannot be identified (including when no way to identify one was
     // installed) is refused while any folder is protected: guessing from whichever note happens to
     // be active could judge the wrong file.
-    const path = owned ?? (editor && hasActiveProtection() ? undefined : (activePathProvider?.() ?? null));
+    // undefined = cannot be identified (refuse), null = there is no note to check (nothing to protect).
+    let path: string | null | undefined;
+    if (owned !== null) path = owned;
+    else if (editor) path = hasActiveProtection() ? undefined : (activePathProvider?.() ?? null);
+    else if (!activePathProvider) path = hasActiveProtection() ? undefined : null;
+    else path = activePathProvider() ?? null;
     const allowed = path === undefined ? false : path === null ? true : assertWritableActive('modify', path).ok;
     if (allowed) return true;
     new Notice(messageProvider ? messageProvider() : 'This note is in a protected folder, so AI Organiser did not change it.', 6000);

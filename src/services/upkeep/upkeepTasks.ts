@@ -175,6 +175,8 @@ export async function runAttachmentsTask(env: UpkeepEnv, config: TaskConfig, ctx
     if (config.includeDuplicates) for (const group of scan.value.duplicates) proposals.push({ kind: 'attachment-duplicate', paths: [...group].sort() });
     const orphans = scan.value.attachments.filter((a) => a.unreferenced).map((a) => a.path);
     const suggestions = await suggestLinks(orphans, scan.value.notes, ctx);
+    // A pass that was cut short is a cancelled task, never a finished one with fewer suggestions.
+    if (isStopped(ctx)) return err('cancelled');
     proposals.push(...suggestions.items);
     const result = collect(proposals);
     // The suggestions are capped before collection; the totals still count every match.

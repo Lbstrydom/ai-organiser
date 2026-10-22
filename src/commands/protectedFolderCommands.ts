@@ -69,7 +69,10 @@ async function applyProtectedFoldersNow(
 ): Promise<Result<void>> {
     // Derive from the state that is current NOW, so queued updates never overwrite each other.
     const list = resolveProtectedFolders(typeof next === 'function' ? next(plugin.settings.protectedFolders) : next);
-    const conflicts = outputConflicts(plugin, list);
+    // Only a collision this update INTRODUCES is refused: one that was already there must not block an
+    // unrelated change, such as removing a different folder from the list.
+    const alreadyThere = new Set(outputConflicts(plugin, plugin.settings.protectedFolders).map((c) => c.path));
+    const conflicts = outputConflicts(plugin, list).filter((c) => !alreadyThere.has(c.path));
     if (conflicts.length > 0) {
         return err(plugin.t.protectedFolders.outputRefused.replace('{label}', conflicts[0].label));
     }

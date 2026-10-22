@@ -3818,6 +3818,7 @@ export const en: Translations = {
         "script-outdated": { message: "Your script is out of date.", nextStep: "Copy the script again from the setup window, paste it over the old one and deploy it again." },
         "marker-conflict": { message: "The generated section in this note has been damaged.", nextStep: "Restore both Drive inventory markers, or delete the lines between them, then refresh again." },
         "drive-link-invalid": { message: "That is not a Drive folder link.", nextStep: "Open the folder in Google Drive and copy the link from your browser's address bar." },
+        "sweep-property-invalid": { message: "A property to keep out is not written as a name and a value.", nextStep: "Write each property on its own line as name: value, for example status: private." },
         "sweep-keepout-required": { message: "Nothing has been chosen to keep out of the sweep yet.", nextStep: "Open the sweep setup and choose what to keep out, or choose that there is nothing to keep out." },
         "sweep-no-folders": { message: "No inbox folders are chosen.", nextStep: "Open the sweep setup and pick the folders to sweep." },
         "sweep-report-invalid": { message: "The sweep report note is not usable.", nextStep: "Choose a Markdown note inside your vault and outside any protected folder." },

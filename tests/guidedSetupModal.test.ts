@@ -24,6 +24,21 @@ describe('SetupFlow', () => {
 		expect(flow.isFinished).toBe(true);
 	});
 
+	it('does not move twice, or move back, while a step is still being validated', async () => {
+		let release!: () => void;
+		const slow = (): Promise<ReturnType<typeof ok<void>>> => new Promise((resolve) => { release = () => resolve(ok(undefined)); });
+		const flow = new SetupFlow([{ id: 'a', validate: slow }, { id: 'b' }, { id: 'c' }], async () => ok(undefined));
+		const first = flow.next();
+		const second = await flow.next(); // a second click while the first check is pending
+		expect(second).toEqual({ ok: false, error: 'invalid-state' });
+		flow.back(); // no effect either
+		release();
+		expect((await first).ok).toBe(true);
+		expect(flow.stepIndex).toBe(1); // moved exactly once
+		flow.back();
+		expect(flow.stepIndex).toBe(0);
+	});
+
 	it('stays on the step and reports the code when local validation fails', async () => {
 		const flow = new SetupFlow(steps(() => err('validation-failed'), undefined), async () => ok(undefined));
 		const res = await flow.next();

@@ -25,6 +25,7 @@ export function openOffloadForFile(plugin: AIOrganiserPlugin, file: TFile): void
 
 /** Open the oldest unfinished offload. */
 export async function resumeOffload(plugin: AIOrganiserPlugin): Promise<void> {
+    if (!Platform.isDesktopApp || !isFeatureEnabled(plugin.settings, 'cloud-offload')) return;
     const open = await journalStore(plugin).unfinished();
     if (!open.ok) {
         new Notice(formatGuidance(describeError(plugin.t, open.error)), 8000);

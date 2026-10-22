@@ -232,11 +232,14 @@ export function addToReferencesSection(
     editor: Editor,
     source: SourceReference
 ): void {
+    // Decided once, before anything is created: a blocked note gets one notice, not one per step.
+    if (!guardActiveNote(editor)) return;
     // First ensure the section exists (idempotent - won't create duplicates)
     ensureReferencesExists(editor);
 
     // Now the section definitely exists, add content to it
     const structure = analyzeNoteStructure(editor);
+    if (!structure.references.found) return;
     const referenceText = formatSourceReference(source);
 
     // Add to the References section
@@ -398,11 +401,13 @@ export function addToPendingIntegration(
     editor: Editor,
     source: PendingSource
 ): void {
+    if (!guardActiveNote(editor)) return;
     // First ensure the section exists (idempotent - won't create duplicates)
     ensurePendingIntegrationExists(editor);
 
     // Now the section definitely exists, add content to it
     const structure = analyzeNoteStructure(editor);
+    if (!structure.pendingIntegration.found) return;
     const pendingContent = formatPendingContent(source);
 
     // Add to the Pending Integration section
@@ -502,6 +507,7 @@ export function clearPendingIntegration(editor: Editor): void {
 export function ensureStandardStructure(editor: Editor): void {
     // Use the idempotent functions that have robust detection
     // Order matters: add Pending Integration first, then References (which goes before it)
+    if (!guardActiveNote(editor)) return;
     ensurePendingIntegrationExists(editor);
     ensureReferencesExists(editor);
 }

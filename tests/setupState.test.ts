@@ -53,6 +53,15 @@ describe('evaluateSetup: generic rules (driven through a temporary spec)', () =>
 		});
 	});
 
+	it('does not count a switch that is off, or an empty list, as a value', () => {
+		withSpec('agent-index', { required: ['x'], folderKeys: [], needsCompletionMarker: true, needsConnection: false }, () => {
+			const done = { featureSetupCompletedAt: { 'agent-index': '2026-01-01' } };
+			expect(evaluateSetup('agent-index', baseSettings({ x: false, ...done }))).toEqual({ state: 'needs-attention', reason: 'incomplete' });
+			expect(evaluateSetup('agent-index', baseSettings({ x: [], ...done }))).toEqual({ state: 'needs-attention', reason: 'incomplete' });
+			expect(evaluateSetup('agent-index', baseSettings({ x: true, ...done })).state).toBe('ready');
+		});
+	});
+
 	it('needs attention once a finished wizard loses a required value', () => {
 		withSpec('agent-index', { required: ['x'], folderKeys: [], needsCompletionMarker: true, needsConnection: false }, () => {
 			const res = evaluateSetup('agent-index', baseSettings({ x: '', featureSetupCompletedAt: { 'agent-index': '2026-01-01' } }));

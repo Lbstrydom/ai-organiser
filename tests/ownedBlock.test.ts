@@ -76,3 +76,20 @@ describe('replaceMarkedBlock', () => {
 		expect(res.ok && res.value).not.toContain('body');
 	});
 });
+
+describe('notes saved with Windows line endings', () => {
+	const CR = String.fromCharCode(13);
+	const crlf = (text: string): string => text.split('\n').join(CR + '\n');
+
+	it('treats a marker inside a fenced code block as example text, as it does with plain line endings', () => {
+		const note = crlf(['# Hub', '', '```', M.start, M.end, '```', ''].join('\n'));
+		expect(findMarkedBlock(note, M)).toEqual({ ok: true, value: null });
+	});
+
+	it('refuses to append after an unclosed fence, and finds a real block next to a fenced example', () => {
+		expect(replaceMarkedBlock(crlf('# Hub\n\n```\nnever closed\n'), block, M)).toEqual({ ok: false, error: 'marker-conflict' });
+		const note = crlf(['```', M.start, '```', '', M.start, 'body', M.end, ''].join('\n'));
+		const found = findMarkedBlock(note, M);
+		expect(found.ok && found.value?.text.startsWith(M.start)).toBe(true);
+	});
+});

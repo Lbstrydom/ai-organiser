@@ -47,11 +47,11 @@ export function nextStep(step: OffloadStep): ForwardStep | null {
     return i === -1 || i === STEPS.length - 1 ? null : STEPS[i + 1];
 }
 
-/** Moves allowed by the step machine: one step forward, `failed` from anywhere live, `aborted` only before any rewrite. */
+/** Moves allowed by the step machine: one step forward, `failed` from anywhere live, `aborted` until the barrier has passed (a rewrite that is stuck can be given up: the local file is never trashed on the way out). */
 export function canTransition(from: OffloadStep, to: OffloadStep): boolean {
     if (isTerminal(from)) return false;
     if (to === 'failed') return true;
-    if (to === 'aborted') return from === 'planned' || from === 'copied' || from === 'remote-captured' || from === 'rewrite-approved';
+    if (to === 'aborted') return from === 'planned' || from === 'copied' || from === 'remote-captured' || from === 'rewrite-approved' || from === 'rewriting';
     if (to === from) return true;
     return nextStep(from) === to;
 }

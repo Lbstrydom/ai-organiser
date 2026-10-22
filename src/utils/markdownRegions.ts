@@ -36,7 +36,9 @@ function scanRegions(lines: readonly string[]): { mask: boolean[]; openFence: bo
     }
     let fence: { ch: string; len: number } | null = null;
     for (; i < lines.length; i++) {
-        const m = lines[i].match(FENCE_LINE);
+        // A note saved with CRLF endings arrives split on \n with the \r still on the line.
+        const line = lines[i].endsWith('\r') ? lines[i].slice(0, -1) : lines[i];
+        const m = line.match(FENCE_LINE);
         if (!fence) {
             // A backtick fence cannot have a backtick in its info string (that is inline code).
             if (m && !(m[1][0] === '`' && m[2].includes('`'))) {
@@ -46,7 +48,7 @@ function scanRegions(lines: readonly string[]): { mask: boolean[]; openFence: bo
             continue;
         }
         out[i] = true;
-        const close = lines[i].match(CLOSING_FENCE);
+        const close = line.match(CLOSING_FENCE);
         if (close && close[1][0] === fence.ch && close[1].length >= fence.len) fence = null;
     }
     return { mask: out, openFence: fence !== null };

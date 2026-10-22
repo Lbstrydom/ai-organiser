@@ -6,7 +6,7 @@
  * logic (`addFolderToList`, `removeFolderFromList`) is pure so every consumer (protected
  * folders, agent index scope, inbox sweep) shares one behaviour.
  */
-import { App, Setting, TFile, TFolder } from 'obsidian';
+import { App, Setting, TFile, TFolder, type TextComponent } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import { normalisePath } from '../../core/protectedPaths';
 import { FolderSuggest } from '../settings/components/FolderSuggest';
@@ -55,6 +55,7 @@ export interface FolderListEditorOptions {
 export class FolderListEditor {
     private listEl: HTMLElement | null = null;
     private pending = '';
+    private input: TextComponent | null = null;
 
     constructor(private readonly opts: FolderListEditorOptions) {}
 
@@ -62,6 +63,7 @@ export class FolderListEditor {
         const { container, t, app } = this.opts;
         const adder = new Setting(container).setName(t.setup.addFolder);
         adder.addText((text) => {
+            this.input = text;
             text.setPlaceholder(t.setup.chooseFolder);
             text.onChange((value) => { this.pending = value; });
             text.inputEl.setAttribute('aria-label', t.setup.chooseFolder);
@@ -90,12 +92,15 @@ export class FolderListEditor {
         }
         const res = addFolderToList(this.opts.getFolders(), picked);
         this.pending = '';
+        this.input?.setValue('');
         if (res.added) await this.opts.onChange(res.list);
         this.renderList();
     }
 
     private showHint(text: string): void {
         if (!this.listEl) return;
+        // One hint at a time: a second invalid attempt replaces the first.
+        for (const old of Array.from(this.listEl.querySelectorAll('.ai-organiser-folder-list-hint'))) old.remove();
         this.listEl.createDiv({ cls: 'ai-organiser-folder-list-hint', text, attr: { role: 'status' } });
     }
 

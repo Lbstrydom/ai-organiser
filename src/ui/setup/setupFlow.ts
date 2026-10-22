@@ -22,6 +22,8 @@ export class SetupFlow {
     private finished = false;
     private cancelledFlag = false;
     private finishing = false;
+    /** True while a move to the next step is waiting on its validation: no second move may start. */
+    private moving = false;
     /** True only while onFinish runs; cancelling is possible up to that moment. */
     private persisting = false;
 
@@ -44,21 +46,26 @@ export class SetupFlow {
 
     /** Advance after validating the current step. Stays put and returns the error on failure. */
     async next(): Promise<Result<void>> {
-        if (this.finished || this.cancelledFlag || this.isLast) return err('invalid-state');
-        const res = await this.validateCurrent();
-        if (!res.ok) return res;
-        if (this.cancelledFlag) return err('invalid-state'); // closed while the check was pending
-        this.index++;
-        return ok(undefined);
+        if (this.finished || this.cancelledFlag || this.isLast || this.moving || this.finishing) return err('invalid-state');
+        this.moving = true;
+        try {
+            const res = await this.validateCurrent();
+            if (!res.ok) return res;
+            if (this.cancelledFlag) return err('invalid-state'); // closed while the check was pending
+            this.index++;
+            return ok(undefined);
+        } finally {
+            this.moving = false;
+        }
     }
 
     back(): void {
-        if (this.index > 0 && !this.finished) this.index--;
+        if (this.index > 0 && !this.finished && !this.cancelledFlag && !this.moving && !this.finishing) this.index--;
     }
 
     /** Validate the last step and commit once. A second call is a no-op error. */
     async finish(): Promise<Result<void>> {
-        if (this.finished || this.finishing || this.cancelledFlag) return err('invalid-state');
+        if (this.finished || this.finishing || this.cancelledFlag || this.moving) return err('invalid-state');
         if (!this.isLast) return err('invalid-state');
         this.finishing = true;
         try {
