@@ -108,7 +108,13 @@ export async function callScript<T>(options: CallOptions): Promise<Result<T>> {
     const sleep = options.sleep ?? ((ms: number) => new Promise<void>((r) => window.setTimeout(r, ms)));
     const maxAttempts = Math.max(1, options.maxAttempts ?? 5);
     const base = options.baseDelayMs ?? 500;
-    const body = JSON.stringify({ secret: options.secret, ...options.body });
+    let body: string;
+    try {
+        body = JSON.stringify({ secret: options.secret, ...options.body });
+    } catch {
+        // A body that cannot be encoded (a cycle, a bigint) is a local fault, reported as a typed error.
+        return err('script-bad-request');
+    }
 
     let last: Result<T> = err('script-network');
     for (let attempt = 0; attempt < maxAttempts; attempt++) {

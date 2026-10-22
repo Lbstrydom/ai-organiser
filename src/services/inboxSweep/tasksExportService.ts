@@ -12,6 +12,7 @@ import { callScript, type ScriptTransport } from '../appsScriptClient';
 import { approvedListHashOf, MAX_TASKS_PER_REQUEST, TASKS_SCRIPT_MIN_SUPPORTED, TASKS_SCRIPT_VERSION } from './tasksScriptTemplate';
 import { applyExportResults, exportable, type ApprovalRecord, type ApprovedTask, type ExportResult } from './sweepLedger';
 import { sanitizeInline } from './sweepReport';
+import { logger } from '../../utils/logger';
 
 export interface TasksPing {
     scriptVersion: number;
@@ -126,7 +127,14 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
             // earlier batches take time, and a note may have changed or been excluded meanwhile.
             const batch: ApprovedTask[] = [];
             for (const task of todo.slice(i, i + MAX_TASKS_PER_REQUEST)) {
-                const check = await deps.checkSource(task);
+                let check: SourceCheck;
+                try {
+                    check = await deps.checkSource(task);
+                } catch (e) {
+                    logger.warn('Sweep', 'Could not check a task against its note', e);
+                    summary.error = 'unknown';
+                    return { record, summary: finalise(record, summary) };
+                }
                 if (check === 'ok') batch.push(task);
                 else { blockedIds.add(task.id); summary.blocked.push({ id: task.id, reason: check }); }
             }
@@ -137,7 +145,13 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
             if (!results) { summary.error = 'script-bad-response'; return { record, summary: finalise(record, summary) }; }
             record = applyExportResults(record, results);
             retried += results.filter((r) => r.status === 'retry').length;
-            const persisted = await deps.persist(record);
+            let persisted: Result<void>;
+            try {
+                persisted = await deps.persist(record);
+            } catch (e) {
+                logger.warn('Sweep', 'Could not save the export result', e);
+                persisted = err('write-failed');
+            }
             if (!persisted.ok) { summary.error = persisted.error; return { record, summary: finalise(record, summary) }; }
         }
         if (retried === 0) break;

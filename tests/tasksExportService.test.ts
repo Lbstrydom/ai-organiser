@@ -144,6 +144,14 @@ describe('exportApproved', () => {
 		expect((await exportApproved(record(1), deps({ transport: reply({ ok: true, results: [null] }) }))).summary.error).toBe('script-bad-response');
 	});
 
+	it('turns a throwing source check or save into a typed stop, never a rejection', async () => {
+		const checkThrows = await exportApproved(record(1), deps({ checkSource: async () => { throw new Error('locked'); } }));
+		expect(checkThrows.summary.error).toBe('unknown');
+		expect(checkThrows.record.tasks[0].state).toBe('reported');
+		const saveThrows = await exportApproved(record(1), deps({ transport: reply({ ok: true, results: [{ exportId: id(0), status: 'created' }] }), persist: async () => { throw new Error('disk'); } }));
+		expect(saveThrows.summary.error).toBe('write-failed');
+	});
+
 	it('refuses an answer that skips a task of the batch', async () => {
 		const partial = reply({ ok: true, results: [{ exportId: id(0), status: 'created' }] });
 		const out = await exportApproved(record(2), deps({ transport: partial }));
