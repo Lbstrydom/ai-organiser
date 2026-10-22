@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('obsidian', async () => await import('./mocks/obsidian'));
 
-import { App, mockNotices, clearMockNotices } from 'obsidian';
+import { App, mockNotices, clearMockNotices } from './mocks/obsidian';
 import AIOrganiserPlugin from '../src/main';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { splitByProtection } from '../src/core/protectedPaths';
