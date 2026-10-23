@@ -11,6 +11,7 @@ import { App, normalizePath, TFile } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ensureFolderExists } from '../../../utils/minutesUtils';
 import { logger } from '../../../utils/logger';
+import { err, ok, type Result } from '../../../core/result';
 import {
     buildEpisodeName,
     coverageToFrontmatter,
@@ -129,6 +130,75 @@ export function parseEpisodeContent(content: string, notePath: string): EpisodeM
     }
 }
 
+// ── Audio removal (pure text) ────────────────────────────────────────────────
+
+const escapeRe = (s: string): string => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
+/** Frontmatter block of a note: where it ends and the text inside. Null when there is none. */
+function splitFrontmatter(content: string): { fm: string; fmEnd: number } | null {
+    const m = /^---\r?\n([\s\S]*?)\r?\n---(?=\r?\n|$)/.exec(content);
+    return m ? { fm: m[1], fmEnd: m[0].length } : null;
+}
+
+/**
+ * Is the note free of any reference to this audio file? The ONLY exempt text is the validated
+ * identity line `catchup_audio: <name>`; every other frontmatter field and the whole body must
+ * be free of the file name. Case-insensitive: the vault may resolve links that way.
+ */
+export function ownNoteIsReferenceFree(content: string, audioName: string): boolean {
+    const needle = audioName.toLowerCase();
+    const parts = splitFrontmatter(content);
+    let text = content;
+    if (parts) {
+        const identity = new RegExp(String.raw`^${EPISODE_FM.audio}:[ \t]*["']?${escapeRe(audioName)}["']?[ \t]*$`, 'im');
+        text = parts.fm.replace(identity, '') + content.slice(parts.fmEnd);
+    }
+    return !text.toLowerCase().includes(needle);
+}
+
+export type MarkAudioRemovedError = 'no-frontmatter' | 'marker-conflict' | 'unclassified-reference';
+
+/**
+ * The episode note's text after the audio has been MARKED for removal:
+ *  - `catchup_audio_removed: '<date>'` inserted as the last frontmatter line by TEXT insertion (no
+ *    YAML re-dump, so the transcript and coverage bytes are untouched);
+ *  - the generated listen line (the first body line starting with `🎧 `) rewritten from its audio
+ *    embed or link to `removedText`. No other line is transformed.
+ * Fails closed: if the audio name still appears anywhere but the identity line afterwards (a second
+ * embed, a code span, the transcript, another frontmatter field), nothing is produced.
+ */
+export function markAudioRemovedText(content: string, audioName: string, date: string, removedText: string): Result<string> {
+    const parts = splitFrontmatter(content);
+    if (!parts) return err('no-frontmatter');
+
+    const eol = content.includes('\r\n') ? '\r\n' : '\n';
+    const markerRe = new RegExp(String.raw`^${EPISODE_FM.audioRemoved}:[ \t]*(.*?)[ \t]*$`, 'm');
+    const existing = markerRe.exec(parts.fm);
+    let head = content.slice(0, parts.fmEnd);
+    if (existing) {
+        if (existing[1].replaceAll(/^["']|["']$/g, '') !== date) return err('marker-conflict');
+    } else {
+        const closing = head.lastIndexOf(`${eol}---`);
+        head = `${head.slice(0, closing)}${eol}${EPISODE_FM.audioRemoved}: '${date}'${head.slice(closing)}`;
+    }
+
+    const ref = escapeRe(audioName);
+    const wiki = new RegExp(String.raw`!?\[\[(?:[^\]\n|#]*/)?${ref}(?:[#|][^\]\n]*)?\]\]`, 'gi');
+    const markdown = new RegExp(String.raw`!?\[[^\]\n]*\]\((?:[^)\n]*/)?${ref}(?:#[^)\n]*)?\)`, 'gi');
+    const lines = content.slice(parts.fmEnd).split(/(\r?\n)/);
+    const needle = audioName.toLowerCase();
+    for (let i = 0; i < lines.length; i += 2) {
+        if (!lines[i].startsWith('🎧 ')) continue;
+        if (lines[i].toLowerCase().includes(needle)) {
+            lines[i] = lines[i].replace(wiki, removedText).replace(markdown, removedText);
+        }
+        break;
+    }
+
+    const next = head + lines.join('');
+    return ownNoteIsReferenceFree(next, audioName) ? ok(next) : err('unclassified-reference');
+}
+
 // ── Vault IO ─────────────────────────────────────────────────────────────────
 
 function childrenOf(app: App, folderPath: string): TFile[] {
@@ -189,6 +259,9 @@ export async function loadEpisodes(app: App, outputRoot: string, windowStart: st
         if (!named || named.to < windowStart) continue;
         const meta = await readEpisode(app, file);
         if (!meta) continue;
+        // Audio the cleanup removed (or marked for removal) is intentional: the note stays the
+        // coverage record. Only audio that vanished WITHOUT a marker is offered for regeneration.
+        if (meta.audioRemoved) { episodes.push(meta); continue; }
         const audio = app.vault.getAbstractFileByPath(normalizePath(`${folder}/${meta.audio}`));
         if (audio instanceof TFile) episodes.push(meta);
         else missingAudio.push(meta);

@@ -26,7 +26,16 @@ export const EPISODE_FM = {
     fingerprint: 'catchup_fingerprint',
     minutes: 'catchup_minutes',
     sources: 'catchup_sources',
+    /** Set (as a quoted YYYY-MM-DD) once the cleanup marked the audio for removal; the note stays a coverage record. */
+    audioRemoved: 'catchup_audio_removed',
 } as const;
+
+/**
+ * Largest "remove audio after N days" the cleanup setting allows. Stage 2 runs a day after stage 1
+ * and must precede ack pruning (`to` + lookback + 30 days), which at the minimum lookback of 1 is
+ * `to` + 32.
+ */
+export const CATCHUP_CLEANUP_MAX_DAYS = 28;
 
 /** Written in a coverage map when a day is covered but no revision is known. */
 export const WHOLE_DAY = 'whole';
@@ -67,6 +76,8 @@ export interface EpisodeMeta {
     minutes: number;
     sources: number;
     notePath: string;
+    /** Local YYYY-MM-DD the cleanup marked the audio for removal. The episode keeps covering its days. */
+    audioRemoved?: string;
 }
 
 /** What the selection layer knows about one bucket (one day) inside the window. */

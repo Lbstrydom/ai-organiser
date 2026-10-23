@@ -144,6 +144,17 @@ function asString(v: unknown): string | null {
     return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
 }
 
+/** The removal marker as a date string, tolerating the Date js-yaml makes of an unquoted timestamp. */
+function removedMarker(raw: unknown): { audioRemoved?: string } {
+    const value = raw instanceof Date && !Number.isNaN(raw.getTime()) ? raw.toISOString().slice(0, 10) : raw;
+    return isDateStr(value) ? { audioRemoved: value } : {};
+}
+
+/** The newest day an episode covers: its `to`, or a later coverage key. */
+export function newestCoveredDate(meta: Pick<EpisodeMeta, 'to' | 'coverage'>): string {
+    return Object.keys(meta.coverage).reduce((newest, d) => (d > newest ? d : newest), meta.to);
+}
+
 /** Validate an episode note's frontmatter. Anything malformed covers nothing. */
 export function parseEpisodeFrontmatter(fm: Record<string, unknown> | null | undefined, notePath: string): EpisodeMeta | null {
     if (!fm || fm[EPISODE_FM.type] !== EPISODE_FM.typeValue) return null;
@@ -159,6 +170,7 @@ export function parseEpisodeFrontmatter(fm: Record<string, unknown> | null | und
     const sources = Number(fm[EPISODE_FM.sources]);
     return {
         id, from, to, coverage, audio,
+        ...removedMarker(fm[EPISODE_FM.audioRemoved]),
         fingerprint: asString(fm[EPISODE_FM.fingerprint]) ?? '',
         minutes: Number.isFinite(minutes) ? minutes : 0,
         sources: Number.isFinite(sources) ? sources : 0,
@@ -183,7 +195,8 @@ export function unheardEpisodes(
     acks: Readonly<Record<string, unknown>>,
     windowStart: string,
 ): EpisodeMeta[] {
-    return episodes.filter((e) => e.to >= windowStart && !(e.id in acks));
+    // An episode whose audio was removed has nothing left to listen to, so it can never be unheard.
+    return episodes.filter((e) => e.to >= windowStart && !e.audioRemoved && !(e.id in acks));
 }
 
 // ── Length ───────────────────────────────────────────────────────────────────
