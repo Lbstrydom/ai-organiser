@@ -11,6 +11,7 @@ import { ok, err, type Result } from '../src/core/result';
 import {
     runCatchUpAudioCleanup,
     audioNamesIn,
+    MAX_AUDIO_NAME_LENGTH,
     decideEpisode,
     normaliseCleanupDays,
     type CleanupDeps,
@@ -184,6 +185,15 @@ describe('audioNamesIn: names that run together never hide each other', () => {
         const names = audioNamesIn(text);
         expect(Date.now() - started).toBeLessThan(1500);
         expect(names.size).toBeLessThan(200000);
+    });
+
+    it('names longer than the bound are not materialised, and an over-long episode audio name is never cleaned up', () => {
+        expect(audioNamesIn('catchup-' + 'a'.repeat(200) + '.mp3').size).toBe(0);
+        const long = 'catchup-' + 'b'.repeat(120) + '.mp3';
+        const base = { acks: { [ID]: { ackedAt: 1, to: '2026-10-21' } }, today: '2026-11-30', cutoff: '2026-11-16', audioExists: true, inflight: null };
+        const meta = { id: ID, from: '2026-10-20', to: '2026-10-21', coverage: { '2026-10-21': { kind: 'whole' as const } }, audio: long, fingerprint: 'f', minutes: 1, sources: 1, notePath: 'p.md' };
+        expect(decideEpisode({ ...base, meta })).toEqual({ skip: 'audio-name-too-long' });
+        expect(MAX_AUDIO_NAME_LENGTH).toBeGreaterThan(AUDIO.length);
     });
 
     it('a name inside a longer valid-alphabet name is also registered (conservative)', () => {

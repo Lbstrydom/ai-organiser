@@ -296,6 +296,15 @@ describe('markAudioRemovedText', () => {
         expect(run(stray).ok).toBe(true);
     });
 
+    it('an unmatched backtick followed by a fenced example that holds a real reference never rewrites it', () => {
+        const base = buildEpisodeNote(input()).replace(`![[${NAME}]]`, 'gone');
+        const example = 'Try `an unmatched tick\n```\n🎧 **Listen:** ![[' + NAME + ']]\n```';
+        for (const lead of [example, example.replace('Try `an unmatched tick\n', 'Try `an unmatched tick\n\n')]) {
+            const note = base.replace('# Newsletter', lead + '\n\n# Newsletter');
+            expect(run(note)).toEqual({ ok: false, error: 'unclassified-reference' });
+        }
+    });
+
     it('preserves CRLF line endings', () => {
         const after = okText(buildEpisodeNote(input()).replaceAll('\n', '\r\n'));
         expect(after).toContain(`catchup_sources: 4\r\ncatchup_audio_removed: '${DATE}'\r\n---`);

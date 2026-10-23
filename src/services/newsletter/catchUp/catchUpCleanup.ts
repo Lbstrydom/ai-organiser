@@ -136,6 +136,8 @@ export function decideEpisode(i: DecideInput): Decision {
     const { meta } = i;
     if (meta.audioRemoved && !i.audioExists) return { done: true };
     if (i.inflight && (i.inflight.opId === meta.id || i.inflight.audioName === meta.audio)) return { skip: 'operation-in-flight' };
+    // The reference scan only recognises names up to this length; a longer one could be mentioned unseen.
+    if (meta.audio.length > MAX_AUDIO_NAME_LENGTH) return { skip: 'audio-name-too-long' };
     if (!(meta.id in i.acks)) return { skip: meta.audioRemoved ? 'marker-without-ack' : 'not-heard' };
 
     if (meta.audioRemoved) {
@@ -159,6 +161,8 @@ export interface ReferenceIndex {
 /** The catch-up audio names a text mentions, lower-cased. Mirrors the validated `isEpisodeAudioName` alphabet. */
 const AUDIO_RUN_RE = /catchup-[a-z0-9._-]+/gi;
 const MAX_ENDS_PER_START = 3;
+/** A real episode audio name is about 41 characters; a longer one is never cleaned up (fail closed). */
+export const MAX_AUDIO_NAME_LENGTH = 96;
 
 /**
  * Every catch-up audio name a text could be mentioning, lower-cased. The alphabet includes '.', so
@@ -178,7 +182,12 @@ export function audioNamesIn(text: string): Set<string> {
         let cursor = 0;
         for (let start = s.indexOf('catchup-'); start !== -1; start = s.indexOf('catchup-', start + 1)) {
             while (cursor < ends.length && ends[cursor] < start + 8) cursor++;
-            for (let n = cursor; n < Math.min(ends.length, cursor + MAX_ENDS_PER_START); n++) names.add(s.slice(start, ends[n] + 4));
+            for (let n = cursor; n < Math.min(ends.length, cursor + MAX_ENDS_PER_START); n++) {
+                // Length-bounded too: hashing a substring costs its length, so an unbounded one would
+                // make a run of many starts and one distant end quadratic in characters.
+                if (ends[n] + 4 - start > MAX_AUDIO_NAME_LENGTH) break;
+                names.add(s.slice(start, ends[n] + 4));
+            }
         }
     }
     return names;
