@@ -438,6 +438,92 @@ Fetches unread Gmail newsletters via a deployed Google Apps Script (single `doGe
 ### Commands
 - `newsletter-fetch`: Fetch newsletters now — in Command Picker → Capture
 - `newsletter-mark-caught-up`: Assert you are up to date, so earlier stories stop repeating — Capture
+- `newsletter-audio`: Open the catch-up window — Capture → Newsletters
+- `newsletter-mark-catchup-listened`: Mark the catch-up episode in the active note as heard — Capture → Newsletters
+
+## Newsletter catch-up audio (elective audio)
+
+**Plan**: [docs/plans/newsletter-catchup-audio.md](../plans/newsletter-catchup-audio.md)
+
+The written daily brief stays automatic. Only the AUDIO is elective: one episode covering everything
+since the last audio, synthesised across the missed days (no repetition, no stale news), instead of a
+paid audio every day that may never be heard.
+
+### Modes (`newsletterAudioMode`, under the master `newsletterAudioPodcast` toggle)
+
+| Mode | Behaviour | Who gets it |
+|---|---|---|
+| `daily` | The original pipeline, **byte-identical** (`brief-<date>-<fp>.mp3`, embed under the H1, 3-day recovery sweep) | An install that had audio ON when the mode shipped (`migrateNewsletterAudioSettings`) |
+| `on-demand` | Nothing automatic. The `Newsletter audio` window makes ONE catch-up episode | **Default** — new installs, and installs that had audio off |
+| `smart-daily` | After each fetch: an episode only if the previous one is heard, nothing is unresolved and a CLOSED day is pending | Opt-in |
+
+`newsletterAudioPodcast` still defaults to **off**: nothing paid happens until the user turns audio on.
+`daily` installs get a one-time notice offering the switch.
+
+### Where things live (`src/services/newsletter/catchUp/`)
+
+- `catchUpTypes.ts` / `catchUpCoverage.ts` — **pure rules**. Coverage per bucket date is an explicit
+  union: absent (never covered), `whole` (covered, no revision known) or `revision(n)`, n ≥ 1. **Zero
+  is never a valid revision.** Merge is order-independent (`whole` absorbs everything; revisions keep
+  the max). A bucket is pending as `full`, or as a `delta` when the current ledger revision is known
+  and newer than the covered one; an unknown or LOWER current revision (memory off, aged out of the
+  7-day ledger, memory purged and restarted) is treated as `whole` — a late addition may be missed, a
+  story is never re-told. Length: aim for 15 minutes, 20 once 4+ days are pending, always capped by
+  the user's ceiling (5–20); never linear in days.
+- `catchUpSelection.ts` — one read pass: digests in the window (a COUNT of calendar dates, today
+  included, clamped to retention), ledger revisions, episode notes, legacy daily audio. Read-only.
+- `catchUpEpisode.ts` — the **episode note is the coverage record**: `Catch-up/Catch-up <from> to <to>
+  <id>.md`, frontmatter `catchup_coverage`, written ONCE after the audio exists, idempotent by
+  operation id. Reads are tri-state (ok / invalid / unreadable) and never fail open. Everything is
+  confined to the newsletter output root with a containment assertion before each create and trash.
+  **`Catch-up/` is not auto-pruned in v1** (retention would roll coverage back).
+- `catchUpDraft.ts` — two durable stores (`DATA_ONLY_KEYS`): the **operation record** (script + the
+  coverage it claims, phase-validated, compare-and-set on the operation id, a future-version record is
+  preserved) and the **ack map** (which episodes were heard).
+- `catchUpService.ts` — the orchestration state machine and recovery protocol. Ports (LLM, TTS,
+  prompt) are injected; `catchUpRuntime.ts` binds them to the plugin.
+- `catchUpListen.ts` — what "heard" means.
+
+### Invariants that are each load-bearing
+
+1. **Generated is not heard.** Coverage advances at generation; the story-memory watermark and the
+   ack advance only when the reader plays the episode, runs Mark listened, or runs Mark caught up. The
+   ack is the authority on "heard" (the 7-day watermark expires and does not exist with memory off);
+   the watermark only decides whether the PROMPT may omit a story, at the **frozen** revisions.
+2. **Order is script → audio → note LAST.** Each transition is persisted before the next side effect.
+   The record names the audio path BEFORE the file is written (write-ahead); audio is reusable only in
+   `audio-ready` with size + sha256 verified; an interrupted write is treated as incomplete.
+3. **Reconcile first, delete last.** One transition table (committed note ⇒ keep its audio, clear the
+   record; expired/discarded ⇒ trash only audio that is opId-owned AND provably unreferenced).
+   `unknown` (an episode note could not be read) is never `no`.
+4. **Cancel is honest.** Before commit: no note, no coverage, and the message follows the durable state
+   (a script is only "kept" if a record exists). At the commit the reporter is made non-cancellable.
+5. **The limit is binding before spend.** One automatic shrink, then an interactive run asks (continue /
+   shorten / cancel); an automatic run fails with guidance rather than overrun.
+6. **Legacy daily audio is coverage by provenance only** — a recorded ledger revision for a file that
+   still exists, or `whole` when the file exists without provenance. An embed alone proves nothing.
+7. **One TTS authority** (`resolveNewsletterTts`) for the daily audio and the catch-up; in Azure mode
+   there is no silent fallback to a personal key.
+
+### Menu layout
+
+The newsletter commands are a **Newsletters group inside Capture** (precedent: Create → Write). There is
+no sixth top-level stage — the stage vocabulary is shared with settings and CI-enforced. The daily entry
+point is the status-bar item `N days pending` (desktop; mobile uses the command), and the settings grew a
+"Catch-up audio" sub-heading inside the existing Newsletter section.
+
+### Not built (deliberately)
+
+Chapters (no navigable seek mechanism in the native player), archive-covered, a USD ceiling setting,
+automatic multi-part episodes, cross-device locking, **marking a brief as read when its digest is opened**
+(needs a second consumption channel so reading never suppresses audio the reader has not heard — its own
+plan), and episode retention.
+
+### Tests
+
+`tests/{newsletterAudioMode,newsletterAudioModeMigration,newsletterLegacyAudioParity,newsletterAudioServiceParity,catchUpCoverage,catchUpSelection,catchUpEpisode,catchUpDraft,catchUpEpisodeAudio,catchUpPrompts,catchUpService,catchUpConsumption,catchUpRuntime,catchUpModalState,newsletterCatchUpModal,catchUpStatusBar,newsletterCatchUpCommands,newsletterCatchUpPicker,newsletterCatchUpSettings}.test.ts`.
+The two `*Parity` files are the byte-identical proof for `daily` mode — captured against the unchanged code
+before it was refactored.
 
 ## Newsletter Story Memory (consumption-aware) + local-news fairness
 
