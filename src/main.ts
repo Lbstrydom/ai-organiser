@@ -179,6 +179,8 @@ export default class AIOrganiserPlugin extends Plugin {
     private catchUpCleanupLastDate: string | null = null;
     /** Set on unload: a sweep already in flight stops before its next destructive step. */
     private catchUpCleanupCancelled = false;
+    private catchUpCleanupRunning = false;
+    private catchUpCleanupRerun = false;
     /** Marked episodes held up by something that may pass within the day; `unknown` until a sweep completes, kept on a skipped sweep. */
     private catchUpRetryPending: number | 'unknown' = 'unknown';
     public newsletterSeenIds: string[] = [];
@@ -1546,6 +1548,22 @@ export default class AIOrganiserPlugin extends Plugin {
     /** One audio-cleanup sweep. Never throws; reports what it removed with a Notice and the logger. */
     public async runCatchUpAudioCleanup(): Promise<void> {
         if (this.catchUpCleanupAllowedDays() === 0) return;
+        // A request that arrives while a sweep is running is remembered, not lost: it runs afterwards
+        // with a fresh read of the setting.
+        if (this.catchUpCleanupRunning) { this.catchUpCleanupRerun = true; return; }
+        this.catchUpCleanupRunning = true;
+        try {
+            await this.sweepCatchUpAudio();
+        } finally {
+            this.catchUpCleanupRunning = false;
+        }
+        if (this.catchUpCleanupRerun) {
+            this.catchUpCleanupRerun = false;
+            this.scheduleCatchUpCleanup();
+        }
+    }
+
+    private async sweepCatchUpAudio(): Promise<void> {
         try {
             const [{ runCatchUpAudioCleanup }, { applyNoteEdit }] = await Promise.all([
                 import('./services/newsletter/catchUp/catchUpCleanup'),

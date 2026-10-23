@@ -169,11 +169,16 @@ export function audioNamesIn(text: string): Set<string> {
     const names = new Set<string>();
     for (const run of text.toLowerCase().matchAll(AUDIO_RUN_RE)) {
         const s = run[0];
+        // One pass finds every end; the cursor over them only moves forward as the starts do, so the
+        // work is linear in the run however many starts or ends it holds. Per start only the first few
+        // ends count: a real episode name holds `.mp3` exactly once, at its end.
+        const ends: number[] = [];
+        for (let e = s.indexOf('.mp3'); e !== -1; e = s.indexOf('.mp3', e + 1)) ends.push(e);
+        if (ends.length === 0) continue;
+        let cursor = 0;
         for (let start = s.indexOf('catchup-'); start !== -1; start = s.indexOf('catchup-', start + 1)) {
-            // Bounded: the first few `.mp3` ends per start, so a crafted run of thousands of joined
-            // names costs linear work. A real episode name holds `.mp3` exactly once, at its end.
-            let end = s.indexOf('.mp3', start + 8);
-            for (let n = 0; n < MAX_ENDS_PER_START && end !== -1; n++, end = s.indexOf('.mp3', end + 1)) names.add(s.slice(start, end + 4));
+            while (cursor < ends.length && ends[cursor] < start + 8) cursor++;
+            for (let n = cursor; n < Math.min(ends.length, cursor + MAX_ENDS_PER_START); n++) names.add(s.slice(start, ends[n] + 4));
         }
     }
     return names;

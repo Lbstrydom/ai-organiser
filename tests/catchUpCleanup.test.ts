@@ -175,6 +175,17 @@ describe('audioNamesIn: names that run together never hide each other', () => {
         expect(names.has('catchup-9999-aaaaaaaa.mp3')).toBe(true);
     });
 
+    it.each([
+        ['many starts and no ending', 'catchup-'.repeat(60000) + 'a'],
+        ['many starts and one ending', 'catchup-'.repeat(60000) + 'a.mp3'],
+        ['many endings and one start', 'catchup-a' + '.mp3'.repeat(60000)],
+    ])('stays linear with %s', (_label, text) => {
+        const started = Date.now();
+        const names = audioNamesIn(text);
+        expect(Date.now() - started).toBeLessThan(1500);
+        expect(names.size).toBeLessThan(200000);
+    });
+
     it('a name inside a longer valid-alphabet name is also registered (conservative)', () => {
         expect(audioNamesIn('catchup-x.mp3.mp3')).toEqual(new Set(['catchup-x.mp3', 'catchup-x.mp3.mp3']));
     });
