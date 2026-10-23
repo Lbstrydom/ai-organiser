@@ -51,6 +51,12 @@ export interface SelectionDeps {
     plugin: Plugin;
     settings: AIOrganiserSettings;
     now?: Date;
+    /**
+     * "Include again": treat these dates as never covered (episode AND legacy coverage ignored)
+     * so they are re-offered in full at their current briefs. The new episode's coverage then
+     * supersedes the old by the normal max-merge.
+     */
+    forceDates?: readonly string[];
 }
 
 /** Everything the modal, the status bar and the generator need to know, from one read pass. */
@@ -197,11 +203,14 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         days.set(date, await readDay(app, outputRoot, date, ledger, isBucketClosed(date, hour, now, minute)));
     }
 
-    const buckets = Object.fromEntries([...days].map(([d, f]) => [d, f.info]));
+    const forced = new Set(deps.forceDates ?? []);
+    const buckets = Object.fromEntries([...days].map(([d, f]) => [d, forced.has(d) ? { ...f.info, legacy: null } : f.info]));
+    const coverage = deriveCoverage(episodes);
+    for (const d of forced) delete coverage[d];
     const pending = computePending({
         window,
         buckets,
-        coverage: deriveCoverage(episodes),
+        coverage,
         // Revisions are only trustworthy when the ledger actually loaded.
         memoryOn: memoryOn && ledger !== null,
         kind,

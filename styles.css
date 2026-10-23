@@ -9975,3 +9975,77 @@
 .ai-organiser-field-problem:empty {
     display: none;
 }
+
+/* ── Newsletter catch-up audio ─────────────────────────────────────────────── */
+
+.ai-organiser-catchup-modal {
+    max-width: 520px;
+}
+
+.ai-organiser-catchup-summary {
+    font-weight: var(--font-semibold);
+    margin-bottom: var(--size-4-1);
+}
+
+.ai-organiser-catchup-note {
+    margin: var(--size-4-1) 0;
+    color: var(--text-normal);
+}
+
+.ai-organiser-catchup-note.is-muted {
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-catchup-note.is-warn {
+    color: var(--text-warning);
+}
+
+.ai-organiser-catchup-banner {
+    border-left: 3px solid var(--interactive-accent);
+    padding: var(--size-4-2) var(--size-4-3);
+    margin-bottom: var(--size-4-3);
+}
+
+.ai-organiser-catchup-banner.is-warn {
+    border-left-color: var(--text-warning);
+}
+
+.ai-organiser-catchup-unheard {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-m);
+    padding: var(--size-4-2) var(--size-4-3);
+    margin: var(--size-4-3) 0;
+}
+
+.ai-organiser-catchup-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-2);
+    justify-content: flex-end;
+    margin-top: var(--size-4-3);
+}
+
+.ai-organiser-catchup-progress {
+    margin: var(--size-4-3) 0;
+}
+
+.ai-organiser-catchup-status {
+    cursor: pointer;
+}
+
+.ai-organiser-catchup-status:hover {
+    color: var(--text-accent);
+}
+
+.ai-organiser-catchup-status-icon {
+    display: inline-flex;
+    vertical-align: middle;
+}
+
+@media (max-width: 600px) {
+    .ai-organiser-catchup-actions button {
+        min-height: 44px;
+        flex: 1 1 100%;
+    }
+}

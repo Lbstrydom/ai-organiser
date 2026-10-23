@@ -101,6 +101,8 @@ export interface RunOptions {
     previewHash?: string;
     /** Automatic runs only consider CLOSED buckets. */
     kind?: 'manual' | 'auto';
+    /** "Include again": re-offer these already-covered dates in full. */
+    includeAgainDates?: readonly string[];
 }
 
 export interface EpisodeResult {
@@ -287,7 +289,7 @@ export async function runCatchUp(ports: CatchUpPorts, opts: RunOptions): Promise
         if (state.kind !== 'none' && state.kind !== 'committed') return err('catchup-unresolved');
 
         const snapshot = await buildCatchUpSnapshot(
-            { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports) },
+            { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports), forceDates: opts.includeAgainDates },
             opts.kind ?? 'manual',
         );
         const plan = snapshot.plan;

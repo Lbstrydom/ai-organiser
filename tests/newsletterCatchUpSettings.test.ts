@@ -1,0 +1,199 @@
+/**
+ * The Newsletter settings section: which controls exist in which audio mode, and that the mode
+ * dropdown does what it says. A recording `Setting` stands in for Obsidian's.
+ */
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+const recorded = vi.hoisted(() => ({ items: [] as Array<{ name: string; heading: boolean; dropdown?: { options: Array<[string, string]>; value: string; change: (v: string) => void }; slider?: { min: number; max: number; value: number; change: (v: number) => void }; toggle?: { value: boolean; change: (v: boolean) => void } }> }));
+
+vi.mock('obsidian', async () => {
+    const base = await import('./mocks/obsidian');
+    const chain = (): unknown => new Proxy(function () { /* callable */ }, {
+        get: (_t, prop) => (prop === 'then' || typeof prop === 'symbol' ? undefined : chain()),
+        apply: () => chain(),
+    });
+    class RecordingSetting {
+        private item: (typeof recorded.items)[number];
+        constructor(_el: unknown) { this.item = { name: '', heading: false }; recorded.items.push(this.item); }
+        setName(n: string) { this.item.name = n; return this; }
+        setDesc(_d: string) { return this; }
+        setHeading() { this.item.heading = true; return this; }
+        setClass() { return this; }
+        addDropdown(cb: (d: unknown) => void) {
+            const dd = { options: [] as Array<[string, string]>, value: '', change: (_v: string): void => undefined };
+            const api = {
+                addOption: (v: string, l: string) => { dd.options.push([v, l]); return api; },
+                setValue: (v: string) => { dd.value = v; return api; },
+                onChange: (f: (v: string) => void) => { dd.change = f; return api; },
+            };
+            cb(api);
+            this.item.dropdown = dd;
+            return this;
+        }
+        addSlider(cb: (s: unknown) => void) {
+            const sl = { min: 0, max: 0, value: 0, change: (_v: number): void => undefined };
+            const api = {
+                setLimits: (a: number, b: number) => { sl.min = a; sl.max = b; return api; },
+                setValue: (v: number) => { sl.value = v; return api; },
+                setDynamicTooltip: () => api,
+                onChange: (f: (v: number) => void) => { sl.change = f; return api; },
+            };
+            cb(api);
+            this.item.slider = sl;
+            return this;
+        }
+        addToggle(cb: (t: unknown) => void) {
+            const tg = { value: false, change: (_v: boolean): void => undefined };
+            const api = { setValue: (v: boolean) => { tg.value = v; return api; }, onChange: (f: (v: boolean) => void) => { tg.change = f; return api; } };
+            cb(api);
+            this.item.toggle = tg;
+            return this;
+        }
+        // Components this test does not inspect accept any chained call.
+        addText(cb: (t: unknown) => void) { cb(chain()); return this; }
+        addButton(cb: (b: unknown) => void) { cb(chain()); return this; }
+        addTextArea(cb: (t: unknown) => void) { cb(chain()); return this; }
+        addExtraButton(cb: (b: unknown) => void) { cb(chain()); return this; }
+    }
+    return { ...base, Setting: RecordingSetting };
+});
+
+import { NewsletterSettingsSection } from '../src/ui/settings/NewsletterSettingsSection';
+import { DEFAULT_SETTINGS } from '../src/core/settings';
+import { getTranslations } from '../src/i18n';
+import { createTFolder } from './mocks/obsidian';
+
+const t = getTranslations('en');
+
+/** A container that accepts any DOM-helper call (createEl, createDiv, addClass, ...). */
+function anyElement(): unknown {
+    const make = (): unknown => new Proxy(function () { /* callable */ }, {
+        get: (_t, prop) => (prop === 'then' || typeof prop === 'symbol' ? undefined : make()),
+        apply: () => make(),
+    });
+    return make();
+}
+
+function build(over: Record<string, unknown> = {}) {
+    const display = vi.fn();
+    const plugin = {
+        t,
+        app: { vault: { getAbstractFileByPath: () => createTFolder('x') } },
+        settings: {
+            ...DEFAULT_SETTINGS,
+            featureFlags: { newsletter: true },
+            newsletterDailyBrief: true,
+            newsletterAudioPodcast: true,
+            newsletterAudioMode: 'on-demand',
+            newsletterStoryMemory: true,
+            ...over,
+        },
+        saveSettings: vi.fn(async () => undefined),
+        secretStorageService: { isAvailable: () => false },
+        loadData: async () => ({}),
+        newsletterSeenIds: [],
+        newsletterLastFetchTime: 0,
+    };
+    const section = new NewsletterSettingsSection(plugin as never, anyElement() as never, { display } as never);
+    return { plugin, display, section };
+}
+
+const names = () => recorded.items.map((i) => i.name);
+const find = (name: string) => recorded.items.find((i) => i.name === name);
+
+beforeEach(() => { recorded.items.length = 0; });
+
+function render(over: Record<string, unknown> = {}) {
+    const ctx = build(over);
+    try { ctx.section.display(); } catch (e) { throw new Error(`display() threw: ${String(e)}`); }
+    return ctx;
+}
+
+describe('audio delivery in the Newsletter section', () => {
+    it('on demand: shows the mode, the catch-up controls and the voice, but not the daily-only controls', () => {
+        render({ newsletterAudioMode: 'on-demand' });
+        expect(names()).toEqual(expect.arrayContaining(['Catch-up audio', 'Audio delivery', 'Podcast voice', 'Catch-up window (days)', 'Longest episode (minutes)', 'Show pending days in the status bar']));
+        expect(names()).not.toContain('Maximum podcast length (minutes)');
+        expect(names()).not.toContain('Regenerate audio for today');
+    });
+
+    it('smart daily shows the same catch-up controls', () => {
+        render({ newsletterAudioMode: 'smart-daily' });
+        expect(names()).toEqual(expect.arrayContaining(['Audio delivery', 'Catch-up window (days)', 'Longest episode (minutes)']));
+        expect(names()).not.toContain('Regenerate audio for today');
+    });
+
+    it('daily keeps today\'s controls exactly and hides the catch-up window and length', () => {
+        render({ newsletterAudioMode: 'daily' });
+        expect(names()).toEqual(expect.arrayContaining(['Audio delivery', 'Podcast voice', 'Maximum podcast length (minutes)', 'Regenerate audio for today']));
+        expect(names()).not.toContain('Catch-up window (days)');
+        expect(names()).not.toContain('Longest episode (minutes)');
+    });
+
+    it('audio off hides every audio control, whatever the stored mode', () => {
+        render({ newsletterAudioPodcast: false, newsletterAudioMode: 'on-demand' });
+        expect(names()).not.toContain('Audio delivery');
+        expect(names()).not.toContain('Podcast voice');
+    });
+
+    it('offers exactly the three modes and selects the stored one', () => {
+        render({ newsletterAudioMode: 'smart-daily' });
+        const dd = find('Audio delivery')!.dropdown!;
+        expect(dd.options.map(([v]) => v)).toEqual(['on-demand', 'smart-daily', 'daily']);
+        expect(dd.value).toBe('smart-daily');
+    });
+
+    it('a garbage stored mode shows the default, never daily', () => {
+        render({ newsletterAudioMode: 'weekly' });
+        expect(find('Audio delivery')!.dropdown!.value).toBe('on-demand');
+    });
+
+    it('choosing a mode saves it and redraws the section', () => {
+        const { plugin, display } = render({ newsletterAudioMode: 'daily' });
+        find('Audio delivery')!.dropdown!.change('on-demand');
+        expect(plugin.settings.newsletterAudioMode).toBe('on-demand');
+        expect(plugin.saveSettings).toHaveBeenCalledTimes(1);
+        expect(display).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores a value that is not a mode', () => {
+        const { plugin, display } = render({ newsletterAudioMode: 'on-demand' });
+        find('Audio delivery')!.dropdown!.change('hourly');
+        expect(plugin.settings.newsletterAudioMode).toBe('on-demand');
+        expect(plugin.saveSettings).not.toHaveBeenCalled();
+        expect(display).not.toHaveBeenCalled();
+    });
+});
+
+describe('catch-up controls', () => {
+    it('the window is 1 to 14 calendar days and saves', () => {
+        const { plugin } = render({ newsletterAudioMode: 'on-demand', newsletterCatchUpLookbackDays: 9 });
+        const sl = find('Catch-up window (days)')!.slider!;
+        expect([sl.min, sl.max, sl.value]).toEqual([1, 14, 9]);
+        sl.change(5);
+        expect(plugin.settings.newsletterCatchUpLookbackDays).toBe(5);
+        expect(plugin.saveSettings).toHaveBeenCalled();
+    });
+
+    it('the longest episode is 5 to 20 minutes and saves', () => {
+        const { plugin } = render({ newsletterAudioMode: 'on-demand' });
+        const sl = find('Longest episode (minutes)')!.slider!;
+        expect([sl.min, sl.max, sl.value]).toEqual([5, 20, 20]);
+        sl.change(12);
+        expect(plugin.settings.newsletterCatchUpMaxMins).toBe(12);
+    });
+
+    it('the status bar toggle reflects and saves the choice', () => {
+        const { plugin } = render({ newsletterAudioMode: 'on-demand', newsletterCatchUpStatusBar: false });
+        const tg = find('Show pending days in the status bar')!.toggle!;
+        expect(tg.value).toBe(false);
+        tg.change(true);
+        expect(plugin.settings.newsletterCatchUpStatusBar).toBe(true);
+    });
+
+    it('with story memory off the section says catch-up covers whole closed days', () => {
+        render({ newsletterAudioMode: 'on-demand', newsletterStoryMemory: false });
+        // The note is a description-only Setting: it has no name, but it is rendered.
+        expect(recorded.items.filter((i) => i.name === '').length).toBeGreaterThan(0);
+    });
+});
