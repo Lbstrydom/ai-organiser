@@ -154,7 +154,7 @@ The Claude adapter emits `cache_control: {type: 'ephemeral'}` markers on stable 
 |---|---|
 | 512 tokens | Opus 5 / 5.5, Sonnet 5.5, Haiku 5.5, Fable 5 / 5.1, Mythos 5 / 5.1 |
 | 1024 | Opus 4 / 4.1 / 4.8, Sonnet 4 / 4.5 / 4.6 / 5 |
-| 2048 | Opus 4.7 |
+| 2048 | Opus 4.7, Mythos Preview (`claude-mythos-preview`), Haiku 3.5 (`claude-3-5-haiku-*`, retired on the first-party API) |
 | 4096 | Opus 4.5 / 4.6, Haiku 4.5 |
 | *undocumented* | everything else — renamed Azure deployments, non-Claude ids, a version not yet in the table → `undefined`: **never cached, prompt unchanged** |
 
@@ -199,7 +199,7 @@ The gate compares `stablePrefix.length` to `minTokens × 4` chars. **When Anthro
 
 #### Deliberately not wired
 
-A marker on a one-shot call pays +25% on the prefix and is never read back, and a prefix under the smallest minimum (512 tokens ≈ 2 KB) cannot be cached at all. So: **translate, research extraction/synthesis/decompose/triage, newsletter triage, integrate and improve** are left alone (fixed block < 512 tokens, or a single call); a single-note tag, **new-deck generation** (its prefix carries the slide count, so only a rare repair would reuse it) and the single-chunk/reduce summarise calls are unmarked; the **storyboard** is deferred until the existing per-attempt warn lines (`storyboardService.ts`) show more than ≈0.28 extra attempts issued per run; the **newsletter daily brief** needs ≥2 buckets in one fetch and a join-separator change. The no-persona summary prompt is unsplit (its fixed head is too small to cache).
+A marker on a one-shot call pays +25% on the prefix and is never read back, and a prefix under the smallest minimum (512 tokens ≈ 2 KB) cannot be cached at all. So: **translate, research extraction/synthesis/decompose/triage, newsletter triage, integrate and improve** are left alone (fixed block < 512 tokens, or a single call); a single-note tag, **new-deck generation** (its prefix carries the slide count, so only a rare repair would reuse it) and the single-chunk/reduce summarise calls are unmarked; the **storyboard** is deliberately unwired (see below); the **newsletter daily brief** needs ≥2 buckets in one fetch and a join-separator change. The no-persona summary prompt is unsplit (its fixed head is too small to cache).
 
 ### Where caching pays off
 
@@ -243,6 +243,21 @@ Phase 2 work surfaced that officeparser was silently broken in the production bu
 5. If `cache_write` stays 0: the prefix is below the model's minimum (see the table above), or the model id has no row in `claudeMinCacheableTokens` — check the `model=` field of the line
 6. If writes happen but `cache_read` stays 0 between calls: something dynamic is busting the prefix (timestamp? date? user-id?) — diff two consecutive prefixes
 
+#### Storyboard caching: decision (Oct 2026) — not wired
+
+Measured from the code (`buildStoryboardPrompt`, `runStoryboardLLM`):
+
+- **Prefix size clears the minimum.** The base storyboard prompt is ≈3.3 KB (≈830 tokens) with an empty evidence catalog and ≈9.5 KB (≈2.4k tokens) with a 20-span catalog of ~300 chars each, so it clears 512 tokens (Sonnet 5.5) and, with sources, 2048 (Opus 4.7). Size is not the obstacle.
+- **Reuse is conditional.** Only repair attempts re-send the base prompt (up to 3 attempts per run, `MAX_STORYBOARD_ATTEMPTS`); a first-attempt success never reads a cache entry. A marker on every run pays +25% on the whole prompt, so caching only wins when the expected number of *additional attempts issued per run* exceeds ≈0.28 (0.25 write premium ÷ 0.9 read saving, 5-minute TTL).
+- **The repair rate is not known.** No usage log in the repo carries it, and the only evidence is anecdotal (the 2026-06 comment on `MAX_STORYBOARD_ATTEMPTS`: "1 of 2 cold runs failed through both the generator AND the one repair" on Azure Claude, before the third attempt was added).
+- **Wiring is not byte-identical.** The storyboard prompt is one block: attempt 1 *is* the whole prompt, so there is no volatile tail to send as the user message. Marking it needs either an added fixed tail sentence or a reordered prompt (`<user_brief>` currently precedes the requirements and the catalog), both of which change what the model sees on every run — a quality-sensitive change, not a caching change.
+
+**Decision:** leave it unwired. `runStoryboardLLM` now logs one content-free debug line per run — `storyboard run <label>: attempts=N/3 outcome=ok|exhausted|llm-error|aborted|threw` — so the rate can be computed (extra attempts = Σ(attempts−1) ÷ runs, first-attempt successes included in the denominator). **Revisit** when that average exceeds ≈0.28 over a representative window; the cheapest wiring then is `stablePrefix = systemPrompt` with a fixed one-line tail on every attempt, gated on a quality check of attempt-1 output with and without the tail.
+
+#### Stream errors
+
+A provider `error` event inside an HTTP-200 SSE stream (`event: error` / `data: {"type":"error","error":{...}}`, e.g. `overloaded_error`) used to be dropped as an unknown event, so a stream that died mid-way read as a successful, merely short, answer. `parseAnthropicSseLine` ([src/services/adapters/anthropicStream.ts](../../src/services/adapters/anthropicStream.ts), shared by the direct and Azure Claude adapters) now throws `StreamProviderError`; `CloudLLMService.summarizeTextStream` turns it into `{ success: false, error: "<provider> stream error (<type>): <message>" }` (partial text already delivered through `onChunk` stays delivered; none is returned as a success) and the facade does not retry it as a non-stream call.
+
 ### Azure / APIM: what is and is not verified
 
 - `azure-claude` builds the **same Anthropic body** as direct Claude (`/anthropic/v1/messages`; gateway mode only swaps the auth header), so `cache_control` leaves the plugin unchanged. Microsoft Foundry supports Claude prompt caching (caches are per workspace).
@@ -255,6 +270,9 @@ Phase 2 work surfaced that officeparser was silently broken in the production bu
 - [tests/promptCachingPipelines.test.ts](../../tests/promptCachingPipelines.test.ts) and [tests/promptCachingSummarisePresentation.test.ts](../../tests/promptCachingSummarisePresentation.test.ts): byte identity against `tests/fixtures/prompt-caching-baseline` (prompts rendered before the rollout) for the tag, summary and presentation builders; byte-stable heads across a batch/chunk run; tag transport per provider (`claude`, `azure-claude`, `openai`, `gemini`, `azure-openai`, local); adapter envelope parity; local and stream no-longer-drop; `resolveMapCall` and orchestrator single-chunk flattening
 - [tests/promptCachingTagWiring.test.ts](../../tests/promptCachingTagWiring.test.ts): which tag calls carry a prefix (batch of 2+ yes, single note no)
 - [tests/promptCachingUsageLog.test.ts](../../tests/promptCachingUsageLog.test.ts): both usage shapes, label defaulting, no prompt/response text in the `[Cache]` lines
+- [tests/streamProviderError.test.ts](../../tests/streamProviderError.test.ts): SSE error events through both Claude adapters and `summarizeTextStream` (text-then-error, error first, error in the final buffer, facade no-fallback, healthy-stream control)
+- [tests/storyboardAttemptLog.test.ts](../../tests/storyboardAttemptLog.test.ts): the per-run attempts / outcome line, content-free
+- [tests/dollarTokenInsertion.test.ts](../../tests/dollarTokenInsertion.test.ts): text containing `$&`, `$1`, `$$`, `$` + backtick and `$'` round-trips verbatim through the prompt placeholders and the note-writing sinks
 
 Earlier tests (May 2026):
 
