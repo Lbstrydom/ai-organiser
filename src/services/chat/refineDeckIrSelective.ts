@@ -111,11 +111,15 @@ export async function refineDeckIrSelective(
         const selMaxTokens = storyboardMaxTokens(options.selections.length);
         let raw: LLMCallResult;
         try {
-            raw = await summarizeText(context, fullPrompt, {
+            // `fullPrompt` (above) only feeds the size guard. The system prompt goes out as the
+            // cacheable `stablePrefix` it shares with whole-deck refine; the joined text is unchanged.
+            raw = await summarizeText(context, userPrompt, {
                 timeoutMs: REFINEMENT_HARD_BUDGET_MS,
                 signal: options.signal,
                 maxTokens: selMaxTokens,
                 disableThinking: true,
+                stablePrefix: systemPrompt,
+                label: 'presentation-polish',
             });
         } catch (e) {
             if (options.signal?.aborted || (e instanceof Error && e.name === 'AbortError')) {
@@ -135,11 +139,13 @@ export async function refineDeckIrSelective(
             const repairPrompt = buildSelectiveRepairPrompt(userPrompt, raw.content, result.error, reqIndices);
             let retry: LLMCallResult;
             try {
-                retry = await summarizeText(context, `${systemPrompt}\n\n${repairPrompt}`, {
+                retry = await summarizeText(context, repairPrompt, {
                     timeoutMs: REFINEMENT_HARD_BUDGET_MS,
                     signal: options.signal,
                     maxTokens: selMaxTokens,
                     disableThinking: true,
+                    stablePrefix: systemPrompt,
+                    label: 'presentation-polish',
                 });
             } catch (e) {
                 if (options.signal?.aborted || (e instanceof Error && e.name === 'AbortError')) {

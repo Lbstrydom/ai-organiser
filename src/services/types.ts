@@ -56,6 +56,22 @@ export interface GenerateTagsResponse {
     rawResponse?: string; // Raw AI response for custom parsing
 }
 
+/** Options for {@link LLMService.generateTags}. */
+export interface GenerateTagsOptions {
+    /**
+     * Byte-stable instruction head of the tagging prompt, same contract as
+     * `SummarizeOptions.stablePrefix`: Claude emits it as a cached `system`
+     * block when it clears the model's cache minimum, every other path
+     * (non-Claude, below the minimum, local) sends `prefix + "\n\n" + prompt`.
+     * Pass it only when the call is known to repeat within ~5 minutes (a
+     * multi-note batch); a one-shot call would pay the cache-write premium
+     * for nothing.
+     */
+    stablePrefix?: string;
+    /** Logical call label for the per-call cache usage log. Default `'tagging'`. */
+    label?: string;
+}
+
 export interface LLMService {
     /**
      * @deprecated Use generateTags() instead for taxonomy-based tagging
@@ -73,7 +89,7 @@ export interface LLMService {
      * @param prompt - The complete prompt including content and taxonomy
      * @returns Promise resolving to tags generation result
      */
-    generateTags(prompt: string): Promise<GenerateTagsResponse>;
+    generateTags(prompt: string, options?: GenerateTagsOptions): Promise<GenerateTagsResponse>;
 
     testConnection(): Promise<{ result: ConnectionTestResult; error?: ConnectionTestError }>;
 

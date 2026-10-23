@@ -12,7 +12,7 @@ import { fetchArticle, openInBrowser, WebContent } from '../services/webContentS
 import { assessContent } from '../services/contentSizePolicy';
 import { orchestrateChunked } from '../services/chunkingOrchestrator';
 import { PdfService, PdfContent, PdfServiceResult } from '../services/pdfService';
-import { buildSummaryPrompt, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
+import { buildSummaryPrompt, buildSummaryPromptParts, buildChunkCombinePrompt, insertContentIntoPrompt, insertSectionsIntoPrompt, SummaryPromptOptions } from '../services/prompts/summaryPrompts';
 import { buildStructuredSummaryPrompt, insertContentIntoStructuredPrompt } from '../services/prompts/structuredPrompts';
 import { parseStructuredResponse } from '../utils/responseParser';
 import { createSummaryHook } from '../utils/frontmatterUtils';
@@ -1631,8 +1631,9 @@ async function summarizeContentInChunks(
                     chunkIndex,
                     chunkTotal: total,
                 };
-                const tmpl = buildSummaryPrompt(promptOptions);
-                return insertContentIntoPrompt(tmpl, chunk);
+                // Split so the persona head can ride as a cacheable prefix across chunks.
+                const parts = buildSummaryPromptParts(promptOptions);
+                return { stablePrefix: parts.stablePrefix, prompt: insertContentIntoPrompt(parts.prompt, chunk) };
             },
             reducePromptBuilder: (parts) => {
                 const combineOptions: SummaryPromptOptions = {

@@ -1,4 +1,4 @@
-import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestError, GenerateTagsResponse, LanguageCode } from './types';
+import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestError, GenerateTagsResponse, GenerateTagsOptions, LanguageCode } from './types';
 import { buildTagPrompt } from './prompts/tagPrompts';
 import { TaggingMode } from './prompts/types';
 import { SYSTEM_PROMPT } from '../utils/constants';
@@ -779,14 +779,15 @@ export abstract class BaseLLMService {
      * Generate tags from a pre-built prompt (taxonomy-based approach)
      * This is the new simplified method that takes a complete prompt
      * @param prompt - The complete prompt including content and taxonomy
+     * @param options - Optional cacheable `stablePrefix` (a batch-repeated head) and log label
      * @returns Promise resolving to tags generation result with optional title and folder
      */
-    async generateTags(prompt: string): Promise<GenerateTagsResponse> {
+    async generateTags(prompt: string, options?: GenerateTagsOptions): Promise<GenerateTagsResponse> {
         try {
             this.debugLog('Generating tags with taxonomy-based prompt');
 
             // Send the prompt to the LLM
-            const response = await this.sendRequest(prompt);
+            const response = await this.sendRequest(prompt, options);
             this.debugLog('Raw LLM response:', response.substring(0, 500));
 
             // Parse the full response including tags, title, and folder
@@ -955,9 +956,10 @@ export abstract class BaseLLMService {
      * Sends a request to the LLM service
      * Must be implemented by derived classes
      * @param prompt - The prompt to send
+     * @param options - Optional `stablePrefix` to send ahead of `prompt` (cached on Claude)
      * @returns Promise resolving to the response
      */
-    protected abstract sendRequest(prompt: string): Promise<string>;
+    protected abstract sendRequest(prompt: string, options?: GenerateTagsOptions): Promise<string>;
 
     /**
      * Tests connection to the LLM service

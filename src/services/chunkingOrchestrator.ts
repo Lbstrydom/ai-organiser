@@ -21,6 +21,7 @@ import { logger } from '../utils/logger';
 import type { SummarizableLLMService, SummarizeOptions } from './types';
 import type { ContentAssessment, ContentType } from './contentSizePolicy';
 import { HIERARCHICAL_CHUNK_THRESHOLD } from './contentSizePolicy';
+import { PromptParts, joinPromptParts } from './prompts/promptParts';
 
 export interface ChunkError {
     chunkIndex: number;
@@ -37,13 +38,16 @@ export interface ChunkingResult {
 export interface ChunkingOptions {
     contentType: ContentType;
     /** Build the prompt for a single map chunk. Receives optional
-     *  `continuationContext` from the previous chunk's MapChunkOutput. */
+     *  `continuationContext` from the previous chunk's MapChunkOutput.
+     *  May return `PromptParts` to split off a byte-stable instruction head: it
+     *  is sent as a cacheable `stablePrefix` on multi-chunk map calls and joined
+     *  back into the prompt on the one-shot single-chunk path. */
     mapPromptBuilder: (
         chunk: string,
         chunkIndex: number,
         total: number,
         continuationContext?: string,
-    ) => string;
+    ) => string | PromptParts;
     /** Build the final (or intermediate) reduce prompt from partial summaries. */
     reducePromptBuilder: (partialSummaries: string[]) => string;
     /** Options for map-phase LLM calls (fast model + tight budget). */
@@ -62,6 +66,32 @@ export interface ChunkingOptions {
 interface MapChunkOutput {
     summary: string;
     continuationContext?: string;
+}
+
+/** The prompt of a builder result as one string (single-chunk and contract-check paths). */
+function flattenBuilt(built: string | PromptParts): string {
+    return typeof built === 'string' ? built : joinPromptParts(built.stablePrefix, built.prompt);
+}
+
+/**
+ * Prompt + options for one multi-chunk map call. A split builder result sends its
+ * byte-stable head as `stablePrefix`; an option-supplied prefix (a legacy caller
+ * passing `mapOptions.stablePrefix`) is never overwritten — it leads, and the
+ * builder's head follows, which is the order the joined prompt always had. A
+ * string result leaves the options untouched.
+ */
+export function resolveMapCall(
+    built: string | PromptParts,
+    base: SummarizeOptions | undefined,
+): { prompt: string; options: SummarizeOptions | undefined } {
+    if (typeof built === 'string') return { prompt: built, options: base };
+    const stablePrefix = built.stablePrefix
+        ? joinPromptParts(base?.stablePrefix, built.stablePrefix)
+        : base?.stablePrefix;
+    return {
+        prompt: built.prompt,
+        options: stablePrefix ? { ...base, stablePrefix } : base,
+    };
 }
 
 /** Cap map output so the reduce phase stays manageable. */
@@ -93,7 +123,7 @@ export async function orchestrateChunked(
     }
 
     // Debug-mode XML prompt contract check (best effort).
-    const firstMapPrompt = options.mapPromptBuilder(chunks[0], 1, chunks.length);
+    const firstMapPrompt = flattenBuilt(options.mapPromptBuilder(chunks[0], 1, chunks.length));
     if (!/<task>/i.test(firstMapPrompt)) {
         logger.debug('ChunkingOrchestrator', 'map prompt does not contain <task> tag — XML prompt contract violated (not fatal)');
     }
@@ -144,7 +174,8 @@ async function runSingleChunk(
     llmService: SummarizableLLMService,
     options: ChunkingOptions,
 ): Promise<ChunkingResult> {
-    const prompt = options.mapPromptBuilder(chunk, 1, 1);
+    // One-shot: nothing will read a cache entry back, so the head is joined in, not marked.
+    const prompt = flattenBuilt(options.mapPromptBuilder(chunk, 1, 1));
     const singleOpts = options.reduceOptions ?? options.mapOptions;
     try {
         const response = await llmService.summarizeText(prompt, singleOpts);
@@ -177,9 +208,12 @@ async function executeMapPhase(
     let continuationContext: string | undefined;
 
     for (let i = 0; i < chunks.length; i++) {
-        const prompt = options.mapPromptBuilder(chunks[i], i + 1, chunks.length, continuationContext);
+        const { prompt, options: callOptions } = resolveMapCall(
+            options.mapPromptBuilder(chunks[i], i + 1, chunks.length, continuationContext),
+            options.mapOptions,
+        );
         try {
-            const response = await llmService.summarizeText(prompt, options.mapOptions);
+            const response = await llmService.summarizeText(prompt, callOptions);
             if (!response.success || !response.content) {
                 errors.push({ chunkIndex: i, error: response.error || 'Empty response' });
                 continuationContext = undefined;

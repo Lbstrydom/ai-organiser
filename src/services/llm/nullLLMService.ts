@@ -3,6 +3,7 @@ import {
     ConnectionTestError,
     ConnectionTestResult,
     GenerateTagsResponse,
+    GenerateTagsOptions,
     LanguageCode,
     LLMResponse,
     MultimodalLLMService,
@@ -70,7 +71,7 @@ export class NullLLMService implements MultimodalLLMService {
         return Promise.resolve({ success: false });
     }
 
-    generateTags(_prompt: string): Promise<GenerateTagsResponse> {
+    generateTags(_prompt: string, _options?: GenerateTagsOptions): Promise<GenerateTagsResponse> {
         return Promise.resolve({ success: false, error: this.error });
     }
 

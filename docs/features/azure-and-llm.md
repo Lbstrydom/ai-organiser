@@ -140,28 +140,47 @@ A thin coordination layer over the existing long-lived LLM service — NOT a gat
 
 ## Anthropic Prompt Caching (Phases 1/2/2c/3)
 
-**Status**: ✅ Implemented (May 2026) — Claude-only, opt-in per call
+**Status**: ✅ Implemented (May 2026), extended to batch tagging, the presentation iterate loop and the summarise map phase (Oct 2026) — Claude-only, opt-in per call
 
 ### Overview
 
-The Claude adapter emits `cache_control: {type: 'ephemeral'}` markers on stable prompt prefixes so repeat calls within the 5-minute TTL read prefix tokens at 0.1× the input cost instead of 1× (Anthropic's 90% cache-read discount). Cache writes cost 1.25× — we only emit the marker when the prefix clears the per-model minimum (4096 chars for Sonnet/Opus, 8192 for Haiku) so we never pay the write penalty for a prefix Anthropic would silently refuse to cache.
+The Claude adapter emits `cache_control: {type: 'ephemeral'}` markers on stable prompt prefixes so repeat calls within the 5-minute TTL read prefix tokens at 0.1× the input cost instead of 1× (Anthropic's 90% cache-read discount). Cache writes cost 1.25×, so a marker only pays from the second call within the TTL: callers mark a prefix only when they know it will be re-sent (a multi-note batch, an iterate loop, the chunks of one document) — never a one-shot call. The marker is emitted only when the prefix clears the model's *documented* cache minimum; below it (or for a model whose minimum is not documented) the prefix is concatenated and the prompt is unchanged. Anthropic ignores a marker below the minimum at no charge, so the gate exists to leave prompts alone, not to avoid a fee.
+
+#### Per-model minimum (`claudeMinCacheableTokens`)
+
+[src/services/adapters/modelCapabilities.ts](../../src/services/adapters/modelCapabilities.ts) holds an exact `(tier, major, minor) → tokens` table (checked against Anthropic's docs 2026-10-22). It is **not monotonic across generations**, so a newer version never inherits an older row:
+
+| Minimum | Models |
+|---|---|
+| 512 tokens | Opus 5 / 5.5, Sonnet 5.5, Haiku 5.5, Fable 5 / 5.1, Mythos 5 / 5.1 |
+| 1024 | Opus 4 / 4.1 / 4.8, Sonnet 4 / 4.5 / 4.6 / 5 |
+| 2048 | Opus 4.7 |
+| 4096 | Opus 4.5 / 4.6, Haiku 4.5 |
+| *undocumented* | everything else — renamed Azure deployments, non-Claude ids, a version not yet in the table → `undefined`: **never cached, prompt unchanged** |
+
+The gate compares `stablePrefix.length` to `minTokens × 4` chars. **When Anthropic ships a new model, add its row** — until then it simply runs uncached.
 
 ### Architecture
 
 **Provider-neutral API** ([src/services/types.ts:96-127](../../src/services/types.ts)):
 - `SummarizeOptions.stablePrefix?: string` — optional cacheable prefix
 - Callers pass volatile content via `prompt`, stable content via `stablePrefix`
-- Non-Claude providers (Gemini, OpenAI) silently concatenate via `effectivePrompt` in [src/services/cloudService.ts:518-595](../../src/services/cloudService.ts) — no caller-side branching needed
+- `GenerateTagsOptions.stablePrefix` / `label` — the same contract for `generateTags(prompt, options?)`
+- `PromptParts { stablePrefix?, prompt }` + `joinPromptParts` ([src/services/prompts/promptParts.ts](../../src/services/prompts/promptParts.ts)) are the single recombination rule; builders expose `buildXParts()` and keep `buildX()` as the joined string, byte-identical to the pre-split prompt
+- Non-Claude providers (Gemini, OpenAI, Azure OpenAI), the local provider, below-minimum prefixes and the stream path all send `joinPromptParts(stablePrefix, prompt)` — no caller-side branching. (The local provider and the stream path used to *drop* the prefix; fixed Oct 2026.)
 
 **Claude-specific shaping** ([src/services/cloudService.ts:632-720](../../src/services/cloudService.ts)):
-- `buildClaudeSystemAndUser(systemPrompt, prompt, modelName, stablePrefix)` helper returns `{ systemField, userContent }`
-- Above threshold: `systemField = [{type:text, boilerplate}, {type:text, stablePrefix, cache_control:{type:'ephemeral'}}]`, `userContent = prompt`
-- Below threshold OR no stablePrefix: `systemField = string boilerplate`, `userContent = stablePrefix ? `${stablePrefix}\n\n${prompt}` : prompt`
+- `buildClaudeCachedPrompt(systemPrompt, prompt, modelName, stablePrefix)` ([src/services/adapters/claudePromptCache.ts](../../src/services/adapters/claudePromptCache.ts)) returns `{ systemField, userContent }`; used by the summarize path and by the Claude adapters' `formatCachedRequest`
+- At or above the model minimum: `systemField = [{type:text, boilerplate}, {type:text, stablePrefix, cache_control:{type:'ephemeral'}}]`, `userContent = prompt`
+- Below the minimum, an undocumented model, or no stablePrefix: `systemField = string boilerplate`, `userContent = joinPromptParts(stablePrefix, prompt)`
 - Composes with adaptive thinking — both can be present in the same body
 
-**Cache usage instrumentation** ([src/services/adapters/claudeAdapter.ts:151-167, 206-225](../../src/services/adapters/claudeAdapter.ts)):
-- `logCacheUsage(usage, source)` called from `parseResponseContent` (non-streaming) and `parseStreamingChunk` on `message_start`
-- Format: `[Cache] claude {response|stream-start} model=X in=N cache_write=N cache_read=N out=N`
+**Tagging path** (Oct 2026): `generateTags(prompt, { stablePrefix, label })` threads through `sendRequest` → `makeRequestWithRetry` → `CloudLLMService.buildTagRequestBody`. An adapter that implements the optional `formatCachedRequest(prompt, stablePrefix)` (`claude`, `azure-claude`) gets the split; any other adapter receives `formatRequest(joinPromptParts(...))`, so a provider that doesn't understand the split can never lose the prefix. The Azure TPM fail-fast sizes the same body that is sent.
+
+**Cache usage instrumentation** ([src/services/llm/llmUsageLog.ts](../../src/services/llm/llmUsageLog.ts)):
+- `logLlmUsage(label, adapterType, model, usage)` is called by `CloudLLMService` after parsing each response (summarize, tagging, multimodal) and by the Claude adapters on the stream `message_start` event
+- Understands the Anthropic usage shape and the OpenAI-compatible one (Azure OpenAI's `prompt_tokens_details.cached_tokens` / `cache_write_tokens`)
+- Format: `[Cache] {label} {adapter} model=X in=N cache_write=N cache_read=N out=N` — numbers, label, provider and model only, **never prompt or response text**. Labels: `tagging`, `presentation-refine`, `presentation-polish`, `chat` (default), `multimodal`, or the caller's `SummarizeOptions.label`. The stream line is labelled `stream-start` (cache counters are final there, the output count is provisional)
 - Routes through `logger.debug` — silent in production, visible when `debugMode` is on
 - Foundation for measuring hit rates without external metrics pipeline
 
@@ -174,6 +193,13 @@ The Claude adapter emits `cache_control: {type: 'ephemeral'}` markers on stable 
 | Minutes consolidation (Phase 2c) | [minutesService.ts:672-700](../../src/services/minutesService.ts) | `buildStyleConsolidationPrompt({...})` | `JSON.stringify(consolidationPayload)` |
 | Minutes intermediate-merge (Phase 2c) | [minutesService.ts:909-919](../../src/services/minutesService.ts) | `buildIntermediateMergePrompt(mergeContext)` | `Extracts to merge:\n${JSON.stringify(batch)}` |
 | Free Chat (Phase 3) | [FreeChatModeHandler.ts:203-333](../../src/ui/chat/FreeChatModeHandler.ts) | auto-memory instruction + global memory + project instructions/memory/files + flat attachments | conversation history + RAG retrieval + question |
+| Batch tagging (≥2 notes) | [main.ts](../../src/main.ts) `analyzeAndTagNote` (`cacheTagPrefix`) | `buildTaxonomyTagPromptParts` head: language, folder scope, task, taxonomy structure, taxonomy | the note + output rules |
+| Presentation refine / polish / selective refine (+ repair) | [presentationHtmlService.ts](../../src/services/chat/presentationHtmlService.ts), [refineDeckIrSelective.ts](../../src/services/chat/refineDeckIrSelective.ts) | `buildIrSystemPrompt({outputLanguage})` (~5k chars, shared by all three) | current deck + request / selections |
+| Summarise chunk map phase | [summarizeCommands.ts](../../src/commands/summarizeCommands.ts) via [chunkingOrchestrator.ts](../../src/services/chunkingOrchestrator.ts) `resolveMapCall` | injection guard + persona (`buildSummaryPromptParts`) | requirements (language, user context, previous-chunk context), chunk position, content |
+
+#### Deliberately not wired
+
+A marker on a one-shot call pays +25% on the prefix and is never read back, and a prefix under the smallest minimum (512 tokens ≈ 2 KB) cannot be cached at all. So: **translate, research extraction/synthesis/decompose/triage, newsletter triage, integrate and improve** are left alone (fixed block < 512 tokens, or a single call); a single-note tag, **new-deck generation** (its prefix carries the slide count, so only a rare repair would reuse it) and the single-chunk/reduce summarise calls are unmarked; the **storyboard** is deferred until the existing per-attempt warn lines (`storyboardService.ts`) show more than ≈0.28 extra attempts issued per run; the **newsletter daily brief** needs ≥2 buckets in one fetch and a join-separator change. The no-persona summary prompt is unsplit (its fixed head is too small to cache).
 
 ### Where caching pays off
 
@@ -214,18 +240,32 @@ Phase 2 work surfaced that officeparser was silently broken in the production bu
 2. Open Dev Tools (Ctrl+Shift+I), filter Console by `Cache`
 3. Run any Claude-routed flow that has a long stable prefix (Minutes with a loaded dictionary, chat with a project + memory + attached doc)
 4. Look for `cache_write=N` on first call, `cache_read=N` on subsequent calls within 5 min
-5. If `cache_write` stays 0: prefix is below the threshold (4096 chars for Sonnet/Opus, 8192 for Haiku) — add more stable context
+5. If `cache_write` stays 0: the prefix is below the model's minimum (see the table above), or the model id has no row in `claudeMinCacheableTokens` — check the `model=` field of the line
 6. If writes happen but `cache_read` stays 0 between calls: something dynamic is busting the prefix (timestamp? date? user-id?) — diff two consecutive prefixes
 
-### Tests (25 new + 5 modified)
+### Azure / APIM: what is and is not verified
+
+- `azure-claude` builds the **same Anthropic body** as direct Claude (`/anthropic/v1/messages`; gateway mode only swaps the auth header), so `cache_control` leaves the plugin unchanged. Microsoft Foundry supports Claude prompt caching (caches are per workspace).
+- **Unverified:** whether a given APIM gateway forwards `cache_control` untouched. If it strips the field the call still succeeds, just uncached. **Probe:** Debug mode on, run *Tag folder* on ≥3 notes, read the `[Cache] tagging azure-claude model=…` lines. A nonzero `cache_write` on the first line proves the marker reached Anthropic through the gateway; later lines with `cache_read > 0` prove hits. All zeros is inconclusive unless eligibility is checked first (the model has a table row and the first call's `in=` exceeds its minimum).
+- Azure OpenAI (`gpt-5.x`) caches automatically on an identical ≥1024-token prefix and reports it as `cached_tokens`. The plugin never sends `cache_control` or `prompt_cache_*` to an OpenAI-shaped body (the latter returns 400 on pre-5.6 models); prefix-first ordering is what keeps automatic caching working.
+
+### Tests
+
+- [tests/promptCachingGate.test.ts](../../tests/promptCachingGate.test.ts): the minimum table (every row + undocumented ids), `joinPromptParts`, `buildClaudeCachedPrompt` (boundary at `min×4`, per-model outcomes, undocumented model never caches)
+- [tests/promptCachingPipelines.test.ts](../../tests/promptCachingPipelines.test.ts) and [tests/promptCachingSummarisePresentation.test.ts](../../tests/promptCachingSummarisePresentation.test.ts): byte identity against `tests/fixtures/prompt-caching-baseline` (prompts rendered before the rollout) for the tag, summary and presentation builders; byte-stable heads across a batch/chunk run; tag transport per provider (`claude`, `azure-claude`, `openai`, `gemini`, `azure-openai`, local); adapter envelope parity; local and stream no-longer-drop; `resolveMapCall` and orchestrator single-chunk flattening
+- [tests/promptCachingTagWiring.test.ts](../../tests/promptCachingTagWiring.test.ts): which tag calls carry a prefix (batch of 2+ yes, single note no)
+- [tests/promptCachingUsageLog.test.ts](../../tests/promptCachingUsageLog.test.ts): both usage shapes, label defaulting, no prompt/response text in the `[Cache]` lines
+
+Earlier tests (May 2026):
 
 - [tests/claudeAdapterCacheUsage.test.ts](../../tests/claudeAdapterCacheUsage.test.ts) (10 tests): `logCacheUsage` fires correctly on both code paths, silent when `debugMode` off, graceful when `usage` field missing or response is null/undefined
-- [tests/claudePromptCaching.test.ts](../../tests/claudePromptCaching.test.ts) (10 tests): body shape transformation, per-model thresholds (Sonnet 4096 / Haiku 8192), idempotency (same prefix → byte-identical system field across calls), no marker for non-Claude providers, composes with adaptive thinking
+- [tests/claudePromptCaching.test.ts](../../tests/claudePromptCaching.test.ts) (10 tests): body shape transformation, per-model thresholds from the documented table, idempotency (same prefix → byte-identical system field across calls), no marker for non-Claude providers, composes with adaptive thinking
 - `tests/freeChatModeHandler.test.ts` (5 new): stable/volatile split, prefix invariance across turns with same context, prefix-busting when memory is added between turns
 - `tests/minutesService.test.ts` (5 updated): assertions migrated from `prompt`-only to combined `prompt + options.stablePrefix` (style instructions moved out of user message into stablePrefix)
 
 ### Key patterns
-- **Threshold gate**: cloud service falls back to silent concatenation when stablePrefix < per-model minimum. Avoids paying 1.25× write penalty for a prefix Anthropic won't cache. Below-threshold callers get no behaviour change.
+- **Threshold gate, fail closed**: the prefix is concatenated when it is below the model's documented minimum **or the model is not in the table**. Below-threshold and unknown-model callers get no behaviour change.
+- **Mark only expected reuse**: the caller decides (batch, iterate loop, multi-chunk), not the transport. A one-shot marker costs +25% and is never read.
 - **Fingerprint discipline**: same patterns from audio narration's `LLM_ENHANCEMENT_PROMPT_VERSION` salting apply here — any change before the cache marker busts the cache hash. Avoid embedding timestamps, dynamic IDs, or per-call counters in the stable prefix.
 - **Volatile-after-stable invariant** (chat handler): test `freeChatModeHandler.test.ts` asserts `stablePrefix` is byte-identical between turns 1 and 2 when context doesn't change. The reorder of "flat attachments above history" is what makes this true — pre-Phase-3, attachments sat AFTER history, so the prefix wasn't contiguous.
 - **Provider-neutral API**: `stablePrefix` on generic `SummarizeOptions` works for all providers. Claude uses it for `cache_control`; others silently concatenate. Adding Gemini context caching later doesn't require changing callers.

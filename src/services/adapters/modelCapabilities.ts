@@ -90,6 +90,39 @@ export function claudeAlwaysThinkingParams(
 }
 
 /**
+ * Minimum cacheable prompt prefix, in tokens, per Anthropic's prompt-caching
+ * docs (checked 2026-10-22). Keyed exactly by (tier, major, minor): the minimum
+ * is NOT monotonic across generations (512 on the newest models, 4096 on Opus
+ * 4.5/4.6 and Haiku 4.5), so a newer version must not inherit an older row.
+ * Add a row when Anthropic publishes one. Below the minimum a `cache_control`
+ * marker is ignored at no charge.
+ */
+const CLAUDE_CACHE_MIN_TOKENS: Readonly<Record<string, number>> = {
+    'opus-4-0': 1024, 'opus-4-1': 1024, 'opus-4-5': 4096, 'opus-4-6': 4096,
+    'opus-4-7': 2048, 'opus-4-8': 1024, 'opus-5-0': 512, 'opus-5-5': 512,
+    'sonnet-4-0': 1024, 'sonnet-4-5': 1024, 'sonnet-4-6': 1024, 'sonnet-5-0': 1024, 'sonnet-5-5': 512,
+    'haiku-4-5': 4096, 'haiku-5-5': 512,
+    'fable-5-0': 512, 'fable-5-1': 512,
+    'mythos-5-0': 512, 'mythos-5-1': 512,
+};
+
+/** `claude-{tier}-{major}[-{minor}][-{yyyymmdd}]` — nothing else is a documented id. */
+const CLAUDE_CACHE_ID_RE = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/;
+
+/**
+ * Documented minimum cacheable prefix (tokens) for a Claude model id, or
+ * `undefined` when it is not documented — an unparseable id (e.g. a renamed
+ * Azure deployment), a non-Claude id, or a version outside the table. Callers
+ * treat `undefined` as "do not cache" and leave the prompt unchanged.
+ */
+export function claudeMinCacheableTokens(modelId: string | undefined | null): number | undefined {
+    if (!modelId) return undefined;
+    const m = CLAUDE_CACHE_ID_RE.exec(modelId);
+    if (!m) return undefined;
+    return CLAUDE_CACHE_MIN_TOKENS[`${m[1]}-${m[2]}-${m[3] ?? '0'}`];
+}
+
+/**
  * Does this Claude model ship with a 1M input context window? Opus/Sonnet 4.6+
  * have it; older Claude models cap at ~200K per Anthropic defaults.
  *

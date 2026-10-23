@@ -1,4 +1,5 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService, SummarizeOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService, SummarizeOptions, GenerateTagsOptions, LanguageCode } from './types';
+import { joinPromptParts } from './prompts/promptParts';
 import { SYSTEM_PROMPT } from '../utils/constants';
 import { BaseLLMService } from './baseService';
 import { TaggingMode } from './prompts/types';
@@ -214,9 +215,10 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
     /**
      * Sends a request to the LLM service and returns the response
      * @param prompt - The prompt to send
+     * @param options - A `stablePrefix` is joined ahead of the prompt (the local API has no prompt cache)
      * @returns Promise resolving to the response
      */
-    protected async sendRequest(prompt: string): Promise<string> {
+    protected async sendRequest(prompt: string, options?: GenerateTagsOptions): Promise<string> {
         const response = await this.makeRequestWithRetry({
             method: 'POST',
             // Don't specify headers here as they will be merged with auth headers in makeRequest
@@ -229,7 +231,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                     },
                     {
                         role: 'user',
-                        content: prompt
+                        content: joinPromptParts(options?.stablePrefix, prompt)
                     }
                 ],
                 temperature: 0.3
@@ -275,7 +277,9 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                         },
                         {
                             role: 'user',
-                            content: prompt
+                            // `stablePrefix` is the instruction head callers split off for Claude's
+                            // prompt cache; the local API has none, so it must be sent in full.
+                            content: joinPromptParts(options?.stablePrefix, prompt)
                         }
                     ],
                     temperature: 0.3,

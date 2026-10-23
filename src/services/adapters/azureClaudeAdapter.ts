@@ -2,7 +2,8 @@ import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import { SYSTEM_PROMPT } from '../../utils/constants';
 import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams } from './modelCapabilities';
-import { logger } from '../../utils/logger';
+import { logLlmUsage } from '../llm/llmUsageLog';
+import { buildClaudeCachedPrompt } from './claudePromptCache';
 
 /** Thin export so existing call sites don't change — capability logic lives in
  *  modelCapabilities.ts, pattern-matched on family+version so new releases pick
@@ -87,15 +88,35 @@ export class AzureClaudeAdapter extends BaseAdapter {
      * Claude requires 'system' as a separate parameter, not in messages array.
      */
     public formatRequest(prompt: string, _language?: string): Record<string, unknown> {
+        return this.buildTagRequest(SYSTEM_PROMPT, prompt);
+    }
+
+    /** The one tagging request envelope: ordinary and cached requests differ only in `system` / user content. */
+    private buildTagRequest(
+        system: string | Array<Record<string, unknown>>,
+        userContent: string,
+    ): Record<string, unknown> {
         const body: Record<string, unknown> = {
             model: this.config.modelName,
             max_tokens: 1024,
-            system: SYSTEM_PROMPT,
+            system,
             messages: [
-                { role: 'user', content: prompt }
+                { role: 'user', content: userContent }
             ]
         };
         return this.applyThinkingParams(body);
+    }
+
+    /**
+     * Tagging request with the batch-stable instruction head split off for
+     * prompt caching — identical shape to the direct Claude adapter, since
+     * Foundry's `/anthropic/v1/messages` takes the native Anthropic body.
+     */
+    public formatCachedRequest(prompt: string, stablePrefix: string): Record<string, unknown> {
+        const { systemField, userContent } = buildClaudeCachedPrompt(
+            SYSTEM_PROMPT, prompt, this.config.modelName, stablePrefix,
+        );
+        return this.buildTagRequest(systemField, userContent);
     }
 
     getMultimodalCapability(): MultimodalCapability {
@@ -158,23 +179,6 @@ export class AzureClaudeAdapter extends BaseAdapter {
     }
 
     /**
-     * Logs Claude usage including cache fields. No-op outside debug mode.
-     */
-    private logCacheUsage(usage: unknown, source: 'response' | 'stream-start'): void {
-        const u = usage as {
-            input_tokens?: number;
-            cache_creation_input_tokens?: number;
-            cache_read_input_tokens?: number;
-            output_tokens?: number;
-        } | null | undefined;
-        if (!u) return;
-        logger.debug(
-            'Cache',
-            `azure-claude ${source} model=${this.config.modelName ?? '?'} in=${u.input_tokens ?? 0} cache_write=${u.cache_creation_input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0} out=${u.output_tokens ?? 0}`,
-        );
-    }
-
-    /**
      * Extracts the main text content from a Claude API response.
      * Handles both standard responses (content[0].text) and adaptive thinking
      * responses where the content array contains thinking blocks followed by text blocks.
@@ -182,9 +186,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
     public parseResponseContent(response: unknown): string {
         const responseObj = response as {
             content?: Array<{ type?: string; text?: string }>;
-            usage?: unknown;
         };
-        this.logCacheUsage(responseObj?.usage, 'response');
         if (!responseObj?.content || !Array.isArray(responseObj.content)) {
             return '';
         }
@@ -228,7 +230,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
         try {
             const parsed = JSON.parse(data);
             if (parsed.type === 'message_start') {
-                this.logCacheUsage(parsed.message?.usage, 'stream-start');
+                logLlmUsage('stream-start', 'azure-claude', this.config.modelName, parsed.message?.usage);
                 return null;
             }
             if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
