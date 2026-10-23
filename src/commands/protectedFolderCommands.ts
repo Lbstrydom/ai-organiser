@@ -9,7 +9,7 @@
  *
  * Nothing here registers a command-palette entry: with an empty list the feature is inert.
  */
-import { MarkdownView, Menu, Notice, TAbstractFile, TFolder } from 'obsidian';
+import { MarkdownView, Menu, Notice, TAbstractFile, TFolder, type WorkspaceLeaf } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
 import {
@@ -27,6 +27,15 @@ import { FolderListEditor, countNotesInFolder } from '../ui/setup/FolderListEdit
 import { logger } from '../utils/logger';
 import { plural } from '../utils/plural';
 import { installActiveNoteGuard } from '../utils/protectedGuard';
+import { ProtectedFolderBadge } from '../ui/explorer/protectedFolderBadge';
+
+/** The explorer shield controller; lives between registerProtectedFolders and unregisterProtectedFolders. */
+let badge: ProtectedFolderBadge | null = null;
+
+/** Re-read the settings and repaint the explorer shields. A no-op until registered and while inert. */
+export function refreshProtectedFolderBadge(): void {
+    badge?.refresh();
+}
 
 /** Output folders (plugin-managed) that collide with the given protected list. */
 export function outputConflicts(plugin: AIOrganiserPlugin, protectedFolders: readonly string[]): OutputRootConflict[] {
@@ -89,8 +98,10 @@ async function applyProtectedFoldersNow(
         plugin.settings.protectedFolders = previous;
         plugin.settings.featureSetupCompletedAt = previousCompleted;
         logger.error('Protected', 'Could not save protected folders', e);
+        refreshProtectedFolderBadge();
         return err(formatGuidance(describeError(plugin.t, 'write-failed')));
     }
+    refreshProtectedFolderBadge();
     return ok(undefined);
 }
 
@@ -258,6 +269,7 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
         const res = rewriteOnRename(plugin.settings.protectedFolders, oldPath, file.path);
         if (!res.changed) return;
         plugin.settings.protectedFolders = res.list;
+        refreshProtectedFolderBadge(); // the explorer row for the moved folder carries the shield with it
         new Notice(plugin.t.protectedFolders.followedRename.replace('{from}', oldPath).replace('{to}', file.path), 6000);
         void enqueueProtectionUpdate(async () => {
             try {
@@ -271,11 +283,32 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
 
     plugin.registerEvent(plugin.app.workspace.on('file-menu', (menu, file) => addMenuItems(plugin, menu, file)));
 
+    badge?.dispose();
+    badge = new ProtectedFolderBadge({
+        getContainers: () => plugin.app.workspace.getLeavesOfType('file-explorer').map((leaf) => explorerContainer(leaf)),
+        getState: () => ({ enabled: plugin.settings.showProtectedFolderShield, folders: plugin.settings.protectedFolders }),
+        getTooltip: () => plugin.t.protectedFolders.badgeTooltip,
+    });
+    // An explorer opened late, reopened, or moved to another window shows up as a layout change.
+    plugin.registerEvent(plugin.app.workspace.on('layout-change', () => refreshProtectedFolderBadge()));
+    plugin.app.workspace.onLayoutReady(() => refreshProtectedFolderBadge());
+
     warnAboutOverlap(plugin);
+}
+
+/**
+ * The element to watch for one explorer leaf. The leaf's own container outlives view swaps (a deferred
+ * view loading replaces `leaf.view`), so prefer it; `view.containerEl` is the public fallback.
+ */
+function explorerContainer(leaf: WorkspaceLeaf): HTMLElement {
+    const own = (leaf as unknown as { containerEl?: unknown }).containerEl;
+    return typeof own === 'object' && own !== null && (own as Node).nodeType === 1 ? (own as HTMLElement) : leaf.view.containerEl;
 }
 
 /** Tear down the registry (onunload). */
 export function unregisterProtectedFolders(): void {
+    badge?.dispose();
+    badge = null;
     baselined = false;
     setActiveProtection(null);
     installActiveNoteGuard(null, null);

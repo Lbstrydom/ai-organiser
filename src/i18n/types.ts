@@ -3789,6 +3789,10 @@ export interface Translations {
         wizardConfirmSummary: string;
         followedRename: string;
         wizardNothingChosen: string;
+        /** Tooltip and accessible name of the shield in the file explorer. */
+        badgeTooltip: string;
+        showBadgeName: string;
+        showBadgeDesc: string;
     };
     agentIndex: {
         sectionTitle: string;

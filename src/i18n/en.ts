@@ -4005,7 +4005,10 @@ export const en: Translations = {
         wizardConfirmTitle: "Check and confirm",
         wizardConfirmSummary: "{count} note[s] in the folders you chose will be protected.",
         followedRename: "Protection followed the folder: {from} is now {to}.",
-        wizardNothingChosen: "No folders chosen. Go back and add at least one."
+        wizardNothingChosen: "No folders chosen. Go back and add at least one.",
+        badgeTooltip: "Protected by AI Organiser",
+        showBadgeName: "Show a shield on protected folders",
+        showBadgeDesc: "Marks each protected folder in the file explorer with a small shield."
     },
     agentIndex: {
         sectionTitle: "Agent index",

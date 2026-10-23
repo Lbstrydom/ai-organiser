@@ -1,12 +1,16 @@
-import { Notice } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { evaluateSetup, toFolderSet } from '../../core/setupState';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { FolderListEditor } from '../setup/FolderListEditor';
-import { openProtectedFoldersSetup, applyProtectedFolders } from '../../commands/protectedFolderCommands';
+import { openProtectedFoldersSetup, applyProtectedFolders, refreshProtectedFolderBadge } from '../../commands/protectedFolderCommands';
 import { TFolder } from 'obsidian';
+import { describeError, formatGuidance } from '../../core/friendlyErrors';
+import { logger } from '../../utils/logger';
+
+let shieldSaveQueue: Promise<void> = Promise.resolve();
 
 /**
  * Settings section for protected folders (F1). A status row, the folder list (picker, not
@@ -50,5 +54,40 @@ export class ProtectedFoldersSettingsSection extends BaseSettingSection {
             },
         });
         editor.render();
+
+        this.renderShieldToggle();
+    }
+
+    private renderShieldToggle(): void {
+        const t = this.plugin.t;
+        new Setting(this.containerEl)
+            .setName(t.protectedFolders.showBadgeName)
+            .setDesc(t.protectedFolders.showBadgeDesc)
+            .addToggle((toggle) => toggle
+                .setValue(this.plugin.settings.showProtectedFolderShield)
+                .onChange((value) => {
+                    void this.setShieldVisible(value);
+                }));
+    }
+
+    /** Saves run one at a time, so a failed save can only restore the value that was current when it started. */
+    private setShieldVisible(value: boolean): Promise<void> {
+        shieldSaveQueue = shieldSaveQueue.then(() => this.saveShieldVisible(value));
+        return shieldSaveQueue;
+    }
+
+    /** Store the toggle, repaint, and put the previous value back if saving fails (same discipline as the list). */
+    private async saveShieldVisible(value: boolean): Promise<void> {
+        const previous = this.plugin.settings.showProtectedFolderShield;
+        this.plugin.settings.showProtectedFolderShield = value;
+        try {
+            await this.plugin.saveSettings();
+        } catch (e) {
+            this.plugin.settings.showProtectedFolderShield = previous;
+            logger.error('Protected', 'Could not save the shield setting', e);
+            new Notice(formatGuidance(describeError(this.plugin.t, 'write-failed')), 8000);
+            this.settingTab.display();
+        }
+        refreshProtectedFolderBadge();
     }
 }
