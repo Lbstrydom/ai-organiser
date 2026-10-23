@@ -253,6 +253,23 @@ describe('markAudioRemovedText', () => {
         expect(r.ok).toBe(true);
     });
 
+    it('a closing fence followed by a non-breaking space does not close; tabs and spaces do', () => {
+        const listen = '🎧 **Listen:** ![[' + NAME + ']]';
+        const base = buildEpisodeNote(input()).replace(`![[${NAME}]]`, 'gone');
+        const inside = (close: string) => base.replace('# Newsletter', '```\n' + listen + '\n' + close + '\n\n# Newsletter');
+        expect(run(inside('``` '))).toEqual({ ok: false, error: 'unclassified-reference' });
+        expect(run(inside('```\f'))).toEqual({ ok: false, error: 'unclassified-reference' });
+        // Properly closed (space/tab suffix): the block ends, but the reference inside it was never the listen line.
+        expect(run(inside('``` \t'))).toEqual({ ok: false, error: 'unclassified-reference' });
+    });
+
+    it('only the exact generated listen shape is rewritten', () => {
+        for (const line of [`🎧 Listen now ![[${NAME}]]`, `🎧 **Listen:** ![[${NAME}]] (best on headphones)`, `🎧 **Listen:** see ![[${NAME}]]`]) {
+            const note = buildEpisodeNote(input()).replace(`🎧 **Listen:** ![[${NAME}]]`, line);
+            expect(run(note)).toEqual({ ok: false, error: 'unclassified-reference' });
+        }
+    });
+
     it('preserves CRLF line endings', () => {
         const after = okText(buildEpisodeNote(input()).replaceAll('\n', '\r\n'));
         expect(after).toContain(`catchup_sources: 4\r\ncatchup_audio_removed: '${DATE}'\r\n---`);

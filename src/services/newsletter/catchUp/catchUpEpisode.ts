@@ -154,7 +154,7 @@ function findListenLine(lines: string[]): number {
         if (open === null) {
             if (run && !(run[1][0] === '`' && run[2].includes('`'))) { open = { char: run[1][0], length: run[1].length }; continue; }
         } else {
-            if (run && run[1][0] === open.char && run[1].length >= open.length && run[2].trim() === '') open = null;
+            if (run && run[1][0] === open.char && run[1].length >= open.length && /^[ \t]*$/.test(run[2])) open = null;
             continue;
         }
         if (lines[i].startsWith('🎧 ')) return i;
@@ -213,7 +213,10 @@ export function markAudioRemovedText(content: string, audioName: string, date: s
         // so a second reference or one inside inline code is never silently erased.
         const line = lines[at];
         const count = (line.match(wiki)?.length ?? 0) + (line.match(markdown)?.length ?? 0);
-        if (count !== 1 || line.includes('`')) return err('unclassified-reference');
+        // Belt and braces beyond the fence tracking: only the exact generated shape is rewritten
+        // (`🎧 **{label}:** <the one reference>`), so Markdown edge cases can never widen what is touched.
+        const generated = new RegExp(String.raw`^🎧 \*\*[^*\n]{1,60}:\*\* (?:${wiki.source}|${markdown.source})$`, 'i');
+        if (count !== 1 || line.includes('`') || !generated.test(line)) return err('unclassified-reference');
         lines[at] = line.replace(wiki, removedText).replace(markdown, removedText);
     }
 
