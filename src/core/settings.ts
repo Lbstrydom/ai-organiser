@@ -404,6 +404,9 @@ export interface AIOrganiserSettings {
     /** Folders the plugin never modifies, renames, trashes or creates inside. Empty = no protection
      *  (byte-identical behaviour). Vault-relative paths chosen by the user; see core/protectedPaths.ts. */
     protectedFolders: string[];
+    /** Show a small shield next to protected folders in the file explorer. A read-only indicator of the
+     *  user's own protection, so it defaults to on; inert (no observer, no DOM edits) when the list is empty. */
+    showProtectedFolderShield: boolean;
 
     // === ONBOARDING ===
     /** ISO time a feature's setup wizard was finished, keyed by setup id (e.g. 'agent-index').
@@ -993,6 +996,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
 
     // Protected folders — empty list = feature unused, behaviour byte-identical
     protectedFolders: [],
+    showProtectedFolderShield: true,
 
     // Onboarding — no setup finished yet
     featureSetupCompletedAt: {},
