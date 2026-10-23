@@ -342,6 +342,10 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
  * Has Obsidian finished indexing links? While it has not, the link table is incomplete and a "no
  * reference" drawn from it is a guess. Readiness must be positively established: an absent flag
  * is not proof.
+ *
+ * `resolved` is a runtime boolean on Obsidian's MetadataCache (the property community plugins read
+ * to decide whether to wait for the `resolved` event). It is not in the public typings, hence the
+ * structural cast. If a future Obsidian dropped it this returns false: callers fail closed.
  */
 export function isMetadataIndexReady(app: App): boolean {
     return (app.metadataCache as { resolved?: boolean } | undefined)?.resolved === true;
