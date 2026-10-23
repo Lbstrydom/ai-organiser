@@ -134,10 +134,29 @@ export function parseEpisodeContent(content: string, notePath: string): EpisodeM
 
 const escapeRe = (s: string): string => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
 
-/** Frontmatter block of a note: where it ends and the text inside. Null when there is none. */
-function splitFrontmatter(content: string): { fm: string; fmEnd: number } | null {
-    const m = /^---\r?\n([\s\S]*?)\r?\n---(?=\r?\n|$)/.exec(content);
-    return m ? { fm: m[1], fmEnd: m[0].length } : null;
+/**
+ * Frontmatter block of a note: the text inside, where the block ends, and the line ending the
+ * FRONTMATTER itself uses (the one before its closing `---`), never a guess from the whole note.
+ */
+function splitFrontmatter(content: string): { fm: string; fmEnd: number; insertAt: number; eol: string } | null {
+    const m = /^---\r?\n([\s\S]*?)(\r?\n)---(?=\r?\n|$)/.exec(content);
+    if (!m) return null;
+    return { fm: m[1], fmEnd: m[0].length, insertAt: m[0].length - 3 - m[2].length, eol: m[2] };
+}
+
+/** The first generated listen line outside any fenced code block, as a line index into `lines` (even indices). */
+function findListenLine(lines: string[]): number {
+    let fence: string | null = null;
+    for (let i = 0; i < lines.length; i += 2) {
+        const marker = /^\s*(```|~~~)/.exec(lines[i])?.[1];
+        if (marker) {
+            if (fence === null) fence = marker;
+            else if (fence === marker) fence = null;
+            continue;
+        }
+        if (fence === null && lines[i].startsWith('🎧 ')) return i;
+    }
+    return -1;
 }
 
 /**
@@ -171,28 +190,28 @@ export function markAudioRemovedText(content: string, audioName: string, date: s
     const parts = splitFrontmatter(content);
     if (!parts) return err('no-frontmatter');
 
-    const eol = content.includes('\r\n') ? '\r\n' : '\n';
     const markerRe = new RegExp(String.raw`^${EPISODE_FM.audioRemoved}:[ \t]*(.*?)[ \t]*$`, 'm');
     const existing = markerRe.exec(parts.fm);
     let head = content.slice(0, parts.fmEnd);
     if (existing) {
         if (existing[1].replaceAll(/^["']|["']$/g, '') !== date) return err('marker-conflict');
     } else {
-        const closing = head.lastIndexOf(`${eol}---`);
-        head = `${head.slice(0, closing)}${eol}${EPISODE_FM.audioRemoved}: '${date}'${head.slice(closing)}`;
+        // Insert at the structural end of the last frontmatter line, in the frontmatter's own line ending.
+        head = `${head.slice(0, parts.insertAt)}${parts.eol}${EPISODE_FM.audioRemoved}: '${date}'${head.slice(parts.insertAt)}`;
     }
 
     const ref = escapeRe(audioName);
     const wiki = new RegExp(String.raw`!?\[\[(?:[^\]\n|#]*/)?${ref}(?:[#|][^\]\n]*)?\]\]`, 'gi');
     const markdown = new RegExp(String.raw`!?\[[^\]\n]*\]\((?:[^)\n]*/)?${ref}(?:#[^)\n]*)?\)`, 'gi');
     const lines = content.slice(parts.fmEnd).split(/(\r?\n)/);
-    const needle = audioName.toLowerCase();
-    for (let i = 0; i < lines.length; i += 2) {
-        if (!lines[i].startsWith('🎧 ')) continue;
-        if (lines[i].toLowerCase().includes(needle)) {
-            lines[i] = lines[i].replace(wiki, removedText).replace(markdown, removedText);
-        }
-        break;
+    const at = findListenLine(lines);
+    if (at >= 0 && lines[at].toLowerCase().includes(audioName.toLowerCase())) {
+        // Validated BEFORE mutating: exactly one supported reference and no code span on the line,
+        // so a second reference or one inside inline code is never silently erased.
+        const line = lines[at];
+        const count = (line.match(wiki)?.length ?? 0) + (line.match(markdown)?.length ?? 0);
+        if (count !== 1 || line.includes('`')) return err('unclassified-reference');
+        lines[at] = line.replace(wiki, removedText).replace(markdown, removedText);
     }
 
     const next = head + lines.join('');

@@ -210,6 +210,30 @@ describe('markAudioRemovedText', () => {
         expect(ownNoteIsReferenceFree(after, NAME)).toBe(true);
     });
 
+    it('uses the frontmatter\'s own line ending: LF frontmatter with CRLF in the body, and the reverse', () => {
+        const lfFm = buildEpisodeNote(input()).replace('Second paragraph.', 'Second paragraph.\r\nCRLF tail.');
+        const a = okText(lfFm);
+        expect(a).toContain(`catchup_sources: 4\ncatchup_audio_removed: '${DATE}'\n---\n`);
+        expect(parseEpisodeContent(a, 'p')!.audioRemoved).toBe(DATE);
+        const crlfFm = buildEpisodeNote(input()).replaceAll('\n', '\r\n').replace('Second paragraph.', 'Second paragraph.\nLF tail.');
+        const b = okText(crlfFm);
+        expect(b).toContain(`catchup_sources: 4\r\ncatchup_audio_removed: '${DATE}'\r\n---`);
+        expect(parseEpisodeContent(b, 'p')!.audioRemoved).toBe(DATE);
+    });
+
+    it('two references on the listen line, or one inside an inline code span, fail closed before any rewrite', () => {
+        const two = buildEpisodeNote(input()).replace(`![[${NAME}]]`, `![[${NAME}]] and [[${NAME}]]`);
+        expect(run(two)).toEqual({ ok: false, error: 'unclassified-reference' });
+        const code = buildEpisodeNote(input()).replace(`![[${NAME}]]`, '`![[' + NAME + ']]`');
+        expect(run(code)).toEqual({ ok: false, error: 'unclassified-reference' });
+    });
+
+    it('a listen-looking line inside a fenced block is not the listen line', () => {
+        const fenced = buildEpisodeNote(input()).replace('# Newsletter', '```\n🎧 **Listen:** ![[' + NAME + ']]\n```\n\n# Newsletter');
+        // The fenced reference is NOT rewritten, so the verification fails closed.
+        expect(run(fenced)).toEqual({ ok: false, error: 'unclassified-reference' });
+    });
+
     it('preserves CRLF line endings', () => {
         const after = okText(buildEpisodeNote(input()).replaceAll('\n', '\r\n'));
         expect(after).toContain(`catchup_sources: 4\r\ncatchup_audio_removed: '${DATE}'\r\n---`);
