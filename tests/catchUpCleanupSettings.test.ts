@@ -17,7 +17,8 @@ describe('the cleanup setting', () => {
 
     it.each([
         [undefined, 0], [null, 0], ['', 0], ['   ', 0], ['abc', 0], [{}, 0], [[], 0], [NaN, 0], [Infinity, 0], [-5, 0], [0, 0], [0.99, 0],
-        [1, 1], [14, 14], [14.9, 14], ['21', 21], [28, 28], [29, 28], [9999, 28],
+        [true, 0], [false, 0], [[14], 0], [['14'], 0], [{ valueOf: () => 14 }, 0], ['21', 0], ['14', 0],
+        [1, 1], [14, 14], [14.9, 14], [28, 28], [29, 28], [9999, 28],
     ])('migrates %j to %j', (raw, expected) => {
         const out: Record<string, unknown> = { newsletterCatchUpAudioCleanupDays: raw };
         migrateNewsletterAudioSettings(out);
@@ -35,21 +36,21 @@ describe('the cleanup setting', () => {
 });
 
 describe('shouldSweepOnTick', () => {
-    const base = { days: 14, today: '2026-11-30', lastCompletedDate: '2026-11-30', markedPending: 0 as number | 'unknown' };
+    const base = { days: 14, today: '2026-11-30', lastCompletedDate: '2026-11-30', retryPending: 0 as number | 'unknown' };
 
     it('off never sweeps', () => {
-        expect(shouldSweepOnTick({ ...base, days: 0, lastCompletedDate: null, markedPending: 'unknown' })).toBe(false);
+        expect(shouldSweepOnTick({ ...base, days: 0, lastCompletedDate: null, retryPending: 'unknown' })).toBe(false);
     });
 
-    it('a quiet same-day tick does nothing', () => {
+    it('a quiet same-day tick does nothing, even with episodes that only wait for tomorrow (retryPending 0)', () => {
         expect(shouldSweepOnTick(base)).toBe(false);
     });
 
-    it('a new calendar day, a never-completed sweep, pending or unknown marked episodes all sweep', () => {
+    it('a new calendar day, a never-completed sweep, or a retryable hold-up (or not yet known) sweeps', () => {
         expect(shouldSweepOnTick({ ...base, today: '2026-12-01' })).toBe(true);
         expect(shouldSweepOnTick({ ...base, lastCompletedDate: null })).toBe(true);
-        expect(shouldSweepOnTick({ ...base, markedPending: 2 })).toBe(true);
-        expect(shouldSweepOnTick({ ...base, markedPending: 'unknown' })).toBe(true);
+        expect(shouldSweepOnTick({ ...base, retryPending: 2 })).toBe(true);
+        expect(shouldSweepOnTick({ ...base, retryPending: 'unknown' })).toBe(true);
     });
 });
 

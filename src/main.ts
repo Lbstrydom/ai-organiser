@@ -177,8 +177,10 @@ export default class AIOrganiserPlugin extends Plugin {
     private catchUpCleanupTimer: number | null = null;
     private catchUpCleanupLoadTimer: number | null = null;
     private catchUpCleanupLastDate: string | null = null;
-    /** Marked episodes waiting for stage 2; `unknown` until a sweep completes, kept on a skipped sweep. */
-    private catchUpMarkedPending: number | 'unknown' = 'unknown';
+    /** Set on unload: a sweep already in flight stops before its next destructive step. */
+    private catchUpCleanupCancelled = false;
+    /** Marked episodes held up by something that may pass within the day; `unknown` until a sweep completes, kept on a skipped sweep. */
+    private catchUpRetryPending: number | 'unknown' = 'unknown';
     public newsletterSeenIds: string[] = [];
     /** First-time-per-session Deepgram diarization disclosure shown? Reset on plugin reload. */
     public diarizationDisclosureShownThisSession = false;
@@ -1529,7 +1531,7 @@ export default class AIOrganiserPlugin extends Plugin {
         const days = this.catchUpCleanupDays();
         if (days === 0) return;
         void import('./services/newsletter/catchUp/catchUpCleanup').then(({ shouldSweepOnTick }) => {
-            if (shouldSweepOnTick({ days, today: this.catchUpToday(), lastCompletedDate: this.catchUpCleanupLastDate, markedPending: this.catchUpMarkedPending })) {
+            if (shouldSweepOnTick({ days, today: this.catchUpToday(), lastCompletedDate: this.catchUpCleanupLastDate, retryPending: this.catchUpRetryPending })) {
                 return this.runCatchUpAudioCleanup();
             }
         }).catch((e) => logger.warn('Newsletter', 'Catch-up audio cleanup tick failed (non-fatal)', e));
@@ -1544,6 +1546,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 import('./services/newsletter/catchUp/catchUpCleanup'),
                 import('./services/noteEdit/applyNoteEdit'),
             ]);
+            if (this.catchUpCleanupCancelled) return;
             const m = this.t.settings.newsletter.catchUp;
             const res = await runCatchUpAudioCleanup({
                 app: this.app,
@@ -1554,13 +1557,14 @@ export default class AIOrganiserPlugin extends Plugin {
                 // A documented, narrow exemption from reviewed edits: see docs/features/research-and-capture.md.
                 writeNote: (filePath, baseline, nextContent) => applyNoteEdit(this, { kind: 'full-replace', filePath, baseline, nextContent }, { review: false }),
                 removedLine: (date) => m.audioRemovedLine.replace('{date}', date),
+                shouldStop: () => this.catchUpCleanupCancelled,
             });
             if (!res.ok) { logger.warn('Newsletter', `Catch-up audio cleanup did not complete: ${res.error}`); return; }
             const outcome = res.value;
             const report = outcome.report;
             // Only a completed sweep replaces what we know; a skipped one keeps it.
             if (outcome.kind === 'completed') {
-                this.catchUpMarkedPending = outcome.report.markedPending;
+                this.catchUpRetryPending = outcome.report.retryPending;
                 this.catchUpCleanupLastDate = this.catchUpToday();
             }
             if (report && report.removed > 0) {
@@ -1595,6 +1599,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public onunload(): void {
         this.catchUpStatusBar?.dispose();
         this.catchUpStatusBar = null;
+        this.catchUpCleanupCancelled = true;
         if (this.catchUpCleanupTimer !== null) window.clearTimeout(this.catchUpCleanupTimer);
         if (this.catchUpCleanupLoadTimer !== null) window.clearTimeout(this.catchUpCleanupLoadTimer);
         this.catchUpCleanupTimer = null;

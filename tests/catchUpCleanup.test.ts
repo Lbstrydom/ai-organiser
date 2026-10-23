@@ -117,7 +117,7 @@ beforeEach(() => {
 describe('setting', () => {
     it.each([
         [undefined, 0], [null, 0], ['x', 0], [NaN, 0], [-3, 0], [0, 0], [0.9, 0],
-        [1, 1], [14, 14], [14.9, 14], [28, 28], [29, 28], [1000, 28], ['21', 21],
+        [1, 1], [14, 14], [14.9, 14], [28, 28], [29, 28], [1000, 28], ['21', 0], [true, 0], [[14], 0],
     ])('normaliseCleanupDays(%j) = %j', (raw, expected) => {
         expect(normaliseCleanupDays(raw)).toBe(expected);
     });
@@ -229,7 +229,7 @@ describe('stage 1: mark', () => {
     it('marks a heard, old episode: note rewritten, audio untouched, coverage preserved', async () => {
         addEpisode();
         const report = completed(await sweep());
-        expect(report).toMatchObject({ marked: 1, removed: 0, markedPending: 1 });
+        expect(report).toMatchObject({ marked: 1, removed: 0, markedPending: 1, retryPending: 0 });
         const text = vault.text(notePath(episode()));
         expect(text).toContain("catchup_audio_removed: '2026-11-30'");
         expect(text).toContain('🎧 **Listen:** Audio removed on 2026-11-30');
@@ -244,7 +244,7 @@ describe('stage 1: mark', () => {
         addEpisode();
         await sweep();
         const report = completed(await sweep());
-        expect(report).toMatchObject({ marked: 0, removed: 0, markedPending: 1 });
+        expect(report).toMatchObject({ marked: 0, removed: 0, markedPending: 1, retryPending: 0 });
         expect(vault.exists(`${FOLDER}/${AUDIO}`)).toBe(true);
         expect(writes).toHaveLength(1);
     });
@@ -351,7 +351,7 @@ describe('stage 2: trash on a later day', () => {
         await sweep();
         vault.app.fileManager.trashFile.mockRejectedValueOnce(new Error('disk busy'));
         const first = completed(await sweep({ now: () => DAY2 }));
-        expect(first).toMatchObject({ removed: 0, markedPending: 1 });
+        expect(first).toMatchObject({ removed: 0, markedPending: 1, retryPending: 1 });
         expect(first.items.errors).toHaveLength(1);
         expect(vault.exists(`${FOLDER}/${AUDIO}`)).toBe(true);
         const second = completed(await sweep({ now: () => DAY2 }));
@@ -574,7 +574,7 @@ describe('markedPending keeps transient stage-2 trouble', () => {
         await markedState();
         vault.app.vault.read.mockRejectedValueOnce(new Error('locked'));
         const report = completed(await sweep({ now: () => DAY2 }));
-        expect(report).toMatchObject({ removed: 0, markedPending: 1 });
+        expect(report).toMatchObject({ removed: 0, markedPending: 1, retryPending: 1 });
         expect(report.items.errors).toHaveLength(1);
     });
 
@@ -587,7 +587,7 @@ describe('markedPending keeps transient stage-2 trouble', () => {
             return real(f);
         });
         const report = completed(await sweep({ now: () => DAY2 }));
-        expect(report).toMatchObject({ removed: 0, markedPending: 1 });
+        expect(report).toMatchObject({ removed: 0, markedPending: 1, retryPending: 1 });
         expect(report.skipped).toEqual({ 'audio-reference-unknown': 1 });
     });
 
@@ -596,6 +596,29 @@ describe('markedPending keeps transient stage-2 trouble', () => {
         vault.app.metadataCache.resolvedLinks = { 'Projects/Plan.md': { [`${FOLDER}/${AUDIO}`]: 1 } };
         const report = completed(await sweep({ now: () => DAY2 }));
         expect(report).toMatchObject({ removed: 0, markedPending: 0 });
+    });
+});
+
+describe('cancellation on unload', () => {
+    it('a sweep told to stop does so before its first destructive step', async () => {
+        addEpisode();
+        const out = await sweep({ shouldStop: () => true });
+        expect(out).toMatchObject({ kind: 'skipped', reason: 'cancelled' });
+        expect(writes).toEqual([]);
+        expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
+        expect(vault.listeners()).toBe(0);
+    });
+
+    it('stopping between two candidates keeps the first and leaves the second untouched', async () => {
+        addEpisode();
+        const second = episode({ id: '20261023-081500-c3d4', from: '2026-10-22', to: '2026-10-22', audio: 'catchup-20261023-081500-c3d4-44444444.mp3', coverage: { '2026-10-22': { kind: 'whole' } } });
+        addEpisode(second);
+        plugin.state.stored[ACKS_DATA_KEY] = acksFor(ID, second.id);
+        const out = await sweep({ shouldStop: () => writes.length >= 1 });
+        expect(out).toMatchObject({ kind: 'skipped', reason: 'cancelled' });
+        if (out.kind !== 'skipped') return;
+        expect(out.report?.marked).toBe(1);
+        expect(writes).toHaveLength(1);
     });
 });
 

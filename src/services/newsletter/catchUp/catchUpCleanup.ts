@@ -54,7 +54,8 @@ export type CleanupSkipReason =
     | 'busy'
     | 'index-not-ready'
     | 'record-unknown'
-    | 'changed-during-sweep';
+    | 'changed-during-sweep'
+    | 'cancelled';
 
 export interface EpisodeOutcome {
     id: string;
@@ -69,6 +70,8 @@ export interface CleanupReport {
     removed: number;
     /** Marked episodes still waiting for stage 2 for a reason that will pass (a later day, a transient failure). */
     markedPending: number;
+    /** The part of markedPending held up by something that may pass within the day (a failed read or trash, an unknown reference): worth retrying before tomorrow. */
+    retryPending: number;
     skipped: Record<string, number>;
     items: BatchResult<EpisodeOutcome>;
 }
@@ -89,6 +92,8 @@ export interface CleanupDeps {
     /** The sentence that replaces the audio embed, e.g. "Audio removed on 2026-10-23". */
     removedLine: (date: string) => string;
     now?: () => Date;
+    /** Polled before every destructive step: true ends the sweep as `cancelled` (the plugin was unloaded). */
+    shouldStop?: () => boolean;
 }
 
 // ── Scheduling (pure) ────────────────────────────────────────────────────────
@@ -96,11 +101,13 @@ export interface CleanupDeps {
 /**
  * Should the 30-minute tick run a sweep? Costs no vault read: off never; otherwise only on a new
  * calendar day since the last COMPLETED sweep (live episodes cross the age cutoff in a long
- * session), or while marked episodes are still waiting for stage 2 - or not yet known.
+ * session), or while something that may pass within the day is holding up a marked episode (or
+ * that is not yet known). A marked episode that merely waits for tomorrow is picked up by the new-day
+ * rule: a same-day sweep could not act on it.
  */
-export function shouldSweepOnTick(i: { days: number; today: string; lastCompletedDate: string | null; markedPending: number | 'unknown' }): boolean {
+export function shouldSweepOnTick(i: { days: number; today: string; lastCompletedDate: string | null; retryPending: number | 'unknown' }): boolean {
     if (!(i.days > 0)) return false;
-    return i.lastCompletedDate !== i.today || i.markedPending !== 0;
+    return i.lastCompletedDate !== i.today || i.retryPending !== 0;
 }
 
 // ── Pure decision ────────────────────────────────────────────────────────────
@@ -325,28 +332,36 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
     const items: EpisodeOutcome[] = [];
     const errors: BatchError[] = [];
     const skipped: Record<string, number> = {};
-    let pending = 0;
+    let waiting = 0; // marked, but stage 2 cannot happen before a later day
+    let retrying = 0; // marked, and held up by something that may pass within the day
     let marked = 0;
     let removed = 0;
-    const skip = (id: string, reason: string, isPending = false): void => {
+    const skip = (id: string, reason: string, wait?: 'wait' | 'retry'): void => {
         bump(skipped, reason);
         items.push({ id, action: 'skipped', reason });
-        if (isPending) pending++;
+        if (wait === 'wait') waiting++;
+        if (wait === 'retry') retrying++;
         logger.debug('Newsletter', `Cleanup skipped ${id}: ${reason}`);
     };
-    const fail = (id: string, source: string, error: string, isPending = false): void => {
+    const fail = (id: string, source: string, error: string, retry = false): void => {
         errors.push({ source, error });
         items.push({ id, action: 'error', reason: error });
-        if (isPending) pending++;
+        if (retry) retrying++;
         logger.warn('Newsletter', `Cleanup could not process ${source}: ${error}`);
     };
     const report = (): CleanupReport => ({
         marked,
         removed,
-        markedPending: pending,
+        markedPending: waiting + retrying,
+        retryPending: retrying,
         skipped,
         items: { items, errors, warnings: [], isPartial: errors.length > 0 },
     });
+    /** Ends the sweep, with the reason, when it was cancelled or the vault changed under it. */
+    const halted = (): Result<CleanupOutcome> | null => {
+        if (deps.shouldStop?.()) return ok({ kind: 'skipped', reason: 'cancelled', report: report() });
+        return tracker.isDirty() ? changed() : null;
+    };
     const changed = (): Result<CleanupOutcome> => {
         logger.warn('Newsletter', 'Cleanup stopped: the vault changed during the sweep');
         return ok({ kind: 'skipped', reason: 'changed-during-sweep', report: report() });
@@ -368,7 +383,7 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
 
             const read = await readEpisodeResult(app, file);
             if (read.kind !== 'ok') {
-                skip(named.id, read.kind === 'invalid' ? 'note-invalid' : 'note-unreadable', read.kind === 'unreadable' && markedInCache);
+                skip(named.id, read.kind === 'invalid' ? 'note-invalid' : 'note-unreadable', read.kind === 'unreadable' && markedInCache ? 'retry' : undefined);
                 continue;
             }
             const meta = read.meta;
@@ -376,20 +391,24 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
             const audioExists = app.vault.getAbstractFileByPath(audioPath) instanceof TFile;
             const decision = decideEpisode({ meta, acks, today, cutoff, audioExists, inflight });
             if ('done' in decision) continue;
-            if ('skip' in decision) { skip(meta.id, decision.skip, decision.pending === true); continue; }
+            if ('skip' in decision) { skip(meta.id, decision.skip, decision.pending === true ? 'wait' : undefined); continue; }
             candidates.push({ file, meta, audioPath, stage: decision.stage });
         }
         if (candidates.length === 0) return ok({ kind: 'completed', report: report() });
 
         // Everything below can change the vault: it needs a fresh, complete picture.
         const index = await buildReferenceIndex(app, outputRoot, folderFiles);
-        if (tracker.isDirty()) return changed();
+        {
+            const stop = halted();
+            if (stop) return stop;
+        }
 
         for (const c of candidates) {
-            if (tracker.isDirty()) return changed();
+            const stop = halted();
+            if (stop) return stop;
             const id = c.meta.id;
             const notePath = c.file.path;
-            const waiting = c.stage === 'trash';
+            const isStage2 = c.stage === 'trash';
             if (!isInsideOutputRoot(folder, notePath) || !isInsideOutputRoot(folder, c.audioPath)) { skip(id, 'outside-catchup-folder'); continue; }
             if (!assertWritable(deps.protectedSource, 'modify', notePath).ok || !assertWritable(deps.protectedSource, 'delete', c.audioPath).ok) {
                 skip(id, 'protected-folder');
@@ -398,7 +417,7 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
             const referenced = index.referencedElsewhere(c.meta.audio, notePath);
             if (referenced !== 'no') {
                 const reason = referenced === 'unknown' ? 'audio-reference-unknown' : 'audio-referenced-elsewhere';
-                skip(id, reason, waiting && TRANSIENT_FOR_MARKED.has(reason));
+                skip(id, reason, isStage2 && TRANSIENT_FOR_MARKED.has(reason) ? 'retry' : undefined);
                 continue;
             }
 
@@ -406,14 +425,17 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
             try {
                 fresh = await app.vault.read(c.file);
             } catch (e) {
-                fail(id, notePath, e instanceof Error ? e.message : String(e), waiting);
+                fail(id, notePath, e instanceof Error ? e.message : String(e), isStage2);
                 continue;
             }
             // The fresh content must still describe THIS candidate.
             const current = parseEpisodeContent(fresh, notePath);
-            if (!current || current.id !== id || current.audio !== c.meta.audio) { skip(id, 'note-changed', waiting); continue; }
+            if (!current || current.id !== id || current.audio !== c.meta.audio) { skip(id, 'note-changed', isStage2 ? 'retry' : undefined); continue; }
             // A change that arrived while the note was being read invalidates the snapshot.
-            if (tracker.isDirty()) return changed();
+            {
+                const stop = halted();
+                if (stop) return stop;
+            }
 
             if (c.stage === 'mark') {
                 const next = markAudioRemovedText(fresh, c.meta.audio, today, deps.removedLine(today));
@@ -433,14 +455,14 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
                     return changed();
                 }
                 marked++;
-                pending++;
+                waiting++;
                 items.push({ id, action: 'marked' });
                 logger.debug('Newsletter', `Cleanup marked ${id}`);
                 continue;
             }
 
             // Stage 2: the marker must still be there, and the note still free of any reference.
-            if (current.audioRemoved !== c.meta.audioRemoved) { skip(id, 'note-changed', true); continue; }
+            if (current.audioRemoved !== c.meta.audioRemoved) { skip(id, 'note-changed', 'retry'); continue; }
             if (!ownNoteIsReferenceFree(fresh, c.meta.audio)) { skip(id, 'note-still-references-audio'); continue; }
             try {
                 const trashed = await trashOwnedFile(app, outputRoot, c.audioPath);
