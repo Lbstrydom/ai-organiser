@@ -89,6 +89,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/mermaidExportService.ts': { count: 6, cls: 'output-root', reason: 'diagram exports under the export output folder' },
 	'src/services/mermaidTemplateService.ts': { count: 3, cls: 'output-root', reason: 'diagram templates under the plugin folder' },
 	'src/services/minutesService.ts': { count: 3, cls: 'output-root', reason: 'minutes under the minutes output folder' },
+	'src/services/newsletter/catchUp/catchUpEpisode.ts': { count: 2, cls: 'output-root', reason: 'catch-up episode notes and owned audio under the newsletter output folder; each create and trash asserts containment in that root first' },
 	'src/services/newsletter/newsletterAudioService.ts': { count: 2, cls: 'output-root', reason: 'brief audio under the newsletter output folder' },
 	'src/services/newsletter/newsletterService.ts': { count: 7, cls: 'output-root', reason: 'newsletter notes under the newsletter output folder' },
 	'src/services/notebooklm/sourcePackService.ts': { count: 9, cls: 'output-root', reason: 'source packs under the NotebookLM export folder' },
