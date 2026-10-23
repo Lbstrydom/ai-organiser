@@ -7,6 +7,7 @@ import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLate
 import { buildClaudeCachedPrompt } from './adapters/claudePromptCache';
 import { joinPromptParts } from './prompts/promptParts';
 import { logLlmUsage } from './llm/llmUsageLog';
+import { StreamProviderError } from './adapters/anthropicStream';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
 import { getModelOutputLimit } from './tokenLimits';
@@ -1127,27 +1128,38 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         let fullContent = '';
         let buffer = '';
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // keep incomplete line in buffer
-            for (const line of lines) {
-                const chunk = this.adapter.parseStreamingChunk!(line);
+        // A provider `error` event inside a 200 stream is a FAILED call: report it with the
+        // provider's message instead of returning the text received so far as a success.
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // keep incomplete line in buffer
+                for (const line of lines) {
+                    const chunk = this.adapter.parseStreamingChunk!(line);
+                    if (chunk) {
+                        fullContent += chunk;
+                        onChunk(chunk);
+                    }
+                }
+            }
+            // Process any remaining buffer
+            if (buffer.trim()) {
+                const chunk = this.adapter.parseStreamingChunk!(buffer);
                 if (chunk) {
                     fullContent += chunk;
                     onChunk(chunk);
                 }
             }
-        }
-        // Process any remaining buffer
-        if (buffer.trim()) {
-            const chunk = this.adapter.parseStreamingChunk!(buffer);
-            if (chunk) {
-                fullContent += chunk;
-                onChunk(chunk);
+        } catch (e) {
+            if (e instanceof StreamProviderError) {
+                void reader.cancel().catch(() => undefined);
+                logger.warn('LLM', e.message);
+                return { success: false, error: e.message };
             }
+            throw e;
         }
 
         return { success: true, content: fullContent };
