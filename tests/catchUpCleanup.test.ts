@@ -244,14 +244,24 @@ describe('stage 1: mark', () => {
         expect(vault.exists(`${FOLDER}/${AUDIO}`)).toBe(true);
     });
 
-    it('a writer failure leaves note and audio as they were and is reported', async () => {
+    it.each([
+        ['returns an error', async () => err('baseline-mismatch'), 'baseline-mismatch'],
+        ['throws', async () => { throw new Error('disk full'); }, 'disk full'],
+    ])('a writer that %s leaves note and audio as they were, is reported, and ends the sweep', async (_label, failing, message) => {
         addEpisode();
-        const report = completed(await sweep({ writeNote: async () => err('baseline-mismatch') }));
-        expect(report.marked).toBe(0);
-        expect(report.items.errors).toEqual([{ source: notePath(episode()), error: 'baseline-mismatch' }]);
-        expect(report.items.isPartial).toBe(true);
+        const second = episode({ id: '20261023-081500-c3d4', from: '2026-10-22', to: '2026-10-22', audio: 'catchup-20261023-081500-c3d4-44444444.mp3', coverage: { '2026-10-22': { kind: 'whole' } } });
+        addEpisode(second);
+        plugin.state.stored[ACKS_DATA_KEY] = acksFor(ID, second.id);
+        const out = await sweep({ writeNote: failing as CleanupDeps['writeNote'] });
+        // An ambiguous write invalidates the snapshot: nothing further is attempted this sweep.
+        expect(out).toMatchObject({ kind: 'skipped', reason: 'changed-during-sweep' });
+        if (out.kind !== 'skipped' || !out.report) throw new Error('expected a partial report');
+        expect(out.report.marked).toBe(0);
+        expect(out.report.items.errors).toHaveLength(1);
+        expect(out.report.items.errors[0].error).toBe(message);
         expect(vault.text(notePath(episode()))).toBe(buildEpisodeNote(episode()));
         expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
+        expect(vault.listeners()).toBe(0);
     });
 
     it('a note that cannot be classified safely (reference in the transcript) is skipped', async () => {

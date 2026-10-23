@@ -206,8 +206,11 @@ export async function buildReferenceIndex(app: App, outputRoot: string, folderFi
 // ── Change tracking: from before discovery until the last destructive step ───
 
 interface ChangeTracker {
-    /** Declare the events this sweep's OWN note write will cause, so only those are ignored. */
-    expectNoteWrite(path: string): void;
+    /**
+     * Declare the events this sweep's OWN note write will cause, so only those are ignored. Returns
+     * the way to revoke what has not been consumed: a write that fails leaves no standing exemption.
+     */
+    expectNoteWrite(path: string): () => void;
     isDirty(): boolean;
     dispose(): void;
 }
@@ -236,7 +239,9 @@ function trackChanges(app: App): ChangeTracker {
     for (const name of ['changed', 'deleted']) refs.push({ owner: 'cache', ref: cacheOn(name, (f) => seen('cache', name, f?.path)) });
     return {
         expectNoteWrite(path) {
-            for (const key of [`vault:modify:${path}`, `cache:changed:${path}`]) expected.set(key, (expected.get(key) ?? 0) + 1);
+            const keys = [`vault:modify:${path}`, `cache:changed:${path}`];
+            for (const key of keys) expected.set(key, (expected.get(key) ?? 0) + 1);
+            return () => { for (const key of keys) expected.set(key, Math.max(0, (expected.get(key) ?? 0) - 1)); };
         },
         isDirty: () => dirty,
         dispose() {
@@ -391,9 +396,20 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
             if (c.stage === 'mark') {
                 const next = markAudioRemovedText(fresh, c.meta.audio, today, deps.removedLine(today));
                 if (!next.ok) { skip(id, next.error); continue; }
-                tracker.expectNoteWrite(notePath);
-                const written = await deps.writeNote(notePath, fresh, next.value);
-                if (!written.ok) { fail(id, notePath, written.error); continue; }
+                const revoke = tracker.expectNoteWrite(notePath);
+                let written: Result<void>;
+                try {
+                    written = await deps.writeNote(notePath, fresh, next.value);
+                } catch (e) {
+                    written = err(e instanceof Error ? e.message : String(e));
+                }
+                if (!written.ok) {
+                    // A failed or ambiguous write may mean the note changed under us: nothing it left
+                    // behind may be trusted, so revoke the exemption and end the sweep.
+                    revoke();
+                    fail(id, notePath, written.error);
+                    return changed();
+                }
                 marked++;
                 pending++;
                 items.push({ id, action: 'marked' });
