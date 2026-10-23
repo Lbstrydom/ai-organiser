@@ -3897,6 +3897,17 @@ export const en: Translations = {
         "barrier-scan-incomplete": { message: "Some notes could not be checked for links, so the original file was kept.", nextStep: "Fix the unreadable notes or canvases, then resume the offload." },
         "barrier-vault-changed": { message: "Your vault kept changing during the final check, so the original file was kept.", nextStep: "Wait for syncing to settle, then resume the offload." },
         "trash-failed": { message: "The file could not be moved to the trash.", nextStep: "Check that it is not open in another app, then try again." },
+        "catchup-nothing-pending": { message: "There is nothing new to put in a catch-up episode.", nextStep: "Fetch newsletters first, or choose include again to remake the latest episode." },
+        "catchup-audio-off": { message: "Newsletter audio is turned off.", nextStep: "Turn on audio podcast in settings → newsletter digest, then try again." },
+        "catchup-wrong-mode": { message: "Your newsletter audio is set to make a new audio every day.", nextStep: "Switch audio delivery to on demand in settings → newsletter digest to make catch-up episodes." },
+        "catchup-no-tts": { message: "No text-to-speech voice is set up for newsletter audio.", nextStep: "Add a gemini key, or set up an Azure speech deployment, in settings, then try again." },
+        "catchup-script-failed": { message: "The catch-up script could not be written.", nextStep: "Check your AI provider settings and try again. Nothing was added to your notes." },
+        "catchup-script-too-long": { message: "The script came out longer than your limit, so no audio was made.", nextStep: "Try again, or raise the longest episode setting in settings → newsletter digest." },
+        "catchup-tts-failed": { message: "The audio could not be made.", nextStep: "Your script is kept. Check your text-to-speech settings, then choose resume." },
+        "catchup-save-failed": { message: "The audio was made but the episode note could not be saved.", nextStep: "Your audio is kept. Choose finish saving to try the note again." },
+        "catchup-busy": { message: "Newsletter audio is already being made.", nextStep: "Wait for it to finish, then try again." },
+        "catchup-changed": { message: "Your newsletters changed while you were looking at the preview.", nextStep: "Review the updated preview, then generate again." },
+        "catchup-unresolved": { message: "An earlier catch-up was left unfinished.", nextStep: "Resume it, start over, or discard it from the newsletter audio window." },
         unknown: { message: "Something went wrong.", nextStep: "Try again. If it keeps happening, turn on debug mode in settings and check the log." }
     },
     protectedFolders: {
