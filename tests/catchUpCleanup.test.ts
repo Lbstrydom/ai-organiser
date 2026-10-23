@@ -171,7 +171,7 @@ describe('audioNamesIn: names that run together never hide each other', () => {
         const started = Date.now();
         const names = audioNamesIn(run);
         expect(Date.now() - started).toBeLessThan(1000);
-        expect(names.size).toBeLessThanOrEqual(10000 * 3);
+        expect(names.size).toBeLessThanOrEqual(10000 * Math.ceil(MAX_AUDIO_NAME_LENGTH / 8)); // per start: at most a name-length worth of ends
         expect(names.has('catchup-0-aaaaaaaa.mp3')).toBe(true);
         expect(names.has('catchup-9999-aaaaaaaa.mp3')).toBe(true);
     });
@@ -194,6 +194,11 @@ describe('audioNamesIn: names that run together never hide each other', () => {
         const meta = { id: ID, from: '2026-10-20', to: '2026-10-21', coverage: { '2026-10-21': { kind: 'whole' as const } }, audio: long, fingerprint: 'f', minutes: 1, sources: 1, notePath: 'p.md' };
         expect(decideEpisode({ ...base, meta })).toEqual({ skip: 'audio-name-too-long' });
         expect(MAX_AUDIO_NAME_LENGTH).toBeGreaterThan(AUDIO.length);
+    });
+
+    it('a name that holds several .mp3 endings is found whole, with every shorter prefix', () => {
+        const names = audioNamesIn('see catchup-x.mp3.mp3.mp3.mp3 here');
+        for (const n of ['catchup-x.mp3', 'catchup-x.mp3.mp3', 'catchup-x.mp3.mp3.mp3', 'catchup-x.mp3.mp3.mp3.mp3']) expect(names.has(n)).toBe(true);
     });
 
     it('a name inside a longer valid-alphabet name is also registered (conservative)', () => {

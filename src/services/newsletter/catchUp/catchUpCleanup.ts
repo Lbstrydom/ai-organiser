@@ -160,31 +160,31 @@ export interface ReferenceIndex {
 
 /** The catch-up audio names a text mentions, lower-cased. Mirrors the validated `isEpisodeAudioName` alphabet. */
 const AUDIO_RUN_RE = /catchup-[a-z0-9._-]+/gi;
-const MAX_ENDS_PER_START = 3;
 /** A real episode audio name is about 41 characters; a longer one is never cleaned up (fail closed). */
 export const MAX_AUDIO_NAME_LENGTH = 96;
 
 /**
  * Every catch-up audio name a text could be mentioning, lower-cased. The alphabet includes '.', so
  * two names can run together (`catchup-a.mp3.catchup-b.mp3`): every start of `catchup-` inside a
- * run and every `.mp3` end after it is registered, so adjacent names never hide each other.
+ * run and every `.mp3` end within the name-length bound after it is registered, so adjacent names
+ * never hide each other and a name holding several `.mp3` is still found whole.
  */
 export function audioNamesIn(text: string): Set<string> {
     const names = new Set<string>();
     for (const run of text.toLowerCase().matchAll(AUDIO_RUN_RE)) {
         const s = run[0];
         // One pass finds every end; the cursor over them only moves forward as the starts do, so the
-        // work is linear in the run however many starts or ends it holds. Per start only the first few
-        // ends count: a real episode name holds `.mp3` exactly once, at its end.
+        // work is linear in the run however many starts or ends it holds.
         const ends: number[] = [];
         for (let e = s.indexOf('.mp3'); e !== -1; e = s.indexOf('.mp3', e + 1)) ends.push(e);
         if (ends.length === 0) continue;
         let cursor = 0;
         for (let start = s.indexOf('catchup-'); start !== -1; start = s.indexOf('catchup-', start + 1)) {
             while (cursor < ends.length && ends[cursor] < start + 8) cursor++;
-            for (let n = cursor; n < Math.min(ends.length, cursor + MAX_ENDS_PER_START); n++) {
-                // Length-bounded too: hashing a substring costs its length, so an unbounded one would
-                // make a run of many starts and one distant end quadratic in characters.
+            // Every end within the length bound counts (so a name with several `.mp3` is never missed).
+            // The bound is what keeps this linear: at most a name-length worth of ends per start, and
+            // hashing a substring costs its length, which an unbounded one would make quadratic.
+            for (let n = cursor; n < ends.length; n++) {
                 if (ends[n] + 4 - start > MAX_AUDIO_NAME_LENGTH) break;
                 names.add(s.slice(start, ends[n] + 4));
             }
