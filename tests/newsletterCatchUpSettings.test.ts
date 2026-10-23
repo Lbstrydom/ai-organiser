@@ -89,6 +89,7 @@ function build(over: Record<string, unknown> = {}) {
             ...over,
         },
         saveSettings: vi.fn(async () => undefined),
+        scheduleCatchUpCleanup: vi.fn(),
         secretStorageService: { isAvailable: () => false },
         loadData: async () => ({}),
         newsletterSeenIds: [],
@@ -189,6 +190,33 @@ describe('catch-up controls', () => {
         expect(tg.value).toBe(false);
         tg.change(true);
         expect(plugin.settings.newsletterCatchUpStatusBar).toBe(true);
+    });
+
+    it('audio cleanup is off by default: a 0 to 28 day slider that saves, clamps and schedules a sweep', async () => {
+        const { plugin } = render({ newsletterAudioMode: 'on-demand' });
+        const sl = find('Remove audio of heard episodes after (days)')!.slider!;
+        expect([sl.min, sl.max, sl.value]).toEqual([0, 28, 0]);
+        sl.change(14);
+        expect(plugin.settings.newsletterCatchUpAudioCleanupDays).toBe(14);
+        expect(plugin.saveSettings).toHaveBeenCalled();
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(plugin.scheduleCatchUpCleanup).toHaveBeenCalledTimes(1);
+        sl.change(0);
+        expect(plugin.settings.newsletterCatchUpAudioCleanupDays).toBe(0);
+    });
+
+    it('shows a stored value and clamps a garbage one', () => {
+        render({ newsletterAudioMode: 'on-demand', newsletterCatchUpAudioCleanupDays: 21 });
+        expect(find('Remove audio of heard episodes after (days)')!.slider!.value).toBe(21);
+        recorded.items.length = 0;
+        render({ newsletterAudioMode: 'on-demand', newsletterCatchUpAudioCleanupDays: 400 });
+        expect(find('Remove audio of heard episodes after (days)')!.slider!.value).toBe(28);
+    });
+
+    it('daily mode shows no cleanup control (catch-up is not available there)', () => {
+        render({ newsletterAudioMode: 'daily' });
+        expect(names()).not.toContain('Remove audio of heard episodes after (days)');
     });
 
     it('with story memory off the section says catch-up covers whole closed days', () => {

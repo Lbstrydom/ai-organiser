@@ -73,7 +73,8 @@ import { NarrationJobRegistry } from './services/audioNarration/narrationJobRegi
 import { findAllMermaidBlocks } from './utils/mermaidUtils';
 import { mermaidStalenessGutterExtension } from './ui/editor/mermaidStalenessGutter';
 import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
-import { NewsletterService, LAST_FETCH_DATA_KEY } from './services/newsletter/newsletterService';
+import { NewsletterService, LAST_FETCH_DATA_KEY, getBucketDateStr } from './services/newsletter/newsletterService';
+import { normaliseCleanupDays } from './services/newsletter/catchUp/catchUpTypes';
 import { saveSettingsData, stripDataOnlyKeys } from './core/pluginDataStore';
 import { isStoryMemoryEnabled } from './services/newsletter/newsletterMemoryPolicy';
 import { noticeWithSettingsLink } from './utils/noticeUtils';
@@ -172,6 +173,12 @@ export default class AIOrganiserPlugin extends Plugin {
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     private catchUpStatusBar: CatchUpStatusBar | null = null;
+    /** Audio cleanup scheduling: the after-run debounce, the load timer, and what the last sweep learned. */
+    private catchUpCleanupTimer: number | null = null;
+    private catchUpCleanupLoadTimer: number | null = null;
+    private catchUpCleanupLastDate: string | null = null;
+    /** Marked episodes waiting for stage 2; `unknown` until a sweep completes, kept on a skipped sweep. */
+    private catchUpMarkedPending: number | 'unknown' = 'unknown';
     public newsletterSeenIds: string[] = [];
     /** First-time-per-session Deepgram diarization disclosure shown? Reset on plugin reload. */
     public diarizationDisclosureShownThisSession = false;
@@ -1469,7 +1476,7 @@ export default class AIOrganiserPlugin extends Plugin {
         this.catchUpStatusBar.mount();
         this.refreshCatchUpStatus();
         // 30 minutes also catches the date and cutoff rollover.
-        this.registerInterval(window.setInterval(() => this.refreshCatchUpStatus(), 30 * 60 * 1000));
+        this.registerInterval(window.setInterval(() => { this.refreshCatchUpStatus(); this.tickCatchUpCleanup(); }, 30 * 60 * 1000));
         const touchesNewsletters = (path: string): boolean => {
             const root = getNewsletterOutputFullPath(this.settings);
             return path === root || path.startsWith(`${root}/`);
@@ -1479,7 +1486,91 @@ export default class AIOrganiserPlugin extends Plugin {
         this.registerEvent(this.app.vault.on('delete', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
         this.registerEvent(this.app.vault.on('modify', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
         this.registerEvent(this.app.vault.on('rename', (f, old) => { if (touchesNewsletters(f.path) || touchesNewsletters(old)) this.refreshCatchUpStatus(); }));
-        this.app.workspace.onLayoutReady(() => { void this.offerAudioModeSwitch(); });
+        this.app.workspace.onLayoutReady(() => {
+            void this.offerAudioModeSwitch();
+            // Deferred and non-blocking: an overdue cleanup never slows start-up. Off costs nothing.
+            if (this.catchUpCleanupDays() > 0) {
+                this.catchUpCleanupLoadTimer = window.setTimeout(() => {
+                    this.catchUpCleanupLoadTimer = null;
+                    void this.runCatchUpAudioCleanup();
+                }, 60 * 1000);
+            }
+        });
+    }
+
+    private catchUpCleanupDays(): number {
+        return normaliseCleanupDays(this.settings.newsletterCatchUpAudioCleanupDays);
+    }
+
+    private catchUpToday(): string {
+        return getBucketDateStr(new Date(), this.settings.newsletterBriefCutoffHour ?? 6, this.settings.newsletterBriefCutoffMinute ?? 0);
+    }
+
+    /**
+     * After a catch-up episode is made, or when the setting changes: one coalesced sweep a few seconds
+     * later (never inside the run's own lock). Off cancels anything pending and costs nothing.
+     */
+    public scheduleCatchUpCleanup(): void {
+        if (this.catchUpCleanupTimer !== null) window.clearTimeout(this.catchUpCleanupTimer);
+        this.catchUpCleanupTimer = null;
+        if (this.catchUpCleanupDays() === 0) return;
+        this.catchUpCleanupTimer = window.setTimeout(() => {
+            this.catchUpCleanupTimer = null;
+            void this.runCatchUpAudioCleanup();
+        }, 5000);
+    }
+
+    /**
+     * The 30-minute tick: no vault read unless a cheap in-memory check says work may exist - a new
+     * calendar day since the last completed sweep (live episodes cross the age cutoff), or marked
+     * episodes still waiting for their second stage (or not yet known).
+     */
+    private tickCatchUpCleanup(): void {
+        const days = this.catchUpCleanupDays();
+        if (days === 0) return;
+        void import('./services/newsletter/catchUp/catchUpCleanup').then(({ shouldSweepOnTick }) => {
+            if (shouldSweepOnTick({ days, today: this.catchUpToday(), lastCompletedDate: this.catchUpCleanupLastDate, markedPending: this.catchUpMarkedPending })) {
+                return this.runCatchUpAudioCleanup();
+            }
+        }).catch((e) => logger.warn('Newsletter', 'Catch-up audio cleanup tick failed (non-fatal)', e));
+    }
+
+    /** One audio-cleanup sweep. Never throws; reports what it removed with a Notice and the logger. */
+    public async runCatchUpAudioCleanup(): Promise<void> {
+        const days = this.catchUpCleanupDays();
+        if (days === 0 || !isFeatureEnabled(this.settings, 'newsletter')) return;
+        try {
+            const [{ runCatchUpAudioCleanup }, { applyNoteEdit }] = await Promise.all([
+                import('./services/newsletter/catchUp/catchUpCleanup'),
+                import('./services/noteEdit/applyNoteEdit'),
+            ]);
+            const m = this.t.settings.newsletter.catchUp;
+            const res = await runCatchUpAudioCleanup({
+                app: this.app,
+                plugin: this,
+                settings: this.settings,
+                days,
+                protectedSource: this.settings.protectedFolders,
+                // A documented, narrow exemption from reviewed edits: see docs/features/research-and-capture.md.
+                writeNote: (filePath, baseline, nextContent) => applyNoteEdit(this, { kind: 'full-replace', filePath, baseline, nextContent }, { review: false }),
+                removedLine: (date) => m.audioRemovedLine.replace('{date}', date),
+            });
+            if (!res.ok) { logger.warn('Newsletter', `Catch-up audio cleanup did not complete: ${res.error}`); return; }
+            const outcome = res.value;
+            const report = outcome.report;
+            // Only a completed sweep replaces what we know; a skipped one keeps it.
+            if (outcome.kind === 'completed') {
+                this.catchUpMarkedPending = outcome.report.markedPending;
+                this.catchUpCleanupLastDate = this.catchUpToday();
+            }
+            if (report && report.removed > 0) {
+                logger.debug('Newsletter', `Catch-up audio cleanup removed ${report.removed} audio file(s)`);
+                new Notice(m.cleanupNotice.replace('{count}', String(report.removed)), 6000);
+            }
+            if (outcome.kind === 'skipped' && outcome.reason !== 'off') logger.debug('Newsletter', `Catch-up audio cleanup skipped: ${outcome.reason}`);
+        } catch (e) {
+            logger.warn('Newsletter', 'Catch-up audio cleanup failed (non-fatal)', e);
+        }
     }
 
     /**
@@ -1504,6 +1595,10 @@ export default class AIOrganiserPlugin extends Plugin {
     public onunload(): void {
         this.catchUpStatusBar?.dispose();
         this.catchUpStatusBar = null;
+        if (this.catchUpCleanupTimer !== null) window.clearTimeout(this.catchUpCleanupTimer);
+        if (this.catchUpCleanupLoadTimer !== null) window.clearTimeout(this.catchUpCleanupLoadTimer);
+        this.catchUpCleanupTimer = null;
+        this.catchUpCleanupLoadTimer = null;
         unregisterProtectedFolders();
         this.stopNewsletterScheduler();
         this.upkeep?.stop();

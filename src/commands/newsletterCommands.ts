@@ -251,6 +251,7 @@ export async function runSmartDailyAfterFetch(plugin: AIOrganiserPlugin): Promis
         if (res.ok && res.value) {
             const v = res.value;
             new Notice(m.autoReady.replace('{range}', v.from === v.to ? v.to : `${v.from} → ${v.to}`), 6000);
+            plugin.scheduleCatchUpCleanup?.();
         } else if (!res.ok) {
             logger.warn('Newsletter', `Smart daily catch-up did not complete: ${res.error}`);
             new Notice(formatGuidance(describeError(plugin.t, res.error)), 6000);

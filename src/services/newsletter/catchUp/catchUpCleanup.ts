@@ -43,7 +43,9 @@ import {
     trashOwnedFile,
 } from './catchUpEpisode';
 import { runExclusive } from './catchUpService';
-import { CATCHUP_CLEANUP_MAX_DAYS, EPISODE_FM, type EpisodeMeta } from './catchUpTypes';
+import { EPISODE_FM, normaliseCleanupDays, type EpisodeMeta } from './catchUpTypes';
+
+export { normaliseCleanupDays };
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -89,11 +91,16 @@ export interface CleanupDeps {
     now?: () => Date;
 }
 
-/** Clamp a stored setting to the supported range; anything unusable is off. */
-export function normaliseCleanupDays(raw: unknown): number {
-    const n = Number(raw);
-    if (!Number.isFinite(n) || n < 1) return 0;
-    return Math.min(CATCHUP_CLEANUP_MAX_DAYS, Math.floor(n));
+// ── Scheduling (pure) ────────────────────────────────────────────────────────
+
+/**
+ * Should the 30-minute tick run a sweep? Costs no vault read: off never; otherwise only on a new
+ * calendar day since the last COMPLETED sweep (live episodes cross the age cutoff in a long
+ * session), or while marked episodes are still waiting for stage 2 - or not yet known.
+ */
+export function shouldSweepOnTick(i: { days: number; today: string; lastCompletedDate: string | null; markedPending: number | 'unknown' }): boolean {
+    if (!(i.days > 0)) return false;
+    return i.lastCompletedDate !== i.today || i.markedPending !== 0;
 }
 
 // ── Pure decision ────────────────────────────────────────────────────────────

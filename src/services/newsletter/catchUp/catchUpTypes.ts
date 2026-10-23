@@ -37,6 +37,13 @@ export const EPISODE_FM = {
  */
 export const CATCHUP_CLEANUP_MAX_DAYS = 28;
 
+/** Clamp a stored cleanup threshold to 0..28 days; anything that is not a usable number is 0 (off). */
+export function normaliseCleanupDays(raw: unknown): number {
+    const n = typeof raw === 'string' && raw.trim() === '' ? Number.NaN : Number(raw);
+    if (!Number.isFinite(n) || n < 1) return 0;
+    return Math.min(CATCHUP_CLEANUP_MAX_DAYS, Math.floor(n));
+}
+
 /** Written in a coverage map when a day is covered but no revision is known. */
 export const WHOLE_DAY = 'whole';
 

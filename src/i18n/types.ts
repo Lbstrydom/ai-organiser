@@ -912,6 +912,11 @@ export interface Translations {
                 statusBar: string;
                 statusBarDesc: string;
                 memoryOffNote: string;
+                cleanupDays: string;
+                cleanupDaysDesc: string;
+                cleanupOff: string;
+                cleanupNotice: string;         // "{count}"
+                audioRemovedLine: string;      // "{date}"
             };
         };
         audioNarration: {
