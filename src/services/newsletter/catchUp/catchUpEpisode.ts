@@ -146,15 +146,18 @@ function splitFrontmatter(content: string): { fm: string; fmEnd: number; insertA
 
 /** The first generated listen line outside any fenced code block, as a line index into `lines` (even indices). */
 function findListenLine(lines: string[]): number {
-    let fence: string | null = null;
+    // CommonMark: a fence opens with 3+ backticks or tildes and closes only with the same character,
+    // a run at least as long, and nothing else on the line.
+    let open: { char: string; length: number } | null = null;
     for (let i = 0; i < lines.length; i += 2) {
-        const marker = /^\s*(```|~~~)/.exec(lines[i])?.[1];
-        if (marker) {
-            if (fence === null) fence = marker;
-            else if (fence === marker) fence = null;
+        const run = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(lines[i]);
+        if (open === null) {
+            if (run && !(run[1][0] === '`' && run[2].includes('`'))) { open = { char: run[1][0], length: run[1].length }; continue; }
+        } else {
+            if (run && run[1][0] === open.char && run[1].length >= open.length && run[2].trim() === '') open = null;
             continue;
         }
-        if (fence === null && lines[i].startsWith('🎧 ')) return i;
+        if (lines[i].startsWith('🎧 ')) return i;
     }
     return -1;
 }

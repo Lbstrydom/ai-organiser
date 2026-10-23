@@ -234,6 +234,25 @@ describe('markAudioRemovedText', () => {
         expect(run(fenced)).toEqual({ ok: false, error: 'unclassified-reference' });
     });
 
+    it('fence tracking honours run length and character (CommonMark)', () => {
+        const listen = '🎧 **Listen:** ![[' + NAME + ']]';
+        const base = buildEpisodeNote(input()).replace(`![[${NAME}]]`, 'gone');
+        const inside = (block: string) => base.replace('# Newsletter', `${block}\n\n# Newsletter`);
+        // A shorter fence line cannot close a longer fence: the reference stays inside the code block.
+        expect(run(inside('````text\n```\n' + listen + '\n````'))).toEqual({ ok: false, error: 'unclassified-reference' });
+        // A different fence character cannot close it either.
+        expect(run(inside('```\n~~~\n' + listen + '\n```'))).toEqual({ ok: false, error: 'unclassified-reference' });
+        // A closing-looking line with a suffix does not close.
+        expect(run(inside('```\n``` not a close\n' + listen + '\n```'))).toEqual({ ok: false, error: 'unclassified-reference' });
+        // A tilde fence closed properly ends: a listen line after it is the real one.
+        const closed = base.replace('# Newsletter', '~~~\ncode\n~~~\n\n# Newsletter');
+        expect(run(closed).ok).toBe(true);
+        // An info string containing a backtick is not a fence opener.
+        const notFence = buildEpisodeNote(input()).replace('# Newsletter', '``` a`b\n\n# Newsletter');
+        const r = run(notFence);
+        expect(r.ok).toBe(true);
+    });
+
     it('preserves CRLF line endings', () => {
         const after = okText(buildEpisodeNote(input()).replaceAll('\n', '\r\n'));
         expect(after).toContain(`catchup_sources: 4\r\ncatchup_audio_removed: '${DATE}'\r\n---`);
