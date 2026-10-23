@@ -259,8 +259,8 @@ describe('markAudioRemovedText', () => {
         expect(after.replaceAll('\r\n', '')).not.toContain('\n');
     });
 
-    it('is idempotent for the same date and refuses a different marker date', () => {
-        const once = okText(buildEpisodeNote(input()));
+    it.each([['LF', '\n'], ['CRLF', '\r\n']])('is idempotent for the same date and refuses a different marker date (%s)', (_label, eol) => {
+        const once = okText(buildEpisodeNote(input()).replaceAll('\n', eol));
         expect(okText(once)).toBe(once);
         expect(run(once.replace(DATE, '2026-11-01'))).toEqual({ ok: false, error: 'marker-conflict' });
     });

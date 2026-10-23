@@ -193,7 +193,7 @@ export function markAudioRemovedText(content: string, audioName: string, date: s
     const parts = splitFrontmatter(content);
     if (!parts) return err('no-frontmatter');
 
-    const markerRe = new RegExp(String.raw`^${EPISODE_FM.audioRemoved}:[ \t]*(.*?)[ \t]*$`, 'm');
+    const markerRe = new RegExp(String.raw`^${EPISODE_FM.audioRemoved}:[ \t]*([^\r\n]*?)[ \t]*\r?$`, 'm');
     const existing = markerRe.exec(parts.fm);
     let head = content.slice(0, parts.fmEnd);
     if (existing) {
