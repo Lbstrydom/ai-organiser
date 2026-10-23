@@ -38,9 +38,9 @@ describe('buildBadgeIndex / isBadged', () => {
     });
 
     it('agrees with the enforcement matcher on equality', () => {
-        const list = ['Projects/Capstone', 'Notes/Archive'];
+        const list = ['Projects/Alpha', 'Notes/Archive'];
         const idx = buildBadgeIndex(list);
-        for (const p of ['Projects/Capstone', 'projects/capstone', 'Notes/Archive/', 'Notes', 'Projects/Capstone2']) {
+        for (const p of ['Projects/Alpha', 'projects/alpha', 'Notes/Archive/', 'Notes', 'Projects/Alpha2']) {
             const root = list.some((f) => isInsideOrEqual(p, f) && isInsideOrEqual(f, p));
             expect(isBadged(idx, p)).toBe(root);
         }
