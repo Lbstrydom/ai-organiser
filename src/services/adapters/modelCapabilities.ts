@@ -128,8 +128,9 @@ const CLAUDE_CACHE_ID_RE = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\
  */
 export function claudeMinCacheableTokens(modelId: string | undefined | null): number | undefined {
     if (!modelId) return undefined;
-    const legacy = CLAUDE_CACHE_MIN_TOKENS_LEGACY[modelId.replace(/-\d{8}$/, '')];
-    if (legacy !== undefined) return legacy;
+    const legacyKey = modelId.replace(/-\d{8}$/, '');
+    // Own-property check: `constructor`, `__proto__`, `toString` etc. must not resolve to an inherited value.
+    if (Object.hasOwn(CLAUDE_CACHE_MIN_TOKENS_LEGACY, legacyKey)) return CLAUDE_CACHE_MIN_TOKENS_LEGACY[legacyKey];
     const m = CLAUDE_CACHE_ID_RE.exec(modelId);
     if (!m) return undefined;
     return CLAUDE_CACHE_MIN_TOKENS[`${m[1]}-${m[2]}-${m[3] ?? '0'}`];

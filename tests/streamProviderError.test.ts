@@ -45,6 +45,12 @@ describe('parseAnthropicSseLine', () => {
             .toThrow(/the provider ended the stream with an error/);
     });
 
+    it('accepts the SSE `data:` field with no space after the colon', () => {
+        expect(parseAnthropicSseLine(`data:${JSON.stringify({ type: 'content_block_delta', delta: { type: 'text_delta', text: 'hi' } })}`, 'claude', 'm')).toBe('hi');
+        expect(() => parseAnthropicSseLine(`data:${JSON.stringify(OVERLOADED)}`, 'claude', 'm'))
+            .toThrow('claude stream error (overloaded_error): Overloaded');
+    });
+
     it.each([
         ['an event: line', 'event: error'],
         ['a blank line', ''],

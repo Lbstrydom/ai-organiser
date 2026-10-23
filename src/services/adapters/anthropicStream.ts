@@ -37,10 +37,11 @@ export class StreamProviderError extends Error {
  * - A `data:` payload that is not JSON is skipped, as before.
  */
 export function parseAnthropicSseLine(line: string, provider: string, modelName: string | undefined): string | null {
-    if (!line.startsWith('data: ')) return null;
+    // SSE allows one optional space after the colon (`data: {...}` and `data:{...}` are the same field).
+    if (!line.startsWith('data:')) return null;
     let parsed: { type?: string; message?: { usage?: unknown }; delta?: { type?: string; text?: string } } | null;
     try {
-        parsed = JSON.parse(line.slice(6).trim());
+        parsed = JSON.parse(line.slice(5).trim());
     } catch {
         return null;
     }

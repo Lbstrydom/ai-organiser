@@ -53,6 +53,10 @@ describe('claudeMinCacheableTokens', () => {
         expect(claudeMinCacheableTokens(id)).toBeUndefined();
     });
 
+    it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf'])('an inherited property name (%s) is not a model → undefined', (name) => {
+        expect(claudeMinCacheableTokens(name)).toBeUndefined();
+    });
+
     it('is undefined for null / undefined', () => {
         expect(claudeMinCacheableTokens(undefined)).toBeUndefined();
         expect(claudeMinCacheableTokens(null)).toBeUndefined();
