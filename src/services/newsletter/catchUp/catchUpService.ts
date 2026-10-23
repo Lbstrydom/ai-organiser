@@ -136,6 +136,14 @@ async function withLock<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
     }
 }
 
+/**
+ * Run `fn` under the catch-up single-flight lock (the audio cleanup shares it, so it can never
+ * touch a folder while an episode is being made). Returns `err('catchup-busy')` when held.
+ */
+export function runExclusive<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
+    return withLock(fn);
+}
+
 /** Test-only. */
 export function __resetCatchUpLockForTests(): void {
     running = false;

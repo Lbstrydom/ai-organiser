@@ -226,7 +226,7 @@ export function markAudioRemovedText(content: string, audioName: string, date: s
 
 // ── Vault IO ─────────────────────────────────────────────────────────────────
 
-function childrenOf(app: App, folderPath: string): TFile[] {
+export function childrenOf(app: App, folderPath: string): TFile[] {
     const folder = app.vault.getAbstractFileByPath(normalizePath(folderPath));
     if (!folder || !('children' in folder)) return [];
     return (folder as { children: unknown[] }).children.filter((c): c is TFile => c instanceof TFile);
@@ -338,6 +338,15 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
     return null;
 }
 
+/**
+ * Has Obsidian finished indexing links? While it has not, the link table is incomplete and a "no
+ * reference" drawn from it is a guess. Readiness must be positively established: an absent flag
+ * is not proof.
+ */
+export function isMetadataIndexReady(app: App): boolean {
+    return (app.metadataCache as { resolved?: boolean } | undefined)?.resolved === true;
+}
+
 export type AudioReference = 'yes' | 'no' | 'unknown';
 
 /**
@@ -354,7 +363,7 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
     const resolved = cache?.resolvedLinks;
     // While the vault index is still being built the link table is incomplete: a "no" drawn from
     // it would be a guess. Readiness must be positively established: an absent flag is not proof.
-    const indexIncomplete = cache?.resolved !== true;
+    const indexIncomplete = !isMetadataIndexReady(app);
     if (resolved) {
         const audioPath = normalizePath(`${folder}/${audioName}`);
         for (const links of Object.values(resolved)) if (links && audioPath in links) return 'yes';
