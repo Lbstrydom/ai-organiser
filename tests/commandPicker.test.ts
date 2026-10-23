@@ -115,13 +115,23 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
         });
     });
 
-    describe('Capture — pulls new content in (flat, 10 leaves)', () => {
-        it('contains research / cloud-inventory x3 / web-reader / kindle / newsletter / record / onedrive-link', () => {
+    describe('Capture — pulls new content in (9 rows: 8 leaves + the Newsletters group)', () => {
+        it('contains research / cloud-inventory x3 / web-reader / kindle / the Newsletters group / record / onedrive-link', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const capture = cats.find(c => c.id === 'capture')!;
             expect(capture.commands.map(c => c.id)).toEqual([
-                'research-web', 'refresh-cloud-inventories', 'check-cloud-inventories', 'setup-cloud-inventory', 'web-reader', 'kindle-sync', 'newsletter-fetch', 'newsletter-mark-caught-up', 'record-audio', 'insert-onedrive-link',
+                'research-web', 'refresh-cloud-inventories', 'check-cloud-inventories', 'setup-cloud-inventory', 'web-reader', 'kindle-sync', 'capture-newsletter', 'record-audio', 'insert-onedrive-link',
             ]);
+        });
+
+        it('the Newsletters group holds fetch, audio and both mark commands, all Capture leaves of the newsletter feature', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const group = cats.find(c => c.id === 'capture')!.commands.find(c => c.id === 'capture-newsletter')!;
+            expect(group.subCommands!.map(c => c.id)).toEqual(['newsletter-fetch', 'newsletter-audio', 'newsletter-mark-caught-up', 'newsletter-mark-catchup-listened']);
+            for (const leaf of group.subCommands!) {
+                expect(leaf.feature).toBe('newsletter');
+                expect(leaf.stage).toBe('capture');
+            }
         });
     });
 
@@ -259,18 +269,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 65 (62 unique + 3 cross-listings)', () => {
+        it('total picker rows = 67 (64 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(65);
+            expect(leafCount).toBe(67);
         });
-        it('unique command IDs = 62', () => {
+        it('unique command IDs = 64', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(62);
+            expect(uniqueIds.size).toBe(64);
         });
-        it('alphabetised ai-organiser:* callbacks (62 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (64 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -312,7 +322,9 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:kindle-sync',
                 'ai-organiser:narrate-note',
                 'ai-organiser:new-sketch',
+                'ai-organiser:newsletter-audio',
                 'ai-organiser:newsletter-fetch',
+                'ai-organiser:newsletter-mark-catchup-listened',
                 'ai-organiser:newsletter-mark-caught-up',
                 'ai-organiser:notebooklm-export',
                 'ai-organiser:open-agent-connectors',
@@ -345,7 +357,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(62);
+            expect(unique.size).toBe(64);
         });
     });
 });

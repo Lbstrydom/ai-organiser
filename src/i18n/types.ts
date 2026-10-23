@@ -896,6 +896,23 @@ export interface Translations {
             caughtUpError: string;
             retentionDays: string;
             retentionDaysDesc: string;
+            catchUp: {
+                heading: string;
+                modeLabel: string;
+                modeDesc: string;
+                modeOnDemand: string;
+                modeSmartDaily: string;
+                modeDaily: string;
+                modeDailyHint: string;
+                modeNotice: string;
+                lookbackDays: string;
+                lookbackDaysDesc: string;
+                maxMins: string;
+                maxMinsDesc: string;
+                statusBar: string;
+                statusBarDesc: string;
+                memoryOffNote: string;
+            };
         };
         audioNarration: {
             title: string;
@@ -1295,6 +1312,8 @@ export interface Translations {
         newsletterFetch: string;
         newsletterRegenerateAudio: string;
         newsletterMarkCaughtUp: string;
+        newsletterAudio: string;
+        newsletterMarkCatchUpListened: string;
         narrateNote: string;
         playNarration: string;
         digitiseImage: string;
@@ -1743,6 +1762,70 @@ export interface Translations {
         warning: string;
         confirm: string;
         cancel: string;
+        newsletterCatchUp: {
+            title: string;
+            statusBarLabel: string;       // "Newsletter audio: {summary} pending"
+            statusBarTooltip: string;
+            statusBarUnheard: string;     // "{n} not listened"
+            autoReady: string;            // "Your newsletter audio for {range} is ready."
+            notAnEpisode: string;
+            ackFailed: string;
+            discardFailed: string;
+            daysOne: string;
+            daysMany: string;             // "{n} days"
+            newslettersOne: string;
+            newslettersMany: string;      // "{n} newsletters"
+            pendingSummary: string;       // "{days} · {newsletters}"
+            pendingLine: string;          // "{summary} pending"
+            covers: string;               // "Covers {from} to {to}"
+            coversOne: string;            // "Covers {date}"
+            noStored: string;             // "No newsletters stored for {dates}."
+            unresolved: string;           // "Updates on {dates} could not be checked. Open the digest or fetch again."
+            unresolvedOnly: string;
+            gap: string;                  // "Older material is unavailable. ..."
+            caughtUp: string;             // "You are caught up through {date}."
+            expiring: string;             // "{dates} will be removed ..."
+            unheardTitle: string;
+            unheardBody: string;          // "{range}. Listen to it first, or generate another anyway."
+            openEpisode: string;
+            markListened: string;
+            markedListened: string;
+            lengthLine: string;           // "Length: about {mins} min"
+            lengthLineBig: string;        // "Length: about {mins} min (4 or more days pending)"
+            ceilingLabel: string;
+            costTts: string;              // "Voice cost: about ${usd}"
+            costAzure: string;
+            costNote: string;
+            generate: string;
+            cancel: string;
+            close: string;
+            resume: string;
+            finishSaving: string;
+            startOver: string;
+            discard: string;
+            resumeTitle: string;
+            resumeScripted: string;
+            resumeAudioReady: string;
+            resumeRange: string;          // "Covers {from} to {to}."
+            includeAgain: string;
+            replayLatest: string;
+            running: string;
+            overrunTitle: string;
+            overrunBody: string;          // "It is about {estimated} min, and your limit is {cap} min."
+            continueAnyway: string;
+            shortenAgain: string;
+            done: string;                 // "Episode ready — {minutes} min covering {days}."
+            openNote: string;
+            cancelledNoRecord: string;
+            cancelledWithRecord: string;
+            changedNotice: string;
+            discarded: string;
+            wrongModeTitle: string;
+            wrongModeBody: string;
+            audioOffBody: string;
+            switchMode: string;
+            loading: string;
+        };
         clearAllTagsConfirm: string;
         generateFolderConfirm: string;
         generateVaultConfirm: string;
@@ -2767,6 +2850,7 @@ export interface Translations {
             groupCreateVisualise: string;
             groupRefinePending: string;
             groupMaintainBases: string;
+            groupCaptureNewsletter: string;
             // Requirement chip + reason strings (4 chips + 5 reasons; semantic-search has 2)
             requiresChipNote: string;
             requiresChipSelection: string;
@@ -2816,6 +2900,8 @@ export interface Translations {
                 newsletterFetch: string;
                 newsletterRegenerateAudio: string;
                 newsletterMarkCaughtUp: string;
+                newsletterAudio: string;
+                newsletterMarkCatchUpListened: string;
                 newSketch: string;
                 askSearchGroup: string;
                 chatWithAI: string;
@@ -2858,6 +2944,7 @@ export interface Translations {
                 groupCreateVisualise: string;
                 groupRefinePending: string;
                 groupMaintainBases: string;
+                groupCaptureNewsletter: string;
             };
             badgeComingSoonExplanation: string;
             badgeDevelopingExplanation: string;
@@ -4209,6 +4296,11 @@ export interface ProgressStrings {
         triaging: string;             // "Triaging {current}/{total}"
         synthesizing: string;
         regeneratingAudio: string;
+        catchUpFreezing: string;
+        catchUpWritingScript: string;
+        catchUpShortening: string;
+        catchUpSynthesising: string;   // "Narrating part {done} of {total}…"
+        catchUpSaving: string;
     };
     audioNarration: {
         preparing: string;            // status-bar — "Preparing narration…"

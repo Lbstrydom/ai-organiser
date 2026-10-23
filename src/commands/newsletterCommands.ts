@@ -13,6 +13,11 @@ import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
 import { NewsletterService, getBriefDateStr, extractDigestDate } from '../services/newsletter/newsletterService';
 import { withProgress } from '../services/progress';
+import { getAudioMode, isCatchUpEnabled } from '../services/newsletter/newsletterAudioMode';
+import { readEpisode } from '../services/newsletter/catchUp/catchUpEpisode';
+import { ackAllInWindowEpisodes, markEpisodeListened } from '../services/newsletter/catchUp/catchUpListen';
+import { describeError, formatGuidance } from '../core/friendlyErrors';
+import { TFile } from 'obsidian';
 
 /** Show the appropriate notice after a fetch completes. Shared by command and settings button. */
 export function showNewsletterFetchResultNotice(
@@ -47,6 +52,12 @@ export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<voi
     // switched off, since the audio-podcast setting is a sub-toggle, not the gate.
     if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
         noticeWithSettingsLink(plugin, nl?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
+        return;
+    }
+    // "Regenerate today's audio" is the daily pipeline. When audio is made on demand it would
+    // quietly produce a daily recording the catch-up never accounts for, so explain instead.
+    if (plugin.settings.newsletterAudioPodcast && getAudioMode(plugin.settings) !== 'daily') {
+        new Notice(formatGuidance(describeError(plugin.t, 'catchup-wrong-mode')), 6000);
         return;
     }
     if (!plugin.settings.newsletterAudioPodcast) {
@@ -161,10 +172,93 @@ async function markCaughtUpInner(
     const through = resolveCatchUpTargetDate(plugin);
     const outcome = await new NewsletterService(plugin).markCaughtUp(through);
 
+    // "I am up to date" also means the catch-up episodes in the window count as heard. This is
+    // independent of story memory: the durable ack is the authority on what was heard.
+    let ackFailed = false;
+    if (isCatchUpEnabled(plugin.settings)) {
+        try {
+            await ackAllInWindowEpisodes({ app: plugin.app, plugin, settings: plugin.settings }, through);
+            plugin.refreshCatchUpStatus?.();
+        } catch (e) {
+            ackFailed = true;
+            logger.warn('Newsletter', 'Could not acknowledge catch-up episodes', e);
+        }
+    }
+
     if (outcome.kind === 'error') {
         logger.error('Newsletter', `Mark caught up failed: ${outcome.error}`);
     }
     new Notice(formatCaughtUpOutcome(outcome, nl), outcome.kind === 'error' ? 6000 : 5000);
+    // Partial success is reported as partial: the stories were marked, the episodes were not.
+    if (ackFailed) new Notice(plugin.t.modals.newsletterCatchUp.ackFailed, 7000);
+}
+
+/** A command boundary: a failure is logged with context and shown as guidance, never dropped. */
+async function guarded(plugin: AIOrganiserPlugin, what: string, fn: () => Promise<void>): Promise<void> {
+    try {
+        await fn();
+    } catch (e) {
+        logger.error('Newsletter', `Newsletter audio command failed (${what})`, e);
+        new Notice(formatGuidance(describeError(plugin.t, 'unknown')), 6000);
+    }
+}
+
+/** Open the catch-up window. The window itself explains audio-off and daily-mode states. */
+export async function openCatchUpWindow(plugin: AIOrganiserPlugin): Promise<void> {
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
+        noticeWithSettingsLink(plugin, plugin.t.settings.newsletter?.notEnabled || 'Newsletter digest is not enabled. Enable it in settings → integrations.');
+        return;
+    }
+    const { NewsletterCatchUpModal } = await import('../ui/modals/NewsletterCatchUpModal');
+    new NewsletterCatchUpModal(plugin).open();
+}
+
+/** Mark the catch-up episode in the active note as heard. */
+export async function runMarkCatchUpListened(plugin: AIOrganiserPlugin): Promise<void> {
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) return;
+    const m = plugin.t.modals.newsletterCatchUp;
+    const file = plugin.app.workspace.getActiveFile();
+    const episode = file instanceof TFile ? await readEpisode(plugin.app, file) : null;
+    if (!episode) {
+        new Notice(m.notAnEpisode, 5000);
+        return;
+    }
+    const res = await markEpisodeListened({ app: plugin.app, plugin, settings: plugin.settings }, episode);
+    if (!res.ok) {
+        logger.warn('Newsletter', `Mark listened failed: ${res.error}`);
+        new Notice(formatGuidance(describeError(plugin.t, 'unknown')), 5000);
+        return;
+    }
+    plugin.refreshCatchUpStatus?.();
+    new Notice(m.markedListened, 4000);
+}
+
+/**
+ * Smart daily: after a fetch, make one catch-up episode if — and only if — admission allows
+ * (nothing unheard, nothing unresolved, a closed day is pending). Never throws into the fetch.
+ */
+export async function runSmartDailyAfterFetch(plugin: AIOrganiserPlugin): Promise<void> {
+    // Cheap guard first: this runs after EVERY fetch, and must cost nothing in the other modes.
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) return;
+    if (plugin.settings.newsletterAudioPodcast !== true || getAudioMode(plugin.settings) !== 'smart-daily') return;
+    try {
+        const [{ runAutoCatchUp }, { createCatchUpPorts }] = await Promise.all([
+            import('../services/newsletter/catchUp/catchUpService'),
+            import('../services/newsletter/catchUp/catchUpRuntime'),
+        ]);
+        const res = await runAutoCatchUp(createCatchUpPorts(plugin));
+        const m = plugin.t.modals.newsletterCatchUp;
+        if (res.ok && res.value) {
+            const v = res.value;
+            new Notice(m.autoReady.replace('{range}', v.from === v.to ? v.to : `${v.from} → ${v.to}`), 6000);
+        } else if (!res.ok) {
+            logger.warn('Newsletter', `Smart daily catch-up did not complete: ${res.error}`);
+            new Notice(formatGuidance(describeError(plugin.t, res.error)), 6000);
+        }
+        plugin.refreshCatchUpStatus?.();
+    } catch (e) {
+        logger.warn('Newsletter', 'Smart daily catch-up failed (non-fatal)', e);
+    }
 }
 
 export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
@@ -219,6 +313,7 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
             if (r.ok) {
                 showNewsletterFetchResultNotice(r.value, plugin);
                 await plugin.updateNewsletterLastFetchTime();
+                await runSmartDailyAfterFetch(plugin);
             }
             // On !r.ok the reporter already fired the toast.
         }
@@ -229,6 +324,20 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         name: t.commands.newsletterMarkCaughtUp || 'Mark newsletters caught up',
         icon: 'check-check',
         callback: () => { void runMarkCaughtUp(plugin); },
+    });
+
+    plugin.addCommand({
+        id: 'newsletter-audio',
+        name: t.commands.newsletterAudio || 'Newsletter audio',
+        icon: 'headphones',
+        callback: () => { void guarded(plugin, 'open the window', () => openCatchUpWindow(plugin)); },
+    });
+
+    plugin.addCommand({
+        id: 'newsletter-mark-catchup-listened',
+        name: t.commands.newsletterMarkCatchUpListened || 'Mark newsletter catch-up listened',
+        icon: 'check-circle-2',
+        callback: () => { void guarded(plugin, 'mark listened', () => runMarkCatchUpListened(plugin)); },
     });
 
     plugin.addCommand({

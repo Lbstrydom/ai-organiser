@@ -363,6 +363,10 @@ export class Setting {
         return this;
     }
 
+    setHeading() {
+        return this;
+    }
+
     addSlider(cb: (slider: MockSlider) => void) {
         cb(new MockSlider());
         return this;

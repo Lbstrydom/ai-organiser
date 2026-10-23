@@ -38,7 +38,8 @@ import type { RecallSelection, CaughtUpOutcome } from './newsletterMemoryTypes';
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
-import { isAzureMode } from '../azure/endpointResolver';
+import { isDailyAudioEnabled } from './newsletterAudioMode';
+import { resolveNewsletterTts } from './resolveNewsletterTts';
 import { updateAIOMetadata, createSummaryHook } from '../../utils/frontmatterUtils';
 import { SourceType } from '../../core/constants';
 import { getLanguageNameForPrompt } from '../languages';
@@ -769,7 +770,7 @@ export class NewsletterService {
         // Users who want today's audio right now can still hit the explicit
         // "Regenerate audio for today's brief" command — `regenerateAudioForToday`
         // bypasses this gate by design.
-        if (this.plugin.settings.newsletterAudioPodcast) {
+        if (isDailyAudioEnabled(this.plugin.settings)) {
             const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
             const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
             if (isBucketClosed(dateStr, cutoff, new Date(), cutoffMinute)) {
@@ -807,69 +808,18 @@ export class NewsletterService {
             }
         }
 
-        // Resolve Gemini API key:
-        //   1. SecretStorage 'gemini' provider key (primary — this is where
-        //      Obsidian keys live for most users)
-        //   2. providerSettings.gemini.apiKey (legacy plain-text fallback)
-        //   3. cloudApiKey (only when main provider IS Gemini)
-        //
-        // Before this fix, we skipped SecretStorage entirely — so users whose
-        // Gemini key was in SecretStorage (the Obsidian-recommended path) but
-        // whose main provider was something else got a silent "skipped" log
-        // with no audio output. The feature looked broken.
+        // Which voice service speaks this audio — the ONE authority shared with catch-up episodes
+        // (Azure capability, or SecretStorage -> providerSettings -> main key when it IS Gemini).
         const settings = this.plugin.settings;
-        // Resolve the TTS engine. In Azure mode the tts capability decides:
-        // azure → Azure Speech engine; byo → Gemini key path; off/unavailable → skip.
-        let azureTtsEngine: import('../tts/ttsEngine').TtsEngine | undefined;
-        let azureTtsModelId: string | undefined;
-        if (isAzureMode(settings)) {
-            const { resolveAzureCapability } = await import('../azure/resolveAzureCapability');
-            const ttsRes = await resolveAzureCapability(this.plugin, 'tts');
-            if (ttsRes.kind === 'azure' && ttsRes.surface === 'azure-speech') {
-                // In-region Cognitive Speech engine (azure-audio plan Phase 3).
-                const { createCognitiveSpeechTtsEngine } = await import('../tts/cognitiveSpeechTtsEngine');
-                azureTtsEngine = (await createCognitiveSpeechTtsEngine(this.plugin)) ?? undefined;
-                azureTtsModelId = 'azure-cognitive-speech-v1';
-                if (!azureTtsEngine) {
-                    new Notice('Audio podcast skipped — azure AI speech needs a region, key, and voice (set them under azure capabilities)', 6000);
-                    return;
-                }
-            } else if (ttsRes.kind === 'azure') {
-                const { createAzureSpeechTtsEngine } = await import('../tts/azureSpeechTtsEngine');
-                azureTtsEngine = (await createAzureSpeechTtsEngine(this.plugin)) ?? undefined;
-                azureTtsModelId = ttsRes.deployment || 'azure-speech';
-                if (!azureTtsEngine) {
-                    new Notice('Audio podcast skipped — azure speech needs a tts deployment (set it under azure capabilities)', 6000);
-                    return;
-                }
-            } else if (ttsRes.kind === 'unavailable') {
-                new Notice("Audio podcast isn't configured for azure — set audio narration to a tts deployment, or add a Gemini key, in settings", 6000);
-                return;
-            }
-            // ttsRes.kind === 'byo' → fall through to the Gemini key resolution below.
+        const tts = await resolveNewsletterTts(this.plugin);
+        if (!tts.ok) {
+            if (tts.logWarn) logger.warn('Newsletter', tts.logWarn);
+            new Notice(tts.notice, tts.noticeMs);
+            return;
         }
-
-        let geminiApiKey = '';
-        if (!azureTtsEngine) {
-            const secretKey = this.plugin.secretStorageService.isAvailable()
-                ? await this.plugin.secretStorageService.getProviderKey('gemini')
-                : null;
-            geminiApiKey =
-                secretKey ||
-                settings.providerSettings?.['gemini']?.apiKey ||
-                (settings.cloudServiceType === 'gemini' ? settings.cloudApiKey : '') ||
-                '';
-            if (!geminiApiKey) {
-                logger.warn('Newsletter', 'Audio podcast skipped — no Gemini API key configured (checked SecretStorage + providerSettings + cloudApiKey)');
-                new Notice(
-                    isAzureMode(settings)
-                        ? "Audio podcast isn't configured for Azure — set Audio narration to a TTS deployment, or add a gemini key, in settings."
-                        : 'Audio podcast skipped — add a gemini key in settings to enable',
-                    6000,
-                );
-                return;
-            }
-        }
+        const azureTtsEngine = tts.engine;
+        const azureTtsModelId = tts.modelId;
+        const geminiApiKey = tts.apiKey;
 
         const { buildPodcastScriptPrompt, insertPodcastContent } = await import('../prompts/newsletterPrompts');
         const langCode = this.plugin.settings.newsletterPreferredLanguage;
@@ -954,7 +904,7 @@ export class NewsletterService {
      * touching ancient buckets the user may have intentionally cleaned up.
      */
     private async recoverMissedAudioPodcasts(): Promise<void> {
-        if (!this.plugin.settings.newsletterAudioPodcast) return;
+        if (!isDailyAudioEnabled(this.plugin.settings)) return;
         const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
         const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);
@@ -1049,6 +999,11 @@ export class NewsletterService {
     public async regenerateAudioForToday(): Promise<Result<{ path: string }>> {
         if (!this.plugin.settings.newsletterAudioPodcast) {
             return err('Audio podcast is off — toggle it on in settings first.');
+        }
+        // Today's daily recording is the daily pipeline; with audio delivered on demand it would
+        // create a recording the catch-up never accounts for.
+        if (!isDailyAudioEnabled(this.plugin.settings)) {
+            return err('Audio is not set to daily — use Newsletter audio to make a catch-up episode.');
         }
         const vault = this.plugin.app.vault;
         const outputRoot = getNewsletterOutputFullPath(this.plugin.settings);

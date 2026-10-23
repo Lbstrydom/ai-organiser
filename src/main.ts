@@ -26,7 +26,7 @@ import { referrersProtectedActive } from './utils/protectedGuard';
 import { registerProtectedFolders, unregisterProtectedFolders, enforceOutputDisjointness } from './commands/protectedFolderCommands';
 import { isFeatureEnabled } from './services/featureService';
 import { FEATURE_REGISTRY, type FeatureId } from './core/features';
-import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
+import { DEFAULT_SETTINGS, getConfigFolderFullPath, getNewsletterOutputFullPath, getNotebookLMExportFullPath, getPluginManagedFolders, migrateOldSettings } from './core/settings';
 import { AIOrganiserSettingTab } from './ui/settings/AIOrganiserSettingTab';
 import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
@@ -76,7 +76,11 @@ import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
 import { NewsletterService, LAST_FETCH_DATA_KEY } from './services/newsletter/newsletterService';
 import { saveSettingsData, stripDataOnlyKeys } from './core/pluginDataStore';
 import { isStoryMemoryEnabled } from './services/newsletter/newsletterMemoryPolicy';
-import { showNewsletterFetchResultNotice } from './commands/newsletterCommands';
+import { noticeWithSettingsLink } from './utils/noticeUtils';
+import { showNewsletterFetchResultNotice, openCatchUpWindow, runSmartDailyAfterFetch } from './commands/newsletterCommands';
+import { CatchUpStatusBar } from './ui/components/CatchUpStatusBar';
+import { markCatchUpAudioPlayed } from './services/newsletter/catchUp/catchUpListen';
+import { getAudioMode, isCatchUpEnabled } from './services/newsletter/newsletterAudioMode';
 import { LongRunningOpController } from './services/longRunningOp/progressController';
 import { computeSmartTagBudget } from './services/smartTagBudgets';
 import { createTagProgressStatusBar } from './ui/components/TagProgressStatusBar';
@@ -167,6 +171,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private connectorStalePersisted: boolean | null = null;
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
+    private catchUpStatusBar: CatchUpStatusBar | null = null;
     public newsletterSeenIds: string[] = [];
     /** First-time-per-session Deepgram diarization disclosure shown? Reset on plugin reload. */
     public diarizationDisclosureShownThisSession = false;
@@ -336,6 +341,8 @@ export default class AIOrganiserPlugin extends Plugin {
             autoFetch: this.settings.newsletterAutoFetch,
             intervalMins: this.settings.newsletterAutoFetchIntervalMins,
         };
+        // A mode, window or feature change alters what the status bar should say.
+        this.refreshCatchUpStatus();
     }
 
     /**
@@ -1127,6 +1134,7 @@ export default class AIOrganiserPlugin extends Plugin {
         this.startNewsletterScheduler();
         // Vault upkeep starts once the workspace is ready, so an overdue run never slows start-up.
         this.app.workspace.onLayoutReady(() => { this.syncUpkeep(); this.syncConnectorScope(); });
+        this.setUpCatchUp();
 
         // Augment native <audio> embeds (e.g. newsletter daily-brief WAVs) with
         // a small playback-speed toolbar (0.75×…2×). Obsidian's default
@@ -1140,14 +1148,28 @@ export default class AIOrganiserPlugin extends Plugin {
         // unhandled rejection inside a media event listener is invisible to the
         // user, so the catch is mandatory rather than defensive decoration.
         this.registerMarkdownPostProcessor((el, ctx) => {
-            const onListened = isStoryMemoryEnabled(this.settings)
+            const memoryOn = isStoryMemoryEnabled(this.settings);
+            // The catch-up signal does NOT depend on story memory: the durable ack is the authority
+            // on what was heard, and the watermark side is applied only when memory is on.
+            const catchUpOn = isCatchUpEnabled(this.settings);
+            const onListened = memoryOn || catchUpOn
                 ? (audioSrc: string) => {
-                    void new NewsletterService(this)
-                        .markBriefAudioConsumed({ sourcePath: ctx.sourcePath, audioSrc })
-                        .then((r) => {
-                            if (!r.ok) logger.warn('Newsletter', `Consumption signal failed: ${r.error}`);
-                        })
-                        .catch((e) => logger.warn('Newsletter', 'Consumption signal threw', e));
+                    if (memoryOn) {
+                        void new NewsletterService(this)
+                            .markBriefAudioConsumed({ sourcePath: ctx.sourcePath, audioSrc })
+                            .then((r) => {
+                                if (!r.ok) logger.warn('Newsletter', `Consumption signal failed: ${r.error}`);
+                            })
+                            .catch((e) => logger.warn('Newsletter', 'Consumption signal threw', e));
+                    }
+                    if (catchUpOn) {
+                        void markCatchUpAudioPlayed({ app: this.app, plugin: this, settings: this.settings }, { sourcePath: ctx.sourcePath, audioSrc })
+                            .then((r) => {
+                                if (!r.ok) logger.warn('Newsletter', `Catch-up listen signal failed: ${r.error}`);
+                                else if (r.value) this.refreshCatchUpStatus();
+                            })
+                            .catch((e) => logger.warn('Newsletter', 'Catch-up listen signal threw', e));
+                    }
                 }
                 : undefined;
             const dispose = enhanceAudioPlayersIn(el, { onListened, defaultSpeed: this.settings.audioDefaultPlaybackSpeed });
@@ -1411,6 +1433,8 @@ export default class AIOrganiserPlugin extends Plugin {
             if (result.totalNew > 0 || result.errors.length > 0) {
                 showNewsletterFetchResultNotice(result, this);
             }
+            await runSmartDailyAfterFetch(this);
+            this.refreshCatchUpStatus();
         } catch (e) {
             logger.error('Newsletter', 'Auto-fetch failed', e);
         } finally {
@@ -1423,9 +1447,63 @@ export default class AIOrganiserPlugin extends Plugin {
         await new NewsletterService(this).persistLastFetchTime();
     }
 
+    // ── Newsletter catch-up audio ────────────────────────────────────────────
+
+    /** Ask the status bar to re-read what is pending. Coalesced; a no-op on mobile. */
+    public refreshCatchUpStatus(): void {
+        this.catchUpStatusBar?.refresh();
+    }
+
+    /** Open the newsletter audio window (the status bar's click target). */
+    public openCatchUpWindow(): void {
+        void openCatchUpWindow(this);
+    }
+
+    /**
+     * Status bar, its refresh triggers and the one-time offer to move a daily-audio install to
+     * on-demand. Every trigger is cheap: refreshes coalesce into one read pass, and the item
+     * stays hidden unless catch-up is enabled.
+     */
+    private setUpCatchUp(): void {
+        this.catchUpStatusBar = new CatchUpStatusBar(this);
+        this.catchUpStatusBar.mount();
+        this.refreshCatchUpStatus();
+        // 30 minutes also catches the date and cutoff rollover.
+        this.registerInterval(window.setInterval(() => this.refreshCatchUpStatus(), 30 * 60 * 1000));
+        const touchesNewsletters = (path: string): boolean => {
+            const root = getNewsletterOutputFullPath(this.settings);
+            return path === root || path.startsWith(`${root}/`);
+        };
+        // Retention pruning, sync arrivals and a hand-deleted episode or audio all change what is pending.
+        this.registerEvent(this.app.vault.on('create', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
+        this.registerEvent(this.app.vault.on('delete', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
+        this.registerEvent(this.app.vault.on('modify', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
+        this.registerEvent(this.app.vault.on('rename', (f, old) => { if (touchesNewsletters(f.path) || touchesNewsletters(old)) this.refreshCatchUpStatus(); }));
+        this.app.workspace.onLayoutReady(() => { void this.offerAudioModeSwitch(); });
+    }
+
+    /**
+     * One-time notice for an install that kept daily audio: catch-up exists now. Shown once, only
+     * to installs that are actually on daily audio, and never to a new install.
+     */
+    private async offerAudioModeSwitch(): Promise<void> {
+        const s = this.settings;
+        if (s.newsletterAudioModeNoticeShown) return;
+        if (!isFeatureEnabled(s, 'newsletter') || s.newsletterAudioPodcast !== true || getAudioMode(s) !== 'daily') return;
+        s.newsletterAudioModeNoticeShown = true;
+        try {
+            await this.saveSettings();
+        } catch (e) {
+            logger.warn('Newsletter', 'Could not record the audio-mode notice', e);
+        }
+        noticeWithSettingsLink(this, this.t.settings.newsletter.catchUp.modeNotice, 12000);
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
 
     public onunload(): void {
+        this.catchUpStatusBar?.dispose();
+        this.catchUpStatusBar = null;
         unregisterProtectedFolders();
         this.stopNewsletterScheduler();
         this.upkeep?.stop();

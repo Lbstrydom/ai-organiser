@@ -113,6 +113,19 @@ export const GUIDANCE_CODES = [
     'barrier-still-referenced',
     'barrier-scan-incomplete',
     'barrier-vault-changed',
+    // Newsletter catch-up audio
+    'catchup-nothing-pending',
+    'catchup-audio-off',
+    'catchup-wrong-mode',
+    'catchup-no-tts',
+    'catchup-script-failed',
+    'catchup-script-too-long',
+    'catchup-tts-failed',
+    'catchup-save-failed',
+    'catchup-busy',
+    'catchup-changed',
+    'catchup-unresolved',
+    'catchup-too-much',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];
