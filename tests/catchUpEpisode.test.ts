@@ -19,6 +19,8 @@ import {
     findLatestEpisode,
     findEpisodeByOpId,
     isAudioReferenced,
+    findLatestNarratedEpisode,
+    readEpisodeResult,
     writeEpisodeNote,
     trashOwnedFile,
     type EpisodeNoteInput,
@@ -220,8 +222,82 @@ describe('loading episodes from the vault', () => {
         addEpisode(input());
         expect((await findEpisodeByOpId(vault.app as never, ROOT, '20261023-081502-a1b2'))?.audio).toBe(input().audio);
         expect(await findEpisodeByOpId(vault.app as never, ROOT, '20261023-081502-ffff')).toBeNull();
-        expect(await isAudioReferenced(vault.app as never, ROOT, input().audio)).toBe(true);
-        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-other.mp3')).toBe(false);
+        expect(await isAudioReferenced(vault.app as never, ROOT, input().audio)).toBe('yes');
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-other.mp3')).toBe('no');
+    });
+});
+
+describe('reads never fail open', () => {
+    it('an unreadable episode note makes the answer UNKNOWN, never "no"', async () => {
+        const vault = makeCatchUpVault();
+        const i = input();
+        vault.set(episodePath(i), buildEpisodeNote(i));
+        vault.cache.enabled = false;
+        vault.app.vault.cachedRead.mockRejectedValue(new Error('I/O error'));
+        expect(await isAudioReferenced(vault.app as never, ROOT, i.audio)).toBe('unknown');
+        const r = await readEpisodeResult(vault.app as never, vault.app.vault.getAbstractFileByPath(episodePath(i)) as never);
+        expect(r.kind).toBe('unreadable');
+    });
+
+    it('a readable valid reference still wins over an unreadable sibling', async () => {
+        const vault = makeCatchUpVault();
+        const a = input();
+        const b = input({ id: '20261024-000000-bbbb', audio: 'catchup-b-11111111.mp3' });
+        vault.set(episodePath(a), buildEpisodeNote(a));
+        vault.set(episodePath(b), buildEpisodeNote(b));
+        vault.cache.enabled = false;
+        vault.app.vault.cachedRead.mockImplementation(async (f: { path: string }) => {
+            if (f.path === episodePath(b)) throw new Error('I/O error');
+            return vault.text(f.path);
+        });
+        expect(await isAudioReferenced(vault.app as never, ROOT, a.audio)).toBe('yes');
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-other.mp3')).toBe('unknown');
+    });
+
+    it('a note with damaged frontmatter that still names the audio counts as a reference', async () => {
+        const vault = makeCatchUpVault();
+        const i = input();
+        vault.set(episodePath(i), `---\nbroken: [\n---\n🎧 **Listen:** ![[${i.audio}]]\n`);
+        vault.cache.enabled = false;
+        expect(await isAudioReferenced(vault.app as never, ROOT, i.audio)).toBe('yes');
+    });
+
+    it('an invalid note is skipped when picking the latest, not a dead end', async () => {
+        const vault = makeCatchUpVault();
+        const older = input({ id: '20261020-000000-aaaa', from: '2026-10-19', to: '2026-10-20', audio: 'catchup-older-11111111.mp3' });
+        const newer = input({ id: '20261022-000000-bbbb', from: '2026-10-21', to: '2026-10-22', audio: 'catchup-newer-22222222.mp3' });
+        vault.set(episodePath(older), buildEpisodeNote(older));
+        vault.set(episodePath(newer), 'no frontmatter at all');
+        expect((await findLatestEpisode(vault.app as never, ROOT))?.id).toBe('20261020-000000-aaaa');
+        expect((await findLatestNarratedEpisode(vault.app as never, ROOT))?.id).toBe('20261020-000000-aaaa');
+    });
+});
+
+describe('latest episode: generated vs narrated', () => {
+    it('generation order and narrated range are different questions', async () => {
+        const vault = makeCatchUpVault();
+        // Generated FIRST but narrates the later range; generated SECOND (a remake) narrates an earlier one.
+        const first = input({ id: '20261023-090000-aaaa', from: '2026-10-21', to: '2026-10-23', audio: 'catchup-first-11111111.mp3' });
+        const remake = input({ id: '20261023-100000-bbbb', from: '2026-10-19', to: '2026-10-20', audio: 'catchup-remake-22222222.mp3' });
+        vault.set(episodePath(first), buildEpisodeNote(first));
+        vault.set(episodePath(remake), buildEpisodeNote(remake));
+        expect((await findLatestEpisode(vault.app as never, ROOT))?.id).toBe('20261023-100000-bbbb');
+        expect((await findLatestNarratedEpisode(vault.app as never, ROOT))?.id).toBe('20261023-090000-aaaa');
+    });
+
+    it('ties on the narrated end break deterministically by id', async () => {
+        const vault = makeCatchUpVault();
+        const a = input({ id: '20261023-090000-aaaa', from: '2026-10-22', to: '2026-10-23', audio: 'catchup-a-11111111.mp3' });
+        const b = input({ id: '20261023-100000-bbbb', from: '2026-10-23', to: '2026-10-23', audio: 'catchup-b-22222222.mp3' });
+        vault.set(episodePath(a), buildEpisodeNote(a));
+        vault.set(episodePath(b), buildEpisodeNote(b));
+        expect((await findLatestNarratedEpisode(vault.app as never, ROOT))?.id).toBe('20261023-100000-bbbb');
+    });
+
+    it('no episodes is null for both', async () => {
+        const vault = makeCatchUpVault();
+        expect(await findLatestEpisode(vault.app as never, ROOT)).toBeNull();
+        expect(await findLatestNarratedEpisode(vault.app as never, ROOT)).toBeNull();
     });
 });
 

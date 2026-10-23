@@ -143,6 +143,10 @@ describe('helpers', () => {
         it('ignores files for other dates and malformed names', () => {
             expect(legacyCoverageFor(d, ['brief-2026-10-20-abcd1234.mp3', 'brief-2026-10-21-xyz.mp3'], {})).toBeNull();
         });
+        it('mixed provenance: one mapped, one unmapped recording => whole (never re-tell)', () => {
+            expect(legacyCoverageFor(d, ['brief-2026-10-21-abcd1234.mp3', 'brief-2026-10-21-ffff0000.wav'], { 'brief-2026-10-21-abcd1234.mp3': 2 }))
+                .toEqual({ kind: 'whole' });
+        });
         it('ignores a recorded revision of zero', () => {
             expect(legacyCoverageFor(d, ['brief-2026-10-21-abcd1234.mp3'], { 'brief-2026-10-21-abcd1234.mp3': 0 })).toEqual({ kind: 'whole' });
         });

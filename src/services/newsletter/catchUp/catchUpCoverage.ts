@@ -131,6 +131,15 @@ export function buildEpisodeName(from: string, to: string, id: string): string {
     return from === to ? `Catch-up ${from} ${id}.md` : `Catch-up ${from} to ${to} ${id}.md`;
 }
 
+/**
+ * The ONE contract for an episode's audio reference: a bare file name `catchup-….mp3`, never a
+ * path. The parser, the loader and the listen resolver all rely on it, so a note that points at
+ * `../Secret/x.mp3` or at a non-audio name covers nothing instead of reaching outside the folder.
+ */
+export function isEpisodeAudioName(value: unknown): value is string {
+    return typeof value === 'string' && /^catchup-[A-Za-z0-9._-]+\.mp3$/.test(value) && !value.includes('..');
+}
+
 function asString(v: unknown): string | null {
     return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
 }
@@ -139,7 +148,8 @@ function asString(v: unknown): string | null {
 export function parseEpisodeFrontmatter(fm: Record<string, unknown> | null | undefined, notePath: string): EpisodeMeta | null {
     if (!fm || fm[EPISODE_FM.type] !== EPISODE_FM.typeValue) return null;
     const id = asString(fm[EPISODE_FM.id]);
-    const audio = asString(fm[EPISODE_FM.audio]);
+    const audioRaw = asString(fm[EPISODE_FM.audio]);
+    const audio = isEpisodeAudioName(audioRaw) ? audioRaw : null;
     const from = fm[EPISODE_FM.from];
     const to = fm[EPISODE_FM.to];
     if (!id || !audio || !isDateStr(from) || !isDateStr(to)) return null;

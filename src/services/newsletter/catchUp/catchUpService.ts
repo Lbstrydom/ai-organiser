@@ -173,12 +173,9 @@ async function scriptIdentityOf(plan: CatchUpPlan, settings: AIOrganiserSettings
 }
 
 function freezeEntries(plan: CatchUpPlan): FrozenEntry[] {
-    return plan.entries.map((e) => ({
-        date: e.date,
-        kind: e.kind,
-        coverage: e.coverage,
-        ...(e.sinceRevision !== undefined ? { sinceRevision: e.sinceRevision } : {}),
-    }));
+    return plan.entries.map((e): FrozenEntry => e.kind === 'delta'
+        ? { date: e.date, kind: 'delta', coverage: e.coverage, sinceRevision: e.sinceRevision }
+        : { date: e.date, kind: 'full', coverage: e.coverage });
 }
 
 function coverageOf(entries: readonly FrozenEntry[]): CoverageMap {
@@ -223,8 +220,9 @@ async function trashStagedAudio(ports: CatchUpPorts, record: OperationRecord): P
     const path = record.audio?.path;
     if (!path) return;
     const name = path.split('/').pop() ?? '';
-    // Never delete committed audio, and never delete anything we do not provably own.
-    if (await isAudioReferenced(ports.app, outputRoot, name)) return;
+    // Never delete committed audio, and never delete anything we do not provably own. "Unknown"
+    // (an episode note could not be read) is NOT "unreferenced".
+    if ((await isAudioReferenced(ports.app, outputRoot, name)) !== 'no') return;
     if (!name.includes(record.opId)) return;
     try {
         await trashOwnedFile(ports.app, outputRoot, path);

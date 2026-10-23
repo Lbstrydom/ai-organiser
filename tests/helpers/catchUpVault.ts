@@ -88,7 +88,11 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
                 files.set(p, c);
                 return tfile(p);
             }),
-            modify: vi.fn(async (f: { path: string }, c: string) => { files.set(f.path, c); }),
+            modify: vi.fn(async (f: { path: string }, c: string) => {
+                // The real vault cannot modify a file that is not there.
+                if (!files.has(f.path)) throw new Error(`modify of a missing file: ${f.path}`);
+                files.set(f.path, c);
+            }),
         },
         fileManager: {
             trashFile: vi.fn(async (f: { path: string }) => { files.delete(f.path); tfiles.delete(f.path); }),

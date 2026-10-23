@@ -1,6 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
     coerceRecord,
+    storedRecordStatus,
     coerceAcks,
     pruneAcks,
     isRecordExpired,
@@ -22,7 +23,7 @@ function makePlugin(initial: Record<string, unknown> = {}) {
     return {
         state,
         loadData: async () => structuredClone(state.stored),
-        saveData: async (d: Record<string, unknown>) => { state.stored = structuredClone(d); },
+        saveData: vi.fn(async (d: Record<string, unknown>) => { state.stored = structuredClone(d); }),
     };
 }
 
@@ -81,6 +82,51 @@ describe('coerceRecord', () => {
     });
 });
 
+describe('coerceRecord: validate, never manufacture', () => {
+    const audioReady = { path: 'x/a.mp3', bytes: 10, durationSec: 5, sha256: 'ab' };
+    it.each([
+        ['missing script identity', { ...record(), scriptIdentity: '' }],
+        ['non-string script identity', { ...record(), scriptIdentity: 7 }],
+        ['NaN timestamp', { ...record(), createdAt: Number.NaN }],
+        ['Infinity timestamp', { ...record(), createdAt: Number.POSITIVE_INFINITY }],
+        ['zero timestamp', { ...record(), createdAt: 0 }],
+        ['string timestamp', { ...record(), createdAt: '1000' }],
+        ['audio-writing without audio', { ...record(), phase: 'audio-writing' }],
+        ['audio-ready without audio', { ...record(), phase: 'audio-ready' }],
+        ['audio-ready without integrity evidence', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3' } }],
+        ['audio-ready without a hash', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 1, durationSec: 1 } }],
+        ['delta without a threshold', { ...record(), frozen: { ...record().frozen, entries: [{ date: '2026-10-22', kind: 'delta', coverage: { kind: 'whole' } }] } }],
+        ['full day carrying a threshold', { ...record(), frozen: { ...record().frozen, entries: [{ date: '2026-10-22', kind: 'full', coverage: { kind: 'whole' }, sinceRevision: 1 }] } }],
+        ['unknown entry kind', { ...record(), frozen: { ...record().frozen, entries: [{ date: '2026-10-22', kind: 'maybe', coverage: { kind: 'whole' } }] } }],
+    ])('rejects %s', (_n, raw) => {
+        expect(coerceRecord(raw)).toBeNull();
+    });
+
+    it('accepts a complete audio-ready record', () => {
+        expect(coerceRecord(record({ phase: 'audio-ready', audio: audioReady }))?.audio).toEqual(audioReady);
+    });
+});
+
+describe('a record from a newer plugin is preserved', () => {
+    const future = { version: 2, opId: 'future', script: 'from the future' };
+
+    it('is classified as unsupported, not corrupt', () => {
+        expect(storedRecordStatus(future)).toBe('unsupported');
+        expect(storedRecordStatus(null)).toBe('none');
+        expect(storedRecordStatus({ version: 1, junk: true })).toBe('corrupt');
+        expect(storedRecordStatus('x')).toBe('corrupt');
+        expect(storedRecordStatus(record())).toBe('valid');
+    });
+
+    it('save refuses to overwrite it and clear refuses to remove it', async () => {
+        const p = makePlugin({ [DRAFT_DATA_KEY]: future });
+        expect(await saveOperation(p as never, record())).toBe(false);
+        expect(await saveOperation(p as never, record(), 'future')).toBe(false);
+        expect(await clearOperation(p as never, 'future')).toBe(false);
+        expect(p.state.stored[DRAFT_DATA_KEY]).toEqual(future);
+    });
+});
+
 describe('expiry', () => {
     it('expires after the TTL', () => {
         expect(isRecordExpired(record({ createdAt: 0 }), RECORD_TTL_MS)).toBe(false);
@@ -98,7 +144,7 @@ describe('operation record: compare-and-set', () => {
     it('updates its own record (same op id)', async () => {
         const p = makePlugin();
         await saveOperation(p as never, record());
-        expect(await saveOperation(p as never, record({ phase: 'audio-writing' }))).toBe(true);
+        expect(await saveOperation(p as never, record({ phase: 'audio-writing', audio: { path: 'x/a.mp3' } }))).toBe(true);
         expect((await loadOperation(p as never))?.phase).toBe('audio-writing');
     });
 
@@ -174,13 +220,32 @@ describe('acknowledgements', () => {
     it('acking twice writes once', async () => {
         const p = makePlugin();
         await ackEpisodes(p as never, [{ id: 'e1', to: '2026-10-22' }], '2026-10-23', 7);
+        p.saveData.mockClear();
+        expect(await ackEpisodes(p as never, [{ id: 'e1', to: '2026-10-22' }], '2026-10-23', 7)).toBe(0);
+        expect(p.saveData).not.toHaveBeenCalled();
         expect(await ackEpisodes(p as never, [{ id: 'e1', to: '2026-10-22' }, { id: 'e2', to: '2026-10-22' }], '2026-10-23', 7)).toBe(1);
+        expect(p.saveData).toHaveBeenCalledTimes(1);
         expect(Object.keys(await loadAcks(p as never)).sort()).toEqual(['e1', 'e2']);
     });
 
-    it('acking nothing is a no-op', async () => {
+    it('acking nothing is a no-op that writes nothing', async () => {
         const p = makePlugin();
         expect(await ackEpisodes(p as never, [], '2026-10-23', 7)).toBe(0);
         expect(p.state.stored).toEqual({});
+        expect(p.saveData).not.toHaveBeenCalled();
+    });
+
+    it('a retention-only change IS persisted (expired acks are removed even when nothing is added)', async () => {
+        const p = makePlugin({ [ACKS_DATA_KEY]: { version: 1, acks: { old: { ackedAt: 1, to: '2026-08-01' }, fresh: { ackedAt: 1, to: '2026-10-10' } } } });
+        const n = await ackEpisodes(p as never, [{ id: 'fresh', to: '2026-10-10' }], '2026-10-23', 7);
+        expect(n).toBe(0);
+        expect(p.saveData).toHaveBeenCalledTimes(1);
+        expect(Object.keys(await loadAcks(p as never))).toEqual(['fresh']);
+    });
+
+    it('additions and removals in the same call persist together', async () => {
+        const p = makePlugin({ [ACKS_DATA_KEY]: { version: 1, acks: { old: { ackedAt: 1, to: '2026-08-01' } } } });
+        expect(await ackEpisodes(p as never, [{ id: 'new', to: '2026-10-22' }], '2026-10-23', 7)).toBe(1);
+        expect(Object.keys(await loadAcks(p as never))).toEqual(['new']);
     });
 });

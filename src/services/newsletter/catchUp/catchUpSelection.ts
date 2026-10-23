@@ -30,7 +30,7 @@ import {
     unheardEpisodes,
     windowDates,
 } from './catchUpCoverage';
-import { findLatestEpisode, loadEpisodes } from './catchUpEpisode';
+import { findLatestEpisode, findLatestNarratedEpisode, loadEpisodes } from './catchUpEpisode';
 import { loadAcks } from './catchUpDraft';
 import type {
     BucketInfo,
@@ -99,10 +99,14 @@ export function legacyCoverageFor(date: string, audioFileNames: readonly string[
     const pattern = new RegExp(String.raw`^brief-${date}-[a-f0-9]{8}\.(?:mp3|wav)$`);
     const names = audioFileNames.filter((n) => pattern.test(n));
     if (names.length === 0) return null;
-    const revs = names
-        .map((n) => ledgerAudio?.[n])
-        .filter((r): r is number => typeof r === 'number' && Number.isInteger(r) && r >= 1);
-    return revs.length > 0 ? { kind: 'revision', rev: Math.max(...revs) } : { kind: 'whole' };
+    const revs = names.map((n) => {
+        const r = ledgerAudio?.[n];
+        return typeof r === 'number' && Number.isInteger(r) && r >= 1 ? r : null;
+    });
+    // One surviving recording whose provenance is gone could have narrated ANY version of the day.
+    // The conservative reading — never re-tell a story, accept missing a late one — is `whole`.
+    if (revs.some((r) => r === null)) return { kind: 'whole' };
+    return { kind: 'revision', rev: Math.max(...(revs as number[])) };
 }
 
 function fileNamesIn(app: App, folderPath: string): string[] {
@@ -181,10 +185,11 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         }
     }
 
-    const [{ episodes, missingAudio }, acks, latestEpisode] = await Promise.all([
+    const [{ episodes, missingAudio }, acks, latestEpisode, latestNarrated] = await Promise.all([
         loadEpisodes(app, outputRoot, window[0]),
         loadAcks(plugin),
         findLatestEpisode(app, outputRoot),
+        findLatestNarratedEpisode(app, outputRoot),
     ]);
 
     const days = new Map<string, DayFacts>();
@@ -217,7 +222,8 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
     }
     const resolved: PendingResult = { ...pending, entries, unresolved };
 
-    const state = deriveCaughtUpState({ pending: resolved, latestEpisodeTo: latestEpisode?.to ?? null, oldestStoredDate });
+    // "Since the last audio" is where the last NARRATED range ended, not which file was made last.
+    const state = deriveCaughtUpState({ pending: resolved, latestEpisodeTo: latestNarrated?.to ?? null, oldestStoredDate });
     const unheard = unheardEpisodes(episodes, acks, window[0]);
 
     const plan: CatchUpPlan | null = entries.length === 0 ? null : {

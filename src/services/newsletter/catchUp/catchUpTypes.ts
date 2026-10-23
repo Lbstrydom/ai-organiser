@@ -84,17 +84,27 @@ export interface BucketInfo {
     legacy: Coverage | null;
 }
 
-export type PendingKind = 'full' | 'delta';
+export type PendingKind = PendingEntry['kind'];
 
-/** One actionable day: something to narrate. */
-export interface PendingEntry {
-    date: string;
-    kind: PendingKind;
-    /** Coverage this entry will have once the episode is committed. */
-    coverage: Coverage;
-    /** For a delta: stories with `contentRevision` above this are new. */
-    sinceRevision?: number;
-}
+/**
+ * One actionable day: something to narrate. Kind-discriminated so a delta CANNOT exist without
+ * the revision threshold that defines it, and a full day cannot carry one.
+ */
+export type PendingEntry =
+    | {
+        date: string;
+        kind: 'full';
+        /** Coverage this entry will have once the episode is committed. */
+        coverage: Coverage;
+        sinceRevision?: undefined;
+    }
+    | {
+        date: string;
+        kind: 'delta';
+        coverage: Coverage;
+        /** Stories with `contentRevision` above this are new. */
+        sinceRevision: number;
+    };
 
 /** A day that has new material we cannot itemise. Never generated, never advanced, never "caught up". */
 export interface UnresolvedEntry {
@@ -127,15 +137,15 @@ export interface LengthPlan {
     wordBudget: number;
 }
 
-/** A frozen, immutable snapshot of what one episode will cover. */
-export interface CatchUpPlanEntry extends PendingEntry {
+/** A pending day plus what the script needs to narrate it. */
+export type CatchUpPlanEntry = PendingEntry & {
     /** Text handed to the script prompt: a whole brief (full) or itemised late additions (delta). */
     text: string;
     /** Newsletters behind this day, for the preview. */
     newsletters: number;
     /** Story titles for the episode note. */
     titles: string[];
-}
+};
 
 export interface CatchUpPlan {
     entries: CatchUpPlanEntry[];

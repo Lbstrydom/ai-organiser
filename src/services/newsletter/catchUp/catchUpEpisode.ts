@@ -137,17 +137,36 @@ function childrenOf(app: App, folderPath: string): TFile[] {
     return (folder as { children: unknown[] }).children.filter((c): c is TFile => c instanceof TFile);
 }
 
+/**
+ * The three outcomes of reading an episode note, kept apart on purpose: "this is not a valid
+ * episode" and "we could not read it" are different facts, and a destructive decision may
+ * rely on the first but never on the second.
+ */
+export type EpisodeRead =
+    | { kind: 'ok'; meta: EpisodeMeta }
+    | { kind: 'invalid'; content: string }
+    | { kind: 'unreadable' };
+
 /** Read one episode: the metadata cache first (in memory, no I/O), the file only when the cache is cold. */
-export async function readEpisode(app: App, file: TFile): Promise<EpisodeMeta | null> {
+export async function readEpisodeResult(app: App, file: TFile): Promise<EpisodeRead> {
     const cached = app.metadataCache?.getFileCache(file)?.frontmatter as Record<string, unknown> | undefined;
     const fromCache = cached ? parseEpisodeFrontmatter(cached, file.path) : null;
-    if (fromCache) return fromCache;
+    if (fromCache) return { kind: 'ok', meta: fromCache };
+    let content: string;
     try {
-        return parseEpisodeContent(await app.vault.cachedRead(file), file.path);
+        content = await app.vault.cachedRead(file);
     } catch (e) {
         logger.warn('Newsletter', `Could not read episode note ${file.path}`, e);
-        return null;
+        return { kind: 'unreadable' };
     }
+    const meta = parseEpisodeContent(content, file.path);
+    return meta ? { kind: 'ok', meta } : { kind: 'invalid', content };
+}
+
+/** Convenience for callers that only care about a valid episode. */
+export async function readEpisode(app: App, file: TFile): Promise<EpisodeMeta | null> {
+    const r = await readEpisodeResult(app, file);
+    return r.kind === 'ok' ? r.meta : null;
 }
 
 export interface LoadedEpisodes {
@@ -177,16 +196,37 @@ export async function loadEpisodes(app: App, outputRoot: string, windowStart: st
     return { episodes, missingAudio };
 }
 
-/** The latest episode that exists, regardless of the window (for "since the last audio"). */
-export async function findLatestEpisode(app: App, outputRoot: string): Promise<EpisodeMeta | null> {
-    const folder = episodeFolderPath(outputRoot);
-    let best: { to: string; id: string; file: TFile } | null = null;
-    for (const file of childrenOf(app, folder)) {
-        const named = parseEpisodeName(file.name);
-        if (!named) continue;
-        if (!best || named.to > best.to || (named.to === best.to && named.id > best.id)) best = { to: named.to, id: named.id, file };
+/**
+ * First VALID episode when candidates are tried in the given order. An unreadable or malformed
+ * note is skipped rather than hiding an older valid one behind it.
+ */
+async function firstValidEpisode(
+    app: App,
+    outputRoot: string,
+    order: (a: { to: string; id: string }, b: { to: string; id: string }) => number,
+): Promise<EpisodeMeta | null> {
+    const candidates = childrenOf(app, episodeFolderPath(outputRoot))
+        .flatMap((file) => { const named = parseEpisodeName(file.name); return named ? [{ file, to: named.to, id: named.id }] : []; })
+        .sort(order);
+    for (const c of candidates) {
+        const meta = await readEpisode(app, c.file);
+        if (meta) return meta;
     }
-    return best ? readEpisode(app, best.file) : null;
+    return null;
+}
+
+/** The most recently GENERATED episode (the operation id starts with its timestamp), for replay and the unheard warning. */
+export function findLatestEpisode(app: App, outputRoot: string): Promise<EpisodeMeta | null> {
+    return firstValidEpisode(app, outputRoot, (a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
+}
+
+/**
+ * The episode whose narrated range ends LATEST — the authority for "since the last audio" and for
+ * provable gaps. Deliberately not the same as the latest generated: remaking an earlier range
+ * must not move the boundary backwards.
+ */
+export function findLatestNarratedEpisode(app: App, outputRoot: string): Promise<EpisodeMeta | null> {
+    return firstValidEpisode(app, outputRoot, (a, b) => (a.to !== b.to ? (a.to < b.to ? 1 : -1) : a.id < b.id ? 1 : a.id > b.id ? -1 : 0));
 }
 
 /** The committed episode carrying this operation id, or null. Found by NAME, verified by frontmatter. */
@@ -200,14 +240,23 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
     return null;
 }
 
-/** True when any episode note references this audio file name. */
-export async function isAudioReferenced(app: App, outputRoot: string, audioName: string): Promise<boolean> {
+export type AudioReference = 'yes' | 'no' | 'unknown';
+
+/**
+ * Does any episode note reference this audio file? Tri-state, because the answer gates deletion:
+ * `unknown` (an episode note could not be read) must never be treated as `no`. A note whose
+ * frontmatter is damaged still counts as a reference if its text names the file.
+ */
+export async function isAudioReferenced(app: App, outputRoot: string, audioName: string): Promise<AudioReference> {
+    let unknown = false;
     for (const file of childrenOf(app, episodeFolderPath(outputRoot))) {
         if (!parseEpisodeName(file.name)) continue;
-        const meta = await readEpisode(app, file);
-        if (meta?.audio === audioName) return true;
+        const r = await readEpisodeResult(app, file);
+        if (r.kind === 'ok' && r.meta.audio === audioName) return 'yes';
+        if (r.kind === 'invalid' && r.content.includes(audioName)) return 'yes';
+        if (r.kind === 'unreadable') unknown = true;
     }
-    return false;
+    return unknown ? 'unknown' : 'no';
 }
 
 /**

@@ -17,7 +17,7 @@
 import type { Plugin } from 'obsidian';
 import { updatePluginData, loadPluginData } from '../../../core/pluginDataStore';
 import { shiftDate, isDateStr, parseCoverageValue } from './catchUpCoverage';
-import type { Coverage, PendingKind } from './catchUpTypes';
+import type { Coverage, PendingEntry } from './catchUpTypes';
 
 export const DRAFT_DATA_KEY = 'newsletter-catchup-draft';
 export const ACKS_DATA_KEY = 'newsletter-catchup-acks';
@@ -30,12 +30,8 @@ export const ACK_RETENTION_EXTRA_DAYS = 30;
 
 export type OperationPhase = 'scripted' | 'audio-writing' | 'audio-ready';
 
-export interface FrozenEntry {
-    date: string;
-    kind: PendingKind;
-    coverage: Coverage;
-    sinceRevision?: number;
-}
+/** What a record freezes about each day: the same kind-discriminated shape the plan uses. */
+export type FrozenEntry = PendingEntry;
 
 export interface OperationRecord {
     version: number;
@@ -60,13 +56,20 @@ const PHASES: readonly string[] = ['scripted', 'audio-writing', 'audio-ready'];
 function coerceEntry(raw: unknown): FrozenEntry | null {
     if (!raw || typeof raw !== 'object') return null;
     const e = raw as Record<string, unknown>;
-    if (!isDateStr(e.date) || (e.kind !== 'full' && e.kind !== 'delta')) return null;
+    if (!isDateStr(e.date)) return null;
     const c = e.coverage as Record<string, unknown> | undefined;
     const coverage = c && c.kind === 'whole' ? ({ kind: 'whole' } as Coverage)
         : c && c.kind === 'revision' ? parseCoverageValue(c.rev) : null;
     if (!coverage) return null;
-    const since = typeof e.sinceRevision === 'number' && Number.isInteger(e.sinceRevision) ? e.sinceRevision : undefined;
-    return { date: e.date, kind: e.kind, coverage, ...(since !== undefined ? { sinceRevision: since } : {}) };
+    // Kind-discriminated: a full day carries no threshold, a delta must carry one.
+    if (e.kind === 'full') return e.sinceRevision === undefined ? { date: e.date, kind: 'full', coverage } : null;
+    if (e.kind === 'delta') {
+        const since = e.sinceRevision;
+        return typeof since === 'number' && Number.isInteger(since) && since >= 0
+            ? { date: e.date, kind: 'delta', coverage, sinceRevision: since }
+            : null;
+    }
+    return null;
 }
 
 /** Coerce whatever is on disk into a valid record, or null. An unknown version is discarded, not migrated. */
@@ -76,6 +79,10 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
     if (r.version !== RECORD_SCHEMA_VERSION) return null;
     if (typeof r.opId !== 'string' || r.opId === '' || typeof r.script !== 'string' || r.script === '') return null;
     if (typeof r.phase !== 'string' || !PHASES.includes(r.phase)) return null;
+    // Required fields are validated, never manufactured: a record missing its identity or carrying
+    // a non-finite timestamp would otherwise look valid and dodge the 24-hour lifetime.
+    if (typeof r.scriptIdentity !== 'string' || r.scriptIdentity === '') return null;
+    if (typeof r.createdAt !== 'number' || !Number.isFinite(r.createdAt) || r.createdAt <= 0) return null;
     const f = r.frozen as Record<string, unknown> | undefined;
     if (!f || !isDateStr(f.from) || !isDateStr(f.to) || !Array.isArray(f.entries)) return null;
     const entries = f.entries.map(coerceEntry).filter((e): e is FrozenEntry => e !== null);
@@ -89,6 +96,10 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
             ...(typeof a.sha256 === 'string' ? { sha256: a.sha256 } : {}),
         }
         : undefined;
+    // Phase-specific artifacts: a record past `scripted` must name its audio, and `audio-ready`
+    // must carry the integrity evidence the verification step compares against.
+    if (r.phase !== 'scripted' && !audio) return null;
+    if (r.phase === 'audio-ready' && !(typeof audio?.bytes === 'number' && typeof audio?.sha256 === 'string' && typeof audio?.durationSec === 'number')) return null;
     return {
         version: RECORD_SCHEMA_VERSION,
         opId: r.opId,
@@ -101,11 +112,24 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
             titles: Array.isArray(f.titles) ? f.titles.filter((t): t is string => typeof t === 'string') : [],
         },
         script: r.script,
-        scriptIdentity: typeof r.scriptIdentity === 'string' ? r.scriptIdentity : '',
+        scriptIdentity: r.scriptIdentity,
         ...(typeof r.synthIdentity === 'string' ? { synthIdentity: r.synthIdentity } : {}),
         ...(audio ? { audio } : {}),
-        createdAt: typeof r.createdAt === 'number' ? r.createdAt : 0,
+        createdAt: r.createdAt,
     };
+}
+
+/**
+ * What is actually stored under the record key. A future-version record is NOT corruption: it
+ * belongs to a newer plugin and must be preserved (never overwritten or cleared), whereas a
+ * corrupt value has no owner and may be replaced.
+ */
+export function storedRecordStatus(raw: unknown): 'none' | 'valid' | 'unsupported' | 'corrupt' {
+    if (raw === undefined || raw === null) return 'none';
+    if (typeof raw !== 'object') return 'corrupt';
+    const version = (raw as { version?: unknown }).version;
+    if (typeof version === 'number' && version !== RECORD_SCHEMA_VERSION) return 'unsupported';
+    return coerceRecord(raw) ? 'valid' : 'corrupt';
 }
 
 export function isRecordExpired(record: OperationRecord, now: number = Date.now()): boolean {
@@ -129,6 +153,8 @@ export async function saveOperation(
     replacing: string | null = null,
 ): Promise<boolean> {
     const saved = await updatePluginData<boolean>(plugin, (data) => {
+        // A newer plugin's record is preserved untouched.
+        if (storedRecordStatus(data[DRAFT_DATA_KEY]) === 'unsupported') return { changed: false, value: false };
         const existing = coerceRecord(data[DRAFT_DATA_KEY]);
         // A stored value that does not parse is corrupt, not an operation in flight.
         if (existing && existing.opId !== record.opId && existing.opId !== replacing) {
@@ -144,6 +170,7 @@ export async function saveOperation(
 export async function clearOperation(plugin: Plugin, opId: string): Promise<boolean> {
     const cleared = await updatePluginData<boolean>(plugin, (data) => {
         if (!(DRAFT_DATA_KEY in data)) return { changed: false, value: false };
+        if (storedRecordStatus(data[DRAFT_DATA_KEY]) === 'unsupported') return { changed: false, value: false };
         const existing = coerceRecord(data[DRAFT_DATA_KEY]);
         // Corrupt data has no owner; anything with a different owner is left alone.
         if (existing && existing.opId !== opId) return { changed: false, value: false };
@@ -199,7 +226,9 @@ export async function ackEpisodes(
 ): Promise<number> {
     if (episodes.length === 0) return 0;
     const added = await updatePluginData<number>(plugin, (data) => {
-        const acks = pruneAcks(coerceAcks(data[ACKS_DATA_KEY]), today, lookbackDays);
+        const before = coerceAcks(data[ACKS_DATA_KEY]);
+        const acks = pruneAcks(before, today, lookbackDays);
+        const pruned = Object.keys(before).length - Object.keys(acks).length;
         const now = Date.now();
         let n = 0;
         for (const ep of episodes) {
@@ -207,7 +236,8 @@ export async function ackEpisodes(
             acks[ep.id] = { ackedAt: now, to: ep.to };
             n++;
         }
-        if (n === 0) return { changed: false, value: 0 };
+        // Persist when anything changed: an addition OR a retention removal.
+        if (n === 0 && pruned === 0) return { changed: false, value: 0 };
         data[ACKS_DATA_KEY] = { version: RECORD_SCHEMA_VERSION, acks };
         return { changed: true, value: n };
     });

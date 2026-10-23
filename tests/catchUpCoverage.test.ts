@@ -11,6 +11,7 @@ import {
     parseEpisodeName,
     buildEpisodeName,
     parseEpisodeFrontmatter,
+    isEpisodeAudioName,
     deriveCoverage,
     unheardEpisodes,
     effectiveCapMinutes,
@@ -151,6 +152,17 @@ describe('episode names and frontmatter', () => {
         ['all-invalid coverage', { ...fm, catchup_coverage: { '2026-10-21': 0 } }],
     ])('a malformed episode covers nothing: %s', (_name, bad) => {
         expect(parseEpisodeFrontmatter(bad as Record<string, unknown>, 'p')).toBeNull();
+    });
+
+    it('audio references are bare catchup-….mp3 names, never paths', () => {
+        for (const ok of ['catchup-20261022-081500-a1b2-c3d4e5f6.mp3', 'catchup-x.mp3']) expect(isEpisodeAudioName(ok)).toBe(true);
+        for (const bad of ['../Secret/x.mp3', 'sub/catchup-x.mp3', 'catchup-x.wav', 'brief-2026-10-22-abcd1234.mp3', 'catchup-..mp3', 'catchup-a b.mp3', '', null, 7]) {
+            expect(isEpisodeAudioName(bad)).toBe(false);
+        }
+    });
+
+    it.each(['../Secret/x.mp3', 'sub/catchup-x.mp3', 'notes.md', 'catchup-x.wav'])('an episode pointing at %s covers nothing', (audio) => {
+        expect(parseEpisodeFrontmatter({ ...fm, catchup_audio: audio }, 'p')).toBeNull();
     });
 
     it('null / missing frontmatter is not an episode', () => {
