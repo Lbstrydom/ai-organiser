@@ -106,7 +106,7 @@ export class RelatedNotesView extends ItemView {
                 if (!this.state.scopePinned || !this.state.folderScope) return;
                 if (!(file instanceof TFolder)) return;
                 if (this.state.folderScope === oldPath || this.state.folderScope.startsWith(oldPath + '/')) {
-                    this.state.folderScope = this.state.folderScope.replace(oldPath, file.path);
+                    this.state.folderScope = this.state.folderScope.replace(oldPath, () => file.path);
                     this.rerenderHeader();
                     void this.updateRelatedNotes(true);
                 }

@@ -120,5 +120,6 @@ export function insertContentIntoStructuredPrompt(
     promptTemplate: string,
     content: string
 ): string {
-    return promptTemplate.replace('{{CONTENT}}', content);
+    // Replacer function: insert the text literally (a string would expand `$&`, `$1`, `$$`, ...).
+    return promptTemplate.replace('{{CONTENT}}', () => content);
 }

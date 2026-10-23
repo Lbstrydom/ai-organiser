@@ -26,6 +26,9 @@ describe('claudeMinCacheableTokens', () => {
         ['claude-sonnet-4-20250514', 1024],
         ['claude-opus-4-1', 1024],
         ['claude-opus-4-7', 2048],
+        ['claude-3-5-haiku-20241022', 2048],
+        ['claude-3-5-haiku', 2048],
+        ['claude-mythos-preview', 2048],
         ['claude-opus-4-6', 4096],
         ['claude-opus-4-5', 4096],
         ['claude-haiku-4-5-20251001', 4096],
@@ -41,11 +44,17 @@ describe('claudeMinCacheableTokens', () => {
         ['a future generation', 'claude-opus-6'],
         ['a future minor of a known generation', 'claude-opus-5-6'],
         ['an unresolved latest-* sentinel', 'latest-sonnet'],
-        ['a legacy 3.x id', 'claude-3-5-haiku-20241022'],
+        ['a legacy 3.x id that has no documented minimum', 'claude-3-7-sonnet-20250219'],
+        ['the haiku 3.5 -latest alias', 'claude-3-5-haiku-latest'],
+        ['a prefixed mythos preview id', 'anthropic.claude-mythos-preview'],
         ['an id with a trailing -latest alias', 'claude-sonnet-5-5-latest'],
         ['the empty string', ''],
     ])('%s is undocumented → undefined', (_what, id) => {
         expect(claudeMinCacheableTokens(id)).toBeUndefined();
+    });
+
+    it.each(['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf'])('an inherited property name (%s) is not a model → undefined', (name) => {
+        expect(claudeMinCacheableTokens(name)).toBeUndefined();
     });
 
     it('is undefined for null / undefined', () => {

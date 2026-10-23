@@ -106,6 +106,17 @@ const CLAUDE_CACHE_MIN_TOKENS: Readonly<Record<string, number>> = {
     'mythos-5-0': 512, 'mythos-5-1': 512,
 };
 
+/**
+ * Documented models that predate the `claude-{tier}-{major}` id scheme (2048 tokens each per
+ * Anthropic's prompt-caching docs): Haiku 3.5 and the invitation-only Mythos Preview. Keyed by the
+ * id with any trailing `-yyyymmdd` removed. Haiku 3.5 is retired on the first-party API but still
+ * served on Google Cloud, so it keeps a row.
+ */
+const CLAUDE_CACHE_MIN_TOKENS_LEGACY: Readonly<Record<string, number>> = {
+    'claude-3-5-haiku': 2048,
+    'claude-mythos-preview': 2048,
+};
+
 /** `claude-{tier}-{major}[-{minor}][-{yyyymmdd}]` — nothing else is a documented id. */
 const CLAUDE_CACHE_ID_RE = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\d{1,2}))?(?:-\d{8})?$/;
 
@@ -117,6 +128,9 @@ const CLAUDE_CACHE_ID_RE = /^claude-(opus|sonnet|haiku|fable|mythos)-(\d+)(?:-(\
  */
 export function claudeMinCacheableTokens(modelId: string | undefined | null): number | undefined {
     if (!modelId) return undefined;
+    const legacyKey = modelId.replace(/-\d{8}$/, '');
+    // Own-property check: `constructor`, `__proto__`, `toString` etc. must not resolve to an inherited value.
+    if (Object.hasOwn(CLAUDE_CACHE_MIN_TOKENS_LEGACY, legacyKey)) return CLAUDE_CACHE_MIN_TOKENS_LEGACY[legacyKey];
     const m = CLAUDE_CACHE_ID_RE.exec(modelId);
     if (!m) return undefined;
     return CLAUDE_CACHE_MIN_TOKENS[`${m[1]}-${m[2]}-${m[3] ?? '0'}`];

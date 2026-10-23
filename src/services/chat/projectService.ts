@@ -296,7 +296,7 @@ export class ProjectService {
                 // Re-index: update the existing entry's chunk count in-place
                 content = content.replace(
                     new RegExp(`- \\[\\[indexed/${safeName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\]\\] \\(\\d+ chunks\\)`),
-                    entry
+                    () => entry
                 );
             } else {
                 // Append new entry to existing section

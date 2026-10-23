@@ -223,12 +223,14 @@ SECTIONS_PLACEHOLDER
 }
 
 export function insertContentIntoPrompt(prompt: string, content: string): string {
-  return prompt.replace('CONTENT_PLACEHOLDER', content);
+  // A replacer function inserts the text literally; a string replacement would expand
+  // `$&`, `$1`, `$$`, `$` + backtick and `$'` found in the document.
+  return prompt.replace('CONTENT_PLACEHOLDER', () => content);
 }
 
 export function insertSectionsIntoPrompt(prompt: string, sections: string[]): string {
   const formattedSections = sections
     .map((s, i) => `[Section ${i + 1}/${sections.length}]\n${s}`)
     .join('\n\n');
-  return prompt.replace('SECTIONS_PLACEHOLDER', formattedSections);
+  return prompt.replace('SECTIONS_PLACEHOLDER', () => formattedSections);
 }
