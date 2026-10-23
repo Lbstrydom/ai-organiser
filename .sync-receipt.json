@@ -1,8 +1,38 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 205,
+  "olderSyncsDropped": 206,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-10-23T11:56:12.774Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "9751f876ff16e9c7d2818f64f61c041615e16c80",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 3,
+        "unchanged": 973,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/check-plan-status.mjs",
+        "scripts/.claude-skills/lib/fleet/lease-spawn.mjs",
+        "scripts/.claude-skills/lib/push-range.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-10-22T11:44:31.042Z",
       "source": {
@@ -577,32 +607,6 @@
         "scripts/.claude-skills/lib/context-staleness.mjs",
         "scripts/.claude-skills/lib/context.mjs"
       ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-10T17:29:50.142Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "HEAD",
-        "commitSha": "5df1ade56c094d83758f135392fd5edf19f431a6",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 0,
-        "unchanged": 916,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [],
-      "updated": [],
       "gcDeleted": [],
       "overridesHeld": [],
       "divergedOverwritten": [],
