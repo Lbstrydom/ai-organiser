@@ -1245,7 +1245,8 @@ export class NewsletterService {
             // Replace existing block
             updated = existing.replace(
                 /<!-- DAILY_BRIEF_START -->[\s\S]*?<!-- DAILY_BRIEF_END -->/,
-                managedBlock
+                // Replacer function: the brief is LLM text and may contain `$&`, `$1`, `$$`.
+                () => managedBlock
             );
         } else {
             // Insert after the H1 heading line

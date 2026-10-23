@@ -1323,7 +1323,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
             ).join('\n');
 
             if (themesTableRegex.test(content)) {
-                content = content.replace(themesTableRegex, `$1${newThemesTable}\n$3`);
+                content = content.replace(themesTableRegex, (_m: string, head: string, _body: string, tail: string) => `${head}${newThemesTable}\n${tail}`);
             } else {
                 // Themes section should come before disciplines
                 const disciplinesIdx = content.indexOf('## Disciplines');
@@ -1698,7 +1698,7 @@ export class ConfigurationSettingsSection extends BaseSettingSection {
 
             if (disciplinesTableRegex.test(content)) {
                 // Replace existing disciplines table
-                content = content.replace(disciplinesTableRegex, `$1${newDisciplinesTable}\n$3`);
+                content = content.replace(disciplinesTableRegex, (_m: string, head: string, _body: string, tail: string) => `${head}${newDisciplinesTable}\n${tail}`);
             } else {
                 // Append disciplines section if not found
                 content += `\n\n## Disciplines\n\nSecond-level tags representing academic or professional fields.\n\n| Name | Description | Use When |\n|------|-------------|----------|\n${newDisciplinesTable}\n`;

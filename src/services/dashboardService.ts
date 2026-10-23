@@ -103,7 +103,7 @@ export class DashboardService {
             // Simple string filter - combine with AND
             const existingFilter = filtersMatch[1];
             const newFilters = `filters:\n  and:\n    - '${folderFilter}'\n    - '${existingFilter}'`;
-            return content.replace(/^filters:\s*'.+'$/m, newFilters);
+            return content.replace(/^filters:\s*'.+'$/m, () => newFilters);
         }
 
         // Check for filters with and/or structure
@@ -112,7 +112,7 @@ export class DashboardService {
             // Insert folder filter before first item in and: array
             return content.replace(
                 /^(filters:\s*\n\s+and:)\s*\n(\s+- )/m,
-                `$1\n    - '${folderFilter}'\n$2`
+                (_m: string, head: string, indent: string) => `${head}\n    - '${folderFilter}'\n${indent}`
             );
         }
 

@@ -1472,7 +1472,7 @@ ${persona.prompt}
                 const existingTable = match[2].trimEnd();
                 const separator = match[3];
                 const tableContent = existingTable ? `${existingTable}\n${newRows}` : newRows;
-                content = content.replace(disciplinesTableRegex, `$1${tableContent}\n${separator}`);
+                content = content.replace(disciplinesTableRegex, (_m: string, head: string) => `${head}${tableContent}\n${separator}`);
             } else {
                 // No disciplines section — append one
                 content += `\n\n## Disciplines\n\nSecond-level tags representing academic or professional fields.\n\n| Name | Description | Use When |\n|------|-------------|----------|\n${newRows}\n`;

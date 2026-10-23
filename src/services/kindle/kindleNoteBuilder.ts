@@ -270,7 +270,7 @@ export function updateFrontmatterInContent(
         }
 
         if (regex.test(frontmatter)) {
-            frontmatter = frontmatter.replace(regex, `${key}: ${formatted}`);
+            frontmatter = frontmatter.replace(regex, () => `${key}: ${formatted}`);
         } else {
             frontmatter = frontmatter.trimEnd() + `\n${key}: ${formatted}\n`;
         }
