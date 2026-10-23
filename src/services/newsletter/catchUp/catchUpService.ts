@@ -321,7 +321,7 @@ async function writeScript(
 ): Promise<Result<OperationRecord>> {
     opts.onPhase?.({ key: 'writingScript' });
     const written = await ports.generateScript(plan, opts.signal);
-    if (!written.ok) return aborted(opts) ? cancelled() : err('catchup-script-failed');
+    if (!written.ok) return aborted(opts) ? cancelled() : err(written.error === 'catchup-too-much' ? 'catchup-too-much' : 'catchup-script-failed');
     let script = written.value.trim();
     if (script === '') return err('catchup-script-failed');
 
@@ -376,18 +376,25 @@ async function enforceLength(
     const limit = budget * SCRIPT_OVERRUN_FACTOR;
     let record = start;
 
+    let persistFailed = false;
     const shorten = async (): Promise<boolean> => {
         opts.onPhase?.({ key: 'shorteningScript' });
         const shorter = await ports.shortenScript(record.script, budget, opts.signal);
         if (!shorter.ok || shorter.value.trim() === '') return false;
-        record = { ...record, script: shorter.value.trim() };
-        if (persisted && !(await saveOperation(ports.plugin, record))) {
-            logger.warn('Newsletter', 'Could not persist the shortened script; the earlier script stays on disk');
+        const next = { ...record, script: shorter.value.trim() };
+        // Adopt the shorter script only once it is durable; otherwise the record on disk and the
+        // script being voiced would disagree about what the episode says.
+        if (persisted && !(await saveOperation(ports.plugin, next))) {
+            logger.warn('Newsletter', 'Could not persist the shortened script; keeping the earlier one');
+            persistFailed = true;
+            return false;
         }
+        record = next;
         return true;
     };
 
     if (autoShrink && countWords(record.script) > limit) await shorten();
+    if (persistFailed) return err('catchup-save-failed');
     if (aborted(opts)) return cancelled();
 
     while (countWords(record.script) > limit) {
@@ -396,6 +403,7 @@ async function enforceLength(
         if (choice === 'cancel' || aborted(opts)) return cancelled();
         if (choice === 'continue') break;
         await shorten();
+        if (persistFailed) return err('catchup-save-failed');
         if (aborted(opts)) return cancelled();
     }
     return ok(record);

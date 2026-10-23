@@ -299,3 +299,38 @@ describe('markBucketsConsumed: the retention window applies to incoming entries'
         expect(save).not.toHaveBeenCalled();
     });
 });
+
+describe('markCatchUpAudioPlayed: the played file must BE the episode\'s file', () => {
+    const resourceOf = (path: string) => `app://abc123/C:/Vault/${path}?1700000000`;
+
+    function setup(resourcePathOf?: (f: { path: string }) => string) {
+        const vault = makeCatchUpVault();
+        const i = episode();
+        vault.set(notePath(i), buildEpisodeNote(i));
+        vault.set(`${FOLDER}/${i.audio}`, new ArrayBuffer(4));
+        if (resourcePathOf) (vault.app.vault as unknown as { getResourcePath: unknown }).getResourcePath = resourcePathOf;
+        return { vault, i };
+    }
+
+    it('marks heard when the played source is exactly the expected file\'s resource path', async () => {
+        const { vault, i } = setup((f) => resourceOf(f.path));
+        const p = makePlugin();
+        const r = await markCatchUpAudioPlayed({ app: vault.app as never, plugin: p as never, settings: settings(), now: NOW }, { sourcePath: notePath(i), audioSrc: resourceOf(`${FOLDER}/${i.audio}`) });
+        expect(r).toEqual({ ok: true, value: true });
+    });
+
+    it('does NOT mark heard for a same-named file under a different parent that merely shares the suffix', async () => {
+        const { vault, i } = setup((f) => resourceOf(f.path));
+        const p = makePlugin();
+        const r = await markCatchUpAudioPlayed({ app: vault.app as never, plugin: p as never, settings: settings(), now: NOW }, { sourcePath: notePath(i), audioSrc: resourceOf(`Backup/${FOLDER}/${i.audio}`) });
+        expect(r).toEqual({ ok: true, value: false });
+        expect(await loadAcks(p as never)).toEqual({});
+    });
+
+    it('falls back to the folder-suffix check when the host cannot name a resource path', async () => {
+        const { vault, i } = setup();
+        const p = makePlugin();
+        const r = await markCatchUpAudioPlayed({ app: vault.app as never, plugin: p as never, settings: settings(), now: NOW }, { sourcePath: notePath(i), audioSrc: `app://local/C:/Vault/${FOLDER}/${i.audio}?1` });
+        expect(r).toEqual({ ok: true, value: true });
+    });
+});

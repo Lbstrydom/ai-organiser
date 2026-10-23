@@ -67,6 +67,24 @@ export function resolveCatchUpAudio(input: { sourcePath: string; audioSrc: strin
     return { episodeId: named.id, audioBasename };
 }
 
+/**
+ * Identity of the recording that was actually played. When the host can name the expected file's
+ * resource path, the played source must BE that path (query stripped) — no suffix guessing. A host
+ * that cannot (older Obsidian, tests) falls back to the folder-suffix check already applied by
+ * `resolveCatchUpAudio`.
+ */
+function isSameRecording(app: App, outputRoot: string, audioName: string, audioSrc: string): boolean {
+    const vault = app.vault as { getResourcePath?: (f: unknown) => string } | undefined;
+    if (typeof vault?.getResourcePath !== 'function' || !audioSrc.includes('://')) return true;
+    const file = app.vault.getAbstractFileByPath(normalizePath(`${episodeFolderPath(outputRoot)}/${audioName}`));
+    if (!file) return false;
+    try {
+        return canonicalise(vault.getResourcePath(file)) === canonicalise(audioSrc);
+    } catch {
+        return false;
+    }
+}
+
 export interface ListenDeps {
     app: App;
     plugin: Plugin;
@@ -114,6 +132,10 @@ export async function markCatchUpAudioPlayed(deps: ListenDeps, input: { sourcePa
         // The authority check: the note's own record must name THIS audio file.
         if (!episode || episode.audio !== resolved.audioBasename) {
             logger.warn('Newsletter', `Played catch-up audio "${resolved.audioBasename}" does not match its note — not marking heard`);
+            return ok(false);
+        }
+        if (!isSameRecording(deps.app, outputRoot, episode.audio, input.audioSrc)) {
+            logger.warn('Newsletter', `Played "${resolved.audioBasename}" is not the episode's own file — not marking heard`);
             return ok(false);
         }
         const res = await markEpisodeListened(deps, episode);

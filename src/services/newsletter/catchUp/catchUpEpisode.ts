@@ -252,7 +252,11 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
 
     // Anything in the vault that already LINKS to the file counts, wherever the note lives or
     // whatever it is called (a renamed or moved episode is still a reference).
-    const resolved = (app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>> } | undefined)?.resolvedLinks;
+    const cache = app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>>; resolved?: boolean } | undefined;
+    const resolved = cache?.resolvedLinks;
+    // While the vault index is still being built the link table is incomplete: a "no" drawn from
+    // it would be a guess. (`resolved` is absent in some hosts; only an explicit false counts.)
+    const indexIncomplete = cache?.resolved === false;
     if (resolved) {
         const audioPath = normalizePath(`${folder}/${audioName}`);
         for (const links of Object.values(resolved)) if (links && audioPath in links) return 'yes';
@@ -271,7 +275,7 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
             unknown = true;
         }
     }
-    return unknown ? 'unknown' : 'no';
+    return unknown || indexIncomplete ? 'unknown' : 'no';
 }
 
 /**

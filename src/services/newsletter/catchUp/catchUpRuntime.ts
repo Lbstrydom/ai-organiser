@@ -96,6 +96,13 @@ export function createCatchUpPorts(plugin: AIOrganiserPlugin): CatchUpPorts {
                 homeRegion: memoryOrRegion(settings.newsletterHomeRegion),
             });
             const { filled } = insertCatchUpContent(prompt, plan.entries, getMaxContentCharsForModel(provider, model));
+            // Trimming a day's text to fit is fine; DROPPING a whole day is not, because the episode
+            // would then claim coverage of material it never saw. Fail closed.
+            const included = (filled.match(/^--- SOURCE: /gm) ?? []).length;
+            if (included < plan.entries.length) {
+                logger.warn('Newsletter', `Catch-up input exceeds the model budget: ${plan.entries.length - included} day(s) would be dropped`);
+                return err('catchup-too-much');
+            }
             try {
                 const res = await summarizeText(pluginContext(plugin), filled, { signal });
                 if (res.success && res.content) return ok(cleanSpokenScript(res.content));

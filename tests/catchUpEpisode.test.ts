@@ -381,3 +381,20 @@ describe('deletion safety does not trust the cache or the file name', () => {
         expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
     });
 });
+
+describe('the reference check is only as sure as the vault index', () => {
+    it('says UNKNOWN, not "no", while the vault index is still being built', async () => {
+        const vault = makeCatchUpVault();
+        (vault.app.metadataCache as unknown as { resolved: boolean; resolvedLinks: Record<string, unknown> }).resolved = false;
+        (vault.app.metadataCache as unknown as { resolvedLinks: Record<string, unknown> }).resolvedLinks = {};
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('unknown');
+    });
+
+    it('a reference found in the folder is still a definite yes during indexing', async () => {
+        const vault = makeCatchUpVault();
+        const i = input();
+        vault.set(episodePath(i), buildEpisodeNote(i));
+        (vault.app.metadataCache as unknown as { resolved: boolean }).resolved = false;
+        expect(await isAudioReferenced(vault.app as never, ROOT, i.audio)).toBe('yes');
+    });
+});

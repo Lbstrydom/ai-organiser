@@ -125,6 +125,7 @@ export const GUIDANCE_CODES = [
     'catchup-busy',
     'catchup-changed',
     'catchup-unresolved',
+    'catchup-too-much',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

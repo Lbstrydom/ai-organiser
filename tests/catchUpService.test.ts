@@ -769,3 +769,25 @@ describe('recovery uses the operation\'s own output folder', () => {
         expect(vault.exists(rec.audio!.path)).toBe(false); // its own staged audio went, from its own folder
     });
 });
+
+describe('persistence failures are outcomes, not log lines', () => {
+    it('a shortened script that cannot be persisted is not adopted and the run stops', async () => {
+        let saves = 0;
+        const original = plugin.saveData.getMockImplementation()!;
+        plugin.saveData.mockImplementation(async (d: Record<string, unknown>) => {
+            await original(d);
+            // the first save is the script record; take its slot before the shortened one is written
+            if (++saves === 1) plugin.state.stored[DRAFT_DATA_KEY] = { ...(plugin.state.stored[DRAFT_DATA_KEY] as OperationRecord), opId: '20260101-000000-ffff' };
+        });
+        const p = ports({ generateScript: vi.fn(async () => ok(LONG_SCRIPT)) as never, shortenScript: vi.fn(async () => ok(SHORT_SCRIPT)) as never });
+        const res = await runCatchUp(p, opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-save-failed' });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+    });
+
+    it('the model-budget code from the script step reaches the caller unchanged', async () => {
+        const res = await runCatchUp(ports({ generateScript: vi.fn(async () => err('catchup-too-much')) as never }), opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-too-much' });
+        expect(await loadOperation(plugin as never)).toBeNull();
+    });
+});

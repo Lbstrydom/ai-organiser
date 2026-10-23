@@ -219,3 +219,25 @@ describe('previewCost', () => {
         expect(previewCost(plugin(), 15).ttsUsd).toBeNull();
     });
 });
+
+describe('a day dropped to fit the model budget is never claimed as covered', () => {
+    const bigEntry = (date: string) => ({ date, kind: 'full' as const, coverage: { kind: 'revision' as const, rev: 1 }, text: 'A sentence about fictional events. '.repeat(600), newsletters: 2, titles: [] });
+    const manyDays = (): CatchUpPlan => {
+        const p = plan();
+        p.entries = ['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22'].map(bigEntry);
+        return p;
+    };
+
+    it('fails closed with its own guidance code when a day would be dropped', async () => {
+        // A tiny model window forces whole-source drops.
+        const res = await createCatchUpPorts(plugin({ serviceType: 'local' })).generateScript(manyDays());
+        expect(res).toEqual({ ok: false, error: 'catchup-too-much' });
+        expect(summarizeText).not.toHaveBeenCalled();
+    });
+
+    it('a plan that fits is sent whole', async () => {
+        summarizeText.mockResolvedValue({ success: true, content: 'A script.' });
+        const res = await createCatchUpPorts(plugin()).generateScript(plan());
+        expect(res.ok).toBe(true);
+    });
+});

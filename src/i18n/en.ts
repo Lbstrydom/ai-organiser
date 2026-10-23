@@ -3982,6 +3982,7 @@ export const en: Translations = {
         "catchup-save-failed": { message: "The audio was made but the episode note could not be saved.", nextStep: "Your audio is kept. Choose finish saving to try the note again." },
         "catchup-busy": { message: "Newsletter audio is already being made.", nextStep: "Wait for it to finish, then try again." },
         "catchup-changed": { message: "Your newsletters changed while you were looking at the preview.", nextStep: "Review the updated preview, then generate again." },
+        "catchup-too-much": { message: "There is more newsletter text than your AI model can read at once, so no episode was made.", nextStep: "Shorten the catch-up window in settings, or pick a model that reads more, then try again." },
         "catchup-unresolved": { message: "An earlier catch-up was left unfinished.", nextStep: "Resume it, start over, or discard it from the newsletter audio window." },
         unknown: { message: "Something went wrong.", nextStep: "Try again. If it keeps happening, turn on debug mode in settings and check the log." }
     },

@@ -113,3 +113,32 @@ describe('pendingCounts', () => {
         expect(pendingCounts({ plan: plan(['2026-10-21', '2026-10-22']) })).toEqual({ days: 2, newsletters: 4 });
     });
 });
+
+describe('the status bar and the window agree on what is pending', () => {
+    const pendingInput = (dates: string[], unheard: EpisodeMeta[] = []) =>
+        input({ snapshot: snapshot({ plan: plan(dates), state: 'pending', unheard }) });
+
+    it('the window\'s day and newsletter totals equal the shared selector the status bar uses', () => {
+        for (const dates of [['2026-10-23'], ['2026-10-22', '2026-10-23'], ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']]) {
+            const inp = pendingInput(dates);
+            const view = deriveModalView(inp);
+            const counts = pendingCounts(inp.snapshot);
+            expect(view).toMatchObject({ kind: 'pending', days: counts.days, newsletters: counts.newsletters });
+        }
+    });
+
+    it('with nothing pending both surfaces report zero, and the unheard count is the only signal', () => {
+        const inp = input({ snapshot: snapshot({ unheard: [ep('e1', '2026-10-20')] }) });
+        expect(pendingCounts(inp.snapshot)).toEqual({ days: 0, newsletters: 0 });
+        expect(deriveModalView(inp)).toMatchObject({ kind: 'caught-up', unheard: { count: 1 } });
+    });
+
+    it('days with no stored newsletters are not counted as pending by either surface', () => {
+        const s = snapshot({
+            plan: plan(['2026-10-22']), state: 'pending',
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-20', '2026-10-21'], coveredDates: [], openDates: [] },
+        });
+        expect(pendingCounts(s).days).toBe(1);
+        expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ days: 1, noStoredDates: ['2026-10-20', '2026-10-21'] });
+    });
+});
