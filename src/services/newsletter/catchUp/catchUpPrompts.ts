@@ -26,7 +26,7 @@ export interface CatchUpPromptOptions {
 }
 
 /** Tags that would let newsletter-derived text forge a prompt section. */
-const FORGEABLE = /<\/?(?:task|requirements|output_format|newsletters|story_memory|home_region)>|--- (?:SOURCE:|END SOURCE ---|STORY ---)/gi;
+const FORGEABLE = /<\/?(?:task|requirements|output_format|newsletters|story_memory|home_region|script)>|--- (?:SOURCE:|END SOURCE ---|STORY ---)/gi;
 
 function clean(text: string): string {
     let current = text;

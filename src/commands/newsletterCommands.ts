@@ -174,11 +174,13 @@ async function markCaughtUpInner(
 
     // "I am up to date" also means the catch-up episodes in the window count as heard. This is
     // independent of story memory: the durable ack is the authority on what was heard.
+    let ackFailed = false;
     if (isCatchUpEnabled(plugin.settings)) {
         try {
             await ackAllInWindowEpisodes({ app: plugin.app, plugin, settings: plugin.settings });
             plugin.refreshCatchUpStatus?.();
         } catch (e) {
+            ackFailed = true;
             logger.warn('Newsletter', 'Could not acknowledge catch-up episodes', e);
         }
     }
@@ -187,6 +189,8 @@ async function markCaughtUpInner(
         logger.error('Newsletter', `Mark caught up failed: ${outcome.error}`);
     }
     new Notice(formatCaughtUpOutcome(outcome, nl), outcome.kind === 'error' ? 6000 : 5000);
+    // Partial success is reported as partial: the stories were marked, the episodes were not.
+    if (ackFailed) new Notice(plugin.t.modals.newsletterCatchUp.ackFailed, 7000);
 }
 
 /** Open the catch-up window. The window itself explains audio-off and daily-mode states. */

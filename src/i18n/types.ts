@@ -1769,6 +1769,8 @@ export interface Translations {
             statusBarUnheard: string;     // "{n} not listened"
             autoReady: string;            // "Your newsletter audio for {range} is ready."
             notAnEpisode: string;
+            ackFailed: string;
+            discardFailed: string;
             daysOne: string;
             daysMany: string;             // "{n} days"
             newslettersOne: string;

@@ -256,3 +256,46 @@ describe('ackAllInWindowEpisodes (Mark caught up)', () => {
         expect(Object.keys(await loadAcks(p as never))).toEqual([recent.id]);
     });
 });
+
+describe('resolveCatchUpAudio: the file played must be the episode folder\'s file', () => {
+    const src = notePath(episode());
+    const base = episode().audio;
+
+    it('accepts a source whose path ends in the Catch-up folder', () => {
+        expect(resolveCatchUpAudio({ sourcePath: src, audioSrc: `app://local/C:/Vault/${FOLDER}/${base}?1700`, outputRoot: ROOT })?.audioBasename).toBe(base);
+        expect(resolveCatchUpAudio({ sourcePath: src, audioSrc: base, outputRoot: ROOT })?.audioBasename).toBe(base);
+    });
+
+    it('rejects a same-named file from anywhere else', () => {
+        for (const where of ['Elsewhere', 'AI-Organiser/Newsletter Inbox/2026-10-22', `${ROOT}/Archive`, 'C:/Downloads']) {
+            expect(resolveCatchUpAudio({ sourcePath: src, audioSrc: `app://local/${where}/${base}`, outputRoot: ROOT }), where).toBeNull();
+        }
+    });
+});
+
+describe('markBucketsConsumed: the retention window applies to incoming entries', () => {
+    it('drops entries older than the window instead of re-introducing them', async () => {
+        const p = makePlugin();
+        const n = await markBucketsConsumed(p as never, [
+            { date: '2026-10-22', revision: 2 },
+            { date: '2026-09-01', revision: 5 },
+        ], 'catchup', '2026-10-23');
+        expect(n).toBe(1);
+        const consumed = (p.state.stored[CONSUMED_DATA_KEY] as { consumed: Record<string, unknown> }).consumed;
+        expect(Object.keys(consumed)).toEqual(['2026-10-22']);
+    });
+
+    it('the boundary day is kept and the day before it is not', async () => {
+        const p = makePlugin();
+        await markBucketsConsumed(p as never, [{ date: '2026-10-16', revision: 1 }, { date: '2026-10-15', revision: 1 }], 'catchup', '2026-10-23');
+        const consumed = (p.state.stored[CONSUMED_DATA_KEY] as { consumed: Record<string, unknown> }).consumed;
+        expect(Object.keys(consumed)).toEqual(['2026-10-16']);
+    });
+
+    it('only out-of-window entries means no write at all', async () => {
+        const p = makePlugin();
+        const save = vi.spyOn(p, 'saveData');
+        expect(await markBucketsConsumed(p as never, [{ date: '2026-01-01', revision: 3 }], 'catchup', '2026-10-23')).toBe(0);
+        expect(save).not.toHaveBeenCalled();
+    });
+});

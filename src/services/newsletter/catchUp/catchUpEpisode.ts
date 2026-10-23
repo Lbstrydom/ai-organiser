@@ -248,13 +248,28 @@ export type AudioReference = 'yes' | 'no' | 'unknown';
  * frontmatter is damaged still counts as a reference if its text names the file.
  */
 export async function isAudioReferenced(app: App, outputRoot: string, audioName: string): Promise<AudioReference> {
+    const folder = episodeFolderPath(outputRoot);
+
+    // Anything in the vault that already LINKS to the file counts, wherever the note lives or
+    // whatever it is called (a renamed or moved episode is still a reference).
+    const resolved = (app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>> } | undefined)?.resolvedLinks;
+    if (resolved) {
+        const audioPath = normalizePath(`${folder}/${audioName}`);
+        for (const links of Object.values(resolved)) if (links && audioPath in links) return 'yes';
+    }
+
+    // The deletion decision reads CURRENT contents of every markdown note in the folder, never
+    // the metadata cache (which can lag an edit) and never a file-name convention (a renamed note
+    // is still a note). An unreadable note makes the answer UNKNOWN, which blocks deletion.
     let unknown = false;
-    for (const file of childrenOf(app, episodeFolderPath(outputRoot))) {
-        if (!parseEpisodeName(file.name)) continue;
-        const r = await readEpisodeResult(app, file);
-        if (r.kind === 'ok' && r.meta.audio === audioName) return 'yes';
-        if (r.kind === 'invalid' && r.content.includes(audioName)) return 'yes';
-        if (r.kind === 'unreadable') unknown = true;
+    for (const file of childrenOf(app, folder)) {
+        if (!file.name.endsWith('.md')) continue;
+        try {
+            if ((await app.vault.cachedRead(file)).includes(audioName)) return 'yes';
+        } catch (e) {
+            logger.warn('Newsletter', `Could not read ${file.path} while checking audio references`, e);
+            unknown = true;
+        }
     }
     return unknown ? 'unknown' : 'no';
 }

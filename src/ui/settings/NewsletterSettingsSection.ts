@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
 import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
+import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS } from '../../services/newsletter/catchUp/catchUpTypes';
 
 const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query params.
 // Apps Script redirects POST requests (302→GET), dropping the body,
@@ -548,7 +549,8 @@ export class NewsletterSettingsSection extends BaseSettingSection {
 
         new Setting(this.containerEl)
             .setName(cu?.maxMins || 'Longest episode (minutes)')
-            .setDesc(cu?.maxMinsDesc || 'An episode aims for about 15 minutes, and up to this limit when 4 or more days are pending.')
+            .setDesc((cu?.maxMinsDesc || 'An episode aims for about {base} minutes, and up to this limit when {days} or more days are pending.')
+                .replace('{base}', String(CATCHUP_BASE_CAP_MINS)).replace('{days}', String(CATCHUP_BIG_THRESHOLD_DAYS)))
             .addSlider(slider => slider
                 .setLimits(5, 20, 1)
                 .setValue(settings.newsletterCatchUpMaxMins ?? 20)

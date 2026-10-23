@@ -156,3 +156,16 @@ describe('fingerprints', () => {
         expect(legacy.filePath).toBe(`AI-Organiser/Newsletter Inbox/2026-04-23/brief-2026-04-23-${fp}.mp3`);
     });
 });
+
+describe('generateEpisodeAudio: the destination is inside the named folder', () => {
+    it.each([
+        ['a sibling prefix', `${FOLDER}-evil/catchup-x-12345678.mp3`],
+        ['another folder', 'Elsewhere/catchup-x-12345678.mp3'],
+        ['a parent', `${FOLDER}/../catchup-x-12345678.mp3`],
+    ])('rejects %s before any write', async (_n, filePath) => {
+        const r = await generateEpisodeAudio(vault.app as never, 'x.', { engine: engine(), voice: 'Charon', filePath, outputFolder: FOLDER });
+        expect(r.success).toBe(false);
+        expect(r.error).toMatch(/not inside/);
+        expect(vault.app.vault.createBinary).not.toHaveBeenCalled();
+    });
+});

@@ -55,6 +55,9 @@ export function resolveCatchUpAudio(input: { sourcePath: string; audioSrc: strin
     if (!CATCHUP_AUDIO_RE.test(audioBasename)) return null;
 
     const folder = episodeFolderPath(input.outputRoot);
+    // Identity, not just a name: when the played source carries a path it must be THE episode
+    // folder's file. A same-named file copied elsewhere is a different recording.
+    if (audioPath.includes('/') && !audioPath.endsWith(`${canonicalise(folder)}/${audioBasename}`)) return null;
     if (!isInsideOutputRoot(folder, sourcePath) || sourcePath === folder) return null;
     const named = parseEpisodeName(sourcePath.split('/').pop() ?? '');
     if (!named) return null;

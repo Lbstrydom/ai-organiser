@@ -46,6 +46,11 @@ export interface OperationRecord {
     };
     script: string;
     scriptIdentity: string;
+    /** The newsletter output root this operation started in: recovery, reference checks and cleanup
+     *  all use THIS scope, so a later change of the folder setting cannot redirect them. */
+    outputRoot: string;
+    /** The length limit in minutes the script was written under (resume re-checks against it). */
+    capMinutes: number;
     synthIdentity?: string;
     audio?: { path: string; bytes?: number; durationSec?: number; sha256?: string };
     createdAt: number;
@@ -82,6 +87,8 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
     // Required fields are validated, never manufactured: a record missing its identity or carrying
     // a non-finite timestamp would otherwise look valid and dodge the 24-hour lifetime.
     if (typeof r.scriptIdentity !== 'string' || r.scriptIdentity === '') return null;
+    if (typeof r.outputRoot !== 'string' || r.outputRoot.trim() === '' || r.outputRoot.split('/').includes('..')) return null;
+    if (typeof r.capMinutes !== 'number' || !Number.isFinite(r.capMinutes) || r.capMinutes < 1 || r.capMinutes > 60) return null;
     if (typeof r.createdAt !== 'number' || !Number.isFinite(r.createdAt) || r.createdAt <= 0) return null;
     const f = r.frozen as Record<string, unknown> | undefined;
     if (!f || !isDateStr(f.from) || !isDateStr(f.to) || !Array.isArray(f.entries)) return null;
@@ -99,7 +106,15 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
     // Phase-specific artifacts: a record past `scripted` must name its audio, and `audio-ready`
     // must carry the integrity evidence the verification step compares against.
     if (r.phase !== 'scripted' && !audio) return null;
-    if (r.phase === 'audio-ready' && !(typeof audio?.bytes === 'number' && typeof audio?.sha256 === 'string' && typeof audio?.durationSec === 'number')) return null;
+    if (r.phase === 'audio-ready') {
+        // Evidence must be MEANINGFUL, not merely typed: a negative size or a non-hash string
+        // could never match a real file, and would make verification meaningless.
+        const ok = !!audio
+            && typeof audio.bytes === 'number' && Number.isInteger(audio.bytes) && audio.bytes > 0
+            && typeof audio.durationSec === 'number' && Number.isFinite(audio.durationSec) && audio.durationSec >= 0
+            && typeof audio.sha256 === 'string' && /^[0-9a-f]{64}$/.test(audio.sha256);
+        if (!ok) return null;
+    }
     return {
         version: RECORD_SCHEMA_VERSION,
         opId: r.opId,
@@ -113,6 +128,8 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
         },
         script: r.script,
         scriptIdentity: r.scriptIdentity,
+        outputRoot: r.outputRoot,
+        capMinutes: r.capMinutes,
         ...(typeof r.synthIdentity === 'string' ? { synthIdentity: r.synthIdentity } : {}),
         ...(audio ? { audio } : {}),
         createdAt: r.createdAt,
@@ -128,7 +145,9 @@ export function storedRecordStatus(raw: unknown): 'none' | 'valid' | 'unsupporte
     if (raw === undefined || raw === null) return 'none';
     if (typeof raw !== 'object') return 'corrupt';
     const version = (raw as { version?: unknown }).version;
-    if (typeof version === 'number' && version !== RECORD_SCHEMA_VERSION) return 'unsupported';
+    // Only a NEWER schema belongs to another plugin and is preserved; an older or odd version is
+    // simply not a record this plugin can use (there is no older schema yet, so none is migrated).
+    if (typeof version === 'number' && version > RECORD_SCHEMA_VERSION) return 'unsupported';
     return coerceRecord(raw) ? 'valid' : 'corrupt';
 }
 

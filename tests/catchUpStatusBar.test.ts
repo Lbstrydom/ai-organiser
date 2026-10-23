@@ -218,3 +218,20 @@ describe('CatchUpStatusBar', () => {
         expect(snap.calls).toBe(0);
     });
 });
+
+describe('the status bar re-checks after its read', () => {
+    it('stays hidden if settings turned it off while the snapshot was loading', async () => {
+        const { p, item } = plugin();
+        const bar = new CatchUpStatusBar(p);
+        bar.mount();
+        const mod = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        (mod.buildCatchUpSnapshot as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(async () => {
+            (p as never as { settings: { newsletterCatchUpStatusBar: boolean } }).settings.newsletterCatchUpStatusBar = false;
+            return snap.value;
+        });
+        bar.refresh();
+        await settle();
+        expect(item.hidden).toBe(true);
+        bar.dispose();
+    });
+});

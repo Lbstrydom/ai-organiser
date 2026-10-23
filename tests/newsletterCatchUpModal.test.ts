@@ -287,7 +287,7 @@ describe('unavailable', () => {
 
 describe('an unfinished operation', () => {
     const record = (phase: string) => ({
-        version: 1, opId: 'op', phase, script: 's', scriptIdentity: 'i', createdAt: 1,
+        version: 1, opId: 'op', phase, script: 's', scriptIdentity: 'i', outputRoot: 'R', capMinutes: 15, createdAt: 1,
         frozen: { entries: [], from: '2026-10-21', to: '2026-10-22', sources: 4, titles: [] },
     });
 
@@ -404,5 +404,48 @@ describe('generating', () => {
         await vi.waitFor(() => expect(root.textContent).toContain('longer than your limit'));
         modal.close();
         await vi.waitFor(() => expect(answer).toBe('cancel'));
+    });
+});
+
+describe('failures and lifecycle', () => {
+    const record = {
+        version: 1, opId: 'op', phase: 'scripted', script: 's', scriptIdentity: 'i', outputRoot: 'R', capMinutes: 15, createdAt: 1,
+        frozen: { entries: [], from: '2026-10-21', to: '2026-10-22', sources: 4, titles: [] },
+    };
+
+    it('a failed Discard says so and keeps the unfinished operation on screen', async () => {
+        opRef.value = { kind: 'scripted', record };
+        discardOperation.mockResolvedValueOnce({ ok: false, error: 'EBUSY' } as never);
+        const { root } = await open();
+        click(root, 'Discard');
+        await vi.waitFor(() => expect(root.textContent).toContain('could not be discarded'));
+        expect(root.textContent).not.toContain('The unfinished episode was discarded.');
+        expect(root.textContent).not.toContain('EBUSY');
+        expect(buttons(root)).toContain('Resume');
+    });
+
+    it('a slow early read cannot overwrite a newer one', async () => {
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        const mocked = buildCatchUpSnapshot as unknown as ReturnType<typeof vi.fn>;
+        let releaseOld: (v: unknown) => void = () => undefined;
+        const old = snapshot({ latestEpisode: episode('old', '2026-10-01', '2026-10-02') });
+        mocked.mockImplementationOnce(() => new Promise((r) => { releaseOld = r; }));
+        const modal = new NewsletterCatchUpModal(plugin());
+        modal.open(); // read #1 is now stuck
+        const root = (modal as never as { contentEl: HTMLElement }).contentEl;
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22']), state: 'pending' });
+        (modal as never as { refresh(): Promise<void> }).refresh(); // read #2 wins
+        await vi.waitFor(() => expect(buttons(root)).toContain('Generate'));
+        releaseOld(old); // read #1 finally lands
+        await flush(); await flush();
+        expect(buttons(root)).toContain('Generate');
+        expect(root.textContent).not.toContain('You are caught up');
+    });
+
+    it('a question raised after the window closed is answered at once', async () => {
+        const { modal } = await open();
+        modal.close();
+        const answer = await (modal as never as { renderOverrun(i: unknown): Promise<string> }).renderOverrun({ estimatedMinutes: 20, capMinutes: 15 });
+        expect(answer).toBe('cancel');
     });
 });

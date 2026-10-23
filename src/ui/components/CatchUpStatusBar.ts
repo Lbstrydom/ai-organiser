@@ -84,7 +84,8 @@ export class CatchUpStatusBar {
         if (!statusBarWanted(this.plugin.settings)) { el.hide(); return; }
 
         const snapshot = await buildCatchUpSnapshot({ app: this.plugin.app, plugin: this.plugin, settings: this.plugin.settings });
-        if (this.disposed) return;
+        // The read took time: settings may have turned the item off, or it may be gone.
+        if (this.disposed || !statusBarWanted(this.plugin.settings)) { el.hide(); return; }
         const { days, newsletters } = pendingCounts(snapshot);
         const unheard = snapshot.unheard.length;
         const m = this.plugin.t.modals.newsletterCatchUp;

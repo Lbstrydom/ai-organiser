@@ -31,7 +31,7 @@ function snapshot(over: Partial<CatchUpSnapshot> = {}): CatchUpSnapshot {
 }
 
 const record = (phase: OperationRecord['phase']): OperationRecord => ({
-    version: 1, opId: 'op', phase, script: 's', scriptIdentity: 'i', createdAt: 1,
+    version: 1, opId: 'op', phase, script: 's', scriptIdentity: 'i', outputRoot: 'R', capMinutes: 15, createdAt: 1,
     frozen: { entries: [{ date: '2026-10-21', kind: 'full', coverage: { kind: 'whole' } }, { date: '2026-10-22', kind: 'full', coverage: { kind: 'whole' } }], from: '2026-10-21', to: '2026-10-22', sources: 4, titles: [] },
 });
 

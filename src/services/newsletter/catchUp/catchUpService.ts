@@ -48,7 +48,7 @@ import {
     type OperationRecord,
     RECORD_SCHEMA_VERSION,
 } from './catchUpDraft';
-import { SCRIPT_OVERRUN_FACTOR, SPEAKING_CHARS_PER_SECOND, type CatchUpPlan, type CoverageMap } from './catchUpTypes';
+import { SCRIPT_OVERRUN_FACTOR, SPEAKING_CHARS_PER_SECOND, WORDS_PER_MINUTE, type CatchUpPlan, type CoverageMap } from './catchUpTypes';
 
 // ── Ports ────────────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ export interface CatchUpPorts {
     /** Write the spoken script for a frozen plan. */
     generateScript: (plan: CatchUpPlan, signal?: AbortSignal) => Promise<Result<string>>;
     /** Shorten an over-long script to roughly `wordBudget` words. */
-    shortenScript: (plan: CatchUpPlan, script: string, wordBudget: number, signal?: AbortSignal) => Promise<Result<string>>;
+    shortenScript: (script: string, wordBudget: number, signal?: AbortSignal) => Promise<Result<string>>;
     /** Overridable for tests; defaults to the real episode synthesiser. */
     synthesise?: typeof realGenerateEpisodeAudio;
     verifyAudio?: typeof realVerifyEpisodeAudio;
@@ -204,7 +204,8 @@ export type OperationState =
 export async function classifyOperation(ports: CatchUpPorts): Promise<OperationState> {
     const record = await loadOperation(ports.plugin);
     if (!record) return { kind: 'none' };
-    const outputRoot = getNewsletterOutputFullPath(ports.settings);
+    // The operation's OWN scope: a later change of the output-folder setting cannot redirect recovery.
+    const outputRoot = record.outputRoot;
     if (await findEpisodeByOpId(ports.app, outputRoot, record.opId)) return { kind: 'committed', opId: record.opId };
     if (isRecordExpired(record, now(ports).getTime())) return { kind: 'expired', record };
     if (record.phase === 'scripted') return { kind: 'scripted', record };
@@ -218,7 +219,7 @@ export async function classifyOperation(ports: CatchUpPorts): Promise<OperationS
 
 /** Trash the audio a record owns — but only after proving no committed note references it. */
 async function trashStagedAudio(ports: CatchUpPorts, record: OperationRecord): Promise<void> {
-    const outputRoot = getNewsletterOutputFullPath(ports.settings);
+    const outputRoot = record.outputRoot;
     const path = record.audio?.path;
     if (!path) return;
     const name = path.split('/').pop() ?? '';
@@ -324,18 +325,6 @@ async function writeScript(
     let script = written.value.trim();
     if (script === '') return err('catchup-script-failed');
 
-    // Bound the length BEFORE any audio is made: one automatic shrink first.
-    const budget = plan.length.wordBudget;
-    const limit = budget * SCRIPT_OVERRUN_FACTOR;
-    const shorten = async (): Promise<boolean> => {
-        opts.onPhase?.({ key: 'shorteningScript' });
-        const shorter = await ports.shortenScript(plan, script, budget, opts.signal);
-        if (shorter.ok && shorter.value.trim() !== '') { script = shorter.value.trim(); return true; }
-        return false;
-    };
-    if (countWords(script) > limit) await shorten();
-    if (aborted(opts)) return cancelled();
-
     // Commit is idempotent BY operation id, so an id that already names a committed episode
     // would silently turn a new run into a no-op. Re-draw until it is unused.
     const outputRoot = getNewsletterOutputFullPath(ports.settings);
@@ -358,22 +347,55 @@ async function writeScript(
         },
         script,
         scriptIdentity: await scriptIdentityOf(plan, ports.settings, snapshot.memoryOn),
+        outputRoot,
+        capMinutes: plan.length.capMinutes,
         createdAt: now(ports).getTime(),
     };
     const persisted = await saveOperation(ports.plugin, record);
     if (!persisted) logger.warn('Newsletter', 'Could not persist the catch-up record — this run cannot be resumed');
     ports.onChanged?.();
 
-    // Still over the limit: a person decides, an automatic run never overruns.
-    while (countWords(script) > limit) {
+    // Bound the length BEFORE any audio is made (one automatic shrink, then a person decides).
+    return enforceLength(ports, record, persisted, opts, true);
+}
+
+/**
+ * The length limit, enforced at the ONE boundary every path to audio crosses: a fresh run and a
+ * resume alike. Optionally one automatic shrink first; if the script is still over, an interactive
+ * run asks (continue / shorten / cancel) and an automatic run fails with guidance rather than
+ * overrun. Every shortened script is persisted before anything depends on it.
+ */
+async function enforceLength(
+    ports: CatchUpPorts,
+    start: OperationRecord,
+    persisted: boolean,
+    opts: RunOptions,
+    autoShrink: boolean,
+): Promise<Result<OperationRecord>> {
+    const budget = start.capMinutes * WORDS_PER_MINUTE;
+    const limit = budget * SCRIPT_OVERRUN_FACTOR;
+    let record = start;
+
+    const shorten = async (): Promise<boolean> => {
+        opts.onPhase?.({ key: 'shorteningScript' });
+        const shorter = await ports.shortenScript(record.script, budget, opts.signal);
+        if (!shorter.ok || shorter.value.trim() === '') return false;
+        record = { ...record, script: shorter.value.trim() };
+        if (persisted && !(await saveOperation(ports.plugin, record))) {
+            logger.warn('Newsletter', 'Could not persist the shortened script; the earlier script stays on disk');
+        }
+        return true;
+    };
+
+    if (autoShrink && countWords(record.script) > limit) await shorten();
+    if (aborted(opts)) return cancelled();
+
+    while (countWords(record.script) > limit) {
         if (!opts.interactive || !opts.confirmOverrun) return err('catchup-script-too-long');
-        const choice = await opts.confirmOverrun({ estimatedMinutes: round1(estimateMinutes(script)), capMinutes: plan.length.capMinutes });
+        const choice = await opts.confirmOverrun({ estimatedMinutes: round1(estimateMinutes(record.script)), capMinutes: start.capMinutes });
         if (choice === 'cancel' || aborted(opts)) return cancelled();
         if (choice === 'continue') break;
-        if (await shorten()) {
-            record = { ...record, script };
-            if (persisted) await saveOperation(ports.plugin, record);
-        }
+        await shorten();
         if (aborted(opts)) return cancelled();
     }
     return ok(record);
@@ -394,15 +416,17 @@ async function makeAudio(
     tts: TtsHandle,
     opts: RunOptions,
 ): Promise<Result<EpisodeResult>> {
-    const outputRoot = getNewsletterOutputFullPath(ports.settings);
+    const outputRoot = start.outputRoot;
     const voice = voiceOf(ports.settings);
     const synthesise = ports.synthesise ?? realGenerateEpisodeAudio;
     const verify = ports.verifyAudio ?? realVerifyEpisodeAudio;
 
     let record = start;
-    const update = async (next: OperationRecord): Promise<void> => {
-        record = next;
-        await saveOperation(ports.plugin, next);
+    /** Persist a transition; the in-memory record only advances when the write stuck. */
+    const update = async (next: OperationRecord): Promise<boolean> => {
+        const saved = await saveOperation(ports.plugin, next);
+        if (saved) record = next;
+        return saved;
     };
 
     const fingerprint = await computeEpisodeFingerprint(record.script, voice, tts.providerId, tts.modelId);
@@ -421,8 +445,12 @@ async function makeAudio(
             await trashOwnedFile(ports.app, outputRoot, audioPath);
         }
 
-        // Write-ahead: the record names the file BEFORE the file exists.
-        await update({ ...record, phase: 'audio-writing', synthIdentity, audio: { path: audioPath } });
+        // Write-ahead: the record names the file BEFORE the file exists. If that cannot be made
+        // durable no audio is written: an unowned file is worse than a failed attempt.
+        if (!(await update({ ...record, phase: 'audio-writing', synthIdentity, audio: { path: audioPath } }))) {
+            logger.warn('Newsletter', 'Could not persist the catch-up record before writing audio');
+            return err('catchup-save-failed');
+        }
 
         opts.onPhase?.({ key: 'synthesising', done: 0, total: 1 });
         const made = await synthesise(ports.app, record.script, {
@@ -441,11 +469,13 @@ async function makeAudio(
             logger.warn('Newsletter', 'Catch-up audio failed', made.error);
             return err('catchup-tts-failed');
         }
-        await update({
-            ...record,
-            phase: 'audio-ready',
-            audio: { path: made.filePath, bytes: made.bytes, durationSec: made.durationSec, sha256: made.sha256 },
-        });
+        const readyAudio = { path: made.filePath, bytes: made.bytes, durationSec: made.durationSec, sha256: made.sha256 };
+        if (!(await update({ ...record, phase: 'audio-ready', audio: readyAudio }))) {
+            // The file is whole and the commit below is still correct; only "Finish saving" after a
+            // failed commit is lost, so say so rather than pretend.
+            logger.warn('Newsletter', 'Could not persist the audio-ready state; continuing to commit');
+            record = { ...record, phase: 'audio-ready', audio: readyAudio };
+        }
     }
 
     if (aborted(opts)) return cancelled();
@@ -468,7 +498,7 @@ async function commitEpisode(
     opts.setCancellable?.(false);
     opts.onPhase?.({ key: 'saving' });
 
-    const outputRoot = getNewsletterOutputFullPath(ports.settings);
+    const outputRoot = record.outputRoot;
     const durationSec = audio.durationSec ?? estimateMinutes(record.script) * 60;
     const minutes = round1(durationSec / 60);
     try {
@@ -518,7 +548,11 @@ export async function resumeCatchUp(ports: CatchUpPorts, opts: RunOptions): Prom
         }
         const resolved = await ports.resolveTts();
         if (!resolved.ok) return err(resolved.code);
-        return makeAudio(ports, state.record, resolved.tts, opts);
+        // A kept script that was over its limit (a failed automatic run) must not slip past the
+        // check just because it arrives through Resume.
+        const bounded = await enforceLength(ports, state.record, true, opts, false);
+        if (!bounded.ok) return bounded;
+        return makeAudio(ports, bounded.value, resolved.tts, opts);
     });
 }
 

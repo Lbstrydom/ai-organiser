@@ -1477,6 +1477,7 @@ export default class AIOrganiserPlugin extends Plugin {
         // Retention pruning, sync arrivals and a hand-deleted episode or audio all change what is pending.
         this.registerEvent(this.app.vault.on('create', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
         this.registerEvent(this.app.vault.on('delete', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
+        this.registerEvent(this.app.vault.on('modify', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
         this.registerEvent(this.app.vault.on('rename', (f, old) => { if (touchesNewsletters(f.path) || touchesNewsletters(old)) this.refreshCatchUpStatus(); }));
         this.app.workspace.onLayoutReady(() => { void this.offerAudioModeSwitch(); });
     }

@@ -41,6 +41,8 @@ function record(over: Partial<OperationRecord> = {}): OperationRecord {
         },
         script: 'A synthetic script.',
         scriptIdentity: 'sid',
+        outputRoot: 'AI-Organiser/Newsletter Inbox',
+        capMinutes: 15,
         createdAt: 1000,
         ...over,
     };
@@ -63,8 +65,8 @@ describe('coerceRecord', () => {
     });
 
     it('keeps audio metadata when present', () => {
-        const r = record({ phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 10, durationSec: 5.5, sha256: 'ab' } });
-        expect(coerceRecord(r)?.audio).toEqual({ path: 'x/a.mp3', bytes: 10, durationSec: 5.5, sha256: 'ab' });
+        const r = record({ phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 10, durationSec: 5.5, sha256: 'abababababababababababababababababababababababababababababababab' } });
+        expect(coerceRecord(r)?.audio).toEqual({ path: 'x/a.mp3', bytes: 10, durationSec: 5.5, sha256: 'abababababababababababababababababababababababababababababababab' });
     });
 
     it.each([
@@ -83,7 +85,7 @@ describe('coerceRecord', () => {
 });
 
 describe('coerceRecord: validate, never manufacture', () => {
-    const audioReady = { path: 'x/a.mp3', bytes: 10, durationSec: 5, sha256: 'ab' };
+    const audioReady = { path: 'x/a.mp3', bytes: 10, durationSec: 5, sha256: 'abababababababababababababababababababababababababababababababab' };
     it.each([
         ['missing script identity', { ...record(), scriptIdentity: '' }],
         ['non-string script identity', { ...record(), scriptIdentity: 7 }],
@@ -94,6 +96,15 @@ describe('coerceRecord: validate, never manufacture', () => {
         ['audio-writing without audio', { ...record(), phase: 'audio-writing' }],
         ['audio-ready without audio', { ...record(), phase: 'audio-ready' }],
         ['audio-ready without integrity evidence', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3' } }],
+        ['audio-ready with a negative size', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: -1, durationSec: 1, sha256: 'abababababababababababababababababababababababababababababababab' } }],
+        ['audio-ready with a zero size', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 0, durationSec: 1, sha256: 'abababababababababababababababababababababababababababababababab' } }],
+        ['audio-ready with a fractional size', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 1.5, durationSec: 1, sha256: 'abababababababababababababababababababababababababababababababab' } }],
+        ['audio-ready with a non-finite duration', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 1, durationSec: Number.POSITIVE_INFINITY, sha256: 'abababababababababababababababababababababababababababababababab' } }],
+        ['audio-ready with a malformed hash', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 1, durationSec: 1, sha256: 'ab' } }],
+        ['no output root', { ...record(), outputRoot: '' }],
+        ['an output root that climbs', { ...record(), outputRoot: 'A/../B' }],
+        ['no length limit', { ...record(), capMinutes: undefined }],
+        ['an absurd length limit', { ...record(), capMinutes: 600 }],
         ['audio-ready without a hash', { ...record(), phase: 'audio-ready', audio: { path: 'x/a.mp3', bytes: 1, durationSec: 1 } }],
         ['delta without a threshold', { ...record(), frozen: { ...record().frozen, entries: [{ date: '2026-10-22', kind: 'delta', coverage: { kind: 'whole' } }] } }],
         ['full day carrying a threshold', { ...record(), frozen: { ...record().frozen, entries: [{ date: '2026-10-22', kind: 'full', coverage: { kind: 'whole' }, sinceRevision: 1 }] } }],
@@ -115,6 +126,8 @@ describe('a record from a newer plugin is preserved', () => {
         expect(storedRecordStatus(null)).toBe('none');
         expect(storedRecordStatus({ version: 1, junk: true })).toBe('corrupt');
         expect(storedRecordStatus('x')).toBe('corrupt');
+        // An OLDER schema is not another plugin's record: nothing here can use it, so it is not preserved.
+        expect(storedRecordStatus({ version: 0, opId: 'old' })).toBe('corrupt');
         expect(storedRecordStatus(record())).toBe('valid');
     });
 

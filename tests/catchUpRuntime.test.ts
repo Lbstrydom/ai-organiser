@@ -193,7 +193,7 @@ describe('createCatchUpPorts', () => {
 
     it('shortenScript asks for the budget', async () => {
         summarizeText.mockResolvedValue({ success: true, content: 'Short.' });
-        const r = await createCatchUpPorts(plugin()).shortenScript(plan(), 'A very long script.', 1950);
+        const r = await createCatchUpPorts(plugin()).shortenScript('A very long script.', 1950);
         expect(r).toEqual({ ok: true, value: 'Short.' });
         expect(summarizeText.mock.calls[0][1]).toContain('at most 1950 words');
     });

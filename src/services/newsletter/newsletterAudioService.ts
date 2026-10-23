@@ -231,6 +231,12 @@ export interface EpisodeAudioResult {
  */
 export async function generateEpisodeAudio(app: App, script: string, opts: EpisodeAudioOptions): Promise<EpisodeAudioResult> {
     const path = normalizePath(opts.filePath);
+    // The destination must sit inside the folder the caller named; reject an inconsistent pair
+    // before any folder is created or any byte is written.
+    const folder = normalizePath(opts.outputFolder).replace(/\/+$/, '');
+    if (folder === '' || path.split('/').includes('..') || !path.startsWith(`${folder}/`)) {
+        return { success: false, error: `The audio destination ${path} is not inside ${folder}` };
+    }
     if (app.vault.getAbstractFileByPath(path)) {
         return { success: false, error: `An audio file already exists at ${path}` };
     }

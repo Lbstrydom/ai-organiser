@@ -105,7 +105,7 @@ export function createCatchUpPorts(plugin: AIOrganiserPlugin): CatchUpPorts {
             }
         },
 
-        async shortenScript(plan: CatchUpPlan, script: string, wordBudget: number, signal?: AbortSignal): Promise<Result<string>> {
+        async shortenScript(script: string, wordBudget: number, signal?: AbortSignal): Promise<Result<string>> {
             try {
                 const res = await summarizeText(pluginContext(plugin), buildShortenPrompt(script, wordBudget, languageOf()), { signal });
                 if (res.success && res.content) return ok(cleanSpokenScript(res.content));

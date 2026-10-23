@@ -346,3 +346,38 @@ describe('trashing owned files', () => {
         expect(await trashOwnedFile(vault.app as never, ROOT, `${FOLDER}/none.mp3`)).toBe(false);
     });
 });
+
+describe('deletion safety does not trust the cache or the file name', () => {
+    it('a RENAMED committed episode still protects its audio', async () => {
+        const vault = makeCatchUpVault();
+        const i = input();
+        vault.set(`${FOLDER}/My favourite week.md`, buildEpisodeNote(i));
+        vault.cache.enabled = false;
+        expect(await isAudioReferenced(vault.app as never, ROOT, i.audio)).toBe('yes');
+    });
+
+    it('a stale metadata cache cannot hide a reference that the file text has', async () => {
+        const vault = makeCatchUpVault();
+        const i = input();
+        vault.set(episodePath(i), buildEpisodeNote(i));
+        // The cache still describes an older edit that named different audio.
+        vault.app.metadataCache.getFileCache.mockReturnValue({ frontmatter: { aio_type: 'newsletter-catchup', catchup_audio: 'catchup-old-00000000.mp3' } });
+        expect(await isAudioReferenced(vault.app as never, ROOT, i.audio)).toBe('yes');
+    });
+
+    it('a link from ANY note in the vault counts as a reference', async () => {
+        const vault = makeCatchUpVault();
+        (vault.app.metadataCache as unknown as { resolvedLinks: Record<string, Record<string, number>> }).resolvedLinks = {
+            'Journal/2026-10-23.md': { [`${FOLDER}/catchup-moved-12345678.mp3`]: 1 },
+        };
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-moved-12345678.mp3')).toBe('yes');
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-other-12345678.mp3')).toBe('no');
+    });
+
+    it('non-markdown files in the folder are not scanned as notes', async () => {
+        const vault = makeCatchUpVault();
+        vault.set(`${FOLDER}/catchup-a-11111111.mp3`, new ArrayBuffer(8));
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-a-11111111.mp3')).toBe('no');
+        expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
+    });
+});

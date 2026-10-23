@@ -241,3 +241,18 @@ describe('registration', () => {
         await vi.waitFor(() => expect(modalOpen).toHaveBeenCalled());
     });
 });
+
+describe('Mark caught up reports partial success as partial', () => {
+    it('says so when the episodes could not be marked, in addition to the normal notice', async () => {
+        ack.mockRejectedValueOnce(new Error('disk full'));
+        await runMarkCaughtUp(plugin());
+        expect(notices.some((n) => n.includes('Caught up through'))).toBe(true);
+        expect(notices).toContain(t.modals.newsletterCatchUp.ackFailed);
+        expect(notices.join(' ')).not.toContain('disk full');
+    });
+
+    it('stays quiet about episodes when they were marked', async () => {
+        await runMarkCaughtUp(plugin());
+        expect(notices).not.toContain(t.modals.newsletterCatchUp.ackFailed);
+    });
+});

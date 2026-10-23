@@ -31,7 +31,7 @@ import { createCatchUpPorts, previewCost } from '../../services/newsletter/catch
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
 import { availabilityOf, deriveModalView, type ModalView } from '../../services/newsletter/catchUp/catchUpModalState';
 import { datesBetween, formatDates, formatPendingSummary } from '../../services/newsletter/catchUp/catchUpFormat';
-import type { EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
+import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
 
@@ -49,6 +49,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     private overrunResolver: ((choice: OverrunChoice) => void) | null = null;
     private includeAgainDates: string[] | null = null;
     private closed = false;
+    private refreshSeq = 0;
 
     constructor(private readonly plugin: AIOrganiserPlugin) {
         super(plugin.app);
@@ -99,6 +100,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     // ── Data ─────────────────────────────────────────────────────────────────
 
     private async refresh(): Promise<void> {
+        const request = ++this.refreshSeq;
         try {
             const ports = createCatchUpPorts(this.plugin);
             const [snapshot, operation] = await Promise.all([
@@ -108,7 +110,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
                 }),
                 classifyOperation(ports),
             ]);
-            if (this.closed) return;
+            // A slower, older read must never replace a newer one, or an operation in flight.
+            if (this.closed || request !== this.refreshSeq || this.running) return;
             this.snapshot = snapshot;
             this.view = deriveModalView({ availability: availabilityOf(this.plugin.settings), snapshot, operation });
             this.render();
@@ -212,7 +215,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         this.renderCommon(view, { unheardWarning: true });
 
         // Length and cost: previewed before any spend.
-        const lengthText = (view.big ? m.lengthLineBig : m.lengthLine).replace('{mins}', String(view.capMinutes));
+        const lengthText = (view.big ? m.lengthLineBig : m.lengthLine).replace('{mins}', String(view.capMinutes)).replace('{days}', String(CATCHUP_BIG_THRESHOLD_DAYS));
         this.note(lengthText);
         new Setting(this.contentEl)
             .setName(m.ceilingLabel)
@@ -298,6 +301,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     }
 
     private renderOverrun(info: { estimatedMinutes: number; capMinutes: number }): Promise<OverrunChoice> {
+        if (this.closed) return Promise.resolve('cancel');
         const m = this.plugin.t.modals.newsletterCatchUp;
         this.disposeListeners();
         this.contentEl.empty();
@@ -341,7 +345,13 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
 
     private async discard(withNotice = false): Promise<void> {
         const res = await discardOperation(createCatchUpPorts(this.plugin));
-        this.banner = res.ok && withNotice ? { text: this.plugin.t.modals.newsletterCatchUp.discarded, tone: 'info' } : null;
+        if (!res.ok) {
+            // Keep the operation on screen: it is still there, and saying otherwise would be false.
+            this.banner = { text: this.plugin.t.modals.newsletterCatchUp.discardFailed, tone: 'warn' };
+            await this.refresh();
+            return;
+        }
+        this.banner = withNotice ? { text: this.plugin.t.modals.newsletterCatchUp.discarded, tone: 'info' } : null;
         this.includeAgainDates = null;
         this.plugin.refreshCatchUpStatus?.();
         await this.refresh();

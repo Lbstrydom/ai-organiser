@@ -671,3 +671,101 @@ describe('story memory off, end to end', () => {
         expect(repeat).toEqual({ ok: false, error: 'catchup-nothing-pending' });
     });
 });
+
+describe('the length limit holds on Resume too', () => {
+    async function leaveOverLongRecord() {
+        const long = ports({ generateScript: vi.fn(async () => ok(LONG_SCRIPT)) as never, shortenScript: vi.fn(async () => ok(LONG_SCRIPT)) as never }, { newsletterAudioMode: 'smart-daily' });
+        const res = await runAutoCatchUp(long);
+        expect(res.ok).toBe(false);
+        const rec = await loadOperation(plugin as never);
+        expect(rec?.script).toBe(LONG_SCRIPT);
+        expect(rec?.capMinutes).toBe(15);
+        return rec!;
+    }
+
+    it('an interactive resume of a kept over-long script ASKS before any audio', async () => {
+        await leaveOverLongRecord();
+        const confirm = vi.fn(async () => 'cancel' as const);
+        const res = await resumeCatchUp(ports({ shortenScript: vi.fn(async () => ok(LONG_SCRIPT)) as never }), { interactive: true, confirmOverrun: confirm });
+        expect(res).toEqual({ ok: false, error: 'cancelled' });
+        expect(confirm).toHaveBeenCalledWith({ estimatedMinutes: expect.any(Number), capMinutes: 15 });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+    });
+
+    it('an automatic resume fails with guidance instead of overrunning', async () => {
+        await leaveOverLongRecord();
+        const res = await resumeCatchUp(ports(), { interactive: false });
+        expect(res).toEqual({ ok: false, error: 'catchup-script-too-long' });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+    });
+
+    it('Continue anyway lets the resume through, and Shorten persists the shorter script first', async () => {
+        await leaveOverLongRecord();
+        const shorten = vi.fn(async () => ok(SHORT_SCRIPT));
+        const choices = ['shorten'] as const;
+        let i = 0;
+        const res = await resumeCatchUp(ports({ shortenScript: shorten as never }), { interactive: true, confirmOverrun: async () => choices[i++] ?? 'continue' });
+        expect(res.ok).toBe(true);
+        expect(shorten).toHaveBeenCalledTimes(1);
+        expect(shorten.mock.calls[0]).toEqual([LONG_SCRIPT, 1950, undefined]);
+    });
+
+    it('a resume does not spend an automatic shrink (the kept script already had one)', async () => {
+        await leaveOverLongRecord();
+        const shorten = vi.fn(async () => ok(LONG_SCRIPT));
+        await resumeCatchUp(ports({ shortenScript: shorten as never }), { interactive: true, confirmOverrun: async () => 'cancel' });
+        expect(shorten).not.toHaveBeenCalled();
+    });
+});
+
+describe('a transition that cannot be persisted does not proceed', () => {
+    it('no audio is written when the write-ahead record is refused', async () => {
+        // After the script record is saved, another operation takes the slot: every later save is refused.
+        let saves = 0;
+        const original = plugin.saveData.getMockImplementation()!;
+        plugin.saveData.mockImplementation(async (d: Record<string, unknown>) => {
+            await original(d);
+            if (++saves === 1) {
+                const stored = plugin.state.stored[DRAFT_DATA_KEY] as OperationRecord;
+                plugin.state.stored[DRAFT_DATA_KEY] = { ...stored, opId: '20260101-000000-ffff' };
+            }
+        });
+        const res = await runCatchUp(ports(), opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-save-failed' });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+        expect([...vault.files.keys()].filter((k) => k.endsWith('.mp3'))).toEqual([]);
+        expect([...vault.files.keys()].filter((k) => k.includes('Catch-up/Catch-up'))).toEqual([]);
+    });
+});
+
+describe('recovery uses the operation\'s own output folder', () => {
+    it('a committed note in the ORIGINAL folder is found even after the folder setting changes', async () => {
+        vault.app.vault.create.mockRejectedValueOnce(new Error('disk full'));
+        await runCatchUp(ports(), opts());
+        const rec = (await loadOperation(plugin as never))!;
+        expect(rec.outputRoot).toBe('AI-Organiser/Newsletter Inbox');
+        // The note actually landed...
+        const note = buildEpisodeNote({
+            id: rec.opId, from: rec.frozen.from, to: rec.frozen.to,
+            coverage: Object.fromEntries(rec.frozen.entries.map((e) => [e.date, e.coverage])),
+            audio: rec.audio!.path.split('/').pop()!, fingerprint: 'c3d4e5f6', minutes: 1, sources: 6, titles: [], script: rec.script,
+        });
+        vault.set(`${FOLDER}/${buildEpisodeName(rec.frozen.from, rec.frozen.to, rec.opId)}`, note);
+        // ...and then the user pointed the setting somewhere else.
+        const moved = ports({}, { newsletterOutputFolder: 'Elsewhere' });
+        expect((await classifyOperation(moved)).kind).toBe('committed');
+        await reconcileOperation(moved);
+        expect(vault.exists(rec.audio!.path)).toBe(true);
+    });
+
+    it('cleanup never touches a folder the operation did not start in', async () => {
+        vault.app.vault.create.mockRejectedValueOnce(new Error('disk full'));
+        await runCatchUp(ports(), opts());
+        const rec = (await loadOperation(plugin as never))!;
+        vault.set('Elsewhere/Catch-up/catchup-decoy.mp3', new ArrayBuffer(4));
+        const late = () => new Date(NOW.getTime() + RECORD_TTL_MS + 60_000);
+        await reconcileOperation(ports({ now: late }, { newsletterOutputFolder: 'Elsewhere' }));
+        expect(vault.exists('Elsewhere/Catch-up/catchup-decoy.mp3')).toBe(true);
+        expect(vault.exists(rec.audio!.path)).toBe(false); // its own staged audio went, from its own folder
+    });
+});

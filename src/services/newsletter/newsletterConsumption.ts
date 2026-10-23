@@ -131,7 +131,10 @@ export async function markBucketsConsumed(
     via: ConsumptionSignal,
     todayStr: string,
 ): Promise<number> {
-    const valid = entries.filter((e) => DATE_KEY_RE.test(e.date) && Number.isInteger(e.revision) && e.revision >= 1);
+    // One retention invariant for stored AND incoming state: an entry older than the window would
+    // otherwise be pruned and re-introduced by the same write.
+    const cutoff = shiftDateStr(todayStr, -MEMORY_WINDOW_DAYS);
+    const valid = entries.filter((e) => DATE_KEY_RE.test(e.date) && e.date >= cutoff && Number.isInteger(e.revision) && e.revision >= 1);
     if (valid.length === 0) return 0;
     const advanced = await updatePluginData<number>(plugin, (data) => {
         const state = pruneConsumption(coerceConsumption(data[CONSUMED_DATA_KEY]), todayStr);
