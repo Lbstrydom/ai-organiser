@@ -142,11 +142,22 @@ export interface ReferenceIndex {
     referencedElsewhere(audioName: string, ownNotePath: string): Reference;
 }
 
+/** The catch-up audio names a text mentions, lower-cased. Mirrors the validated `isEpisodeAudioName` alphabet. */
+const AUDIO_NAME_RE = /catchup-[a-z0-9._-]+\.mp3/gi;
+
+/** Is the vault's reverse-link table actually there? An absent table is "unknown", never "no links". */
+export function hasLinkTable(app: App): boolean {
+    const table = (app.metadataCache as { resolvedLinks?: unknown }).resolvedLinks;
+    return typeof table === 'object' && table !== null;
+}
+
 /**
- * Built ONCE per sweep: the reverse link table in one pass over `resolvedLinks`, and one read of
- * each markdown note in the folder. Linear in the notes, never per candidate.
+ * Built ONCE per sweep from the folder's file list: the reverse link table in one pass over
+ * `resolvedLinks`, and ONE text pass over each markdown note that records which catch-up audio
+ * names it mentions. A query is then a map lookup, so the work is linear in the notes however many
+ * candidates there are.
  */
-export async function buildReferenceIndex(app: App, outputRoot: string): Promise<ReferenceIndex> {
+export async function buildReferenceIndex(app: App, outputRoot: string, folderFiles: readonly TFile[]): Promise<ReferenceIndex> {
     const folder = episodeFolderPath(outputRoot);
     const prefix = `${folder.toLowerCase()}/`;
     const linkers = new Map<string, Set<string>>();
@@ -161,15 +172,23 @@ export async function buildReferenceIndex(app: App, outputRoot: string): Promise
         }
     }
 
-    const texts = new Map<string, string>();
+    const mentions = new Map<string, Set<string>>();
     let unreadable = false;
-    for (const file of childrenOf(app, folder)) {
+    for (const file of folderFiles) {
         if (!file.name.endsWith('.md')) continue;
+        let text: string;
         try {
-            texts.set(file.path, (await app.vault.cachedRead(file)).toLowerCase());
+            text = await app.vault.cachedRead(file);
         } catch (e) {
             logger.warn('Newsletter', `Cleanup could not read ${file.path} while indexing references`, e);
             unreadable = true;
+            continue;
+        }
+        for (const m of text.matchAll(AUDIO_NAME_RE)) {
+            const name = m[0].toLowerCase();
+            let set = mentions.get(name);
+            if (!set) { set = new Set(); mentions.set(name, set); }
+            set.add(file.path);
         }
     }
 
@@ -178,35 +197,47 @@ export async function buildReferenceIndex(app: App, outputRoot: string): Promise
             const name = audioName.toLowerCase();
             const audioPath = normalizePath(`${folder}/${audioName}`).toLowerCase();
             for (const source of linkers.get(audioPath) ?? []) if (source !== ownNotePath) return 'yes';
-            for (const [path, text] of texts) if (path !== ownNotePath && text.includes(name)) return 'yes';
+            for (const path of mentions.get(name) ?? []) if (path !== ownNotePath) return 'yes';
             return unreadable ? 'unknown' : 'no';
         },
     };
 }
 
-// ── Change tracking during the destructive phase ─────────────────────────────
+// ── Change tracking: from before discovery until the last destructive step ───
 
 interface ChangeTracker {
-    /** Paths this sweep wrote itself; their own events are not "someone else changed the vault". */
-    touched: Set<string>;
+    /** Declare the events this sweep's OWN note write will cause, so only those are ignored. */
+    expectNoteWrite(path: string): void;
     isDirty(): boolean;
     dispose(): void;
 }
 
+/**
+ * Any markdown change the sweep did not cause means a reference could have appeared since the
+ * snapshot, so it marks the sweep dirty. The sweep's own write is recognised by a one-shot token
+ * per expected event (a `modify` and a `changed`), never by exempting the path for the whole
+ * sweep: a later external edit of the same note still counts.
+ */
 function trackChanges(app: App): ChangeTracker {
-    const touched = new Set<string>();
+    const expected = new Map<string, number>();
     let dirty = false;
     const refs: Array<{ owner: 'vault' | 'cache'; ref: EventRef }> = [];
-    const seen = (path: unknown): void => {
-        if (typeof path === 'string' && path.endsWith('.md') && !touched.has(path)) dirty = true;
+    const seen = (owner: 'vault' | 'cache', name: string, path: unknown): void => {
+        if (typeof path !== 'string' || !path.endsWith('.md')) return;
+        const key = `${owner}:${name}:${path}`;
+        const left = expected.get(key) ?? 0;
+        if (left > 0) { expected.set(key, left - 1); return; }
+        dirty = true;
     };
     const vaultOn = app.vault.on.bind(app.vault) as (name: string, cb: (file: { path: string }, old?: string) => void) => EventRef;
     const cacheOn = app.metadataCache.on.bind(app.metadataCache) as unknown as (name: string, cb: (file: { path: string }) => void) => EventRef;
-    for (const name of ['create', 'modify', 'delete']) refs.push({ owner: 'vault', ref: vaultOn(name, (f) => seen(f?.path)) });
-    refs.push({ owner: 'vault', ref: vaultOn('rename', (f, old) => { seen(f?.path); seen(old); }) });
-    for (const name of ['changed', 'deleted']) refs.push({ owner: 'cache', ref: cacheOn(name, (f) => seen(f?.path)) });
+    for (const name of ['create', 'modify', 'delete']) refs.push({ owner: 'vault', ref: vaultOn(name, (f) => seen('vault', name, f?.path)) });
+    refs.push({ owner: 'vault', ref: vaultOn('rename', (f, old) => { seen('vault', 'rename', f?.path); seen('vault', 'rename', old); }) });
+    for (const name of ['changed', 'deleted']) refs.push({ owner: 'cache', ref: cacheOn(name, (f) => seen('cache', name, f?.path)) });
     return {
-        touched,
+        expectNoteWrite(path) {
+            for (const key of [`vault:modify:${path}`, `cache:changed:${path}`]) expected.set(key, (expected.get(key) ?? 0) + 1);
+        },
         isDirty: () => dirty,
         dispose() {
             for (const { owner, ref } of refs) {
@@ -244,9 +275,12 @@ export async function runCatchUpAudioCleanup(deps: CleanupDeps): Promise<Result<
     }
 }
 
+/** Skip reasons that will pass by themselves: a marked episode hitting one is still waiting. */
+const TRANSIENT_FOR_MARKED = new Set(['audio-reference-unknown', 'note-unreadable', 'note-changed']);
+
 async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
     const { app } = deps;
-    if (!isMetadataIndexReady(app)) return ok({ kind: 'skipped', reason: 'index-not-ready' });
+    if (!isMetadataIndexReady(app) || !hasLinkTable(app)) return ok({ kind: 'skipped', reason: 'index-not-ready' });
 
     const data = await loadPluginData(deps.plugin);
     const recordStatus = storedRecordStatus(data[DRAFT_DATA_KEY]);
@@ -273,9 +307,10 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
         if (isPending) pending++;
         logger.debug('Newsletter', `Cleanup skipped ${id}: ${reason}`);
     };
-    const fail = (id: string, source: string, error: string): void => {
+    const fail = (id: string, source: string, error: string, isPending = false): void => {
         errors.push({ source, error });
         items.push({ id, action: 'error', reason: error });
+        if (isPending) pending++;
         logger.warn('Newsletter', `Cleanup could not process ${source}: ${error}`);
     };
     const report = (): CleanupReport => ({
@@ -285,61 +320,78 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
         skipped,
         items: { items, errors, warnings: [], isPartial: errors.length > 0 },
     });
+    const changed = (): Result<CleanupOutcome> => {
+        logger.warn('Newsletter', 'Cleanup stopped: the vault changed during the sweep');
+        return ok({ kind: 'skipped', reason: 'changed-during-sweep', report: report() });
+    };
 
-    // Discovery by NAME and the metadata cache only: episodes inside the age window cost no read.
-    const candidates: Candidate[] = [];
-    for (const file of childrenOf(app, folder)) {
-        const named = parseEpisodeName(file.name);
-        if (!named) continue;
-        const cached = app.metadataCache.getFileCache(file)?.frontmatter as Record<string, unknown> | undefined;
-        const markedInCache = cached?.[EPISODE_FM.audioRemoved] !== undefined;
-        if (!markedInCache && !(named.to < cutoff)) continue;
-
-        const read = await readEpisodeResult(app, file);
-        if (read.kind !== 'ok') { skip(named.id, read.kind === 'invalid' ? 'note-invalid' : 'note-unreadable'); continue; }
-        const meta = read.meta;
-        const audioPath = normalizePath(`${folder}/${meta.audio}`);
-        const audioExists = app.vault.getAbstractFileByPath(audioPath) instanceof TFile;
-        const decision = decideEpisode({ meta, acks, today, cutoff, audioExists, inflight });
-        if ('done' in decision) continue;
-        if ('skip' in decision) { skip(meta.id, decision.skip, decision.pending === true); continue; }
-        candidates.push({ file, meta, audioPath, stage: decision.stage });
-    }
-    if (candidates.length === 0) return ok({ kind: 'completed', report: report() });
-
-    // Everything below can change the vault: it needs a fresh, complete picture and a watch on it.
-    const index = await buildReferenceIndex(app, outputRoot);
+    // Watching starts BEFORE anything is read, so nothing that happens during discovery or while the
+    // reference snapshot is built can be missed.
     const tracker = trackChanges(app);
     try {
-        for (const c of candidates) {
-            if (tracker.isDirty()) {
-                logger.warn('Newsletter', 'Cleanup stopped: the vault changed during the sweep');
-                return ok({ kind: 'skipped', reason: 'changed-during-sweep', report: report() });
+        // Discovery by NAME and the metadata cache only: episodes inside the age window cost no read.
+        const folderFiles = childrenOf(app, folder);
+        const candidates: Candidate[] = [];
+        for (const file of folderFiles) {
+            const named = parseEpisodeName(file.name);
+            if (!named) continue;
+            const cached = app.metadataCache.getFileCache(file)?.frontmatter as Record<string, unknown> | undefined;
+            const markedInCache = cached?.[EPISODE_FM.audioRemoved] !== undefined;
+            if (!markedInCache && !(named.to < cutoff)) continue;
+
+            const read = await readEpisodeResult(app, file);
+            if (read.kind !== 'ok') {
+                skip(named.id, read.kind === 'invalid' ? 'note-invalid' : 'note-unreadable', read.kind === 'unreadable' && markedInCache);
+                continue;
             }
+            const meta = read.meta;
+            const audioPath = normalizePath(`${folder}/${meta.audio}`);
+            const audioExists = app.vault.getAbstractFileByPath(audioPath) instanceof TFile;
+            const decision = decideEpisode({ meta, acks, today, cutoff, audioExists, inflight });
+            if ('done' in decision) continue;
+            if ('skip' in decision) { skip(meta.id, decision.skip, decision.pending === true); continue; }
+            candidates.push({ file, meta, audioPath, stage: decision.stage });
+        }
+        if (candidates.length === 0) return ok({ kind: 'completed', report: report() });
+
+        // Everything below can change the vault: it needs a fresh, complete picture.
+        const index = await buildReferenceIndex(app, outputRoot, folderFiles);
+        if (tracker.isDirty()) return changed();
+
+        for (const c of candidates) {
+            if (tracker.isDirty()) return changed();
             const id = c.meta.id;
             const notePath = c.file.path;
+            const waiting = c.stage === 'trash';
             if (!isInsideOutputRoot(folder, notePath) || !isInsideOutputRoot(folder, c.audioPath)) { skip(id, 'outside-catchup-folder'); continue; }
             if (!assertWritable(deps.protectedSource, 'modify', notePath).ok || !assertWritable(deps.protectedSource, 'delete', c.audioPath).ok) {
                 skip(id, 'protected-folder');
                 continue;
             }
-            if (index.referencedElsewhere(c.meta.audio, notePath) !== 'no') { skip(id, 'audio-referenced-elsewhere'); continue; }
+            const referenced = index.referencedElsewhere(c.meta.audio, notePath);
+            if (referenced !== 'no') {
+                const reason = referenced === 'unknown' ? 'audio-reference-unknown' : 'audio-referenced-elsewhere';
+                skip(id, reason, waiting && TRANSIENT_FOR_MARKED.has(reason));
+                continue;
+            }
 
             let fresh: string;
             try {
                 fresh = await app.vault.read(c.file);
             } catch (e) {
-                fail(id, notePath, e instanceof Error ? e.message : String(e));
+                fail(id, notePath, e instanceof Error ? e.message : String(e), waiting);
                 continue;
             }
             // The fresh content must still describe THIS candidate.
             const current = parseEpisodeContent(fresh, notePath);
-            if (!current || current.id !== id || current.audio !== c.meta.audio) { skip(id, 'note-changed'); continue; }
+            if (!current || current.id !== id || current.audio !== c.meta.audio) { skip(id, 'note-changed', waiting); continue; }
+            // A change that arrived while the note was being read invalidates the snapshot.
+            if (tracker.isDirty()) return changed();
 
             if (c.stage === 'mark') {
                 const next = markAudioRemovedText(fresh, c.meta.audio, today, deps.removedLine(today));
                 if (!next.ok) { skip(id, next.error); continue; }
-                tracker.touched.add(notePath);
+                tracker.expectNoteWrite(notePath);
                 const written = await deps.writeNote(notePath, fresh, next.value);
                 if (!written.ok) { fail(id, notePath, written.error); continue; }
                 marked++;
@@ -350,22 +402,20 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
             }
 
             // Stage 2: the marker must still be there, and the note still free of any reference.
-            if (current.audioRemoved !== c.meta.audioRemoved) { skip(id, 'note-changed'); continue; }
+            if (current.audioRemoved !== c.meta.audioRemoved) { skip(id, 'note-changed', true); continue; }
             if (!ownNoteIsReferenceFree(fresh, c.meta.audio)) { skip(id, 'note-still-references-audio'); continue; }
             try {
-                tracker.touched.add(c.audioPath);
                 const trashed = await trashOwnedFile(app, outputRoot, c.audioPath);
                 if (!trashed) { skip(id, 'audio-missing'); continue; }
                 removed++;
                 items.push({ id, action: 'removed' });
                 logger.debug('Newsletter', `Cleanup removed the audio of ${id}`);
             } catch (e) {
-                fail(id, c.audioPath, e instanceof Error ? e.message : String(e));
-                pending++;
+                fail(id, c.audioPath, e instanceof Error ? e.message : String(e), true);
             }
         }
+        return ok({ kind: 'completed', report: report() });
     } finally {
         tracker.dispose();
     }
-    return ok({ kind: 'completed', report: report() });
 }

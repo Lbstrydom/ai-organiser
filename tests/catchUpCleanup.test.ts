@@ -397,7 +397,7 @@ describe('safety gates', () => {
             return vault.text(f.path);
         });
         const report = completed(await sweep());
-        expect(report.skipped).toEqual({ 'audio-referenced-elsewhere': 1 });
+        expect(report.skipped).toEqual({ 'audio-reference-unknown': 1 });
         expect(writes).toEqual([]);
     });
 
@@ -476,6 +476,92 @@ describe('vault changes during the sweep', () => {
     });
 });
 
+describe('the snapshot stays valid from before discovery to the destructive step', () => {
+    const second = episode({ id: '20261023-081500-c3d4', from: '2026-10-22', to: '2026-10-22', audio: 'catchup-20261023-081500-c3d4-44444444.mp3', coverage: { '2026-10-22': { kind: 'whole' } } });
+
+    it('a change while the reference index is being built stops the sweep before any write', async () => {
+        addEpisode();
+        const real = vault.app.vault.cachedRead.getMockImplementation()!;
+        vault.app.vault.cachedRead.mockImplementation(async (f: { path: string }) => {
+            vault.emit('vault', 'create', { path: 'Projects/NewNote.md' });
+            return real(f);
+        });
+        expect(await sweep()).toMatchObject({ kind: 'skipped', reason: 'changed-during-sweep' });
+        expect(writes).toEqual([]);
+        expect(vault.listeners()).toBe(0);
+    });
+
+    it('a change that lands while the candidate note is being read stops it before the write', async () => {
+        addEpisode();
+        const real = vault.app.vault.read.getMockImplementation()!;
+        vault.app.vault.read.mockImplementation(async (f: { path: string }) => {
+            const text = await real(f);
+            vault.emit('vault', 'modify', { path: 'Projects/Plan.md' });
+            return text;
+        });
+        expect(await sweep()).toMatchObject({ kind: 'skipped', reason: 'changed-during-sweep' });
+        expect(writes).toEqual([]);
+    });
+
+    it('the sweep\'s own write is recognised once: a SECOND event for the same note is an outside edit', async () => {
+        addEpisode();
+        addEpisode(second);
+        plugin.state.stored[ACKS_DATA_KEY] = acksFor(ID, second.id);
+        const twice: CleanupDeps['writeNote'] = async (path, baseline, next) => {
+            const r = await writeNote(path, baseline, next);
+            vault.emit('vault', 'modify', { path });
+            vault.emit('vault', 'modify', { path });
+            return r;
+        };
+        const out = await sweep({ writeNote: twice });
+        expect(out).toMatchObject({ kind: 'skipped', reason: 'changed-during-sweep' });
+        expect(writes).toHaveLength(1);
+    });
+
+    it('an absent reverse-link table is unknown, not "no links"', async () => {
+        addEpisode();
+        delete (vault.app.metadataCache as { resolvedLinks?: unknown }).resolvedLinks;
+        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
+        expect(writes).toEqual([]);
+        expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
+    });
+});
+
+describe('markedPending keeps transient stage-2 trouble', () => {
+    async function markedState(): Promise<void> {
+        addEpisode();
+        await sweep();
+    }
+
+    it('a failed fresh read of a marked note stays pending', async () => {
+        await markedState();
+        vault.app.vault.read.mockRejectedValueOnce(new Error('locked'));
+        const report = completed(await sweep({ now: () => DAY2 }));
+        expect(report).toMatchObject({ removed: 0, markedPending: 1 });
+        expect(report.items.errors).toHaveLength(1);
+    });
+
+    it('an unreadable note in the folder (reference unknown) leaves the marked episode pending, not blocked', async () => {
+        await markedState();
+        vault.set(`${FOLDER}/Unreadable.md`, 'x');
+        const real = vault.app.vault.cachedRead.getMockImplementation()!;
+        vault.app.vault.cachedRead.mockImplementation(async (f: { path: string }) => {
+            if (f.path.endsWith('Unreadable.md')) throw new Error('locked');
+            return real(f);
+        });
+        const report = completed(await sweep({ now: () => DAY2 }));
+        expect(report).toMatchObject({ removed: 0, markedPending: 1 });
+        expect(report.skipped).toEqual({ 'audio-reference-unknown': 1 });
+    });
+
+    it('a confirmed reference elsewhere is a permanent block, not pending', async () => {
+        await markedState();
+        vault.app.metadataCache.resolvedLinks = { 'Projects/Plan.md': { [`${FOLDER}/${AUDIO}`]: 1 } };
+        const report = completed(await sweep({ now: () => DAY2 }));
+        expect(report).toMatchObject({ removed: 0, markedPending: 0 });
+    });
+});
+
 describe('single flight and cost', () => {
     it('busy while an episode is being made: skipped with no reads', async () => {
         addEpisode();
@@ -498,8 +584,7 @@ describe('single flight and cost', () => {
         }
         plugin.state.stored[ACKS_DATA_KEY] = acksFor(...ids);
         let linkWalks = 0;
-        let links: Record<string, Record<string, number>> = {};
-        Object.defineProperty(vault.app.metadataCache, 'resolvedLinks', { get: () => { linkWalks++; return links; }, set: (v) => { links = v; }, configurable: true });
+        vault.app.metadataCache.resolvedLinks = new Proxy({} as Record<string, Record<string, number>>, { ownKeys: () => { linkWalks++; return []; } });
         const report = completed(await sweep());
         expect(report.marked).toBe(6);
         expect(vault.app.vault.cachedRead).toHaveBeenCalledTimes(6);
@@ -512,6 +597,6 @@ describe('single flight and cost', () => {
         plugin.state.stored[ACKS_DATA_KEY] = acksFor();
         completed(await sweep());
         expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
-        expect(vault.app.vault.on).not.toHaveBeenCalled();
+        expect(vault.listeners()).toBe(0); // watching is always torn down
     });
 });
