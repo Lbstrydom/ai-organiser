@@ -937,6 +937,11 @@ export const en: Translations = {
                 statusBar: "Show pending days in the status bar",
                 statusBarDesc: "Desktop only. Click the status bar item to open the catch-up window.",
                 memoryOffNote: "Story memory is off, so a catch-up covers whole days and only days that have closed.",
+                cleanupDays: "Remove audio of heard episodes after (days)",
+                cleanupDaysDesc: "Sends the audio file of an episode you have listened to to your trash once its newest day is this many days old. The note and transcript stay. Episodes you have not listened to are never touched. Off at 0.",
+                cleanupOff: "Off",
+                cleanupNotice: "Removed the audio of {count} heard catch-up episode(s). Notes and transcripts stay.",
+                audioRemovedLine: "Audio removed on {date}",
             },
         },
         audioNarration: {

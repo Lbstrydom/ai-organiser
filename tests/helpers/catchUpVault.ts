@@ -17,9 +17,11 @@ export interface CatchUpVault {
             create: ReturnType<typeof vi.fn>;
             createBinary: ReturnType<typeof vi.fn>;
             modify: ReturnType<typeof vi.fn>;
+            on: ReturnType<typeof vi.fn>;
+            offref: ReturnType<typeof vi.fn>;
         };
         fileManager: { trashFile: ReturnType<typeof vi.fn> };
-        metadataCache: { getFileCache: ReturnType<typeof vi.fn>; resolved?: boolean };
+        metadataCache: { getFileCache: ReturnType<typeof vi.fn>; resolved?: boolean; resolvedLinks: Record<string, Record<string, number>>; on: ReturnType<typeof vi.fn>; offref: ReturnType<typeof vi.fn> };
     };
     files: Map<string, string | ArrayBuffer>;
     set(path: string, content: string | ArrayBuffer): void;
@@ -28,6 +30,10 @@ export interface CatchUpVault {
     text(path: string): string;
     /** Serve frontmatter from the metadata cache (default) or force a cold cache. */
     cache: { enabled: boolean };
+    /** Fire a vault event (create/modify/delete/rename) or a metadataCache event (changed/deleted) at the registered listeners. */
+    emit(source: 'vault' | 'cache', name: string, ...args: unknown[]): void;
+    /** Number of listeners still registered. */
+    listeners(): number;
 }
 
 function frontmatterOf(content: string): Record<string, unknown> | undefined {
@@ -60,8 +66,18 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
         return { path, name: path.split('/').pop(), children: direct.map(tfile) };
     };
 
+    const handlers = new Map<object, { source: 'vault' | 'cache'; name: string; cb: (...a: unknown[]) => void }>();
+    const register = (source: 'vault' | 'cache') => vi.fn((name: string, cb: (...a: unknown[]) => void) => {
+        const ref = {};
+        handlers.set(ref, { source, name, cb });
+        return ref;
+    });
+    const unregister = vi.fn((ref: object) => { handlers.delete(ref); });
+
     const app = {
         vault: {
+            on: register('vault'),
+            offref: unregister,
             getAbstractFileByPath: (p: string) => (files.has(p) ? tfile(p) : folderAt(p)),
             cachedRead: vi.fn(async (f: { path: string }) => {
                 const v = files.get(f.path);
@@ -100,6 +116,9 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
         metadataCache: {
             // A fully indexed vault by default; tests for the still-indexing case flip or delete it.
             resolved: true,
+            resolvedLinks: {} as Record<string, Record<string, number>>,
+            on: register('cache'),
+            offref: unregister,
             getFileCache: vi.fn((f: { path: string }) => {
                 if (!cache.enabled) return null;
                 const v = files.get(f.path);
@@ -116,5 +135,7 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
         remove: (p) => { files.delete(p); tfiles.delete(p); },
         exists: (p) => files.has(p),
         text: (p) => { const v = files.get(p); return typeof v === 'string' ? v : ''; },
+        emit: (source, name, ...args) => { for (const h of [...handlers.values()]) if (h.source === source && h.name === name) h.cb(...args); },
+        listeners: () => handlers.size,
     };
 }

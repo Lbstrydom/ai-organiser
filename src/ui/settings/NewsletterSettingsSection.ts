@@ -10,7 +10,7 @@ import { logger } from '../../utils/logger';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
 import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
-import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS } from '../../services/newsletter/catchUp/catchUpTypes';
+import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS, CATCHUP_CLEANUP_MAX_DAYS, normaliseCleanupDays } from '../../services/newsletter/catchUp/catchUpTypes';
 
 const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query params.
 // Apps Script redirects POST requests (302→GET), dropping the body,
@@ -568,6 +568,18 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .onChange(value => {
                     settings.newsletterCatchUpStatusBar = value;
                     void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(cu?.cleanupDays || 'Remove audio of heard episodes after (days)')
+            .setDesc(cu?.cleanupDaysDesc || 'Sends the audio file of an episode you have listened to to your trash once its newest day is this many days old. The note and transcript stay. Episodes you have not listened to are never touched. Off at 0.')
+            .addSlider(slider => slider
+                .setLimits(0, CATCHUP_CLEANUP_MAX_DAYS, 1)
+                .setValue(normaliseCleanupDays(settings.newsletterCatchUpAudioCleanupDays))
+                .setDynamicTooltip()
+                .onChange(value => {
+                    settings.newsletterCatchUpAudioCleanupDays = normaliseCleanupDays(value);
+                    void this.plugin.saveSettings().then(() => this.plugin.scheduleCatchUpCleanup());
                 }));
 
         if (settings.newsletterStoryMemory === false) {

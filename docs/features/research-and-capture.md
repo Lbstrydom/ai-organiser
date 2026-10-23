@@ -476,13 +476,44 @@ paid audio every day that may never be heard.
   <id>.md`, frontmatter `catchup_coverage`, written ONCE after the audio exists, idempotent by
   operation id. Reads are tri-state (ok / invalid / unreadable) and never fail open. Everything is
   confined to the newsletter output root with a containment assertion before each create and trash.
-  **`Catch-up/` is not auto-pruned in v1** (retention would roll coverage back).
+  **`Catch-up/` notes are never auto-pruned** (retention would roll coverage back); only the MP3 of
+  a heard episode can be removed, by the opt-in cleanup below.
 - `catchUpDraft.ts` — two durable stores (`DATA_ONLY_KEYS`): the **operation record** (script + the
   coverage it claims, phase-validated, compare-and-set on the operation id, a future-version record is
   preserved) and the **ack map** (which episodes were heard).
 - `catchUpService.ts` — the orchestration state machine and recovery protocol. Ports (LLM, TTS,
   prompt) are injected; `catchUpRuntime.ts` binds them to the plugin.
 - `catchUpListen.ts` — what "heard" means.
+- `catchUpCleanup.ts` — **opt-in audio cleanup** (`newsletterCatchUpAudioCleanupDays`, 0 = off and
+  byte-identical: no read, no write, no listener; 1-28 days). Removes the MP3 of a HEARD episode whose
+  newest covered day is older than N days and keeps the note (coverage + transcript). Invariants:
+  - **The removed state keeps covering.** Stage 1 inserts `catchup_audio_removed: '<date>'` and rewrites
+    only the generated `🎧` listen line to "Audio removed on <date>"; `loadEpisodes` keeps such an
+    episode in `episodes` (never `missingAudio`), `unheardEpisodes` ignores it, listen detection is
+    unchanged (the `catchup_audio` identity line stays). Trashing the audio first would reopen the
+    covered days, so the note edit always comes first.
+  - **Two stages, one per sweep.** The MP3 is trashed (`fileManager.trashFile`, the user's trash
+    setting) only when the marker date is EARLIER than today, so another device has had time to receive
+    the marked note. Both stages require the heard ack: the marker alone is never authority to delete,
+    and age never substitutes for an ack. The cap of 28 days keeps stage 2 before ack pruning
+    (`to` + lookback + 30).
+  - **Fail closed.** Index not ready (`metadataCache.resolved`, plus a present link table), a stored
+    operation record that is unsupported or corrupt, an episode named by a valid operation record,
+    an unreadable or unparsable note, a protected folder, a reference from any other note (resolved
+    links, or a mention in another `Catch-up/` note; an unreadable note makes it unknown), a reference
+    anywhere in the episode's own note except the validated identity line (`ownNoteIsReferenceFree`,
+    re-checked from a fresh read before the trash) all skip. Only the exact generated listen shape is
+    rewritten; a second reference, a code span or a transcript mention aborts without writing.
+  - **The snapshot must stay valid.** The sweep watches the vault from before discovery to the last
+    destructive step; any markdown change it did not cause (its own note write is recognised by
+    one-shot expected-event tokens, revoked if the write fails) ends the sweep as
+    `changed-during-sweep`. The reference index is one snapshot per sweep (one pass over the link
+    table, one read per folder note), so work is linear in the notes.
+  - **`review: false` is a documented, narrow exemption** from reviewed edits: opt-in with a described
+    policy, a plugin-generated artifact under the newsletter output folder, a deterministic mechanical
+    edit (no LLM content), baseline-divergence refusal and protected-folder checks retained. It is not a
+    precedent for arbitrary notes.
+  - Shares the catch-up single-flight lock (`runExclusive`), so it never runs during an episode.
 
 ### Invariants that are each load-bearing
 
@@ -521,7 +552,7 @@ plan), and episode retention.
 
 ### Tests
 
-`tests/{newsletterAudioMode,newsletterAudioModeMigration,newsletterLegacyAudioParity,newsletterAudioServiceParity,catchUpCoverage,catchUpSelection,catchUpEpisode,catchUpDraft,catchUpEpisodeAudio,catchUpPrompts,catchUpService,catchUpConsumption,catchUpRuntime,catchUpModalState,newsletterCatchUpModal,catchUpStatusBar,newsletterCatchUpCommands,newsletterCatchUpPicker,newsletterCatchUpSettings}.test.ts`.
+`tests/{newsletterAudioMode,newsletterAudioModeMigration,newsletterLegacyAudioParity,newsletterAudioServiceParity,catchUpCoverage,catchUpSelection,catchUpEpisode,catchUpDraft,catchUpEpisodeAudio,catchUpPrompts,catchUpService,catchUpConsumption,catchUpAudioRemoved,catchUpCleanup,catchUpRuntime,catchUpModalState,newsletterCatchUpModal,catchUpStatusBar,newsletterCatchUpCommands,newsletterCatchUpPicker,newsletterCatchUpSettings}.test.ts`.
 The two `*Parity` files are the byte-identical proof for `daily` mode — captured against the unchanged code
 before it was refactored.
 

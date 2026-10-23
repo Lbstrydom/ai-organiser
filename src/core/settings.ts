@@ -9,6 +9,7 @@ import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
 import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
 import { DEFAULT_AUDIO_MODE, deriveAudioMode, type NewsletterAudioMode } from '../services/newsletter/newsletterAudioMode';
+import { normaliseCleanupDays } from '../services/newsletter/catchUp/catchUpTypes';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -529,6 +530,7 @@ export interface AIOrganiserSettings {
     newsletterCatchUpLookbackDays: number;  // Calendar dates a catch-up looks back over, today included (1-14, default 7)
     newsletterCatchUpMaxMins: number;       // Ceiling for one catch-up episode in minutes (5-20, default 20; 15 until 4+ days are pending)
     newsletterCatchUpStatusBar: boolean;    // Show "N days pending" in the status bar (desktop)
+    newsletterCatchUpAudioCleanupDays: number; // Remove the audio of HEARD catch-up episodes older than this many days (0 = off, 1-28; the note and transcript stay)
     newsletterAudioModeNoticeShown: boolean; // One-time offer to switch a 'daily' install to on-demand has been shown
 
     // === AUDIO NARRATION ===
@@ -1080,6 +1082,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterCatchUpLookbackDays: 7,
     newsletterCatchUpMaxMins: 20,
     newsletterCatchUpStatusBar: true,
+    newsletterCatchUpAudioCleanupDays: 0,
     newsletterAudioModeNoticeShown: false,
 
     // Audio Narration Defaults
@@ -1526,6 +1529,7 @@ export function migrateNewsletterAudioSettings(old: Record<string, unknown>): vo
     old.newsletterCatchUpLookbackDays = intIn(old.newsletterCatchUpLookbackDays, DEFAULT_SETTINGS.newsletterCatchUpLookbackDays, 1, 14);
     old.newsletterCatchUpMaxMins = intIn(old.newsletterCatchUpMaxMins, DEFAULT_SETTINGS.newsletterCatchUpMaxMins, 5, 20);
     old.newsletterCatchUpStatusBar = typeof old.newsletterCatchUpStatusBar === 'boolean' ? old.newsletterCatchUpStatusBar : true;
+    old.newsletterCatchUpAudioCleanupDays = normaliseCleanupDays(old.newsletterCatchUpAudioCleanupDays);
     old.newsletterAudioModeNoticeShown = old.newsletterAudioModeNoticeShown === true;
 }
 

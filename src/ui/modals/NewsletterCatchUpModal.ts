@@ -425,6 +425,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         this.progressEl = null;
         this.cancelSlot = null;
         this.plugin.refreshCatchUpStatus?.();
+        // A new episode may have just made older ones eligible; the sweep runs shortly after the lock is free.
+        if (result.ok) this.plugin.scheduleCatchUpCleanup?.();
         if (this.closed) return;
 
         const m = t.modals.newsletterCatchUp;

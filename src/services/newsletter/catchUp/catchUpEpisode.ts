@@ -11,6 +11,7 @@ import { App, normalizePath, TFile } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ensureFolderExists } from '../../../utils/minutesUtils';
 import { logger } from '../../../utils/logger';
+import { err, ok, type Result } from '../../../core/result';
 import {
     buildEpisodeName,
     coverageToFrontmatter,
@@ -129,9 +130,115 @@ export function parseEpisodeContent(content: string, notePath: string): EpisodeM
     }
 }
 
+// ── Audio removal (pure text) ────────────────────────────────────────────────
+
+const escapeRe = (s: string): string => s.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+
+/**
+ * Frontmatter block of a note: the text inside, where the block ends, and the line ending the
+ * FRONTMATTER itself uses (the one before its closing `---`), never a guess from the whole note.
+ */
+function splitFrontmatter(content: string): { fm: string; fmEnd: number; insertAt: number; eol: string } | null {
+    const m = /^---\r?\n([\s\S]*?)(\r?\n)---(?=\r?\n|$)/.exec(content);
+    if (!m) return null;
+    return { fm: m[1], fmEnd: m[0].length, insertAt: m[0].length - 3 - m[2].length, eol: m[2] };
+}
+
+/** The first generated listen line outside any fenced code block, as a line index into `lines` (even indices). */
+function findListenLine(lines: string[]): number {
+    // CommonMark: a fence opens with 3+ backticks or tildes and closes only with the same character,
+    // a run at least as long, and nothing else on the line.
+    let open: { char: string; length: number } | null = null;
+    // An inline code span may run across lines inside one paragraph; a blank line ends it.
+    let span: number | null = null;
+    for (let i = 0; i < lines.length; i += 2) {
+        const run = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(lines[i]);
+        if (open === null) {
+            if (span === null && run && !(run[1][0] === '`' && run[2].includes('`'))) { open = { char: run[1][0], length: run[1].length }; continue; }
+        } else {
+            if (run && run[1][0] === open.char && run[1].length >= open.length && /^[ \t]*$/.test(run[2])) open = null;
+            continue;
+        }
+        if (lines[i].trim() === '') { span = null; continue; }
+        if (span === null && lines[i].startsWith('🎧 ')) return i;
+        for (const ticks of lines[i].match(/`+/g) ?? []) {
+            if (span === null) span = ticks.length;
+            else if (ticks.length === span) span = null;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Is the note free of any reference to this audio file? The ONLY exempt text is the validated
+ * identity line `catchup_audio: <name>`; every other frontmatter field and the whole body must
+ * be free of the file name. Case-insensitive: the vault may resolve links that way.
+ */
+export function ownNoteIsReferenceFree(content: string, audioName: string): boolean {
+    const needle = audioName.toLowerCase();
+    const parts = splitFrontmatter(content);
+    let text = content;
+    if (parts) {
+        const identity = new RegExp(String.raw`^${EPISODE_FM.audio}:[ \t]*["']?${escapeRe(audioName)}["']?[ \t]*$`, 'im');
+        text = parts.fm.replace(identity, '') + content.slice(parts.fmEnd);
+    }
+    return !text.toLowerCase().includes(needle);
+}
+
+export type MarkAudioRemovedError = 'no-frontmatter' | 'marker-conflict' | 'unclassified-reference';
+
+/**
+ * The episode note's text after the audio has been MARKED for removal:
+ *  - `catchup_audio_removed: '<date>'` inserted as the last frontmatter line by TEXT insertion (no
+ *    YAML re-dump, so the transcript and coverage bytes are untouched);
+ *  - the generated listen line (the first body line starting with `🎧 `) rewritten from its audio
+ *    embed or link to `removedText`. No other line is transformed.
+ * Fails closed: if the audio name still appears anywhere but the identity line afterwards (a second
+ * embed, a code span, the transcript, another frontmatter field), nothing is produced.
+ */
+export function markAudioRemovedText(content: string, audioName: string, date: string, removedText: string, folderPath?: string): Result<string> {
+    const parts = splitFrontmatter(content);
+    if (!parts) return err('no-frontmatter');
+
+    const markerRe = new RegExp(String.raw`^${EPISODE_FM.audioRemoved}:[ \t]*([^\r\n]*?)[ \t]*\r?$`, 'm');
+    const existing = markerRe.exec(parts.fm);
+    let head = content.slice(0, parts.fmEnd);
+    if (existing) {
+        if (existing[1].replaceAll(/^["']|["']$/g, '') !== date) return err('marker-conflict');
+    } else {
+        // Insert at the structural end of the last frontmatter line, in the frontmatter's own line ending.
+        head = `${head.slice(0, parts.insertAt)}${parts.eol}${EPISODE_FM.audioRemoved}: '${date}'${head.slice(parts.insertAt)}`;
+    }
+
+    const ref = escapeRe(audioName);
+    // The destination must BE this episode's file: unqualified, or qualified by the episode folder (the
+    // vault path or the plain `Catch-up/`). A same-named file in any other folder, or at a URL, is
+    // someone else's: it is left alone and the final check rejects the note.
+    const folders = [CATCHUP_FOLDER, ...(folderPath ? [folderPath] : [])].map((f) => escapeRe(f.replaceAll(/^\/+|\/+$/g, '')));
+    const qualifier = String.raw`(?:(?:${folders.join('|')})/)?`;
+    const wiki = new RegExp(String.raw`!?\[\[/?${qualifier}${ref}(?:[#|][^\]\n]*)?\]\]`, 'gi');
+    const markdown = new RegExp(String.raw`!?\[[^\]\n]*\]\((?:\./|/)?${qualifier}${ref}(?:#[^)\n]*)?\)`, 'gi');
+    const lines = content.slice(parts.fmEnd).split(/(\r?\n)/);
+    const at = findListenLine(lines);
+    if (at >= 0 && lines[at].toLowerCase().includes(audioName.toLowerCase())) {
+        // Validated BEFORE mutating: exactly one supported reference and no code span on the line,
+        // so a second reference or one inside inline code is never silently erased.
+        const line = lines[at];
+        const count = (line.match(wiki)?.length ?? 0) + (line.match(markdown)?.length ?? 0);
+        // Belt and braces beyond the fence tracking: only the exact generated shape is rewritten
+        // (`🎧 **{label}:** <the one reference>`), so Markdown edge cases can never widen what is touched.
+        const generated = new RegExp(String.raw`^🎧 \*\*[^*\n]{1,60}:\*\* (?:${wiki.source}|${markdown.source})$`, 'i');
+        if (count !== 1 || line.includes('`') || !generated.test(line)) return err('unclassified-reference');
+        lines[at] = line.replace(wiki, removedText).replace(markdown, removedText);
+    }
+
+    const next = head + lines.join('');
+    return ownNoteIsReferenceFree(next, audioName) ? ok(next) : err('unclassified-reference');
+}
+
 // ── Vault IO ─────────────────────────────────────────────────────────────────
 
-function childrenOf(app: App, folderPath: string): TFile[] {
+export function childrenOf(app: App, folderPath: string): TFile[] {
     const folder = app.vault.getAbstractFileByPath(normalizePath(folderPath));
     if (!folder || !('children' in folder)) return [];
     return (folder as { children: unknown[] }).children.filter((c): c is TFile => c instanceof TFile);
@@ -189,6 +296,9 @@ export async function loadEpisodes(app: App, outputRoot: string, windowStart: st
         if (!named || named.to < windowStart) continue;
         const meta = await readEpisode(app, file);
         if (!meta) continue;
+        // Audio the cleanup removed (or marked for removal) is intentional: the note stays the
+        // coverage record. Only audio that vanished WITHOUT a marker is offered for regeneration.
+        if (meta.audioRemoved) { episodes.push(meta); continue; }
         const audio = app.vault.getAbstractFileByPath(normalizePath(`${folder}/${meta.audio}`));
         if (audio instanceof TFile) episodes.push(meta);
         else missingAudio.push(meta);
@@ -240,6 +350,19 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
     return null;
 }
 
+/**
+ * Has Obsidian finished indexing links? While it has not, the link table is incomplete and a "no
+ * reference" drawn from it is a guess. Readiness must be positively established: an absent flag
+ * is not proof.
+ *
+ * `resolved` is a runtime boolean on Obsidian's MetadataCache (the property community plugins read
+ * to decide whether to wait for the `resolved` event). It is not in the public typings, hence the
+ * structural cast. If a future Obsidian dropped it this returns false: callers fail closed.
+ */
+export function isMetadataIndexReady(app: App): boolean {
+    return (app.metadataCache as { resolved?: boolean } | undefined)?.resolved === true;
+}
+
 export type AudioReference = 'yes' | 'no' | 'unknown';
 
 /**
@@ -256,7 +379,7 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
     const resolved = cache?.resolvedLinks;
     // While the vault index is still being built the link table is incomplete: a "no" drawn from
     // it would be a guess. Readiness must be positively established: an absent flag is not proof.
-    const indexIncomplete = cache?.resolved !== true;
+    const indexIncomplete = !isMetadataIndexReady(app);
     if (resolved) {
         const audioPath = normalizePath(`${folder}/${audioName}`);
         for (const links of Object.values(resolved)) if (links && audioPath in links) return 'yes';
