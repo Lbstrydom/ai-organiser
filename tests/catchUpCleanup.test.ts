@@ -481,7 +481,7 @@ describe('the snapshot stays valid from before discovery to the destructive step
 
     it('a change while the reference index is being built stops the sweep before any write', async () => {
         addEpisode();
-        const real = vault.app.vault.cachedRead.getMockImplementation()!;
+        const real = vault.app.vault.cachedRead.getMockImplementation() as (f: { path: string }) => Promise<string>;
         vault.app.vault.cachedRead.mockImplementation(async (f: { path: string }) => {
             vault.emit('vault', 'create', { path: 'Projects/NewNote.md' });
             return real(f);
@@ -493,7 +493,7 @@ describe('the snapshot stays valid from before discovery to the destructive step
 
     it('a change that lands while the candidate note is being read stops it before the write', async () => {
         addEpisode();
-        const real = vault.app.vault.read.getMockImplementation()!;
+        const real = vault.app.vault.read.getMockImplementation() as (f: { path: string }) => Promise<string>;
         vault.app.vault.read.mockImplementation(async (f: { path: string }) => {
             const text = await real(f);
             vault.emit('vault', 'modify', { path: 'Projects/Plan.md' });
@@ -544,7 +544,7 @@ describe('markedPending keeps transient stage-2 trouble', () => {
     it('an unreadable note in the folder (reference unknown) leaves the marked episode pending, not blocked', async () => {
         await markedState();
         vault.set(`${FOLDER}/Unreadable.md`, 'x');
-        const real = vault.app.vault.cachedRead.getMockImplementation()!;
+        const real = vault.app.vault.cachedRead.getMockImplementation() as (f: { path: string }) => Promise<string>;
         vault.app.vault.cachedRead.mockImplementation(async (f: { path: string }) => {
             if (f.path.endsWith('Unreadable.md')) throw new Error('locked');
             return real(f);
