@@ -1504,6 +1504,12 @@ export default class AIOrganiserPlugin extends Plugin {
         return normaliseCleanupDays(this.settings.newsletterCatchUpAudioCleanupDays);
     }
 
+    /** The threshold in force RIGHT NOW, or 0 when a sweep must not (start or go on): off, the feature disabled, or unloaded. */
+    private catchUpCleanupAllowedDays(): number {
+        if (this.catchUpCleanupCancelled || !isFeatureEnabled(this.settings, 'newsletter')) return 0;
+        return this.catchUpCleanupDays();
+    }
+
     private catchUpToday(): string {
         return getBucketDateStr(new Date(), this.settings.newsletterBriefCutoffHour ?? 6, this.settings.newsletterBriefCutoffMinute ?? 0);
     }
@@ -1539,14 +1545,15 @@ export default class AIOrganiserPlugin extends Plugin {
 
     /** One audio-cleanup sweep. Never throws; reports what it removed with a Notice and the logger. */
     public async runCatchUpAudioCleanup(): Promise<void> {
-        const days = this.catchUpCleanupDays();
-        if (days === 0 || !isFeatureEnabled(this.settings, 'newsletter')) return;
+        if (this.catchUpCleanupAllowedDays() === 0) return;
         try {
             const [{ runCatchUpAudioCleanup }, { applyNoteEdit }] = await Promise.all([
                 import('./services/newsletter/catchUp/catchUpCleanup'),
                 import('./services/noteEdit/applyNoteEdit'),
             ]);
-            if (this.catchUpCleanupCancelled) return;
+            // Revalidate after the async boundary: the setting may have been turned off, or the plugin unloaded.
+            const days = this.catchUpCleanupAllowedDays();
+            if (days === 0) return;
             const m = this.t.settings.newsletter.catchUp;
             const res = await runCatchUpAudioCleanup({
                 app: this.app,
@@ -1557,7 +1564,7 @@ export default class AIOrganiserPlugin extends Plugin {
                 // A documented, narrow exemption from reviewed edits: see docs/features/research-and-capture.md.
                 writeNote: (filePath, baseline, nextContent) => applyNoteEdit(this, { kind: 'full-replace', filePath, baseline, nextContent }, { review: false }),
                 removedLine: (date) => m.audioRemovedLine.replace('{date}', date),
-                shouldStop: () => this.catchUpCleanupCancelled,
+                shouldStop: () => this.catchUpCleanupAllowedDays() === 0,
             });
             if (!res.ok) { logger.warn('Newsletter', `Catch-up audio cleanup did not complete: ${res.error}`); return; }
             const outcome = res.value;
