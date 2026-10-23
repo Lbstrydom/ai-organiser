@@ -103,12 +103,58 @@ export async function generateAudioPodcast(
     // call is wrapped in retryWithBackoff for transient-failure resilience.
     // Caller may supply an engine (e.g. Azure Speech); else build Gemini from apiKey.
     const engine = opts.engine ?? new GeminiTtsEngine(apiKey, effectiveModel);
+    const synthesised = await synthesizeScriptToMp3(engine, script, voice, { signal });
+    if (!synthesised.ok) return { success: false, error: synthesised.error };
+    const mp3Bytes = synthesised.bytes;
+
+    // Write to vault
+    try {
+        await ensureFolderExists(app.vault, outputFolder);
+        await vault.createBinary(
+            filePath,
+            mp3Bytes.buffer.slice(mp3Bytes.byteOffset, mp3Bytes.byteOffset + mp3Bytes.byteLength) as ArrayBuffer,
+        );
+        await pruneStaleAudioFiles(app, outputFolder, dateStr, shortFp);
+    } catch (err) {
+        return { success: false, error: describeError(err) };
+    }
+
+    return { success: true, filePath };
+}
+
+// ── Shared synthesis core ────────────────────────────────────────────────────
+
+export interface SynthesisOptions {
+    signal?: AbortSignal;
+    /** Called after each chunk is synthesised: (chunks done, total chunks). */
+    onProgress?: (done: number, total: number) => void;
+}
+
+export type SynthesisResult =
+    | { ok: true; bytes: Uint8Array; durationSec: number }
+    | { ok: false; error: string };
+
+/**
+ * Script -> MP3 bytes. THE one copy of the chunk loop, shared by the legacy daily audio and
+ * the catch-up episodes so retry, downsample, level-normalise and encode cannot drift apart.
+ *
+ * Never throws: every failure is a `{ ok: false, error }` with the same message the legacy
+ * path has always returned. Nothing is written to the vault here.
+ */
+export async function synthesizeScriptToMp3(
+    engine: TtsEngine,
+    script: string,
+    voice: string,
+    opts: SynthesisOptions = {},
+): Promise<SynthesisResult> {
+    const { signal, onProgress } = opts;
     const chunks = splitScriptForTts(script);
     const writer = new Mp3Writer({
         sampleRate: MP3_SAMPLE_RATE,
         channels: MP3_CHANNELS,
         bitrateKbps: MP3_BITRATE_KBPS,
     });
+    let totalSamples = 0;
 
     try {
         for (let i = 0; i < chunks.length; i++) {
@@ -129,33 +175,102 @@ export async function generateAudioPodcast(
             // drift before encoding (~30 ms / 90 s chunk on typical CPU).
             const normalized = dynamicNormalize(downsampled, MP3_SAMPLE_RATE);
             writer.push(normalized);
+            totalSamples += normalized.length;
+            onProgress?.(i + 1, chunks.length);
         }
     } catch (err) {
-        return { success: false, error: describeError(err) };
+        return { ok: false, error: describeError(err) };
     }
 
     // Finalize encode — guarded so writer.finish() throws surface as
-    // { success: false } rather than escaping the Result contract.
-    let mp3Bytes: Uint8Array;
+    // a failure rather than escaping the Result contract.
     try {
-        mp3Bytes = writer.finish();
+        return { ok: true, bytes: writer.finish(), durationSec: totalSamples / MP3_SAMPLE_RATE };
     } catch (err) {
-        return { success: false, error: `MP3 encode failed: ${describeError(err)}` };
+        return { ok: false, error: `MP3 encode failed: ${describeError(err)}` };
+    }
+}
+
+// ── Catch-up episodes ────────────────────────────────────────────────────────
+
+/**
+ * Fingerprint of an EPISODE: script, voice, provider AND model. The legacy fingerprint
+ * ([script, voice, model]) is deliberately left alone — changing it would regenerate every
+ * existing daily audio — but an episode has no history to preserve, and a provider switch must
+ * not be able to masquerade as the same recording.
+ */
+export async function computeEpisodeFingerprint(script: string, voice: string, providerId: string, modelId: string): Promise<string> {
+    return sha256Hex([script, voice, providerId, modelId]);
+}
+
+export interface EpisodeAudioOptions {
+    engine: TtsEngine;
+    voice: string;
+    /** Full vault path chosen by the caller (it is persisted BEFORE this runs, so a crash leaves an owned file). */
+    filePath: string;
+    outputFolder: string;
+    signal?: AbortSignal;
+    onProgress?: (done: number, total: number) => void;
+}
+
+export interface EpisodeAudioResult {
+    success: boolean;
+    filePath?: string;
+    bytes?: number;
+    durationSec?: number;
+    sha256?: string;
+    error?: string;
+}
+
+/**
+ * Synthesise a catch-up episode and write it to `filePath`.
+ *
+ * Unlike the daily audio this NEVER prunes siblings (the same-date pruning could trash an
+ * earlier episode) and refuses to overwrite: an existing file at the path is an error the
+ * caller must resolve, because it may be a partial from an interrupted run.
+ */
+export async function generateEpisodeAudio(app: App, script: string, opts: EpisodeAudioOptions): Promise<EpisodeAudioResult> {
+    const path = normalizePath(opts.filePath);
+    if (app.vault.getAbstractFileByPath(path)) {
+        return { success: false, error: `An audio file already exists at ${path}` };
     }
 
-    // Write to vault
+    const synthesised = await synthesizeScriptToMp3(opts.engine, script, opts.voice, {
+        signal: opts.signal,
+        onProgress: opts.onProgress,
+    });
+    if (!synthesised.ok) return { success: false, error: synthesised.error };
+
+    const buffer = synthesised.bytes.buffer.slice(
+        synthesised.bytes.byteOffset,
+        synthesised.bytes.byteOffset + synthesised.bytes.byteLength,
+    ) as ArrayBuffer;
     try {
-        await ensureFolderExists(app.vault, outputFolder);
-        await vault.createBinary(
-            filePath,
-            mp3Bytes.buffer.slice(mp3Bytes.byteOffset, mp3Bytes.byteOffset + mp3Bytes.byteLength) as ArrayBuffer,
-        );
-        await pruneStaleAudioFiles(app, outputFolder, dateStr, shortFp);
+        if (opts.signal?.aborted) throw new DOMException('Aborted', 'AbortError');
+        const digest = await window.crypto.subtle.digest('SHA-256', buffer);
+        const sha256 = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+        await ensureFolderExists(app.vault, opts.outputFolder);
+        await app.vault.createBinary(path, buffer);
+        return { success: true, filePath: path, bytes: buffer.byteLength, durationSec: synthesised.durationSec, sha256 };
     } catch (err) {
         return { success: false, error: describeError(err) };
     }
+}
 
-    return { success: true, filePath };
+/** Verify a staged episode file still matches what was written: size AND content hash. */
+export async function verifyEpisodeAudio(app: App, path: string, expected: { bytes?: number; sha256?: string }): Promise<boolean> {
+    if (expected.bytes === undefined || !expected.sha256) return false;
+    const file = app.vault.getAbstractFileByPath(normalizePath(path));
+    if (!(file instanceof TFile)) return false;
+    try {
+        const buf = await app.vault.readBinary(file);
+        if (buf.byteLength !== expected.bytes) return false;
+        const digest = await window.crypto.subtle.digest('SHA-256', buf);
+        const sha256 = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+        return sha256 === expected.sha256;
+    } catch {
+        return false;
+    }
 }
 
 // ── TTS chunking ─────────────────────────────────────────────────────────────

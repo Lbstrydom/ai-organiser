@@ -13,6 +13,7 @@ export interface CatchUpVault {
             getAbstractFileByPath: (p: string) => unknown;
             cachedRead: ReturnType<typeof vi.fn>;
             read: ReturnType<typeof vi.fn>;
+            readBinary: ReturnType<typeof vi.fn>;
             create: ReturnType<typeof vi.fn>;
             createBinary: ReturnType<typeof vi.fn>;
             modify: ReturnType<typeof vi.fn>;
@@ -70,6 +71,11 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
             read: vi.fn(async (f: { path: string }) => {
                 const v = files.get(f.path);
                 if (typeof v !== 'string') throw new Error(`not text: ${f.path}`);
+                return v;
+            }),
+            readBinary: vi.fn(async (f: { path: string }) => {
+                const v = files.get(f.path);
+                if (typeof v === 'string' || v === undefined) throw new Error(`not binary: ${f.path}`);
                 return v;
             }),
             create: vi.fn(async (p: string, c: string) => {
