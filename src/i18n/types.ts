@@ -896,6 +896,23 @@ export interface Translations {
             caughtUpError: string;
             retentionDays: string;
             retentionDaysDesc: string;
+            catchUp: {
+                heading: string;
+                modeLabel: string;
+                modeDesc: string;
+                modeOnDemand: string;
+                modeSmartDaily: string;
+                modeDaily: string;
+                modeDailyHint: string;
+                modeNotice: string;
+                lookbackDays: string;
+                lookbackDaysDesc: string;
+                maxMins: string;
+                maxMinsDesc: string;
+                statusBar: string;
+                statusBarDesc: string;
+                memoryOffNote: string;
+            };
         };
         audioNarration: {
             title: string;

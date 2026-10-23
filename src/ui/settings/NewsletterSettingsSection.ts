@@ -9,6 +9,7 @@ import { addFolderPicker } from './components/FolderSuggest';
 import { logger } from '../../utils/logger';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
+import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
 
 const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query params.
 // Apps Script redirects POST requests (302→GET), dropping the body,
@@ -273,6 +274,24 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     }));
 
             if (this.plugin.settings.newsletterAudioPodcast) {
+                const cu = nl?.catchUp;
+                const audioMode = getAudioMode(this.plugin.settings);
+                new Setting(this.containerEl).setName(cu?.heading || 'Catch-up audio').setHeading();
+                new Setting(this.containerEl)
+                    .setName(cu?.modeLabel || 'Audio delivery')
+                    .setDesc(audioMode === 'daily' ? (cu?.modeDailyHint || '') : (cu?.modeDesc || ''))
+                    .addDropdown(drop => drop
+                        .addOption('on-demand', cu?.modeOnDemand || 'On demand — one catch-up episode when you ask')
+                        .addOption('smart-daily', cu?.modeSmartDaily || 'Smart daily — automatic, but waits until your last episode is heard')
+                        .addOption('daily', cu?.modeDaily || 'Daily — a new audio every day (previous behaviour)')
+                        .setValue(audioMode)
+                        .onChange(value => {
+                            if (!isAudioMode(value)) return;
+                            this.plugin.settings.newsletterAudioMode = value;
+                            void this.plugin.saveSettings();
+                            this.settingTab.display();
+                        }));
+
                 new Setting(this.containerEl)
                     .setName(nl?.podcastVoice || 'Podcast voice')
                     .setDesc(nl?.podcastVoiceDesc || 'Voice used for the audio podcast')
@@ -286,37 +305,41 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                             void this.plugin.saveSettings();
                         }));
 
-                new Setting(this.containerEl)
-                    .setName(nl?.podcastMaxMins || 'Maximum podcast length (minutes)')
-                    .setDesc(nl?.podcastMaxMinsDesc || 'Upper limit for the spoken podcast. If the day\'s news is light the script will be shorter — this is a ceiling, not a target.')
-                    .addSlider(slider => slider
-                        .setLimits(1, 15, 1)
-                        .setValue(this.plugin.settings.newsletterPodcastMaxMins ?? 5)
-                        .setDynamicTooltip()
-                        .onChange(value => {
-                            this.plugin.settings.newsletterPodcastMaxMins = value;
-                            void this.plugin.saveSettings();
-                        }));
+                if (audioMode === 'daily') {
+                    new Setting(this.containerEl)
+                        .setName(nl?.podcastMaxMins || 'Maximum podcast length (minutes)')
+                        .setDesc(nl?.podcastMaxMinsDesc || 'Upper limit for the spoken podcast. If the day\'s news is light the script will be shorter — this is a ceiling, not a target.')
+                        .addSlider(slider => slider
+                            .setLimits(1, 15, 1)
+                            .setValue(this.plugin.settings.newsletterPodcastMaxMins ?? 5)
+                            .setDynamicTooltip()
+                            .onChange(value => {
+                                this.plugin.settings.newsletterPodcastMaxMins = value;
+                                void this.plugin.saveSettings();
+                            }));
 
-                // Manual "Regenerate audio for today" button — lets users
-                // trigger TTS against today's existing Daily Brief without
-                // waiting for a new fetch (needed when audio toggle was
-                // turned on AFTER today's brief already ran, or to re-render
-                // with a different voice).
-                new Setting(this.containerEl)
-                    .setName(nl?.audioRegenerateForToday || 'Regenerate audio for today')
-                    .setDesc(nl?.audioRegenerateForTodayDesc || 'Use today\'s existing Daily Brief to produce a fresh audio podcast.')
-                    .addButton(btn => btn
-                        .setButtonText(nl?.audioRegenerateButton || 'Regenerate now')
-                        .onClick(async () => {
-                            const { runRegenerateAudio } = await import('../../commands/newsletterCommands');
-                            btn.setDisabled(true).setButtonText('…');
-                            try {
-                                await runRegenerateAudio(this.plugin);
-                            } finally {
-                                btn.setDisabled(false).setButtonText(nl?.audioRegenerateButton || 'Regenerate now');
-                            }
-                        }));
+                    // Manual "Regenerate audio for today" button — lets users
+                    // trigger TTS against today's existing Daily Brief without
+                    // waiting for a new fetch (needed when audio toggle was
+                    // turned on AFTER today's brief already ran, or to re-render
+                    // with a different voice).
+                    new Setting(this.containerEl)
+                        .setName(nl?.audioRegenerateForToday || 'Regenerate audio for today')
+                        .setDesc(nl?.audioRegenerateForTodayDesc || 'Use today\'s existing Daily Brief to produce a fresh audio podcast.')
+                        .addButton(btn => btn
+                            .setButtonText(nl?.audioRegenerateButton || 'Regenerate now')
+                            .onClick(async () => {
+                                const { runRegenerateAudio } = await import('../../commands/newsletterCommands');
+                                btn.setDisabled(true).setButtonText('…');
+                                try {
+                                    await runRegenerateAudio(this.plugin);
+                                } finally {
+                                    btn.setDisabled(false).setButtonText(nl?.audioRegenerateButton || 'Regenerate now');
+                                }
+                            }));
+                } else {
+                    this.renderCatchUpSettings();
+                }
             }
 
             // ── Local news ──────────────────────────────────────────────
@@ -504,6 +527,51 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         btn.setDisabled(false);
                     }
                 }));
+    }
+
+    /** Catch-up controls, shown for the on-demand and smart-daily modes. */
+    private renderCatchUpSettings(): void {
+        const cu = this.plugin.t.settings?.newsletter?.catchUp;
+        const settings = this.plugin.settings;
+
+        new Setting(this.containerEl)
+            .setName(cu?.lookbackDays || 'Catch-up window (days)')
+            .setDesc(cu?.lookbackDaysDesc || 'How many calendar days, today included, a catch-up looks back over.')
+            .addSlider(slider => slider
+                .setLimits(1, 14, 1)
+                .setValue(settings.newsletterCatchUpLookbackDays ?? 7)
+                .setDynamicTooltip()
+                .onChange(value => {
+                    settings.newsletterCatchUpLookbackDays = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(cu?.maxMins || 'Longest episode (minutes)')
+            .setDesc(cu?.maxMinsDesc || 'An episode aims for about 15 minutes, and up to this limit when 4 or more days are pending.')
+            .addSlider(slider => slider
+                .setLimits(5, 20, 1)
+                .setValue(settings.newsletterCatchUpMaxMins ?? 20)
+                .setDynamicTooltip()
+                .onChange(value => {
+                    settings.newsletterCatchUpMaxMins = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        new Setting(this.containerEl)
+            .setName(cu?.statusBar || 'Show pending days in the status bar')
+            .setDesc(cu?.statusBarDesc || 'Desktop only. Click the status bar item to open the catch-up window.')
+            .addToggle(toggle => toggle
+                .setValue(settings.newsletterCatchUpStatusBar !== false)
+                .onChange(value => {
+                    settings.newsletterCatchUpStatusBar = value;
+                    void this.plugin.saveSettings();
+                }));
+
+        if (settings.newsletterStoryMemory === false) {
+            new Setting(this.containerEl)
+                .setDesc(cu?.memoryOffNote || 'Story memory is off, so a catch-up covers whole days and only days that have closed.');
+        }
     }
 
 }

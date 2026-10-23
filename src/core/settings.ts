@@ -8,6 +8,7 @@ import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
 import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
+import { DEFAULT_AUDIO_MODE, deriveAudioMode, type NewsletterAudioMode } from '../services/newsletter/newsletterAudioMode';
 
 // Per-provider settings storage - API keys and models persist when switching providers
 export interface ProviderSettings {
@@ -519,6 +520,13 @@ export interface AIOrganiserSettings {
     newsletterRetentionDays: number;    // Days to keep newsletter notes (0 = keep forever)
     newsletterHomeRegion: string;       // '' = off. Semicolon/comma-separated aliases, e.g. 'Leidschendam; Voorburg; Netherlands'
     newsletterStoryMemory: boolean;     // Cross-day story memory: lead with the delta instead of retelling
+    /** How audio is made when `newsletterAudioPodcast` is on: 'on-demand' (catch-up command, the default),
+     *  'smart-daily' (automatic only when nothing earlier is unheard) or 'daily' (today's pipeline). */
+    newsletterAudioMode: NewsletterAudioMode;
+    newsletterCatchUpLookbackDays: number;  // Calendar dates a catch-up looks back over, today included (1-14, default 7)
+    newsletterCatchUpMaxMins: number;       // Ceiling for one catch-up episode in minutes (5-20, default 20; 15 until 4+ days are pending)
+    newsletterCatchUpStatusBar: boolean;    // Show "N days pending" in the status bar (desktop)
+    newsletterAudioModeNoticeShown: boolean; // One-time offer to switch a 'daily' install to on-demand has been shown
 
     // === AUDIO NARRATION ===
     /** User-facing narration provider. `openai-gpt-audio` (gpt-audio-1.5 chat audio-out)
@@ -1064,6 +1072,11 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterRetentionDays: 30,
     newsletterHomeRegion: '',
     newsletterStoryMemory: true,
+    newsletterAudioMode: DEFAULT_AUDIO_MODE,
+    newsletterCatchUpLookbackDays: 7,
+    newsletterCatchUpMaxMins: 20,
+    newsletterCatchUpStatusBar: true,
+    newsletterAudioModeNoticeShown: false,
 
     // Audio Narration Defaults
     audioNarrationProvider: 'gemini',
@@ -1485,8 +1498,29 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateFeatureFlags(oldSettings);
     migratePickerTaxonomy(oldSettings);
     migrateLocalOnnxConsent(oldSettings);
+    migrateNewsletterAudioSettings(oldSettings);
 
     return oldSettings;
+}
+
+/**
+ * Newsletter audio mode + catch-up limits. Order-safe and idempotent.
+ *
+ * The mode is derived ONCE from what the install did before it existed: audio on => `daily`
+ * (today's pipeline, byte-identical); anything else takes the default, which changes nothing
+ * for them because audio was off. A valid stored mode is never overwritten.
+ */
+export function migrateNewsletterAudioSettings(old: Record<string, unknown>): void {
+    old.newsletterAudioMode = deriveAudioMode(old);
+    const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    old.newsletterCatchUpLookbackDays = intIn(old.newsletterCatchUpLookbackDays, DEFAULT_SETTINGS.newsletterCatchUpLookbackDays, 1, 14);
+    old.newsletterCatchUpMaxMins = intIn(old.newsletterCatchUpMaxMins, DEFAULT_SETTINGS.newsletterCatchUpMaxMins, 5, 20);
+    old.newsletterCatchUpStatusBar = typeof old.newsletterCatchUpStatusBar === 'boolean' ? old.newsletterCatchUpStatusBar : true;
+    old.newsletterAudioModeNoticeShown = old.newsletterAudioModeNoticeShown === true;
 }
 
 /** A Drive folder ID: letters, digits, `_` and `-`, at least 10 characters. */
