@@ -14,6 +14,7 @@
 import type { Plugin } from 'obsidian';
 import { updatePluginData, loadPluginData } from '../../core/pluginDataStore';
 import {
+    CONSUMPTION_SIGNALS,
     MEMORY_SCHEMA_VERSION,
     MEMORY_WINDOW_DAYS,
     emptyConsumption,
@@ -28,6 +29,10 @@ export const CONSUMED_DATA_KEY = 'newsletter-consumed-briefs';
 
 /** Consumption keys are YYYY-MM-DD; anything else is corruption. */
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function isSignal(value: unknown): value is ConsumptionSignal {
+    return typeof value === 'string' && (CONSUMPTION_SIGNALS as readonly string[]).includes(value);
+}
 
 /** The revision the reader has consumed for a bucket, or null. Pure. */
 export function consumedRevision(state: ConsumptionState, dateStr: string): number | null {
@@ -63,11 +68,11 @@ export function coerceConsumption(raw: unknown): ConsumptionState {
         if (!DATE_KEY_RE.test(date)) continue;
         if (!Number.isFinite(r.revision) || (r.revision as number) < 0) continue;
         const lastAt = typeof r.lastAt === 'number' ? r.lastAt : 0;
-        const lastVia: ConsumptionSignal = r.lastVia === 'manual' || r.lastVia === 'audio' ? r.lastVia : 'manual';
+        const lastVia: ConsumptionSignal = isSignal(r.lastVia) ? r.lastVia : 'manual';
         consumed[date] = {
             firstAt: typeof r.firstAt === 'number' ? r.firstAt : lastAt,
             lastAt,
-            firstVia: r.firstVia === 'manual' || r.firstVia === 'audio' ? r.firstVia : lastVia,
+            firstVia: isSignal(r.firstVia) ? r.firstVia : lastVia,
             lastVia,
             revision: r.revision as number,
         };
@@ -110,6 +115,41 @@ export async function markBucketConsumed(
         return { changed: true, value: true };
     });
     return changed === true;
+}
+
+/**
+ * Advance several buckets in ONE transaction — what hearing a catch-up episode does.
+ *
+ * Each entry carries the revision the episode was rendered from (its FROZEN coverage), never
+ * the bucket's current one, so stories that arrived after the episode was made stay unheard.
+ * The same strictly-higher rule as `markBucketConsumed` applies per bucket. Returns the number
+ * of buckets that advanced.
+ */
+export async function markBucketsConsumed(
+    plugin: Plugin,
+    entries: ReadonlyArray<{ date: string; revision: number }>,
+    via: ConsumptionSignal,
+    todayStr: string,
+): Promise<number> {
+    const valid = entries.filter((e) => DATE_KEY_RE.test(e.date) && Number.isInteger(e.revision) && e.revision >= 1);
+    if (valid.length === 0) return 0;
+    const advanced = await updatePluginData<number>(plugin, (data) => {
+        const state = pruneConsumption(coerceConsumption(data[CONSUMED_DATA_KEY]), todayStr);
+        const now = Date.now();
+        let n = 0;
+        for (const { date, revision } of valid) {
+            const existing = state.consumed[date];
+            if (existing && revision <= existing.revision) continue;
+            state.consumed[date] = existing
+                ? { ...existing, lastAt: now, lastVia: via, revision }
+                : { firstAt: now, lastAt: now, firstVia: via, lastVia: via, revision };
+            n++;
+        }
+        if (n === 0) return { changed: false, value: 0 };
+        data[CONSUMED_DATA_KEY] = state;
+        return { changed: true, value: n };
+    });
+    return advanced ?? 0;
 }
 
 export interface CatchUpResult {

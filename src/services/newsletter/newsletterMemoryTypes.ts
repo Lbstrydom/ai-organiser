@@ -85,7 +85,10 @@ export interface StoryLedger {
 }
 
 /** How a consumption record came to exist. */
-export type ConsumptionSignal = 'audio' | 'manual';
+export type ConsumptionSignal = 'audio' | 'manual' | 'catchup';
+
+/** Every value a stored record may carry; anything else is corruption. */
+export const CONSUMPTION_SIGNALS: readonly ConsumptionSignal[] = ['audio', 'manual', 'catchup'];
 
 /**
  * One bucket's consumption record.
