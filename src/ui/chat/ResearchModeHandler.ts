@@ -898,7 +898,7 @@ export class ResearchModeHandler implements ChatModeHandler {
         const doc = editor.getValue();
         if (doc.includes('## Pending')) {
             if (!guardActiveNote(editor)) return;
-            editor.setValue(doc.replace(/(## Pending\n)/, `$1${urls}\n`));
+            editor.setValue(doc.replace(/(## Pending\n)/, (_m: string, head: string) => `${head}${urls}\n`));
         } else {
             if (!guardActiveNote(editor)) return;
             editor.setValue(doc + '\n\n## Pending\n' + urls + '\n');

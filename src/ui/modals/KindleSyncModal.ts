@@ -456,7 +456,8 @@ export class KindleSyncModal extends Modal {
 
                 // 1. Auto-tag (existing behaviour)
                 if (doTag) {
-                    await this.plugin.analyzeAndTagNote(file, content);
+                    // An import tags its books back to back, so the taxonomy head repeats inside the cache TTL.
+                    await this.plugin.analyzeAndTagNote(file, content, { cacheTagPrefix: total >= 2 });
                 }
 
                 // 2. Generate summary hook and write Bases metadata

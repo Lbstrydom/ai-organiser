@@ -87,5 +87,6 @@ A single plain text paragraph. No markdown formatting. No preamble.
 }
 
 export function insertContentIntoTriagePrompt(prompt: string, content: string): string {
-    return prompt.replace('CONTENT_PLACEHOLDER', content);
+    // Replacer function: insert the text literally (a string would expand `$&`, `$1`, `$$`, ...).
+    return prompt.replace('CONTENT_PLACEHOLDER', () => content);
 }

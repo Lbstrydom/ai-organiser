@@ -3,7 +3,7 @@ import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import * as endpoints from './cloudEndpoints.json';
 import { SYSTEM_PROMPT } from '../../utils/constants';
 import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams } from './modelCapabilities';
-import { logLlmUsage } from '../llm/llmUsageLog';
+import { parseAnthropicSseLine } from './anthropicStream';
 import { buildClaudeCachedPrompt } from './claudePromptCache';
 
 /** Thin export so existing call sites don't change — capability logic lives in
@@ -217,21 +217,9 @@ export class ClaudeAdapter extends BaseAdapter {
      * With adaptive thinking, also receives thinking_delta events — skip those.
      * Also intercepts `message_start` to log cache usage (Anthropic emits
      * cache_read / cache_creation token counts only on this event for streams).
+     * A provider `error` event throws a StreamProviderError (see anthropicStream.ts).
      */
     parseStreamingChunk(line: string): string | null {
-        if (!line.startsWith('data: ')) return null;
-        const data = line.slice(6).trim();
-        try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === 'message_start') {
-                logLlmUsage('stream-start', 'claude', this.config.modelName, parsed.message?.usage);
-                return null;
-            }
-            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
-                return parsed.delta.text ?? null;
-            }
-            // Skip thinking_delta events — only pass through visible text
-        } catch { /* skip */ }
-        return null;
+        return parseAnthropicSseLine(line, 'claude', this.config.modelName);
     }
 }

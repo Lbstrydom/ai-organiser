@@ -2,7 +2,7 @@ import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import { SYSTEM_PROMPT } from '../../utils/constants';
 import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams } from './modelCapabilities';
-import { logLlmUsage } from '../llm/llmUsageLog';
+import { parseAnthropicSseLine } from './anthropicStream';
 import { buildClaudeCachedPrompt } from './claudePromptCache';
 
 /** Thin export so existing call sites don't change — capability logic lives in
@@ -222,22 +222,10 @@ export class AzureClaudeAdapter extends BaseAdapter {
     /**
      * Claude SSE uses event types: content_block_delta with text_delta.
      * With adaptive thinking, also receives thinking_delta events — skip those.
-     * Also intercepts `message_start` to log cache usage.
+     * Also intercepts `message_start` to log cache usage. A provider `error` event throws
+     * a StreamProviderError (see anthropicStream.ts).
      */
     parseStreamingChunk(line: string): string | null {
-        if (!line.startsWith('data: ')) return null;
-        const data = line.slice(6).trim();
-        try {
-            const parsed = JSON.parse(data);
-            if (parsed.type === 'message_start') {
-                logLlmUsage('stream-start', 'azure-claude', this.config.modelName, parsed.message?.usage);
-                return null;
-            }
-            if (parsed.type === 'content_block_delta' && parsed.delta?.type === 'text_delta') {
-                return parsed.delta.text ?? null;
-            }
-            // Skip thinking_delta events — only pass through visible text
-        } catch { /* skip */ }
-        return null;
+        return parseAnthropicSseLine(line, 'azure-claude', this.config.modelName);
     }
 }

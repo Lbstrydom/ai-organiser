@@ -263,7 +263,8 @@ export class NewsletterService {
                 if (doAutoTag) {
                     const content = await vault.read(file);
                     if (content.trim()) {
-                        await this.plugin.analyzeAndTagNote(file, content);
+                        // A fetch tags its notes back to back, so the taxonomy head repeats inside the cache TTL.
+                        await this.plugin.analyzeAndTagNote(file, content, { cacheTagPrefix: paths.length >= 2 });
                     }
                 }
 
@@ -1245,7 +1246,8 @@ export class NewsletterService {
             // Replace existing block
             updated = existing.replace(
                 /<!-- DAILY_BRIEF_START -->[\s\S]*?<!-- DAILY_BRIEF_END -->/,
-                managedBlock
+                // Replacer function: the brief is LLM text and may contain `$&`, `$1`, `$$`.
+                () => managedBlock
             );
         } else {
             // Insert after the H1 heading line

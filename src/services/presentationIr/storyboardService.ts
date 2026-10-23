@@ -102,25 +102,34 @@ async function runStoryboardLLM(
     systemPrompt: string,
     callOpts: StoryboardCallOpts,
 ): Promise<Result<ConsultantStoryboard>> {
+    // One content-free line per run (attempts used + outcome) so the retry rate is measurable:
+    // caching the storyboard prefix only pays when extra attempts per run exceed ~0.28
+    // (docs/features/azure-and-llm.md). Counts and the call label only — no prompt or reply text.
+    let attempts = 0;
+    const finish = (outcome: string, result: Result<ConsultantStoryboard>): Result<ConsultantStoryboard> => {
+        logger.debug('Presentation', `storyboard run ${callOpts.label ?? 'presentation-storyboard'}: attempts=${attempts}/${MAX_STORYBOARD_ATTEMPTS} outcome=${outcome}`);
+        return result;
+    };
     try {
         let lastError = 'storyboard: no response';
         // The unparseable prior output to repair; null = retry the base prompt fresh
         // (used for the first attempt AND after an empty/failed response).
         let badOutput: string | null = null;
         for (let attempt = 0; attempt < MAX_STORYBOARD_ATTEMPTS; attempt++) {
-            if (callOpts.signal?.aborted) return err('Aborted');
+            if (callOpts.signal?.aborted) return finish('aborted', err('Aborted'));
+            attempts++;
             const prompt = badOutput == null
                 ? systemPrompt
                 : `${systemPrompt}\n\n${buildStoryboardRepairPrompt(badOutput, lastError)}`;
             const res = await summarizeText(context, prompt, callOpts);
-            if (callOpts.signal?.aborted) return err('Aborted');
+            if (callOpts.signal?.aborted) return finish('aborted', err('Aborted'));
 
             if (!res.success) {
                 // The LLM call itself FAILED — and `summarizeText`/`postWithRetry` has
                 // ALREADY done provider-level 429/5xx backoff+retries before returning
                 // failure (Gemini-gate). Re-firing here would just hammer a struggling
                 // provider, so surface the error instead of looping.
-                return err(res.error || 'storyboard: LLM call failed');
+                return finish('llm-error', err(res.error || 'storyboard: LLM call failed'));
             }
             if (!res.content) {
                 // A 200 with EMPTY content (rare Azure quirk, no rate-limit involved) —
@@ -131,17 +140,17 @@ async function runStoryboardLLM(
                 continue;
             }
             const parsed = parseStoryboardFromResponse(res.content);
-            if (parsed.ok) return parsed;
+            if (parsed.ok) return finish('ok', parsed);
             // Non-empty but unparseable — feed it to a repair prompt next round.
             lastError = parsed.error;
             badOutput = res.content;
             logger.warn('Presentation', `storyboard attempt ${attempt + 1}/${MAX_STORYBOARD_ATTEMPTS} unparseable, repairing: ${parsed.error}`);
         }
-        return err(lastError);
+        return finish('exhausted', err(lastError));
     } catch (e) {
         // Log the full error for diagnosis; return a clean message at the boundary (audit M10).
         logger.warn('Presentation', `storyboard LLM call failed: ${e instanceof Error ? e.stack ?? e.message : String(e)}`);
-        return err(e instanceof Error ? e.message : 'storyboard: unknown error');
+        return finish('threw', err(e instanceof Error ? e.message : 'storyboard: unknown error'));
     }
 }
 
