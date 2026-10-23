@@ -263,7 +263,8 @@ export class NewsletterService {
                 if (doAutoTag) {
                     const content = await vault.read(file);
                     if (content.trim()) {
-                        await this.plugin.analyzeAndTagNote(file, content);
+                        // A fetch tags its notes back to back, so the taxonomy head repeats inside the cache TTL.
+                        await this.plugin.analyzeAndTagNote(file, content, { cacheTagPrefix: paths.length >= 2 });
                     }
                 }
 
