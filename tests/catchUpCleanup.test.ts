@@ -10,6 +10,7 @@ import { __resetChainForTests } from '../src/core/pluginDataStore';
 import { ok, err, type Result } from '../src/core/result';
 import {
     runCatchUpAudioCleanup,
+    audioNamesIn,
     decideEpisode,
     normaliseCleanupDays,
     type CleanupDeps,
@@ -149,6 +150,32 @@ describe('off is byte-identical: no reads, no writes, no listeners', () => {
         expect(await sweep({ settings: settings({ newsletterAudioMode: 'daily' }) })).toEqual({ kind: 'skipped', reason: 'off' });
         expect(await sweep({ settings: settings({ newsletterAudioPodcast: false }) })).toEqual({ kind: 'skipped', reason: 'off' });
         expectUntouched();
+    });
+});
+
+describe('audioNamesIn: names that run together never hide each other', () => {
+    it('finds each name in a run, in either order, with suffixes and prefixes', () => {
+        const a = 'catchup-20261022-081500-a1b2-c3d4e5f6.mp3';
+        const b = 'catchup-20261023-081500-c3d4-44444444.mp3';
+        const joined = audioNamesIn(`${a}.${b}`);
+        expect(joined.has(a) && joined.has(b)).toBe(true); // plus the over-long run, which is harmless
+        expect(audioNamesIn(`see [[${a}]] and ![[${b}|Listen]]`)).toEqual(new Set([a, b]));
+        expect(audioNamesIn(`${a}.bak`)).toEqual(new Set([a]));
+        expect(audioNamesIn(`xx${a}`.toUpperCase())).toEqual(new Set([a]));
+        expect(audioNamesIn('no names here, catchup- alone or catchup-x.wav').size).toBe(0);
+    });
+
+    it('a name inside a longer valid-alphabet name is also registered (conservative)', () => {
+        expect(audioNamesIn('catchup-x.mp3.mp3')).toEqual(new Set(['catchup-x.mp3', 'catchup-x.mp3.mp3']));
+    });
+
+    it('a note that mentions two names back to back keeps BOTH files referenced', async () => {
+        addEpisode();
+        const other = 'catchup-20261023-081500-c3d4-44444444.mp3';
+        vault.set(`${FOLDER}/Keep.md`, `${other}.${AUDIO}`);
+        const report = completed(await sweep());
+        expect(report.skipped).toEqual({ 'audio-referenced-elsewhere': 1 });
+        expect(writes).toEqual([]);
     });
 });
 

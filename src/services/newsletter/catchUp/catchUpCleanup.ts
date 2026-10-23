@@ -143,7 +143,23 @@ export interface ReferenceIndex {
 }
 
 /** The catch-up audio names a text mentions, lower-cased. Mirrors the validated `isEpisodeAudioName` alphabet. */
-const AUDIO_NAME_RE = /catchup-[a-z0-9._-]+\.mp3/gi;
+const AUDIO_RUN_RE = /catchup-[a-z0-9._-]+/gi;
+
+/**
+ * Every catch-up audio name a text could be mentioning, lower-cased. The alphabet includes '.', so
+ * two names can run together (`catchup-a.mp3.catchup-b.mp3`): every start of `catchup-` inside a
+ * run and every `.mp3` end after it is registered, so adjacent names never hide each other.
+ */
+export function audioNamesIn(text: string): Set<string> {
+    const names = new Set<string>();
+    for (const run of text.toLowerCase().matchAll(AUDIO_RUN_RE)) {
+        const s = run[0];
+        for (let start = s.indexOf('catchup-'); start !== -1; start = s.indexOf('catchup-', start + 1)) {
+            for (let end = s.indexOf('.mp3', start + 8); end !== -1; end = s.indexOf('.mp3', end + 1)) names.add(s.slice(start, end + 4));
+        }
+    }
+    return names;
+}
 
 /** Is the vault's reverse-link table actually there? An absent table is "unknown", never "no links". */
 export function hasLinkTable(app: App): boolean {
@@ -184,8 +200,7 @@ export async function buildReferenceIndex(app: App, outputRoot: string, folderFi
             unreadable = true;
             continue;
         }
-        for (const m of text.matchAll(AUDIO_NAME_RE)) {
-            const name = m[0].toLowerCase();
+        for (const name of audioNamesIn(text)) {
             let set = mentions.get(name);
             if (!set) { set = new Set(); mentions.set(name, set); }
             set.add(file.path);
