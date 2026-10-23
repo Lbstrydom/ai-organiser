@@ -148,6 +148,13 @@ describe('Mark caught up', () => {
 });
 
 describe('Mark newsletter catch-up listened', () => {
+    it('does nothing when the newsletter feature is disabled', async () => {
+        await runMarkCatchUpListened(plugin({ featureFlags: { newsletter: false } }, new TFile()));
+        expect(readEpisode).not.toHaveBeenCalled();
+        expect(markListened).not.toHaveBeenCalled();
+        expect(notices).toEqual([]);
+    });
+
     it('asks for an episode note when the active file is not one', async () => {
         await runMarkCatchUpListened(plugin({}, null));
         expect(notices).toContain(t.modals.newsletterCatchUp.notAnEpisode);

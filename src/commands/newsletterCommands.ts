@@ -215,6 +215,7 @@ export async function openCatchUpWindow(plugin: AIOrganiserPlugin): Promise<void
 
 /** Mark the catch-up episode in the active note as heard. */
 export async function runMarkCatchUpListened(plugin: AIOrganiserPlugin): Promise<void> {
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) return;
     const m = plugin.t.modals.newsletterCatchUp;
     const file = plugin.app.workspace.getActiveFile();
     const episode = file instanceof TFile ? await readEpisode(plugin.app, file) : null;
