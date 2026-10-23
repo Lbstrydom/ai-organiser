@@ -1,8 +1,34 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 206,
+  "olderSyncsDropped": 207,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-10-23T23:37:35.822Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "f7015a0ccbda8af97ecf04cc757b67c398d7d0db",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 0,
+        "unchanged": 976,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [],
+      "updated": [],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-10-23T11:56:12.774Z",
       "source": {
@@ -575,37 +601,6 @@
         "scripts/.claude-skills/lib/store/ship-nudges.mjs",
         "scripts/.claude-skills/openai-audit.mjs",
         "scripts/.claude-skills/requirements.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-11T18:49:30.229Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "5157ff65840374d269d2aecd6adf5a7b2b029599",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 4,
-        "unchanged": 916,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [],
-      "updated": [
-        "scripts/.claude-skills/context-staleness.mjs",
-        "scripts/.claude-skills/lib/audit-scope.mjs",
-        "scripts/.claude-skills/lib/context-staleness.mjs",
-        "scripts/.claude-skills/lib/context.mjs"
       ],
       "gcDeleted": [],
       "overridesHeld": [],
