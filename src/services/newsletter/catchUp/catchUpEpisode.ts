@@ -149,15 +149,22 @@ function findListenLine(lines: string[]): number {
     // CommonMark: a fence opens with 3+ backticks or tildes and closes only with the same character,
     // a run at least as long, and nothing else on the line.
     let open: { char: string; length: number } | null = null;
+    // An inline code span may run across lines inside one paragraph; a blank line ends it.
+    let span: number | null = null;
     for (let i = 0; i < lines.length; i += 2) {
         const run = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(lines[i]);
         if (open === null) {
-            if (run && !(run[1][0] === '`' && run[2].includes('`'))) { open = { char: run[1][0], length: run[1].length }; continue; }
+            if (span === null && run && !(run[1][0] === '`' && run[2].includes('`'))) { open = { char: run[1][0], length: run[1].length }; continue; }
         } else {
             if (run && run[1][0] === open.char && run[1].length >= open.length && /^[ \t]*$/.test(run[2])) open = null;
             continue;
         }
-        if (lines[i].startsWith('🎧 ')) return i;
+        if (lines[i].trim() === '') { span = null; continue; }
+        if (span === null && lines[i].startsWith('🎧 ')) return i;
+        for (const ticks of lines[i].match(/`+/g) ?? []) {
+            if (span === null) span = ticks.length;
+            else if (ticks.length === span) span = null;
+        }
     }
     return -1;
 }
@@ -189,7 +196,7 @@ export type MarkAudioRemovedError = 'no-frontmatter' | 'marker-conflict' | 'uncl
  * Fails closed: if the audio name still appears anywhere but the identity line afterwards (a second
  * embed, a code span, the transcript, another frontmatter field), nothing is produced.
  */
-export function markAudioRemovedText(content: string, audioName: string, date: string, removedText: string): Result<string> {
+export function markAudioRemovedText(content: string, audioName: string, date: string, removedText: string, folderPath?: string): Result<string> {
     const parts = splitFrontmatter(content);
     if (!parts) return err('no-frontmatter');
 
@@ -204,8 +211,13 @@ export function markAudioRemovedText(content: string, audioName: string, date: s
     }
 
     const ref = escapeRe(audioName);
-    const wiki = new RegExp(String.raw`!?\[\[(?:[^\]\n|#]*/)?${ref}(?:[#|][^\]\n]*)?\]\]`, 'gi');
-    const markdown = new RegExp(String.raw`!?\[[^\]\n]*\]\((?:[^)\n]*/)?${ref}(?:#[^)\n]*)?\)`, 'gi');
+    // The destination must BE this episode's file: unqualified, or qualified by the episode folder (the
+    // vault path or the plain `Catch-up/`). A same-named file in any other folder, or at a URL, is
+    // someone else's: it is left alone and the final check rejects the note.
+    const folders = [CATCHUP_FOLDER, ...(folderPath ? [folderPath] : [])].map((f) => escapeRe(f.replaceAll(/^\/+|\/+$/g, '')));
+    const qualifier = String.raw`(?:(?:${folders.join('|')})/)?`;
+    const wiki = new RegExp(String.raw`!?\[\[/?${qualifier}${ref}(?:[#|][^\]\n]*)?\]\]`, 'gi');
+    const markdown = new RegExp(String.raw`!?\[[^\]\n]*\]\((?:\./|/)?${qualifier}${ref}(?:#[^)\n]*)?\)`, 'gi');
     const lines = content.slice(parts.fmEnd).split(/(\r?\n)/);
     const at = findListenLine(lines);
     if (at >= 0 && lines[at].toLowerCase().includes(audioName.toLowerCase())) {

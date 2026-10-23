@@ -270,6 +270,32 @@ describe('markAudioRemovedText', () => {
         }
     });
 
+    it('a same-named file in another folder, or at a URL, is not this episode\'s file and is never rewritten', () => {
+        for (const ref of [`![[Archive/${NAME}]]`, `![[Elsewhere/Catch-up/${NAME}]]`, `![Listen](https://example.invalid/${NAME})`, `![Listen](Archive/${NAME})`]) {
+            const note = buildEpisodeNote(input()).replace(`![[${NAME}]]`, ref);
+            expect(run(note)).toEqual({ ok: false, error: 'unclassified-reference' });
+        }
+    });
+
+    it('the vault-qualified episode folder is accepted when the caller names it', () => {
+        const folder = 'AI-Organiser/Newsletter Inbox/Catch-up';
+        const note = buildEpisodeNote(input()).replace(`![[${NAME}]]`, `![[${folder}/${NAME}]]`);
+        expect(markAudioRemovedText(note, NAME, DATE, REMOVED).ok).toBe(false); // not named: rejected
+        const named = markAudioRemovedText(note, NAME, DATE, REMOVED, folder);
+        expect(named.ok).toBe(true);
+        expect(named.ok && named.value).toContain(`🎧 **Listen:** ${REMOVED}`);
+    });
+
+    it('a generated-shaped line inside a multi-line inline code span is not the listen line', () => {
+        const listen = '🎧 **Listen:** ![[' + NAME + ']]';
+        const base = buildEpisodeNote(input()).replace(`![[${NAME}]]`, 'gone');
+        const spanned = base.replace('# Newsletter', 'Example: `start of a span\n' + listen + '\nend of the span`\n\n# Newsletter');
+        expect(run(spanned)).toEqual({ ok: false, error: 'unclassified-reference' });
+        // A blank line ends a span, so a stray backtick does not hide a later real listen line.
+        const stray = buildEpisodeNote(input()).replace('# Newsletter', 'a stray ` tick\n\n# Newsletter');
+        expect(run(stray).ok).toBe(true);
+    });
+
     it('preserves CRLF line endings', () => {
         const after = okText(buildEpisodeNote(input()).replaceAll('\n', '\r\n'));
         expect(after).toContain(`catchup_sources: 4\r\ncatchup_audio_removed: '${DATE}'\r\n---`);

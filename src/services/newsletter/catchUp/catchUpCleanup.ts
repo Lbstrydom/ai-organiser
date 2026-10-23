@@ -158,6 +158,7 @@ export interface ReferenceIndex {
 
 /** The catch-up audio names a text mentions, lower-cased. Mirrors the validated `isEpisodeAudioName` alphabet. */
 const AUDIO_RUN_RE = /catchup-[a-z0-9._-]+/gi;
+const MAX_ENDS_PER_START = 3;
 
 /**
  * Every catch-up audio name a text could be mentioning, lower-cased. The alphabet includes '.', so
@@ -169,7 +170,10 @@ export function audioNamesIn(text: string): Set<string> {
     for (const run of text.toLowerCase().matchAll(AUDIO_RUN_RE)) {
         const s = run[0];
         for (let start = s.indexOf('catchup-'); start !== -1; start = s.indexOf('catchup-', start + 1)) {
-            for (let end = s.indexOf('.mp3', start + 8); end !== -1; end = s.indexOf('.mp3', end + 1)) names.add(s.slice(start, end + 4));
+            // Bounded: the first few `.mp3` ends per start, so a crafted run of thousands of joined
+            // names costs linear work. A real episode name holds `.mp3` exactly once, at its end.
+            let end = s.indexOf('.mp3', start + 8);
+            for (let n = 0; n < MAX_ENDS_PER_START && end !== -1; n++, end = s.indexOf('.mp3', end + 1)) names.add(s.slice(start, end + 4));
         }
     }
     return names;
@@ -438,7 +442,7 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
             }
 
             if (c.stage === 'mark') {
-                const next = markAudioRemovedText(fresh, c.meta.audio, today, deps.removedLine(today));
+                const next = markAudioRemovedText(fresh, c.meta.audio, today, deps.removedLine(today), folder);
                 if (!next.ok) { skip(id, next.error); continue; }
                 const revoke = tracker.expectNoteWrite(notePath);
                 let written: Result<void>;
