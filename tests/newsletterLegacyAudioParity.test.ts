@@ -294,3 +294,52 @@ describe('legacy daily audio — TTS engine resolution (characterization)', () =
         });
     });
 });
+
+describe('the daily pipeline runs ONLY in daily mode', () => {
+    const YESTERDAY = '2026-04-22';
+    const YESTERDAY_DIGEST = `${ROOT}/Digest — ${YESTERDAY}.md`;
+    const yesterdayBody = DIGEST_BODY.replaceAll(DATE, YESTERDAY).replace('April 23', 'April 22');
+
+    const sweep = (service: NewsletterService) => (service as unknown as { recoverMissedAudioPodcasts(): Promise<void> }).recoverMissedAudioPodcasts();
+
+    it('daily: the recovery sweep still voices a closed day that has a brief but no audio (the original behaviour)', async () => {
+        const vault = makeVault({ [YESTERDAY_DIGEST]: yesterdayBody });
+        await sweep(new NewsletterService(makePlugin(vault, { newsletterAudioMode: 'daily' })));
+        expect(generateAudioPodcast).toHaveBeenCalledTimes(1);
+        expect(generateAudioPodcast.mock.calls[0][2].dateStr).toBe(YESTERDAY);
+        expect(vault.files.get(YESTERDAY_DIGEST)).toMatch(/🎧 \*\*Listen:\*\* !\[\[brief-[^\]]+\.mp3\]\]/);
+    });
+
+    it.each(['on-demand', 'smart-daily'])('%s: the sweep never creates a daily recording', async (mode) => {
+        const vault = makeVault({ [YESTERDAY_DIGEST]: yesterdayBody });
+        await sweep(new NewsletterService(makePlugin(vault, { newsletterAudioMode: mode })));
+        expect(generateAudioPodcast).not.toHaveBeenCalled();
+        expect(summarizeText).not.toHaveBeenCalled();
+        expect(vault.files.get(YESTERDAY_DIGEST)).toBe(yesterdayBody);
+    });
+
+    it('audio off: the sweep does nothing in any mode', async () => {
+        for (const mode of ['daily', 'on-demand', 'smart-daily']) {
+            const vault = makeVault({ [YESTERDAY_DIGEST]: yesterdayBody });
+            await sweep(new NewsletterService(makePlugin(vault, { newsletterAudioPodcast: false, newsletterAudioMode: mode })));
+        }
+        expect(generateAudioPodcast).not.toHaveBeenCalled();
+    });
+
+    it.each(['on-demand', 'smart-daily'])('%s: "regenerate today" is refused with an explanation, not honoured', async (mode) => {
+        const vault = makeVault({ [DIGEST]: DIGEST_BODY });
+        const res = await new NewsletterService(makePlugin(vault, { newsletterAudioMode: mode })).regenerateAudioForToday();
+        expect(res.ok).toBe(false);
+        expect((res as { error: string }).error).toContain('Newsletter audio');
+        expect(generateAudioPodcast).not.toHaveBeenCalled();
+        expect(vault.files.get(DIGEST)).toBe(DIGEST_BODY);
+    });
+
+    it('a missing mode behaves as the default (on-demand), never as daily', async () => {
+        const vault = makeVault({ [YESTERDAY_DIGEST]: yesterdayBody });
+        const plugin = makePlugin(vault);
+        delete (plugin as unknown as { settings: Record<string, unknown> }).settings.newsletterAudioMode;
+        await sweep(new NewsletterService(plugin));
+        expect(generateAudioPodcast).not.toHaveBeenCalled();
+    });
+});
