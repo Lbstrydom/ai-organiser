@@ -1514,6 +1514,8 @@ export function migrateNewsletterAudioSettings(old: Record<string, unknown>): vo
     old.newsletterAudioMode = deriveAudioMode(old);
     const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
         if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        // Number('') and Number('  ') are 0: a blank is "no value", not a request for the minimum.
+        if (typeof value === 'string' && value.trim() === '') return fallback;
         const n = Number(value);
         return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
     };

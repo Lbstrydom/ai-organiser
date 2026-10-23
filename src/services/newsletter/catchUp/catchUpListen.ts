@@ -148,13 +148,15 @@ export async function markCatchUpAudioPlayed(deps: ListenDeps, input: { sourcePa
 /**
  * Mark caught up: the reader asserts they are up to date, so every in-window episode counts as
  * heard. Acks only — the watermark side is already done by the existing mark-caught-up for the
- * buckets it covers.
+ * buckets it covers. `through` is the same boundary that command used: an episode that reaches
+ * past it covers material the reader did not claim to be up to date on, so it stays unheard.
  */
-export async function ackAllInWindowEpisodes(deps: ListenDeps): Promise<number> {
+export async function ackAllInWindowEpisodes(deps: ListenDeps, through?: string): Promise<number> {
     const now = deps.now ?? new Date();
     const today = todayOf(deps.settings, now);
     const lookback = effectiveLookbackDays(deps.settings.newsletterCatchUpLookbackDays, deps.settings.newsletterRetentionDays ?? 30);
     const outputRoot = getNewsletterOutputFullPath(deps.settings);
     const { episodes } = await loadEpisodes(deps.app, outputRoot, windowDates(today, lookback)[0]);
-    return ackEpisodes(deps.plugin, episodes.map((e) => ({ id: e.id, to: e.to })), today, lookback);
+    const covered = through ? episodes.filter((e) => e.to <= through) : episodes;
+    return ackEpisodes(deps.plugin, covered.map((e) => ({ id: e.id, to: e.to })), today, lookback);
 }

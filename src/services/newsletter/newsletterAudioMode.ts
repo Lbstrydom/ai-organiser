@@ -66,5 +66,9 @@ export function isAutomaticAudioMode(settings: AudioModeSettings): boolean {
  */
 export function deriveAudioMode(stored: { newsletterAudioMode?: unknown; newsletterAudioPodcast?: unknown }): NewsletterAudioMode {
     if (isAudioMode(stored.newsletterAudioMode)) return stored.newsletterAudioMode;
+    // A mode that is PRESENT but not one of ours is damaged modern configuration, not a legacy
+    // file: fail closed to the default (which spends nothing unasked), never to `daily`.
+    if (stored.newsletterAudioMode !== undefined) return DEFAULT_AUDIO_MODE;
+    // Genuinely absent: this settings file pre-dates the mode. Audio on then means today's pipeline.
     return stored.newsletterAudioPodcast === true ? 'daily' : DEFAULT_AUDIO_MODE;
 }

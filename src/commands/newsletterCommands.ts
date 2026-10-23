@@ -177,7 +177,7 @@ async function markCaughtUpInner(
     let ackFailed = false;
     if (isCatchUpEnabled(plugin.settings)) {
         try {
-            await ackAllInWindowEpisodes({ app: plugin.app, plugin, settings: plugin.settings });
+            await ackAllInWindowEpisodes({ app: plugin.app, plugin, settings: plugin.settings }, through);
             plugin.refreshCatchUpStatus?.();
         } catch (e) {
             ackFailed = true;
@@ -191,6 +191,16 @@ async function markCaughtUpInner(
     new Notice(formatCaughtUpOutcome(outcome, nl), outcome.kind === 'error' ? 6000 : 5000);
     // Partial success is reported as partial: the stories were marked, the episodes were not.
     if (ackFailed) new Notice(plugin.t.modals.newsletterCatchUp.ackFailed, 7000);
+}
+
+/** A command boundary: a failure is logged with context and shown as guidance, never dropped. */
+async function guarded(plugin: AIOrganiserPlugin, what: string, fn: () => Promise<void>): Promise<void> {
+    try {
+        await fn();
+    } catch (e) {
+        logger.error('Newsletter', `Newsletter audio command failed (${what})`, e);
+        new Notice(formatGuidance(describeError(plugin.t, 'unknown')), 6000);
+    }
 }
 
 /** Open the catch-up window. The window itself explains audio-off and daily-mode states. */
@@ -319,14 +329,14 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         id: 'newsletter-audio',
         name: t.commands.newsletterAudio || 'Newsletter audio',
         icon: 'headphones',
-        callback: () => { void openCatchUpWindow(plugin); },
+        callback: () => { void guarded(plugin, 'open the window', () => openCatchUpWindow(plugin)); },
     });
 
     plugin.addCommand({
         id: 'newsletter-mark-catchup-listened',
         name: t.commands.newsletterMarkCatchUpListened || 'Mark newsletter catch-up listened',
         icon: 'check-circle-2',
-        callback: () => { void runMarkCatchUpListened(plugin); },
+        callback: () => { void guarded(plugin, 'mark listened', () => runMarkCatchUpListened(plugin)); },
     });
 
     plugin.addCommand({

@@ -82,9 +82,14 @@ describe('newsletterAudioMode', () => {
             expect(deriveAudioMode({ newsletterAudioMode: 'smart-daily', newsletterAudioPodcast: true })).toBe('smart-daily');
             expect(deriveAudioMode({ newsletterAudioMode: 'on-demand', newsletterAudioPodcast: true })).toBe('on-demand');
         });
-        it('re-derives from the flag when the stored mode is garbage', () => {
-            expect(deriveAudioMode({ newsletterAudioMode: 'bogus', newsletterAudioPodcast: true })).toBe('daily');
+        it('fails closed to the default when the stored mode is present but garbage', () => {
+            expect(deriveAudioMode({ newsletterAudioMode: 'bogus', newsletterAudioPodcast: true })).toBe('on-demand');
+            expect(deriveAudioMode({ newsletterAudioMode: null, newsletterAudioPodcast: true })).toBe('on-demand');
             expect(deriveAudioMode({ newsletterAudioMode: 7, newsletterAudioPodcast: false })).toBe('on-demand');
+        });
+        it('derives daily from the legacy flag only when the mode is absent', () => {
+            expect(deriveAudioMode({ newsletterAudioPodcast: true })).toBe('daily');
+            expect(deriveAudioMode({ newsletterAudioMode: undefined, newsletterAudioPodcast: true })).toBe('daily');
         });
     });
 });

@@ -255,8 +255,8 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
     const cache = app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>>; resolved?: boolean } | undefined;
     const resolved = cache?.resolvedLinks;
     // While the vault index is still being built the link table is incomplete: a "no" drawn from
-    // it would be a guess. (`resolved` is absent in some hosts; only an explicit false counts.)
-    const indexIncomplete = cache?.resolved === false;
+    // it would be a guess. Readiness must be positively established: an absent flag is not proof.
+    const indexIncomplete = cache?.resolved !== true;
     if (resolved) {
         const audioPath = normalizePath(`${folder}/${audioName}`);
         for (const links of Object.values(resolved)) if (links && audioPath in links) return 'yes';

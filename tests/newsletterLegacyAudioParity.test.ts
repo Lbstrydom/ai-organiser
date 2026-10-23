@@ -150,6 +150,15 @@ describe('legacy daily audio — script prompt', () => {
         expect(prompt).toContain('- Open with one sentence previewing the 2-3 biggest stories of the day');
         expect(prompt).not.toContain('<story_memory>');
     });
+
+    it('the full podcast prompt for a fixed brief is pinned by hash (the builder is unchanged since 33ef441)', async () => {
+        const vault = makeVault({ [DIGEST]: DIGEST_BODY });
+        await new NewsletterService(makePlugin(vault)).regenerateAudioForToday();
+        const prompt = (summarizeText as ReturnType<typeof vi.fn>).mock.calls[0][1] as string;
+        const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(prompt));
+        const hex = [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+        expect(hex).toBe('ccd1e9ec2e00d1be237da6bcba8d0716306410753391b069232d811f7ebc46a8');
+    });
 });
 
 describe('legacy daily audio — TTS call and artefacts', () => {
@@ -340,6 +349,42 @@ describe('the daily pipeline runs ONLY in daily mode', () => {
         const plugin = makePlugin(vault);
         delete (plugin as unknown as { settings: Record<string, unknown> }).settings.newsletterAudioMode;
         await sweep(new NewsletterService(plugin));
+        expect(generateAudioPodcast).not.toHaveBeenCalled();
+    });
+});
+
+describe('the written brief stays automatic in every mode; only daily voices it', () => {
+    const YESTERDAY = '2026-04-22';
+    const YESTERDAY_DIGEST = `${ROOT}/Digest — ${YESTERDAY}.md`;
+    const body = DIGEST_BODY.replaceAll(DATE, YESTERDAY).replace('April 23', 'April 22');
+    const source = (n: number) => ({ sourceDisplayName: `Fixture ${n}`, triageText: `Synthetic story ${n}: an invented event unfolded in a fictional city, with plenty of invented detail to pass the length floor.` });
+    const LONG_BRIEF = ['### Markets', '', '- **Fixture story**: A synthetic event happened somewhere invented today. (Sources: Fixture 1, Fixture 2)', ''].join(String.fromCharCode(10));
+
+    async function closeDay(mode: string) {
+        const vault = makeVault({ [YESTERDAY_DIGEST]: body });
+        const service = new NewsletterService(makePlugin(vault, { newsletterAudioMode: mode }));
+        const priv = service as unknown as {
+            collectDayNewsletters: unknown; mergeOrPrependBrief: unknown;
+            generateAndInjectBrief(d: string, batch: unknown[]): Promise<void>;
+        };
+        priv.collectDayNewsletters = vi.fn(async () => [source(1), source(2)]);
+        const merged = vi.fn(async () => undefined);
+        priv.mergeOrPrependBrief = merged;
+        (summarizeText as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, content: LONG_BRIEF });
+        await priv.generateAndInjectBrief(YESTERDAY, []);
+        return { merged };
+    }
+
+    it.each(['daily', 'on-demand', 'smart-daily'])('%s: the brief is generated and written', async (mode) => {
+        const { merged } = await closeDay(mode);
+        expect(merged).toHaveBeenCalledTimes(1);
+    });
+
+    it('daily voices the closed day; on-demand and smart-daily do not', async () => {
+        await closeDay('daily');
+        expect(generateAudioPodcast).toHaveBeenCalledTimes(1);
+        generateAudioPodcast.mockClear();
+        for (const mode of ['on-demand', 'smart-daily']) await closeDay(mode);
         expect(generateAudioPodcast).not.toHaveBeenCalled();
     });
 });

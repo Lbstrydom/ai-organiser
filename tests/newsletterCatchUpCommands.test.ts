@@ -122,6 +122,12 @@ describe('Mark caught up', () => {
         expect(p.refreshCatchUpStatus).toHaveBeenCalled();
     });
 
+    it('passes the same caught-up target boundary to the episode acknowledgement', async () => {
+        await runMarkCaughtUp(plugin());
+        const through = (ack.mock.calls[0] as unknown[])[1];
+        expect(through).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    });
+
     it('works with story memory OFF: the episodes are still acknowledged', async () => {
         service.markCaughtUp.mockResolvedValue({ kind: 'disabled' });
         await runMarkCaughtUp(plugin({ newsletterStoryMemory: false }));

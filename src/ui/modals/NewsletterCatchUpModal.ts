@@ -31,7 +31,7 @@ import { createCatchUpPorts, previewCost } from '../../services/newsletter/catch
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
 import { availabilityOf, deriveModalView, type ModalView } from '../../services/newsletter/catchUp/catchUpModalState';
 import { datesBetween, formatDates, formatPendingSummary } from '../../services/newsletter/catchUp/catchUpFormat';
-import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
+import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
 
@@ -99,6 +99,11 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
 
     // ── Data ─────────────────────────────────────────────────────────────────
 
+    /** One validity rule for a read's success AND failure: closed, superseded or mid-operation reads are dropped. */
+    private isCurrentRefresh(request: number): boolean {
+        return !this.closed && request === this.refreshSeq && !this.running;
+    }
+
     private async refresh(): Promise<void> {
         const request = ++this.refreshSeq;
         try {
@@ -111,13 +116,13 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
                 classifyOperation(ports),
             ]);
             // A slower, older read must never replace a newer one, or an operation in flight.
-            if (this.closed || request !== this.refreshSeq || this.running) return;
+            if (!this.isCurrentRefresh(request)) return;
             this.snapshot = snapshot;
             this.view = deriveModalView({ availability: availabilityOf(this.plugin.settings), snapshot, operation });
             this.render();
         } catch (e) {
             logger.error('Newsletter', 'Catch-up window failed to load', e);
-            if (this.closed) return;
+            if (!this.isCurrentRefresh(request)) return;
             this.banner = { text: formatGuidance(describeError(this.plugin.t, 'unknown')), tone: 'warn' };
             this.contentEl.empty();
             this.renderHeader();

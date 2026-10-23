@@ -19,7 +19,7 @@ export interface CatchUpVault {
             modify: ReturnType<typeof vi.fn>;
         };
         fileManager: { trashFile: ReturnType<typeof vi.fn> };
-        metadataCache: { getFileCache: ReturnType<typeof vi.fn> };
+        metadataCache: { getFileCache: ReturnType<typeof vi.fn>; resolved?: boolean };
     };
     files: Map<string, string | ArrayBuffer>;
     set(path: string, content: string | ArrayBuffer): void;
@@ -98,6 +98,8 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
             trashFile: vi.fn(async (f: { path: string }) => { files.delete(f.path); tfiles.delete(f.path); }),
         },
         metadataCache: {
+            // A fully indexed vault by default; tests for the still-indexing case flip or delete it.
+            resolved: true,
             getFileCache: vi.fn((f: { path: string }) => {
                 if (!cache.enabled) return null;
                 const v = files.get(f.path);

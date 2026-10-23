@@ -109,6 +109,17 @@ describe('generateAudioPodcast — legacy behaviour', () => {
         expect(await sha256Bytes(bytes)).toBe('73087440f903a410bfd425f3a876c4c99a140cafdcd09ee58ff9aa73634f124e');
     });
 
+    it('multi-chunk output is byte-identical to the pre-refactor service (golden hash)', async () => {
+        // Captured from the service as it was BEFORE the shared synthesis core was extracted
+        // (5d9882e^), so chunk joining, trimming and gap handling are pinned, not just one chunk.
+        const e = engine();
+        const res = await run(LONG_SCRIPT, { engine: e });
+        expect(e.synthesizeChunk.mock.calls.length).toBeGreaterThan(1);
+        const bytes = vault.files.get(res.filePath!) as ArrayBuffer;
+        expect(bytes.byteLength).toBe(18576);
+        expect(await sha256Bytes(bytes)).toBe('3d7d13e8b131e41656f51ea1a725e40c412835feb37b2e0f0e81b17a222472fc');
+    });
+
     describe('failures never escape the result contract', () => {
         it('an aborted signal returns the abort message and writes nothing', async () => {
             const ac = new AbortController();

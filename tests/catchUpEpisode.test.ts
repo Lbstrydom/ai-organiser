@@ -390,6 +390,12 @@ describe('the reference check is only as sure as the vault index', () => {
         expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('unknown');
     });
 
+    it('an absent readiness flag is not proof of a complete index', async () => {
+        const vault = makeCatchUpVault();
+        delete (vault.app.metadataCache as unknown as { resolved?: boolean }).resolved;
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('unknown');
+    });
+
     it('a reference found in the folder is still a definite yes during indexing', async () => {
         const vault = makeCatchUpVault();
         const i = input();

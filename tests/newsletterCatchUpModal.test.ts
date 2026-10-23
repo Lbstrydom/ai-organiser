@@ -442,6 +442,23 @@ describe('failures and lifecycle', () => {
         expect(root.textContent).not.toContain('You are caught up');
     });
 
+    it('a slow early read that FAILS cannot replace a newer good view with an error', async () => {
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        const mocked = buildCatchUpSnapshot as unknown as ReturnType<typeof vi.fn>;
+        let failOld: (e: unknown) => void = () => undefined;
+        mocked.mockImplementationOnce(() => new Promise((_, rej) => { failOld = rej; }));
+        const modal = new NewsletterCatchUpModal(plugin());
+        modal.open(); // read #1 is stuck
+        const root = (modal as never as { contentEl: HTMLElement }).contentEl;
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22']), state: 'pending' });
+        (modal as never as { refresh(): Promise<void> }).refresh(); // read #2 wins
+        await vi.waitFor(() => expect(buttons(root)).toContain('Generate'));
+        failOld(new Error('late failure')); // read #1 rejects afterwards
+        await flush(); await flush();
+        expect(buttons(root)).toContain('Generate');
+        expect(root.textContent).not.toContain('could not');
+    });
+
     it('a question raised after the window closed is answered at once', async () => {
         const { modal } = await open();
         modal.close();

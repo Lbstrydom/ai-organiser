@@ -38,8 +38,8 @@ describe('newsletter audio settings migration', () => {
         expect(out.newsletterAudioMode).toBe('on-demand');
     });
 
-    it('repairs a garbage stored mode from the audio flag', () => {
-        expect(migrateOldSettings({ newsletterAudioPodcast: true, newsletterAudioMode: 'weekly' })!.newsletterAudioMode).toBe('daily');
+    it('a garbage stored mode fails closed to the default, never to daily', () => {
+        expect(migrateOldSettings({ newsletterAudioPodcast: true, newsletterAudioMode: 'weekly' })!.newsletterAudioMode).toBe('on-demand');
         expect(migrateOldSettings({ newsletterAudioPodcast: false, newsletterAudioMode: 'weekly' })!.newsletterAudioMode).toBe('on-demand');
     });
 
@@ -62,6 +62,24 @@ describe('newsletter audio settings migration', () => {
             migrateNewsletterAudioSettings(bad);
             expect(bad.newsletterCatchUpLookbackDays).toBe(7);
             expect(bad.newsletterCatchUpMaxMins).toBe(20);
+        });
+
+        it('treats a blank string as no value, and clamps at the exact boundaries', () => {
+            const blank: Record<string, unknown> = { newsletterCatchUpLookbackDays: '', newsletterCatchUpMaxMins: '   ' };
+            migrateNewsletterAudioSettings(blank);
+            expect(blank.newsletterCatchUpLookbackDays).toBe(7);
+            expect(blank.newsletterCatchUpMaxMins).toBe(20);
+
+            for (const [v, want] of [[0, 1], [1, 1], [14, 14], [15, 14], ['3', 3]] as const) {
+                const o: Record<string, unknown> = { newsletterCatchUpLookbackDays: v };
+                migrateNewsletterAudioSettings(o);
+                expect(o.newsletterCatchUpLookbackDays).toBe(want);
+            }
+            for (const [v, want] of [[4, 5], [5, 5], [20, 20], [21, 20]] as const) {
+                const o: Record<string, unknown> = { newsletterCatchUpMaxMins: v };
+                migrateNewsletterAudioSettings(o);
+                expect(o.newsletterCatchUpMaxMins).toBe(want);
+            }
         });
 
         it('keeps a deliberate status-bar opt-out and a shown notice', () => {

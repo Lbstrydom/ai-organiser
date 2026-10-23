@@ -255,6 +255,17 @@ describe('ackAllInWindowEpisodes (Mark caught up)', () => {
         expect(n).toBe(1);
         expect(Object.keys(await loadAcks(p as never))).toEqual([recent.id]);
     });
+
+    it('with a target date, an episode reaching past it stays unheard', async () => {
+        const vault = makeCatchUpVault();
+        const earlier = episode({ id: '20261021-081500-0001', from: '2026-10-19', to: '2026-10-20', audio: 'catchup-earlier.mp3', coverage: { '2026-10-20': { kind: 'whole' } } });
+        const later = episode(); // to 2026-10-22
+        for (const i of [earlier, later]) { vault.set(notePath(i), buildEpisodeNote(i)); vault.set(`${FOLDER}/${i.audio}`, new ArrayBuffer(4)); }
+        const p = makePlugin();
+        const n = await ackAllInWindowEpisodes({ app: vault.app as never, plugin: p as never, settings: settings(), now: NOW }, '2026-10-20');
+        expect(n).toBe(1);
+        expect(Object.keys(await loadAcks(p as never))).toEqual([earlier.id]);
+    });
 });
 
 describe('resolveCatchUpAudio: the file played must be the episode folder\'s file', () => {
