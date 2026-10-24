@@ -75,7 +75,7 @@ import { NarrationJobRegistry } from './services/audioNarration/narrationJobRegi
 import { findAllMermaidBlocks } from './utils/mermaidUtils';
 import { mermaidStalenessGutterExtension } from './ui/editor/mermaidStalenessGutter';
 import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
-import { NewsletterService, LAST_FETCH_DATA_KEY, getBucketDateStr } from './services/newsletter/newsletterService';
+import { NewsletterService, LAST_FETCH_DATA_KEY, getBucketDateStr, digestBucketForPath } from './services/newsletter/newsletterService';
 import { normaliseCleanupDays } from './services/newsletter/catchUp/catchUpTypes';
 import { saveSettingsData, stripDataOnlyKeys } from './core/pluginDataStore';
 import { isStoryMemoryEnabled } from './services/newsletter/newsletterMemoryPolicy';
@@ -83,6 +83,8 @@ import { noticeWithSettingsLink } from './utils/noticeUtils';
 import { showNewsletterFetchResultNotice, openCatchUpWindow, runSmartDailyAfterFetch } from './commands/newsletterCommands';
 import { CatchUpStatusBar } from './ui/components/CatchUpStatusBar';
 import { markCatchUpAudioPlayed } from './services/newsletter/catchUp/catchUpListen';
+import { bumpReadGeneration, currentReadGeneration } from './services/newsletter/newsletterReadSignal';
+import { isReadThroughEnabled } from './services/newsletter/newsletterMemoryPolicy';
 import { getAudioMode, isCatchUpEnabled } from './services/newsletter/newsletterAudioMode';
 import { LongRunningOpController } from './services/longRunningOp/progressController';
 import { computeSmartTagBudget } from './services/smartTagBudgets';
@@ -1192,6 +1194,23 @@ export default class AIOrganiserPlugin extends Plugin {
                 : undefined;
             const dispose = enhanceAudioPlayersIn(el, { onListened, defaultSpeed: this.settings.audioDefaultPlaybackSpeed });
             this.register(dispose);
+            // The Reading-view read detector: one gated call, mode read at every render, render-scoped teardown.
+            // Loaded on demand: it is only needed in this one mode, and nothing is imported when the mode is off.
+            if (isReadThroughEnabled(this.settings)) {
+                const generationAtRender = currentReadGeneration();
+                void import('./ui/components/briefReadObserver').then(({ attachBriefReadObserver }) => {
+                    // Unload, a mode change or a purge happened while the module was loading: do not install.
+                    if (currentReadGeneration() !== generationAtRender) return;
+                    attachBriefReadObserver(el, ctx, {
+                    app: this.app,
+                    enabled: () => isReadThroughEnabled(this.settings),
+                    outputRoot: () => getNewsletterOutputFullPath(this.settings),
+                    digestDate: digestBucketForPath,
+                    commit: (observation, generation) => new NewsletterService(this).markBriefRead(observation, 'read-through', generation),
+                    generation: currentReadGeneration,
+                    });
+                }).catch((e) => logger.warn('Newsletter', 'Brief read observer unavailable', e));
+            }
         });
 
         // Register tag network view + related notes view. Obsidian throws
@@ -1638,6 +1657,8 @@ export default class AIOrganiserPlugin extends Plugin {
     // ─────────────────────────────────────────────────────────────────────────
 
     public onunload(): void {
+        // Invalidate any read-signal session that already qualified, so it cannot commit after unload.
+        bumpReadGeneration();
         this.catchUpStatusBar?.dispose();
         this.catchUpStatusBar = null;
         this.catchUpCleanupCancelled = true;

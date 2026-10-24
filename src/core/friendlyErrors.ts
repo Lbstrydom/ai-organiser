@@ -127,6 +127,12 @@ export const GUIDANCE_CODES = [
     'catchup-unresolved',
     'catchup-too-much',
     'catchup-output-protected',
+    // Newsletter read signal
+    'read-signal-off',
+    'read-not-digest',
+    'read-unparsable',
+    'read-no-match',
+    'read-save-failed',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

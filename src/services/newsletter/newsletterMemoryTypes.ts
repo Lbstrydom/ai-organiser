@@ -177,3 +177,58 @@ export function emptyLedger(): StoryLedger {
 export function emptyConsumption(): ConsumptionState {
     return { version: MEMORY_SCHEMA_VERSION, consumed: {} };
 }
+
+// ── Read signal ──────────────────────────────────────────────────────────────
+//
+// A second, read-only consumption channel: "the reader read this brief". Kept apart from the
+// heard watermark so reading can never suppress audio, and credited by CONTENT IDENTITY (hashes
+// of a story's key and gist) rather than by revision: a rendered note carries no revision, and a
+// revision number means nothing against a different device's ledger.
+
+/** How a read came to be recorded. */
+export type ReadSignal = 'read-through' | 'explicit';
+
+export const READ_SIGNALS: readonly ReadSignal[] = ['read-through', 'explicit'];
+
+/** One bucket's read credit: pairs of `[keyHash, gistHash]`. Only ever grows (union). */
+export interface ReadRecord {
+    via: ReadSignal;
+    credited: Array<[string, string]>;
+}
+
+export interface ReadState {
+    version: number;
+    read: Record<string, ReadRecord>;
+}
+
+/** What the reader actually saw: the stories parsed from the rendered Daily Brief block. */
+export interface ReadObservation {
+    date: string;
+    displayed: ParsedStory[];
+}
+
+/** The two membership sets recall consults for one bucket. */
+export interface ReadProjections {
+    /** `keyHash` — the reader knows the background. */
+    keys: ReadonlySet<string>;
+    /** `keyHash.gistHash` — the reader saw this exact text. */
+    texts: ReadonlySet<string>;
+}
+
+/** Why a mark was not recorded. */
+export type ReadRefusal =
+    | 'not-a-digest-note'
+    | 'memory-off'
+    | 'mode-off'
+    | 'unparsable-brief'
+    | 'no-matching-stories'
+    | 'invalidated';
+
+export type ReadCommitOutcome =
+    | { kind: 'credited'; stories: number; newly: number }
+    | { kind: 'noop' }
+    | { kind: 'refused'; code: ReadRefusal };
+
+export function emptyReadState(): ReadState {
+    return { version: MEMORY_SCHEMA_VERSION, read: {} };
+}

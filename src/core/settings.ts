@@ -9,6 +9,7 @@ import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
 import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
 import { DEFAULT_AUDIO_MODE, deriveAudioMode, type NewsletterAudioMode } from '../services/newsletter/newsletterAudioMode';
+import { DEFAULT_READ_MODE, isReadMode, type NewsletterReadMode } from '../services/newsletter/newsletterReadMode';
 import { normaliseCleanupDays } from '../services/newsletter/catchUp/catchUpTypes';
 
 // Per-provider settings storage - API keys and models persist when switching providers
@@ -532,6 +533,8 @@ export interface AIOrganiserSettings {
     newsletterCatchUpStatusBar: boolean;    // Show "N days pending" in the status bar (desktop)
     newsletterCatchUpAudioCleanupDays: number; // Remove the audio of HEARD catch-up episodes older than this many days (0 = off, 1-28; the note and transcript stay)
     newsletterAudioModeNoticeShown: boolean; // One-time offer to switch a 'daily' install to on-demand has been shown
+    /** What counts as the reader having read a brief, so the written brief stops retelling prior-day stories they read: 'off' (default), 'explicit' (the Mark brief as read command) or 'read-through' (the command plus the Reading-view detector). Needs story memory. */
+    newsletterReadMode: NewsletterReadMode;
 
     // === AUDIO NARRATION ===
     /** User-facing narration provider. `openai-gpt-audio` (gpt-audio-1.5 chat audio-out)
@@ -1083,6 +1086,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     newsletterCatchUpMaxMins: 20,
     newsletterCatchUpStatusBar: true,
     newsletterCatchUpAudioCleanupDays: 0,
+    newsletterReadMode: DEFAULT_READ_MODE,
     newsletterAudioModeNoticeShown: false,
 
     // Audio Narration Defaults
@@ -1531,6 +1535,8 @@ export function migrateNewsletterAudioSettings(old: Record<string, unknown>): vo
     old.newsletterCatchUpStatusBar = typeof old.newsletterCatchUpStatusBar === 'boolean' ? old.newsletterCatchUpStatusBar : true;
     old.newsletterCatchUpAudioCleanupDays = normaliseCleanupDays(old.newsletterCatchUpAudioCleanupDays);
     old.newsletterAudioModeNoticeShown = old.newsletterAudioModeNoticeShown === true;
+    // Fail closed: anything this build does not ship (including a value from a newer or older build) is off.
+    old.newsletterReadMode = isReadMode(old.newsletterReadMode) ? old.newsletterReadMode : DEFAULT_READ_MODE;
 }
 
 /** A Drive folder ID: letters, digits, `_` and `-`, at least 10 characters. */

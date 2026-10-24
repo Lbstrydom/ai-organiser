@@ -887,6 +887,17 @@ export interface Translations {
             homeRegionDesc: string;
             storyMemory: string;
             storyMemoryDesc: string;
+            readMode: string;
+            readModeDesc: string;
+            readModeOff: string;
+            readModeExplicit: string;
+            readModeReadThrough: string;
+            forgetRead: string;
+            forgetReadDesc: string;
+            forgetReadButton: string;
+            forgetReadDone: string;
+            briefMarkedRead: string;      // "{n}" stories newly counted
+            briefAlreadyRead: string;
             markCaughtUp: string;
             markCaughtUpDesc: string;
             markCaughtUpButton: string;
@@ -1321,6 +1332,7 @@ export interface Translations {
         newsletterMarkCaughtUp: string;
         newsletterAudio: string;
         newsletterMarkCatchUpListened: string;
+        newsletterMarkBriefRead: string;
         narrateNote: string;
         playNarration: string;
         digitiseImage: string;
@@ -2912,6 +2924,7 @@ export interface Translations {
                 newsletterMarkCaughtUp: string;
                 newsletterAudio: string;
                 newsletterMarkCatchUpListened: string;
+                newsletterMarkBriefRead: string;
                 newSketch: string;
                 askSearchGroup: string;
                 chatWithAI: string;
