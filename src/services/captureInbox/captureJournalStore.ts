@@ -63,6 +63,7 @@ export class CaptureJournalStore {
         this.clearTimer();
         this.emit();
         const saved = await this.persist();
+        if (!saved) this.dirty = true;
         if (!saved && opts.durable) throw new Error('capture-journal-unsaved');
         return this.journal;
     }
@@ -85,7 +86,7 @@ export class CaptureJournalStore {
         this.clearTimer();
         if (!this.dirty) return;
         this.dirty = false;
-        await this.persist();
+        if (!(await this.persist())) this.dirty = true;
     }
 
     /** Stop timers and write anything pending. */

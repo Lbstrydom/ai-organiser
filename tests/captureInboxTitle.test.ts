@@ -21,6 +21,12 @@ describe('sanitiseTitle', () => {
     expect(sanitiseTitle('///', '///')).toBe('Capture');
   });
 
+  it('caps the encoded size too: eighty emoji are not a legal file name', () => {
+    const t = sanitiseTitle('😀'.repeat(80));
+    expect(new TextEncoder().encode(t).length).toBeLessThanOrEqual(180);
+    expect(t.length).toBeGreaterThan(0);
+  });
+
   it('caps the length by characters, not UTF-16 units', () => {
     const t = sanitiseTitle('😀'.repeat(200));
     expect([...t].length).toBeLessThanOrEqual(80);

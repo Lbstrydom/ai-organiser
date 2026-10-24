@@ -12,15 +12,16 @@ import { classifyByExtension, extensionOf, isKnownUnsupportedMedia } from './med
 import type { CaptureVaultPort, ResolvedAttachments, VaultFileInfo } from './captureScanner';
 import type { ProcessorPort } from './captureProcessor';
 
-const WIKI = /!?\[\[([^\]]+)\]\]/g;
-const MD_LINK = /!?\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+// Every class is bounded and stops at a newline: an unclosed bracket costs a short scan, never the rest of the note.
+const WIKI = /!?\[\[([^\]\n]{1,300})\]\]/g;
+const MD_LINK = /!?\[[^\]\n]{0,300}\]\(\s*(?:<([^>\n]{1,500})>|([^)\s]{1,500}))(?:\s+"[^"\n]{0,300}")?\s*\)/g;
 
 /** The link targets named in note text: wiki links and markdown links, alias and heading stripped. */
 export function extractLinkTargets(text: string): string[] {
     const found = new Set<string>();
     for (const m of text.matchAll(WIKI)) found.add(m[1].split('|')[0].split('#')[0].trim());
     for (const m of text.matchAll(MD_LINK)) {
-        let target = m[1];
+        let target = m[1] ?? m[2];
         if (/^[a-z][a-z0-9+.-]*:\/\//i.test(target)) continue;
         try {
             target = decodeURIComponent(target);

@@ -417,6 +417,40 @@ describe('final-gate regressions (processor)', () => {
   });
 });
 
+describe('audit round 3 regressions (processor)', () => {
+  it('a policy change during the taxonomy await stops the tagging call (nothing awaits between the last guard and the call)', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'Quarterly numbers for Globex today', []);
+    w.deps.taxonomyPrompt = async () => { w.set.policy = { ...basePolicy, excludedTerms: ['globex'] }; return 'TAXONOMY'; };
+    await w.go();
+    expect(w.calls.classify).toEqual([]);
+  });
+
+  it('only a capture that is still ready starts: one that left ready while an earlier job ran is skipped', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'First typed capture words here', []);
+    w.addNote('Inbox/b.md', 'Second typed capture words here', []);
+    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    await syncEntries(w.deps, scan);
+    // while the first job is in its provider call the second entry is skipped by the user
+    w.set.classify = async () => { await w.deps.journal.mutate((j) => { const e = getEntry(j, 'Inbox/b.md'); return e ? upsertEntry(j, { ...e, state: 'waiting_for_stable' }) : j; }); return ok({ tags: ['x'], suggestedTitle: 'T' }); };
+    await runJobs(w.deps, scan, { cancelled: () => false }, 10);
+    expect(w.calls.classify).toHaveLength(1);
+  });
+
+  it('a stage marker that lands on no entry stops the job before anything is sent', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
+    w.addMedia('Inbox/x.mp3', MP3);
+    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    await syncEntries(w.deps, scan);
+    const real = w.deps.journal.mutate;
+    w.deps.journal.mutate = async (fn, o) => real((j) => { const next = fn(j); return Object.keys(next.entries).length === Object.keys(j.entries).length && getEntry(j, 'Inbox/a.md')?.state === 'ready' ? { ...next, entries: {} } : next; }, o);
+    await runJobs(w.deps, scan, { cancelled: () => false }, 10);
+    expect(w.calls.transcribe).toEqual([]);
+  });
+});
+
 describe('proposal validation', () => {
   it('drops a folder the model made up and falls back to a folder whose words match the text', async () => {
     const w = world();

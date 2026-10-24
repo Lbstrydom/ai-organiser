@@ -99,6 +99,8 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
     const skip = (id: string, reason: SkipReason): void => {
         outcome.skipped.push({ id, reason });
     };
+    /** Creation time, falling back to the modification time when the platform gives none. */
+    const created = (f: VaultFileInfo): number => (f.ctime > 0 ? f.ctime : f.mtime);
     const tooLarge = (atts: ScannedAttachment[]): boolean => atts.some((a) => a.kind !== null && a.size > config.maxAttachmentBytes);
     // An accepted or organised capture is never offered again, whether it is still a journal entry
     // (kept so the organised note can be created) or already a tombstone.
@@ -120,7 +122,7 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'excluded');
             continue;
         }
-        if (!deps.includeExisting && note.ctime < config.since && !journal.entries[id]) {
+        if (!deps.includeExisting && created(note) < config.since && !journal.entries[id]) {
             outcome.olderIgnored++;
             continue;
         }
@@ -172,7 +174,7 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'excluded');
             continue;
         }
-        if (!deps.includeExisting && file.ctime < config.since && !journal.entries[id]) {
+        if (!deps.includeExisting && created(file) < config.since && !journal.entries[id]) {
             outcome.olderIgnored++;
             continue;
         }

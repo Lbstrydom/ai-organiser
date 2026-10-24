@@ -171,6 +171,24 @@ describe('machine text cannot pull in links or embeds', () => {
   });
 });
 
+describe('frontmatter shapes the keys cannot be added to', () => {
+  it('refuses flow-style, list and scalar frontmatter instead of appending block lines to it', () => {
+    for (const fm of ['{tags: [inbox]}', '[a, b]', '- one\n- two']) {
+      expect(setCaptureKeys(`---\n${fm}\n---\nbody\n`, { id: 'x', status: 's' }).ok, fm).toBe(false);
+    }
+    expect(applyAccept('---\n{tags: [inbox]}\n---\nbody\n', ID, content)).toEqual({ ok: false, error: 'capture-frontmatter-unreadable' });
+    expect(setCaptureKeys('---\n# a comment\ntags: [a]\n---\nbody\n', { id: 'x', status: 's' }).ok).toBe(true);
+  });
+
+  it('proposal fields are one defused line each', () => {
+    const block = renderCaptureBlock({ ...content, proposal: { title: 'Line one\n- [ ] sneaky #tag [[link]]', tags: ['a\nb'], folder: 'F\n```' } });
+    const meta = block.split('\n').filter((l) => l.startsWith('Proposed'));
+    expect(meta).toHaveLength(3);
+    expect(block).not.toMatch(/(^|[^\\])\[\[/);
+    expect(block).not.toMatch(/^\s*```/m);
+  });
+});
+
 describe('capture id in the note', () => {
   it('reads back what it wrote, including a quoted or single-quoted id', () => {
     for (const id of ['plain-uuid-1234', 'Inbox/odd: name #1.md', '- leading dash']) {

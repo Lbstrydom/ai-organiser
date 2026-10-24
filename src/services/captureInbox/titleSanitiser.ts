@@ -6,6 +6,7 @@
 
 const RESERVED = /^(?:con|prn|aux|nul|com[0-9]|lpt[0-9])(?:\..*)?$/i;
 const MAX_TITLE_CHARS = 80;
+const MAX_TITLE_BYTES = 180;
 
 // Control characters, zero-width and bidi-override characters: invisible, and never part of a file name.
 // eslint-disable-next-line no-control-regex
@@ -18,7 +19,10 @@ function clean(raw: unknown): string {
         .replace(/[\\/:*?"<>|#^[\]]/g, ' ')
         .replace(/\s+/g, ' ')
         .trim();
-    return [...stripped].slice(0, MAX_TITLE_CHARS).join('').replace(/^[.\s-]+|[.\s]+$/g, '').trim();
+    let chars = [...stripped].slice(0, MAX_TITLE_CHARS);
+    // A file name is limited in bytes, not characters: 80 emoji are 320 bytes.
+    while (chars.length > 0 && new TextEncoder().encode(chars.join('')).length > MAX_TITLE_BYTES) chars = chars.slice(0, -1);
+    return chars.join('').replace(/^[.\s-]+|[.\s]+$/g, '').trim();
 }
 
 const usable = (t: string): boolean => t !== '' && !RESERVED.test(t);

@@ -238,6 +238,8 @@ async function markStage(deps: CaptureDeps, id: string, stage: CaptureStage, sta
         const e = getEntry(j, id);
         return e ? upsertEntry(j, { ...e, state, stage, updatedAt: deps.now() }) : j;
     });
+    // The write-ahead marker must have landed on a live entry; if it vanished (skipped, deleted) nothing is sent.
+    if (getEntry(deps.journal.get(), id)?.state !== state) throw new Cancelled();
 }
 
 /**
@@ -258,6 +260,8 @@ export async function runJobs(deps: CaptureDeps, scan: ScanOutcome, ctl: RunCont
         }
         const cap = byId.get(entry.id);
         if (!cap) continue;
+        // The snapshot is old by now: only a capture that is still ready starts.
+        if (getEntry(deps.journal.get(), entry.id)?.state !== 'ready') continue;
         // Let the UI breathe between jobs (mobile).
         await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
         const outcome = await processOne(deps, entry.id, cap, ctl);
@@ -371,9 +375,11 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
             return e ? upsertEntry(j, { ...e, text: machineText, noteText, source: plan.source ?? undefined, updatedAt: deps.now() }) : j;
         });
         checkCancel();
+        // Everything that awaits comes BEFORE the last guard, so nothing can change between the check and the call.
+        const taxonomy = await deps.taxonomyPrompt();
         const beforeTagging = await stillAllowed(deps, cap, machineText);
         if (beforeTagging) throw new Skip(beforeTagging);
-        const proposal = await classify(deps, cap, `${noteText}\n\n${machineText}`.trim(), config);
+        const proposal = await classify(deps, cap, `${noteText}\n\n${machineText}`.trim(), config, taxonomy);
         checkCancel();
 
         await deps.journal.mutate((j) => {
@@ -387,7 +393,7 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
     }
 }
 
-async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, config: CaptureConfig) {
+async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, config: CaptureConfig, taxonomy: string) {
     const root = config.destinationRoot;
     const ctx = buildCaptureFolderContext(root, deps.listFolders(), (p) => deps.folderAllowed(p));
     const fallbackTitle = text.split(/\s+/).filter(Boolean).slice(0, 6).join(' ') || basename(cap.id).replace(/\.[^.]+$/, '');
@@ -396,7 +402,7 @@ async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, co
     // Last-resort destination without a model: the folder whose name shares words with the text.
     const lexical = (): string | null => rankByTitleOverlap('', text.slice(0, 600), allowed)[0]?.path ?? null;
     try {
-        const parts = buildCaptureClassifyPrompt({ text, taxonomyPrompt: await deps.taxonomyPrompt(), maxTags: deps.maxTags(), language: deps.language(), maxChars: config.maxTextChars, folderContext: ctx });
+        const parts = buildCaptureClassifyPrompt({ text, taxonomyPrompt: taxonomy, maxTags: deps.maxTags(), language: deps.language(), maxChars: config.maxTextChars, folderContext: ctx });
         const res = await deps.classify(parts);
         if (res.ok) raw = res.value;
     } catch {

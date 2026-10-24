@@ -54,7 +54,8 @@ export function buildCaptureFolderContext(
     isAllowed: (folderPath: string) => boolean,
 ): FolderContext | undefined {
     const root = normalisePath(destinationRoot);
-    if (root === '') return undefined;
+    // A root that is itself not allowed (kept out, protected) offers no destination at all.
+    if (root === '' || !isAllowed(root)) return undefined;
     const subfolders = childFolders
         .map(normalisePath)
         .filter((p) => p !== '' && p !== root && isInsideOrEqual(p, root) && p.slice(root.length + 1).indexOf('/') === -1 && isAllowed(p))

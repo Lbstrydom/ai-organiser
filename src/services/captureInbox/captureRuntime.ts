@@ -53,6 +53,8 @@ export class CaptureRuntime {
     private cancelFlag = false;
     private hintTimer: number | null = null;
     private lastAutoRun = 0;
+    /** A file event arrived while a run was active: look again when it ends. */
+    private hintPending = false;
     private disposed = false;
 
     constructor(private readonly deps: RuntimeDeps) {}
@@ -74,6 +76,13 @@ export class CaptureRuntime {
 
     private usable(): boolean {
         return !this.disposed && this.deps.isEnabled();
+    }
+
+    /** A file event that arrived during a run is looked at once the run is over. */
+    private replayHint(): void {
+        if (!this.hintPending) return;
+        this.hintPending = false;
+        this.hint();
     }
 
     /** A file event in an inbox folder: a hint to look soon. Never starts processing. */
@@ -98,7 +107,11 @@ export class CaptureRuntime {
 
     /** Scan and settle stability. Calls no provider, so it is safe to run on every hint. */
     async refresh(): Promise<ScanOutcome | null> {
-        if (!this.usable() || this.running || !this.deps.isVisible()) return null;
+        if (!this.usable() || !this.deps.isVisible()) return null;
+        if (this.running) {
+            this.hintPending = true;
+            return null;
+        }
         this.running = true;
         try {
             const scan = await this.scan();
@@ -110,6 +123,7 @@ export class CaptureRuntime {
             return null;
         } finally {
             this.running = false;
+            this.replayHint();
         }
     }
 
@@ -141,6 +155,7 @@ export class CaptureRuntime {
             return null;
         } finally {
             this.running = false;
+            this.replayHint();
         }
     }
 

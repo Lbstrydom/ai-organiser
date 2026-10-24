@@ -89,6 +89,18 @@ describe('CaptureJournalStore', () => {
     expect(f.saves.length).toBe(before);
   });
 
+  it('a failed save leaves the journal dirty so a later flush retries it', async () => {
+    const f = fakePlugin();
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    const real = (f.plugin as unknown as { saveData: (d: unknown) => Promise<void> }).saveData;
+    (f.plugin as unknown as { saveData: () => Promise<void> }).saveData = async () => { throw new Error('disk full'); };
+    await store.mutate((j) => upsertEntry(j, entry('a.md')));
+    (f.plugin as unknown as { saveData: (d: unknown) => Promise<void> }).saveData = real;
+    await store.flush();
+    expect((f.data[CAPTURE_JOURNAL_DATA_KEY] as { entries: Record<string, unknown> }).entries['a.md']).toBeDefined();
+  });
+
   it('refuses to write before the stored journal was read (it would replace it with an empty one)', async () => {
     const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: { version: 1, entries: { 'x.md': entry('x.md') }, tombstones: {}, aliases: {}, counters: {} } });
     const store = new CaptureJournalStore(f.plugin);

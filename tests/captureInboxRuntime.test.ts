@@ -168,7 +168,7 @@ describe('recovery after a crash', () => {
     const before = s.files.get('Inbox/n.md')!.text;
     await new CaptureRuntime(s.deps).recoverOnStart();
     expect(s.files.get('Inbox/n.md')!.text).toBe(before);
-    expect(s.journal().tombstones['Inbox/n.md']?.state).toBe('accepted');
+    expect(getEntry(s.journal(), 'Inbox/n.md')?.state).toBe('accepted');
   });
 
   it('an Accept that never reached the note is retried once, and only that write', async () => {
@@ -181,6 +181,23 @@ describe('recovery after a crash', () => {
 });
 
 describe('audit regressions (runtime)', () => {
+  it('a file event that arrives while a run is active is looked at when the run ends, not dropped', async () => {
+    const s = setup();
+    let release: (() => void) | null = null;
+    s.transcribe.mockImplementation(() => new Promise<Result<string>>((resolve) => { release = () => resolve(ok('words here')); }));
+    const rt = new CaptureRuntime(s.deps);
+    const run = rt.runOnce({ trigger: 'manual' });
+    for (let i = 0; i < 100 && release === null; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(release).not.toBeNull();
+    s.files.set('Inbox/late.md', { size: 30, text: 'a late arriving typed note' });
+    expect(await rt.refresh()).toBeNull(); // busy: deferred, not dropped
+    release!();
+    await run;
+    await new Promise((r) => setTimeout(r, HINT_DEBOUNCE_MS + 600));
+    expect(getEntry(s.journal(), 'Inbox/late.md')).toBeDefined();
+    rt.dispose();
+  });
+
   it('neither a manual nor an automatic run starts while the run precondition fails (keep-out emptied after the first run)', async () => {
     const s = setup({ blocker: () => 'capture-keepout-required' });
     const rt = new CaptureRuntime(s.deps);
@@ -231,6 +248,20 @@ describe('audit regressions (runtime)', () => {
     const again = await new CaptureRuntime(s.deps).runOnce({ trigger: 'manual' });
     expect(again?.scan.captures.map((c) => c.id)).not.toContain(companion);
     expect(again?.scan.captures.map((c) => c.id)).not.toContain(media);
+  });
+});
+
+describe('extractLinkTargets (bounded and complete)', () => {
+  it('reads angle-bracket destinations that contain spaces', () => {
+    expect(extractLinkTargets('![](<voice memo.m4a>) ![x](plain.png "title")').sort()).toEqual(['plain.png', 'voice memo.m4a']);
+  });
+
+  it('stays fast on long runs of unmatched brackets', () => {
+    const t0 = Date.now();
+    extractLinkTargets('[['.repeat(80_000));
+    extractLinkTargets('!['.repeat(80_000));
+    extractLinkTargets('[x]('.repeat(40_000));
+    expect(Date.now() - t0).toBeLessThan(1500);
   });
 });
 

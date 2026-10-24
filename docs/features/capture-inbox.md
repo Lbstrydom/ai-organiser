@@ -62,6 +62,15 @@ Audio goes to the transcription provider and images to the multimodal provider *
 
 Shared (the sweep's): `sweepInboxFolders`, `sweepExcludedFolders`, `sweepExcludedTags`, `sweepExcludedProperties`, `sweepExcludedTerms`, `sweepNothingToExclude`. Capture's own: `captureOnOpen` (false), `captureOnOpenMaxPerRun` (3), `captureMaxPerRun` (10), `captureMaxAttachmentMB` (10), `captureMinWords` (3), `captureDigitiseImages` (false), `captureMaxImagesPerCapture` (3), `captureMaxTextChars` (12 000), `captureStabilitySeconds` (8), `captureRequireMarker` (false), `captureDestinationRoot` (empty: no folder is proposed), `captureConfirmedAt`, `captureSince`. Process-when-opened runs only after one confirmed manual run, at most `captureOnOpenMaxPerRun` captures, at least 15 minutes apart, and never widens its scope to old notes.
 
+## Known limits (deliberate)
+
+- **An image is read by the existing digitisation call from its path.** The bytes are validated first, but the pipeline re-reads the file, so a file swapped in that instant is not covered (the size is re-checked immediately before).
+- **A capture that fails to tag degrades to a title from its text** and stays reviewable; a failed tagging call is not a failed capture.
+- **While a sweep runs the held set is frozen**, so a capture that arrives during the run is held from the next run on. The sweep's own scope is fixed at its start, and the policy fail-closes if it does change.
+- **If the capture feature fails to start** (its journal cannot load) the sweep keeps waiting rather than read held captures; reload the plugin after fixing the cause.
+- **A line that equals the note's file name is ignored as written text, heading or not**, so a transport that repeats the title as body text does not suppress transcription. A genuine note whose only line is its own title is treated as having no text.
+- The audit also reported items in settings migrations, Azure defaults, shared CSS and unrelated i18n copy in files this change touches. They predate this feature and are not part of it.
+
 ## Mobile
 
 Runs only while Obsidian is in the foreground, yields between jobs, reads one attachment at a time, and shows no status-bar item (command and picker only). **This has not been tested on a phone.** Real-device checklist: cold start with a queued capture; the audio formats each transport produces (m4a, mp3, wav, webm, ogg and mp4 are accepted; caf, 3gp, amr, aac and flac are skipped with the format named); microphone permission and offline behaviour in the transport; an interrupted recording (zero-byte or truncated file); app suspension during an upload (the call fails and the capture returns to retry); a 10 MB audio file and a 10 MB image under low memory; an attachment that arrives after its note; offline then online recovery; duplicate file events; a vault with 2 000 files; very long note names; an hour of foreground use on battery; `visibilitychange` after the phone locks; HEIC photos.

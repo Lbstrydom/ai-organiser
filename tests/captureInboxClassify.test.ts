@@ -26,6 +26,10 @@ describe('folder context for the model', () => {
     expect(ctx?.subfolders).not.toContain('Areas/Home/Deep');
   });
 
+  it('offers nothing when the destination root itself is not allowed', () => {
+    expect(buildCaptureFolderContext('Areas', ['Areas/Home'], (p) => p !== 'Areas')).toBeUndefined();
+  });
+
   it('returns nothing without a destination root (no destination is proposed)', () => {
     expect(buildCaptureFolderContext('', folders, allowed)).toBeUndefined();
     expect(buildCaptureFolderContext('/', folders, allowed)).toBeUndefined();

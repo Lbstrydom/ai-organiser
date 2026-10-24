@@ -128,7 +128,8 @@ describe('capture journal', () => {
 
         it('marks accept_pending_write accepted when the block is already there, and waits when it cannot tell', () => {
             const j = upsertEntry(emptyJournal(), mk('p.md', 'accept_pending_write'));
-            expect(reconcile(j, () => true, 9).journal.tombstones['p.md'].state).toBe('accepted');
+            // The entry stays (with its text) so the organised note can still be created; it is simply accepted now.
+            expect(reconcile(j, () => true, 9).journal.entries['p.md'].state).toBe('accepted');
             const unsure = reconcile(j, () => undefined, 9);
             expect(unsure.retryWrites).toEqual([]);
             expect(unsure.journal.entries['p.md'].state).toBe('accept_pending_write');
@@ -144,7 +145,27 @@ describe('capture journal', () => {
         });
     });
 
-    it('coerceJournal fails closed to an empty journal on unknown or malformed data', () => {
+    it('coerceJournal drops malformed nested records instead of trusting them', () => {
+    const raw = { version: 1, entries: { 'a.md': mk('a.md', 'ready'), bad: null, worse: { id: 5 }, odd: { id: 'x', state: 'bogus' } }, tombstones: { t: { id: 't' }, ok: { id: 'ok', fingerprintHash: 'h', state: 'accepted', at: 1 } }, aliases: { m: 'a.md', n: 7 }, counters: { processed: 'x', failed: { a: 1, b: 'no' }, skipped: [] } };
+    const j = coerceJournal(raw);
+    expect(Object.keys(j.entries)).toEqual(['a.md']);
+    expect(Object.keys(j.tombstones)).toEqual(['ok']);
+    expect(j.aliases).toEqual({ m: 'a.md' });
+    expect(j.counters).toMatchObject({ processed: 0, failed: { a: 1 }, skipped: {} });
+    expect(() => awaitingCount(j)).not.toThrow();
+  });
+
+  it('never prunes an accepted tombstone however many skipped ones there are', () => {
+    let j = upsertEntry(emptyJournal(), mk('keep.md', 'ready'));
+    j = finish(j, 'keep.md', 'accepted', 0);
+    for (let i = 0; i < 2100; i++) { j = upsertEntry(j, mk(`s${i}.md`, 'ready')); j = finish(j, `s${i}.md`, 'skipped', i + 5); }
+    for (let i = 0; i < 150; i++) { j = upsertEntry(j, mk(`a${i}.md`, 'ready')); j = finish(j, `a${i}.md`, 'accepted', i + 5); }
+    expect(j.tombstones['keep.md']?.state).toBe('accepted');
+    expect(Object.values(j.tombstones).filter((t) => t.state === 'accepted')).toHaveLength(151);
+    expect(Object.values(j.tombstones).filter((t) => t.state === 'skipped').length).toBeLessThanOrEqual(2000);
+  });
+
+  it('coerceJournal fails closed to an empty journal on unknown or malformed data', () => {
         expect(coerceJournal(null)).toEqual(emptyJournal());
         expect(coerceJournal({ version: 2 })).toEqual(emptyJournal());
         expect(coerceJournal('x')).toEqual(emptyJournal());

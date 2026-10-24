@@ -62,6 +62,9 @@ export function setCaptureKeys(text: string, keys: { id: string; status: string 
         return ok({ text: `---${eol}${lines}---${eol}${text}`, frontmatterCreated: true });
     }
     const body = text.slice(region.bodyStart, region.closerStart);
+    // Only a block mapping can take two more `key: value` lines: flow style ({a: 1}), a list or a scalar cannot.
+    const first = body.split('\n').map((l) => l.trim()).find((l) => l !== '' && !l.startsWith('#'));
+    if (first !== undefined && (first.startsWith('{') || first.startsWith('[') || first.startsWith('- ') || first === '-')) return err('frontmatter-unclosed');
     const already = body.split('\n').some((l) => keyLine(CAPTURE_ID_KEY).test(l) || keyLine(CAPTURE_STATUS_KEY).test(l));
     if (already) return err('capture-keys-exist');
     return ok({ text: text.slice(0, region.closerStart) + lines + text.slice(region.closerStart), frontmatterCreated: false });

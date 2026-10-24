@@ -264,11 +264,12 @@ export function registerCaptureInboxCommands(plugin: AIOrganiserPlugin): void {
         if (c) run(c);
         else new Notice(t.captureInbox.queueChecking, 3000);
     };
-    plugin.addCommand({ id: 'process-capture-inbox', name: t.commands.processCaptureInbox, icon: 'inbox', callback: () => withController((c) => { void c.processNow(); }) });
+    plugin.addCommand({ id: 'process-capture-inbox', name: t.commands.processCaptureInbox, icon: 'inbox', callback: () => withController((c) => { c.processNow().catch((e: unknown) => logger.error('CaptureInbox', 'Process failed', e)); }) });
     plugin.addCommand({ id: 'review-captures', name: t.commands.reviewCaptures, icon: 'list-checks', callback: () => withController((c) => c.openQueue()) });
     plugin.addCommand({ id: 'setup-capture-inbox', name: t.commands.setupCaptureInbox, icon: 'sparkles', callback: () => openCaptureInboxSetup(plugin) });
     start(plugin).catch((e: unknown) => {
-        setCaptureActive(false);
+        // Stay active: the capture journal never loaded, so the sweep must keep waiting rather than read held captures.
         logger.error('CaptureInbox', 'Could not start the capture inbox', e);
+        guidance(plugin, 'unknown');
     });
 }

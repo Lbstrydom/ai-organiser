@@ -392,6 +392,21 @@ describe('final-gate regressions (writer)', () => {
     expect(s.port.creates.filter((p) => p.startsWith('Areas/'))).toEqual([]);
   });
 
+  it('also judges the user\'s own held text before copying it (the noteText the body is built from)', async () => {
+    const s = setup();
+    const id = await accepted(s);
+    s.set(upsertEntry(s.journal, { ...getEntry(s.journal, id)!, noteText: 'secret plan for ACME' }));
+    expect(await createOrganisedNote(s.deps, id)).toEqual({ ok: false, error: 'capture-source-excluded' });
+  });
+
+  it('an action that throws returns a failure instead of rejecting', async () => {
+    const s = setup();
+    const { id } = await seedNote(s);
+    s.port.readNote = async () => { throw new Error('disk gone'); };
+    const r = await acceptCapture(s.deps, id);
+    expect(r).toEqual({ ok: false, error: 'capture-write-failed' });
+  });
+
   it('refuses when the source note is gone', async () => {
     const s = setup();
     const id = await accepted(s);

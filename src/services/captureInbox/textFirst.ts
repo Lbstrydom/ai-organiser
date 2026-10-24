@@ -8,7 +8,7 @@ import type { CaptureSource, SkipReason } from './captureTypes';
 
 const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
 /** A run of letters or digits is a word; each Han, Hiragana or Katakana character counts as one (no spaces in those scripts). */
-const WORD = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|[\p{L}\p{N}]+/gu;
+const WORD = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|(?:(?![\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])[\p{L}\p{N}])+/gu;
 /** Notes longer than this are not read for words: bounded work on a hostile or pasted note. */
 const MAX_SCAN_CHARS = 120_000;
 

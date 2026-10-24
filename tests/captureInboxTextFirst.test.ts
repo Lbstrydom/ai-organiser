@@ -69,6 +69,11 @@ describe('planSources', () => {
     expect(wordCount(usableText('<audio src="a.m4a" controls>', 'x.md'))).toBe(0);
   });
 
+  it('counts CJK characters inside a run that also holds latin letters', () => {
+    expect(wordCount('abc日本語')).toBe(4);
+    expect(wordCount('hello世界')).toBe(3);
+  });
+
   it('stays fast on a hostile note full of unclosed brackets', () => {
     const t0 = Date.now();
     usableText('[['.repeat(60_000), 'x.md');

@@ -152,6 +152,14 @@ describe('scanInbox', () => {
     expect(reads).toEqual([]);
   });
 
+  it('falls back to the modification time when the platform gives no creation time', async () => {
+    const files = [f('Inbox/old.md', { ctime: 0, mtime: 10 }), f('Inbox/new.md', { ctime: 0, mtime: 9000 })];
+    const { p } = port(files, { 'Inbox/old.md': 'old words here', 'Inbox/new.md': 'new words here' });
+    const r = await scanInbox(p, deps());
+    expect(r.captures.map((c) => c.id)).toEqual(['Inbox/new.md']);
+    expect(r.olderIgnored).toBe(1);
+  });
+
   it('does nothing without an inbox folder', async () => {
     const { p, reads } = port([f('Inbox/a.md')], {});
     const r = await scanInbox(p, deps({ config: { ...config, inboxFolders: [] } }));

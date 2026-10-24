@@ -61,9 +61,10 @@ export function renderCaptureBlock(content: BlockContent): string {
     const text = content.machineText.trim();
     if (text) parts.push('', defuseMachineText(text));
     const meta: string[] = [];
-    if (content.proposal.title) meta.push(`Proposed title: ${neutralise(content.proposal.title)}`);
-    if (content.proposal.tags.length > 0) meta.push(`Proposed tags: ${content.proposal.tags.map(neutralise).join(', ')}`);
-    if (content.proposal.folder) meta.push(`Proposed folder: ${neutralise(content.proposal.folder)}`);
+    const line = (s: string): string => defuseMachineText(s.replace(/\s+/g, ' ').trim());
+    if (content.proposal.title) meta.push(`Proposed title: ${line(content.proposal.title)}`);
+    if (content.proposal.tags.length > 0) meta.push(`Proposed tags: ${content.proposal.tags.map(line).join(', ')}`);
+    if (content.proposal.folder) meta.push(`Proposed folder: ${line(content.proposal.folder)}`);
     if (meta.length > 0) parts.push('', ...meta);
     parts.push(CAPTURE_BLOCK_END);
     return parts.join('\n');

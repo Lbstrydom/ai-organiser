@@ -78,11 +78,15 @@ const uidOf = (entry: CaptureEntry): string => entry.uid ?? entry.id;
 /** One action at a time per capture: a double click or an overlapping recovery must not race the write. */
 const inFlight = new Set<string>();
 
-async function exclusive<T>(id: string, busy: T, work: () => Promise<T>): Promise<T> {
+async function exclusive<T>(id: string, busy: T, work: () => Promise<T>, failed: T = busy): Promise<T> {
     if (inFlight.has(id)) return busy;
     inFlight.add(id);
     try {
         return await work();
+    } catch (e) {
+        // A service-boundary action never rejects past its contract.
+        logger.error('CaptureInbox', `Action failed for ${id}`, e);
+        return failed;
     } finally {
         inFlight.delete(id);
     }
@@ -114,7 +118,7 @@ async function backToReview(deps: WriterDeps, id: string, code: string): Promise
  * text is unchanged inside the commit.
  */
 export async function acceptCapture(deps: WriterDeps, id: string, edits: AcceptEdits = {}, opts: { recovering?: boolean } = {}): Promise<Result<void>> {
-    return exclusive(id, err<void>('capture-busy'), () => acceptLocked(deps, id, edits, opts));
+    return exclusive(id, err<void>('capture-busy'), () => acceptLocked(deps, id, edits, opts), err<void>('capture-write-failed'));
 }
 
 async function acceptLocked(deps: WriterDeps, id: string, edits: AcceptEdits, opts: { recovering?: boolean }): Promise<Result<void>> {
@@ -271,7 +275,7 @@ export function organisedBody(entry: CaptureEntry): string {
  * finds the note by `capture-from`, and an existing file is never overwritten.
  */
 export async function createOrganisedNote(deps: WriterDeps, id: string, edits: OrganiseEdits = {}): Promise<Result<string>> {
-    return exclusive(id, err<string>('capture-busy'), () => organiseLocked(deps, id, edits));
+    return exclusive(id, err<string>('capture-busy'), () => organiseLocked(deps, id, edits), err<string>('capture-write-failed'));
 }
 
 async function organiseLocked(deps: WriterDeps, id: string, edits: OrganiseEdits): Promise<Result<string>> {
@@ -288,7 +292,7 @@ async function organiseLocked(deps: WriterDeps, id: string, edits: OrganiseEdits
     const sourcePath = entry.companionPath ?? entry.id;
     const sourceText = await deps.port.readNote(sourcePath);
     const policy = deps.policy();
-    if (sourceText === null || machineTextExclusion(sourcePath, sourceText, policy) !== null || machineTextExclusion(sourcePath, entry.text ?? '', policy) !== null) {
+    if (sourceText === null || machineTextExclusion(sourcePath, sourceText, policy) !== null || machineTextExclusion(sourcePath, entry.text ?? '', policy) !== null || machineTextExclusion(sourcePath, entry.noteText ?? '', policy) !== null) {
         return err('capture-source-excluded');
     }
 
@@ -335,7 +339,7 @@ async function organiseLocked(deps: WriterDeps, id: string, edits: OrganiseEdits
 
 /** The user rejects or skips a capture: nothing is written; the decision is remembered. */
 export async function skipCapture(deps: WriterDeps, id: string): Promise<Result<void>> {
-    return exclusive(id, err<void>('capture-busy'), () => skipLocked(deps, id));
+    return exclusive(id, err<void>('capture-busy'), () => skipLocked(deps, id), err<void>('capture-write-failed'));
 }
 
 async function skipLocked(deps: WriterDeps, id: string): Promise<Result<void>> {

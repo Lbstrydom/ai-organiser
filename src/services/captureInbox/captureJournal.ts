@@ -116,11 +116,12 @@ export function finish(journal: CaptureJournal, id: string, state: TombstoneStat
 }
 
 function pruneTombstones(tombstones: Record<string, CaptureTombstone>): Record<string, CaptureTombstone> {
-    const all = Object.values(tombstones);
-    if (all.length <= MAX_TOMBSTONES) return tombstones;
-    // Skipped records go first: an accepted or organised one must outlive them, or that capture could be processed again.
-    const rank = (t: CaptureTombstone): number => (t.state === 'accepted' || t.state === 'organised' ? 1 : 0);
-    const keep = all.sort((a, b) => rank(b) - rank(a) || b.at - a.at).slice(0, MAX_TOMBSTONES);
+    // Only skipped records are capped (oldest first). An accepted or organised tombstone is the evidence that a capture is
+    // done: dropping it would let the capture be processed, and charged, again. They are a few dozen bytes each.
+    const finished = Object.values(tombstones).filter((t) => t.state === 'accepted' || t.state === 'organised');
+    const skipped = Object.values(tombstones).filter((t) => t.state !== 'accepted' && t.state !== 'organised');
+    if (skipped.length <= MAX_TOMBSTONES) return tombstones;
+    const keep = [...finished, ...skipped.sort((a, b) => b.at - a.at).slice(0, MAX_TOMBSTONES)];
     return Object.fromEntries(keep.map((t) => [t.id, t]));
 }
 
@@ -182,7 +183,7 @@ export function reconcile(journal: CaptureJournal, blockPresent: (id: string) =>
     for (const entry of Object.values(journal.entries)) {
         if (entry.state === 'accept_pending_write') {
             const present = blockPresent(entry.id);
-            if (present === true) next = finish(next, entry.id, 'accepted', now);
+            if (present === true) next = upsertEntry(next, { ...entry, state: 'accepted', updatedAt: now });
             else if (present === false) retryWrites.push(entry.id);
             continue;
         }
@@ -206,13 +207,36 @@ export function coerceJournal(raw: unknown): CaptureJournal {
     if (!raw || typeof raw !== 'object') return emptyJournal();
     const r = raw as Partial<CaptureJournal>;
     if (r.version !== 1 || typeof r.entries !== 'object' || r.entries === null) return emptyJournal();
-    const base = emptyJournal();
+    const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+    const states = new Set<string>(['new', 'waiting_for_stable', 'ready', 'processing', 'awaiting_review', 'accept_pending_write', 'accepted', 'organised', 'failed', 'skipped', 'skipped_by_user']);
+    const entries: Record<string, CaptureEntry> = {};
+    for (const [key, value] of Object.entries(r.entries)) {
+        if (isRecord(value) && typeof value.id === 'string' && typeof value.state === 'string' && states.has(value.state)) entries[key] = value as unknown as CaptureEntry;
+    }
+    const tombstones: Record<string, CaptureTombstone> = {};
+    if (isRecord(r.tombstones)) {
+        for (const [key, value] of Object.entries(r.tombstones)) {
+            if (isRecord(value) && typeof value.id === 'string' && typeof value.fingerprintHash === 'string') tombstones[key] = value as unknown as CaptureTombstone;
+        }
+    }
+    const aliases: Record<string, string> = {};
+    if (isRecord(r.aliases)) for (const [key, value] of Object.entries(r.aliases)) if (typeof value === 'string') aliases[key] = value;
+    const counts = (v: unknown): Record<string, number> => {
+        const out: Record<string, number> = {};
+        if (isRecord(v)) for (const [k, n] of Object.entries(v)) if (typeof n === 'number' && Number.isFinite(n)) out[k] = n;
+        return out;
+    };
+    const c: Record<string, unknown> = isRecord(r.counters) ? r.counters : {};
+    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
     return {
         version: 1,
-        entries: r.entries,
-        tombstones: r.tombstones ?? {},
-        aliases: r.aliases ?? {},
-        counters: { ...base.counters, ...(r.counters ?? {}) },
+        entries,
+        tombstones,
+        aliases,
+        counters: {
+            processed: num(c.processed), acceptedUnchanged: num(c.acceptedUnchanged), acceptedEdited: num(c.acceptedEdited), rejected: num(c.rejected),
+            failed: counts(c.failed), skipped: counts(c.skipped),
+        },
     };
 }
 
