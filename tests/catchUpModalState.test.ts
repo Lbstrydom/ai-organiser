@@ -73,6 +73,15 @@ describe('deriveModalView', () => {
         expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ waiting: null });
     });
 
+    it('says automatic replacement will act (not that it waits) when that setting is on', () => {
+        const s = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [ep('20261020-100000-aaaa', '2026-10-19')], autoPendingDays: 1 });
+        const smart = { newsletterAudioPodcast: true, newsletterAudioMode: 'smart-daily' };
+        expect(deriveModalView(input({ snapshot: s, settings: { ...smart, newsletterCatchUpWhenBehind: 'replace' } }))).toMatchObject({ waiting: null, replaceSoon: true });
+        expect(deriveModalView(input({ snapshot: s, settings: { ...smart, newsletterCatchUpWhenBehind: 'wait' } }))).toMatchObject({ waiting: { days: 1 }, replaceSoon: false });
+        expect(deriveModalView(input({ snapshot: snapshot({ ...s, autoPendingDays: 0 }), settings: { ...smart, newsletterCatchUpWhenBehind: 'replace' } }))).toMatchObject({ replaceSoon: false });
+        expect(deriveModalView(input({ snapshot: s, settings: { newsletterAudioPodcast: true, newsletterAudioMode: 'on-demand', newsletterCatchUpWhenBehind: 'replace' } }))).toMatchObject({ replaceSoon: false });
+    });
+
     it('include-all never offers a still-open day (it would stay left out)', () => {
         const v = deriveModalView(input({ snapshot: snapshot({
             window: ['2026-10-22', '2026-10-23'], state: 'caught-up',

@@ -213,6 +213,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         if (view.expiringDates.length > 0) this.note(m.expiring.replace('{dates}', formatDates(this.plugin.t, view.expiringDates)), 'is-warn');
         if (view.evidenceDegraded) this.note(this.plugin.t.modals.newsletterCatchUp.evidenceDegraded, 'is-warn');
         this.renderSkipped(view);
+        if (opts.unheardWarning && view.replaceSoon) this.note(this.plugin.t.modals.newsletterCatchUp.waitingReplaceSoon, 'is-warn');
         if (opts.unheardWarning && view.waiting) this.renderWaiting(view.waiting);
         else if (opts.unheardWarning && view.unheard) this.renderUnheard(view.unheard.episode);
     }

@@ -82,6 +82,8 @@ export function createCatchUpPorts(plugin: AIOrganiserPlugin): CatchUpPorts {
         plugin,
         settings,
         resolveTts: () => resolveTts(plugin),
+        // Automatic replacement only; absent (tracking off) means unknown, which blocks.
+        recentPlay: plugin.catchUpPlayback ? (episodeId) => plugin.catchUpPlayback!.recentPlay(episodeId) : undefined,
 
         async generateScript(plan: CatchUpPlan, signal?: AbortSignal): Promise<Result<string>> {
             const cloudType = settings.cloudServiceType;

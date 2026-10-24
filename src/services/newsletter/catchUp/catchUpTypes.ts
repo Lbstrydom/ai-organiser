@@ -44,6 +44,16 @@ export function normaliseCleanupDays(raw: unknown): number {
     return Math.min(CATCHUP_CLEANUP_MAX_DAYS, Math.floor(raw));
 }
 
+/** What Smart daily does when the last episode is still unheard and days are pending. */
+export type WhenBehind = 'wait' | 'replace';
+
+export const WHEN_BEHIND_MODES: readonly WhenBehind[] = ['wait', 'replace'];
+
+/** Anything but a recognised value is `wait`: the setting that trashes nothing. */
+export function normaliseWhenBehind(raw: unknown): WhenBehind {
+    return raw === 'replace' ? 'replace' : 'wait';
+}
+
 /** Written in a coverage map when a day is covered but no revision is known. */
 export const WHOLE_DAY = 'whole';
 

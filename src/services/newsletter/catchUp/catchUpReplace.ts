@@ -30,7 +30,7 @@ import {
     trashOwnedFile,
 } from './catchUpEpisode';
 import { hasLinkTable } from './catchUpCleanup';
-import { probeEpisodePlaying, type PlaybackProbe } from './catchUpPlayback';
+import { probeEpisodePlaying, type PlaybackProbe, type RecentPlay } from './catchUpPlayback';
 import { buildCatchUpSnapshot, type CatchUpSnapshot } from './catchUpSelection';
 import {
     reconcileOperation,
@@ -60,6 +60,9 @@ export type RefuseReason =
     | 'linked-elsewhere'
     | 'playing-now'
     | 'playback-unknown'
+    | 'played-recently'
+    | 'too-new'
+    | 'tried-today'
     | 'unreadable';
 
 export interface ReplaceCandidate {
@@ -87,6 +90,8 @@ export interface ReplaceDeps {
     /** Test seams. */
     waitForIndex?: (timeoutMs: number) => Promise<WaitResult>;
     probePlaying?: (app: App, audioName: string) => PlaybackProbe;
+    /** Automatic replacement only: was the episode played lately on this device? Absent means unknown, which blocks. */
+    recentPlay?: (episodeId: string) => Promise<RecentPlay>;
 }
 
 export interface ReplaceAssessment {
@@ -95,6 +100,23 @@ export interface ReplaceAssessment {
 }
 
 const INDEX_WAIT_MS = 10_000;
+
+/** An episode younger than this is never replaced automatically: late stories must not churn a fresh episode every fetch. */
+export const AUTO_MIN_AGE_MS = 12 * 60 * 60 * 1000;
+
+/** When the episode was made, from its id (`YYYYMMDD-HHMMSS-xxxx`, local time), or null when it cannot be read. */
+export function episodeCreatedAt(id: string): number | null {
+    const m = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})-[0-9a-f]{4}$/.exec(id);
+    if (!m) return null;
+    const t = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), Number(m[4]), Number(m[5]), Number(m[6])).getTime();
+    return Number.isFinite(t) ? t : null;
+}
+
+/** Episode id -> the calendar day an automatic replacement last RETIRED it (kept in memory only). */
+const autoRetiredOn = new Map<string, string>();
+const dayOf = (d: Date): string => `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+/** Test-only. */
+export function __resetAutoReplaceMemoryForTests(): void { autoRetiredOn.clear(); }
 
 // ── Assessment ───────────────────────────────────────────────────────────────
 
@@ -194,7 +216,21 @@ export async function assessReplace(
         if (playing === 'unknown') return { reason: 'playback-unknown' };
 
         const inboundLinks = inboundLinkers(app, notePath, [notePath, audioPath]);
-        if (purpose === 'auto' && inboundLinks > 0) return { reason: 'linked-elsewhere' };
+        if (purpose === 'auto') {
+            // Nobody confirms an automatic replacement, so everything that could surprise someone refuses it.
+            if (inboundLinks > 0) return { reason: 'linked-elsewhere' };
+            const now = (deps.now ?? (() => new Date()))();
+            // Two clocks, the more recent wins: the id carries local wall-clock time (another timezone misreads it),
+            // the file's creation time can be reset by sync. Either one saying "young" is enough.
+            const fromId = episodeCreatedAt(meta.id);
+            const ctime = (file as { stat?: { ctime?: number } }).stat?.ctime;
+            const created = fromId === null ? null : Math.max(fromId, typeof ctime === 'number' && ctime > 0 ? ctime : 0);
+            if (created === null || now.getTime() - created < AUTO_MIN_AGE_MS) return { reason: 'too-new' };
+            if (autoRetiredOn.get(meta.id) === dayOf(now)) return { reason: 'tried-today' };
+            const lately = deps.recentPlay ? await deps.recentPlay(meta.id) : 'unknown';
+            if (lately === 'recent') return { reason: 'played-recently' };
+            if (lately !== 'clear') return { reason: 'playback-unknown' };
+        }
 
         const stat = (audio as { stat?: { size?: number } }).stat;
         return {
@@ -304,7 +340,7 @@ const sameSet = (a: readonly string[], b: readonly string[]): boolean => a.lengt
 export async function replaceAndRunCatchUp(ports: CatchUpPorts, request: ReplaceRequest, seams: Pick<ReplaceDeps, 'waitForIndex' | 'probePlaying'> = {}): Promise<Result<ReplaceOutcome>> {
     try {
         return await runExclusive<ReplaceOutcome>(async () => {
-            const deps: ReplaceDeps = { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: ports.now, ...seams };
+            const deps: ReplaceDeps = { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: ports.now, recentPlay: ports.recentPlay, ...seams };
             if (!isFeatureEnabled(ports.settings, 'newsletter') || !isCatchUpEnabled(ports.settings)) return err('catchup-wrong-mode');
             const state = await reconcileOperation(ports);
             if (state.kind !== 'none' && state.kind !== 'committed') return err('catchup-unresolved');
@@ -320,8 +356,9 @@ export async function replaceAndRunCatchUp(ports: CatchUpPorts, request: Replace
                 return err('catchup-replace-unsafe');
             }
 
-            const preview = await buildCatchUpSnapshot({ app: ports.app, plugin: ports.plugin, settings: ports.settings, now: ports.now?.(), excludeEpisodeIds: request.episodeIds });
+            const preview = await buildCatchUpSnapshot({ app: ports.app, plugin: ports.plugin, settings: ports.settings, now: ports.now?.(), excludeEpisodeIds: request.episodeIds }, request.purpose === 'auto' ? 'auto' : 'manual');
             if (!preview.plan || preview.plan.planHash !== request.previewHash) return err('catchup-changed');
+            if (request.purpose === 'auto' && (current.evidenceDegraded || preview.evidenceDegraded)) return err('catchup-replace-unsafe');
             const lost = lostDaysOf(assessment.candidates, preview);
             if (lost.length > 0 && (request.purpose === 'auto' || !request.acceptLostDays)) return err('catchup-replace-unsafe');
 
@@ -337,12 +374,45 @@ export async function replaceAndRunCatchUp(ports: CatchUpPorts, request: Replace
             // episodes, each judged AGAIN just now, and report whatever happens per file.
             const retired: RetiredEpisode[] = [];
             await retire(deps, assessment.candidates, request.purpose, retired);
+            // Remembered AFTER the attempt, so the retirement's own re-check is not refused by it.
+            if (request.purpose === 'auto') for (const c of assessment.candidates) autoRetiredOn.set(c.id, dayOf((ports.now ?? (() => new Date()))()));
             try { ports.onChanged?.(); } catch (e) { logger.warn('Newsletter', 'Replace change listener failed', e); }
             return ok({ episode: made.value, retired });
         });
     } catch (e) {
         logger.warn('Newsletter', 'Replace failed', e);
         return err(e instanceof Error ? e.message : String(e));
+    }
+}
+
+/** The decision data for an automatic replacement: the frozen target set and the plan it will make. */
+export interface AutoReplacePlan {
+    episodeIds: string[];
+    previewHash: string;
+}
+
+/**
+ * Read-only: may these unheard episodes be replaced automatically right now, and with what plan?
+ * Every doubt is a refusal (`catchup-replace-unsafe`); a plan with nothing to make is `catchup-nothing-pending`.
+ */
+export async function prepareAutoReplace(ports: CatchUpPorts, unheard: readonly EpisodeMeta[]): Promise<Result<AutoReplacePlan>> {
+    try {
+        const deps: ReplaceDeps = { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: ports.now, recentPlay: ports.recentPlay };
+        const assessment = await assessReplace(deps, unheard, 'auto');
+        if (assessment.refused.length > 0) {
+            logger.debug('Newsletter', `Automatic replace held back: ${assessment.refused.map((r) => `${r.id}:${r.reason}`).join(', ')}`);
+            return err('catchup-replace-unsafe');
+        }
+        const episodeIds = unheard.map((e) => e.id).sort();
+        const preview = await buildCatchUpSnapshot({ app: ports.app, plugin: ports.plugin, settings: ports.settings, now: ports.now?.(), excludeEpisodeIds: episodeIds }, 'auto');
+        if (!preview.plan) return err('catchup-nothing-pending');
+        // Both snapshots must have been built from a readable listening history.
+        if (preview.evidenceDegraded) return err('catchup-replace-unsafe');
+        if (lostDaysOf(assessment.candidates, preview).length > 0) return err('catchup-replace-unsafe');
+        return ok({ episodeIds, previewHash: preview.plan.planHash });
+    } catch (e) {
+        logger.warn('Newsletter', 'Automatic replace could not be prepared', e);
+        return err('catchup-replace-unsafe');
     }
 }
 

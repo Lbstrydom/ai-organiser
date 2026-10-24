@@ -28,6 +28,7 @@ import {
     verifyEpisodeAudio as realVerifyEpisodeAudio,
 } from '../newsletterAudioService';
 import { getAudioMode } from '../newsletterAudioMode';
+import type { RecentPlay } from './catchUpPlayback';
 import { buildCatchUpSnapshot, type CatchUpSnapshot } from './catchUpSelection';
 import {
     OUTPUT_PROTECTED,
@@ -50,7 +51,7 @@ import {
     type OperationRecord,
     RECORD_SCHEMA_VERSION,
 } from './catchUpDraft';
-import { SCRIPT_OVERRUN_FACTOR, SPEAKING_CHARS_PER_SECOND, WORDS_PER_MINUTE, type CatchUpPlan, type CoverageMap } from './catchUpTypes';
+import { SCRIPT_OVERRUN_FACTOR, SPEAKING_CHARS_PER_SECOND, WORDS_PER_MINUTE, normaliseWhenBehind, type CatchUpPlan, type CoverageMap } from './catchUpTypes';
 
 // ── Ports ────────────────────────────────────────────────────────────────────
 
@@ -79,6 +80,8 @@ export interface CatchUpPorts {
     verifyAudio?: typeof realVerifyEpisodeAudio;
     /** Fired after any change a surface (status bar, modal) should re-read. */
     onChanged?: () => void;
+    /** Automatic replacement only: was this episode played lately on this device? Absent means unknown, which blocks. */
+    recentPlay?: (episodeId: string) => Promise<RecentPlay>;
 }
 
 export type RunPhase =
@@ -602,13 +605,22 @@ export type AutoSkipReason = 'wrong-mode' | 'busy' | 'unresolved' | 'unheard' | 
  * durable state (the ack map and the operation record), not on idle time, and it skips rather
  * than replaces anything unresolved.
  */
-export async function autoRunDecision(ports: CatchUpPorts): Promise<{ run: true } | { run: false; reason: AutoSkipReason }> {
+export async function autoRunDecision(ports: CatchUpPorts): Promise<{ run: true; replace?: { episodeIds: string[]; previewHash: string } } | { run: false; reason: AutoSkipReason }> {
     if (getAudioMode(ports.settings) !== 'smart-daily' || ports.settings.newsletterAudioPodcast !== true) return { run: false, reason: 'wrong-mode' };
     if (running) return { run: false, reason: 'busy' };
     const state = await classifyOperation(ports);
     if (state.kind !== 'none' && state.kind !== 'committed' && state.kind !== 'expired') return { run: false, reason: 'unresolved' };
     const snapshot = await buildCatchUpSnapshot({ app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports) }, 'auto');
-    if (snapshot.unheard.length > 0) return { run: false, reason: 'unheard' };
+    if (snapshot.unheard.length > 0) {
+        // The default, and every unrecognised value: wait for the reader, exactly as before.
+        if (normaliseWhenBehind(ports.settings.newsletterCatchUpWhenBehind) !== 'replace') return { run: false, reason: 'unheard' };
+        // Replacing needs new days to cover, a listening history we can read, and every safety check clear.
+        if (snapshot.evidenceDegraded) return { run: false, reason: 'evidence-unreadable' };
+        if (snapshot.autoPendingDays < 1) return { run: false, reason: 'unheard' };
+        const { prepareAutoReplace } = await import('./catchUpReplace');
+        const prepared = await prepareAutoReplace(ports, snapshot.unheard);
+        return prepared.ok ? { run: true, replace: prepared.value } : { run: false, reason: 'unheard' };
+    }
     // An unattended run must not spend on a plan chosen without the listening history it relies on.
     if (snapshot.evidenceDegraded) return { run: false, reason: 'evidence-unreadable' };
     if (!snapshot.plan) return { run: false, reason: 'nothing-pending' };
@@ -621,6 +633,17 @@ export async function runAutoCatchUp(ports: CatchUpPorts, opts: Pick<RunOptions,
     if (!decision.run) {
         logger.debug('Newsletter', `Smart daily catch-up skipped: ${decision.reason}`);
         return ok(null);
+    }
+    if (decision.replace) {
+        const { replaceAndRunCatchUp } = await import('./catchUpReplace');
+        const replaced = await replaceAndRunCatchUp(ports, {
+            episodeIds: decision.replace.episodeIds, previewHash: decision.replace.previewHash, acceptLostDays: false, purpose: 'auto',
+            run: { ...opts, interactive: false },
+        });
+        if (!replaced.ok) return replaced;
+        const fully = replaced.value.retired.filter((r) => r.note === 'trashed' && r.audio === 'trashed').length;
+        logger.debug('Newsletter', `Smart daily replaced unheard episodes: ${fully} of ${replaced.value.retired.length} fully retired`);
+        return ok(replaced.value.episode);
     }
     const res = await runCatchUp(ports, { ...opts, interactive: false, kind: 'auto' });
     return res.ok ? ok(res.value) : res;

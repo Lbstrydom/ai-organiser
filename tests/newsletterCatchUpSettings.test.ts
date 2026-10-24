@@ -244,3 +244,32 @@ describe('catch-up controls', () => {
         expect(recorded.items.filter((i) => i.name === '').length).toBeGreaterThan(0);
     });
 });
+
+describe('When I am behind', () => {
+    it('is offered only in smart daily, with the default selected', () => {
+        render({ newsletterAudioMode: 'smart-daily' });
+        const item = find('When I am behind')!;
+        expect(item.dropdown!.options).toEqual([['wait', 'Wait for me'], ['replace', 'Replace my unheard episode automatically']]);
+        expect(item.dropdown!.value).toBe('wait');
+        expect(item.desc).toMatch(/never an episode that is playing, was played in the last day/);
+        for (const mode of ['on-demand', 'daily']) {
+            recorded.items.length = 0;
+            render({ newsletterAudioMode: mode });
+            expect(names()).not.toContain('When I am behind');
+        }
+    });
+
+    it('shows a stored replace, shows wait for junk, and saves only a normalised value', () => {
+        render({ newsletterAudioMode: 'smart-daily', newsletterCatchUpWhenBehind: 'replace' });
+        expect(find('When I am behind')!.dropdown!.value).toBe('replace');
+        recorded.items.length = 0;
+        const { plugin } = render({ newsletterAudioMode: 'smart-daily', newsletterCatchUpWhenBehind: 'REPLACE-ish' });
+        const item = find('When I am behind')!;
+        expect(item.dropdown!.value).toBe('wait');
+        item.dropdown!.change('replace');
+        expect(plugin.settings.newsletterCatchUpWhenBehind).toBe('replace');
+        item.dropdown!.change('anything else');
+        expect(plugin.settings.newsletterCatchUpWhenBehind).toBe('wait');
+        expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
+    });
+});

@@ -286,6 +286,13 @@ describe('the window', () => {
         expect(root.querySelectorAll('.ai-organiser-catchup-waiting-episode')).toHaveLength(2);
     });
 
+    it('with automatic replacement on, says the episode will be replaced instead of claiming to wait', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22', '2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')], autoPendingDays: 2 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily', newsletterCatchUpWhenBehind: 'replace' }));
+        expect(root.textContent).toContain('Your unheard episode is replaced at a fetch once that is safe: it is not playing, was not played in the last day, and is more than half a day old.');
+        expect(root.textContent).not.toContain('Waiting:');
+    });
+
     it('on demand never claims to be waiting', async () => {
         snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')], autoPendingDays: 1 });
         const { root } = await open(plugin({ newsletterAudioMode: 'on-demand' }));

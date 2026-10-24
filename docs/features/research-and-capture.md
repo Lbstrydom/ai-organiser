@@ -548,10 +548,67 @@ paid audio every day that may never be heard.
    (a script is only "kept" if a record exists). At the commit the reporter is made non-cancellable.
 5. **The limit is binding before spend.** One automatic shrink, then an interactive run asks (continue /
    shorten / cancel); an automatic run fails with guidance rather than overrun.
-6. **Legacy daily audio is coverage by provenance only** — a recorded ledger revision for a file that
-   still exists, or `whole` when the file exists without provenance. An embed alone proves nothing.
+6. **Legacy daily audio is coverage only where it was HEARD, and only as far as it was heard.** Provenance
+   (a recorded ledger revision for a file that still exists) says what a recording narrated; the reader's
+   consumption watermark says what was heard; the coverage is `revision(min(narrated, heard))`, or
+   `revision(heard)` when provenance is gone. A recording that merely EXISTS, an embed, and story-memory-off
+   all prove nothing, so those days are offered (this was the "catch-up only picks up today" defect: a
+   Daily-mode install has an unheard daily audio per day). Days left out because they WERE heard, and a
+   still-open day with memory off, are listed in the window (`CatchUpSnapshot.skipped`) with an "Include them
+   too" button; an unreadable listening history is flagged (`evidenceDegraded`) and holds back the automatic run.
 7. **One TTS authority** (`resolveNewsletterTts`) for the daily audio and the catch-up; in Azure mode
    there is no silent fallback to a personal key.
+
+### The three modes in words, and the waiting state
+
+Dropdown labels are the plain names `On demand`, `Smart daily`, `Daily`; the line under the dropdown says what the
+SELECTED mode does. `Daily` is byte-identical (only its label changed). When Smart daily is holding back because an
+earlier episode is unheard and days an automatic run would cover are waiting, the window and the status bar say
+**"Waiting: your last episode is unheard, N days pending"** and what ends the wait (`deriveWaiting`, `autoPendingDays`
+counts closed days only, so the message is always true; every blocking episode is listed).
+
+### Replace an unheard episode (`catchUpReplace.ts`)
+
+"Replace my unheard episode with one fresh catch-up covering everything". **The new episode is made and committed FIRST**
+(the old episodes' days are made pending read-only with `excludeEpisodeIds`), then each old note and its audio go to
+the user's trash (`fileManager.trashFile`, never permanent), so a failed script or voice can never leave the reader
+with neither. One single-flight lock covers generation and retirement. Every episode is judged by `assessReplace`
+under the lock and AGAIN right before each trash (direct child of `Catch-up/`, id and audio identity from a fresh read,
+not protected, not acknowledged, no operation record naming it, index ready, not playing now, and for `auto` also: no
+inbound links, at least 12 h old, played-recently clear, not already retired today). Retirement is reported per file
+(note trashed then audio failed is an orphan, never "kept"); a committed replacement is never reported as failed.
+Days of the old episode that cannot be made again (`lostDays`) are shown to the person, and an automatic replace refuses them.
+**Crash states are all benign** (two episodes, or an inert orphan MP3); no durable retirement record was added on purpose.
+
+### Tidy the superseded daily audio (`catchUpTidy.ts`)
+
+A checkbox, **on by default** when such files exist (product-owner decision), "Also remove the daily audio for these
+days (N files, X MB)". It acts only on the files shown (path, size, mtime, narrated revision, brief hash), only after the
+episode is saved, only for days its committed note covers, never on the automatic path. Per day: validate, rewrite the
+digest's generated listen line to `🎧 **Listen:** Audio removed on <date>` through `applyNoteEdit` (the same documented
+narrow `review:false` exemption as the audio cleanup), THEN trash the audio; every precondition (change tracker, identity,
+protection) is judged again right before each trash. `catchUpDailyEmbed.ts` is the one definition of "the plugin's embed
+line" (exactly one, outside code fences, quotations and HTML comments); a copied or example line fails closed.
+**Not built**: tidying on the automatic path; restoring from the trash.
+
+### When I am behind (`newsletterCatchUpWhenBehind`, default `wait`)
+
+`wait` is today's behaviour, byte-identical (`tests/catchUpWhenBehindParity.test.ts`). `replace` (Smart daily only)
+replaces the unheard episode automatically at the next fetch when new closed days are waiting and every automatic
+condition above is clear. The playback memory (`newsletter-catchup-playback` in `DATA_ONLY_KEYS`) exists only for this: it
+is read and written **only while the setting is on** (`playbackTrackingWanted`; the player callback is always bound but
+returns before any storage access otherwise). Missing history is UNKNOWN, never safe: an automatic replace needs a full
+24 h of uninterrupted observation (`observingSince`, reset on any possible gap: setting off, plugin enabled mid-session, an
+unclean exit via `cleanShutdown`, a failed write), a readable store under capacity, and no play in the last 24 h. The live
+`probeEpisodePlaying` DOM probe (any mode) additionally blocks a replace of an episode that is playing right now, and an
+unidentifiable playing source blocks too. The guarantee is "playback observed by Obsidian on this device".
+
+### Honest labels
+
+One label, "Open to listen", replaces three buttons that all just opened the note (and closes the window first so the player is
+visible); the "Regenerate audio" command in On demand/Smart daily says it applies to daily audio only
+(`catchup-daily-only`); one shared note explains **listened** (you played a catch-up episode), **read** (you read a written
+brief) and **caught up** (you tell the brief you know every earlier story).
 
 ### Menu layout
 
@@ -568,6 +625,7 @@ separate **read signal** below, which is a second channel so reading never suppr
 
 ### Tests
 
+`tests/{catchUpLegacyHeard,catchUpSkipped,catchUpEvidenceDegraded,catchUpWaiting,catchUpReplace,catchUpTidy,catchUpPlayback,catchUpPlaybackTracker,catchUpWhenBehindParity,audioPlayerEnhancer}.test.ts` and
 `tests/{newsletterAudioMode,newsletterAudioModeMigration,newsletterLegacyAudioParity,newsletterAudioServiceParity,catchUpCoverage,catchUpSelection,catchUpEpisode,catchUpDraft,catchUpEpisodeAudio,catchUpPrompts,catchUpService,catchUpConsumption,catchUpAudioRemoved,catchUpCleanup,catchUpRuntime,catchUpModalState,newsletterCatchUpModal,catchUpStatusBar,newsletterCatchUpCommands,newsletterCatchUpPicker,newsletterCatchUpSettings}.test.ts`.
 The two `*Parity` files are the byte-identical proof for `daily` mode — captured against the unchanged code
 before it was refactored.

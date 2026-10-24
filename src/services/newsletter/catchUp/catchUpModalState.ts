@@ -47,6 +47,18 @@ export function deriveWaiting(
     };
 }
 
+/** Automatic replacement is on and will act at the next fetch: say so instead of claiming to wait. */
+export function deriveReplaceSoon(
+    snapshot: Pick<CatchUpSnapshot, 'unheard' | 'autoPendingDays'>,
+    settings: StateSettings,
+): boolean {
+    return settings.newsletterAudioPodcast === true
+        && getAudioMode(settings) === 'smart-daily'
+        && settings.newsletterCatchUpWhenBehind === 'replace'
+        && snapshot.unheard.length > 0
+        && snapshot.autoPendingDays >= 1;
+}
+
 export interface UnheardInfo {
     episode: EpisodeMeta;
     /** Every in-window unheard episode, newest first. */
@@ -57,6 +69,8 @@ interface Common {
     unheard: UnheardInfo | null;
     /** Smart daily is waiting for the unheard episode(s); see `deriveWaiting`. */
     waiting: Waiting | null;
+    /** Automatic replacement will replace the unheard episode at the next fetch (see `deriveReplaceSoon`). */
+    replaceSoon: boolean;
     latestEpisode: EpisodeMeta | null;
     noStoredDates: string[];
     expiringDates: string[];
@@ -115,6 +129,7 @@ export function deriveModalView(input: ModalInput): ModalView {
             ? { episode: [...snapshot.unheard].sort((a, b) => (a.id < b.id ? 1 : -1))[0], count: snapshot.unheard.length }
             : null,
         waiting: input.settings ? deriveWaiting(snapshot, input.settings) : null,
+        replaceSoon: input.settings ? deriveReplaceSoon(snapshot, input.settings) : false,
         latestEpisode: snapshot.latestEpisode,
         noStoredDates: snapshot.pending.noStoredDates,
         expiringDates: snapshot.expiringDates,

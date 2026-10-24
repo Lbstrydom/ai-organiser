@@ -924,6 +924,10 @@ export interface Translations {
                 statusBar: string;
                 statusBarDesc: string;
                 memoryOffNote: string;
+                whenBehindLabel: string;
+                whenBehindDesc: string;
+                whenBehindWait: string;
+                whenBehindReplace: string;
                 cleanupDays: string;
                 cleanupDaysDesc: string;
                 cleanupOff: string;
@@ -1834,6 +1838,10 @@ export interface Translations {
             replaceBlockedTitle: string;
             replaceBlockedIntro: string;
             replaceWhyPlaying: string;
+            replaceWhyPlayed: string;
+            replaceWhyTooNew: string;
+            replaceWhyLinked: string;
+            waitingReplaceSoon: string;
             replaceWhyProtected: string;
             replaceWhyChecking: string;
             replaceWhyInFlight: string;

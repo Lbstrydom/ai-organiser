@@ -11,6 +11,7 @@ import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
 import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
+import { normaliseWhenBehind } from '../../services/newsletter/catchUp/catchUpTypes';
 import { getReadMode, isReadMode, type NewsletterReadMode } from '../../services/newsletter/newsletterReadMode';
 import { bumpReadGeneration } from '../../services/newsletter/newsletterReadSignal';
 import { lookbackClampNote } from '../../services/newsletter/catchUp/catchUpFormat';
@@ -645,6 +646,21 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     settings.newsletterCatchUpStatusBar = value;
                     void this.plugin.saveSettings();
                 }));
+
+        // Only Smart daily acts on its own, so only there is there anything to decide.
+        if (getAudioMode(settings) === 'smart-daily') {
+            new Setting(this.containerEl)
+                .setName(cu?.whenBehindLabel || 'When I am behind')
+                .setDesc(cu?.whenBehindDesc || '')
+                .addDropdown(drop => drop
+                    .addOption('wait', cu?.whenBehindWait || 'Wait for me')
+                    .addOption('replace', cu?.whenBehindReplace || 'Replace my unheard episode automatically')
+                    .setValue(normaliseWhenBehind(settings.newsletterCatchUpWhenBehind))
+                    .onChange(value => {
+                        settings.newsletterCatchUpWhenBehind = normaliseWhenBehind(value);
+                        void this.plugin.saveSettings();
+                    }));
+        }
 
         new Setting(this.containerEl)
             .setName(cu?.cleanupDays || 'Remove audio of heard episodes after (days)')

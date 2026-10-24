@@ -28,6 +28,11 @@ export interface EnhanceAudioOptions {
      */
     onListened?: (audioSrc: string) => void;
     /**
+     * Playback activity, for callers that need to know an episode is playing or was played: `playing` on
+     * play and (as a heartbeat) while time advances, `paused`, `ended`. Synchronous and cheap by contract.
+     */
+    onPlayback?: (audioSrc: string, state: 'playing' | 'paused' | 'ended') => void;
+    /**
      * Playback rate applied to a freshly-enhanced `<audio>` element and shown
      * as the initially-highlighted speed button. Must be one of
      * `PLAYBACK_SPEEDS` — an out-of-list value degrades to 1 (no button would
@@ -38,6 +43,8 @@ export interface EnhanceAudioOptions {
 
 /** Elements already wired, so a re-render cannot double-attach. */
 const attached = new WeakSet<HTMLAudioElement>();
+/** Players whose playback is already reported, so a re-render cannot report twice. */
+const playbackAttached = new WeakSet<HTMLAudioElement>();
 
 /**
  * Total seconds actually played, from the element's `played` TimeRanges.
@@ -75,7 +82,15 @@ export function enhanceAudioPlayersIn(
     audios.forEach((audio) => {
         if (opts.onListened && !attached.has(audio)) {
             attached.add(audio);
-            cleanups.push(attachListenTracking(audio, opts.onListened));
+            const detachListen = attachListenTracking(audio, opts.onListened);
+            // Disposed means free again, as for playback reporting below.
+            cleanups.push(() => { detachListen(); attached.delete(audio); });
+        }
+        if (opts.onPlayback && !playbackAttached.has(audio)) {
+            playbackAttached.add(audio);
+            const detach = attachPlaybackTracking(audio, opts.onPlayback);
+            // Disposed means free again: the same element can be reported once a new render takes over.
+            cleanups.push(() => { detach(); playbackAttached.delete(audio); });
         }
 
         if (audio.getAttribute(ENHANCED_ATTR) === 'true') return;
@@ -119,6 +134,23 @@ function attachListenTracking(
     const events = ['timeupdate', 'ended', 'loadedmetadata', 'pause'] as const;
     for (const e of events) audio.addEventListener(e, evaluate);
     return () => { for (const e of events) audio.removeEventListener(e, evaluate); };
+}
+
+/** Report play, pause and end (and a heartbeat while playing) without evaluating anything. */
+function attachPlaybackTracking(
+    audio: HTMLAudioElement,
+    onPlayback: (audioSrc: string, state: 'playing' | 'paused' | 'ended') => void,
+): () => void {
+    const src = (): string => audio.currentSrc || audio.src;
+    const handlers: Array<[string, () => void]> = [
+        ['play', () => onPlayback(src(), 'playing')],
+        ['playing', () => onPlayback(src(), 'playing')],
+        ['timeupdate', () => { if (!audio.paused && !audio.ended) onPlayback(src(), 'playing'); }],
+        ['pause', () => onPlayback(src(), 'paused')],
+        ['ended', () => onPlayback(src(), 'ended')],
+    ];
+    for (const [event, fn] of handlers) audio.addEventListener(event, fn);
+    return () => { for (const [event, fn] of handlers) audio.removeEventListener(event, fn); };
 }
 
 function createSpeedControls(audio: HTMLAudioElement, defaultSpeed: number): HTMLElement {
