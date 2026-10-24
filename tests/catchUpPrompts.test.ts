@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { describe, it, expect } from 'vitest';
 import {
     buildCatchUpScriptPrompt,
@@ -36,6 +37,29 @@ describe('buildCatchUpScriptPrompt', () => {
         expect(p).toContain('This is one briefing, not a day-by-day recap');
         expect(p).toContain('where it started and where it stands now');
         expect(p).toContain('Never add airtime for extra days');
+    });
+
+    it('favours the latest developments when stories compete for airtime', () => {
+        const rule = '- When stories compete for airtime, favour the most recent developments. An older story that has been superseded gets only its outcome, and a story that has gone quiet is mentioned briefly\n';
+        const p = buildCatchUpScriptPrompt(base);
+        expect(p).toContain(rule);
+        expect(p.match(/favour the most recent developments/g)).toHaveLength(1);
+        // Position: a requirements bullet, straight after the airtime-scaling rule and before "Update to".
+        expect(p.indexOf('Never add airtime for extra days')).toBeLessThan(p.indexOf(rule));
+        expect(p.indexOf(rule)).toBeLessThan(p.indexOf('A block marked "Update to"'));
+        expect(p.indexOf(rule)).toBeGreaterThan(p.indexOf('<requirements>'));
+        expect(p.indexOf(rule)).toBeLessThan(p.indexOf('</requirements>'));
+    });
+
+    it('keeps the recency rule ahead of the home-region and story-memory rules, which stay intact', () => {
+        const p = buildCatchUpScriptPrompt({ ...base, homeRegion: 'Fictionville', recall });
+        const rule = p.indexOf('favour the most recent developments');
+        expect(rule).toBeGreaterThan(-1);
+        expect(rule).toBeLessThan(p.indexOf('close to home (Fictionville)'));
+        expect(rule).toBeLessThan(p.indexOf('<story_memory> lists'));
+        expect(p).toContain('Do not cut it to fit the word budget — cut international coverage instead');
+        expect(p).toContain('give them as developments and do not re-explain the background');
+        expect(p).toContain('Do not retell ALREADY_TOLD stories');
     });
 
     it('sets the word budget from the cap, never linear in days', () => {
@@ -157,6 +181,32 @@ describe('legacy prompts are untouched', () => {
     it('the daily podcast prompt is exactly what it was', () => {
         expect(buildPodcastScriptPrompt({ language: 'English', maxMins: 5 })).toContain('Maximum 650 words');
         expect(buildPodcastScriptPrompt({ maxMins: 5 })).toContain('<task>Rewrite this daily news brief as a spoken podcast script for a solo news briefing.</task>');
+    });
+
+    // SHA-256 of the daily prompts, captured from main at a7f9482 before the catch-up recency rule.
+    // The catch-up change touches only catchUpPrompts.ts, so these must never move with it.
+    const sha = (s: string) => createHash('sha256').update(s).digest('hex');
+    const pinRecall: RecallSelection = {
+        heard: [{ key: 'a', title: 'Fictional port strike', gist: 'Gist', firstRevision: 1, contentRevision: 1, bucketDate: '2026-10-18', isCurrentBucket: false }],
+        continuing: [],
+        unheard: [],
+    };
+
+    it('the daily brief prompt is byte-identical to main', () => {
+        expect(sha(buildDailyBriefPrompt())).toBe('aebeeec047db1102054f05a6fc4311e705782aa15ac509a3d70cd4a2981b241c');
+        expect(sha(buildDailyBriefPrompt({ language: 'Dutch', homeRegion: 'Fictionville; Examplia', recall: pinRecall })))
+            .toBe('841d9e883719c90299b27bee96e2aaa1da9f93952fee24569050f7f584bee62f');
+    });
+
+    it('the daily podcast prompt is byte-identical to main', () => {
+        expect(sha(buildPodcastScriptPrompt())).toBe('7279c105c513f352777556e84f7ccaa749ff0b5f0bba283dcdd32cb39da67ad1');
+        expect(sha(buildPodcastScriptPrompt({ language: 'Dutch', maxMins: 12, homeRegion: 'Fictionville; Examplia', recall: pinRecall })))
+            .toBe('d6ecd1b89115206e23ce7f4b98e8cfc6219f35c8767ad18cc8806de8607c6a32');
+    });
+
+    it('the daily prompts never carry the catch-up recency rule', () => {
+        expect(buildDailyBriefPrompt()).not.toContain('favour the most recent developments');
+        expect(buildPodcastScriptPrompt()).not.toContain('favour the most recent developments');
     });
 });
 
