@@ -20,7 +20,7 @@ import { Result, ok, err } from '../core/result';
 import { nonBodyLines } from '../utils/markdownRegions';
 import { isFeatureEnabled } from './featureService';
 import { applyNoteEdit, type CompositeTarget } from './noteEdit/applyNoteEdit';
-import { extractReferencesFromLine, isExternalUrl, normalizeEmbedPath } from './embedScanService';
+import { extractReferenceSpansFromLine, isExternalUrl, normalizeEmbedPath } from './embedScanService';
 import type { AIOrganiserSettings } from '../core/settings';
 
 export type Resolve = (linktext: string, sourcePath: string) => string | null;
@@ -78,9 +78,27 @@ function replacementFor(originalText: string): string {
     return '';
 }
 
+/** The line without any leading blockquote markers, so a list inside a quote is measured like one outside it. */
+function unquoted(line: string): string {
+    return line.replace(/^(?:[ \t]*>[ ]?)+/, '');
+}
+
 function indentOf(line: string): number {
-    const m = line.match(/^[ \t]*/);
+    const m = unquoted(line).match(/^[ \t]*/);
     return m ? m[0].replaceAll('\t', '    ').length : 0;
+}
+
+/** Character ranges of inline code spans on a line (a run of backticks closes at the next run of the same length). */
+function inlineCodeRanges(line: string): Array<[number, number]> {
+    const runs = [...line.matchAll(/`+/g)].map((m) => ({ start: m.index ?? 0, len: m[0].length }));
+    const ranges: Array<[number, number]> = [];
+    for (let i = 0; i < runs.length; i++) {
+        const close = runs.findIndex((r, j) => j > i && r.len === runs[i].len);
+        if (close < 0) continue;
+        ranges.push([runs[i].start, runs[close].start + runs[close].len]);
+        i = close;
+    }
+    return ranges;
 }
 
 /** Plan the removal of every reference to `filePath` in one note. Pure. */
@@ -96,17 +114,22 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         const raw = lines[i];
         const cr = raw.endsWith('\r') ? '\r' : '';
         const line = cr ? raw.slice(0, -1) : raw;
-        const hits = extractReferencesFromLine(line, i + 1).filter((ref) => {
+        const hits = extractReferenceSpansFromLine(line, i + 1).filter((ref) => {
             if (isExternalUrl(ref.path)) return false;
             const linktext = normalizeEmbedPath(ref.path);
             return linktext !== '' && resolve(linktext, notePath) === filePath;
         });
         if (hits.length === 0) continue;
         if (mask[i]) { outsideBody = true; continue; }
+        // A reference written inside inline code is literal text, not a link: leave it alone.
+        const code = inlineCodeRanges(line);
+        const live = hits.filter((h) => !code.some(([from, to]) => h.start >= from && h.end <= to));
+        if (live.length === 0) { outsideBody = true; continue; }
         inBody = true;
+        // Rewrite by position (last first), so identical text elsewhere on the line is never touched.
         let edited = line;
-        for (const hit of new Set(hits.map((h) => h.originalText))) {
-            edited = edited.split(hit).join(replacementFor(hit));
+        for (const hit of [...live].sort((a, b) => b.start - a.start)) {
+            edited = edited.slice(0, hit.start) + replacementFor(hit.originalText) + edited.slice(hit.end);
         }
         // A line the removal emptied (or left as a bare list marker) goes, unless that would orphan the
         // list item's own continuation or children.
@@ -114,7 +137,7 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         if (edited.trim() === '') {
             after = null;
         } else if (LIST_MARKER_ONLY.test(edited)) {
-            const follower = lines.slice(i + 1).find((l) => l.trim() !== '');
+            const follower = lines.slice(i + 1).find((l) => unquoted(l).trim() !== '');
             const hasChildren = follower !== undefined && indentOf(follower) > indentOf(edited);
             after = hasChildren ? edited : null;
         }
@@ -165,8 +188,13 @@ export async function removeLinks(
         plugin.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
     const outcomes: UnlinkOutcome[] = [];
     let stopped = false;
+    // A callback that throws is treated as "stop": the contract is that this function never throws.
+    const mayContinue = (): boolean => {
+        try { return opts.shouldContinue?.() !== false; } catch { return false; }
+    };
     for (const plan of plans) {
-        if (stopped || opts.shouldContinue?.() === false) {
+        // The capability is checked before EVERY write: switching it off mid-job stops the next note.
+        if (stopped || !mayContinue() || !isLinkRemovalEnabled(plugin.settings)) {
             stopped = true;
             outcomes.push({ notePath: plan.notePath, status: 'skipped' });
             continue;

@@ -236,6 +236,7 @@ async function buildEligibility(
     const refsByTarget = new Map<string, BlockerRef[]>();
     const ambiguous = new Set<string>();
     const sameName = new Map<string, Set<string>>();
+    const ambiguityDone = new Set<string>();
     for (const occ of occurrences) {
         const target =
             occ.kind === 'canvas'
@@ -252,7 +253,9 @@ async function buildEligibility(
             });
             refsByTarget.set(target, list);
         }
-        if (occ.kind === 'markdown') {
+        // Which files a link text could mean depends on the text alone, so work it out once per distinct text.
+        if (occ.kind === 'markdown' && !ambiguityDone.has(occ.linktext)) {
+            ambiguityDone.add(occ.linktext);
             const candidates = port.candidatesFor(occ.linktext);
             if (candidates.length > 1) {
                 for (const c of candidates) {

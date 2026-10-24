@@ -47,9 +47,28 @@ describe('planLinkRemoval', () => {
 		expect(plan.changes).toHaveLength(2);
 	});
 
-	it('leaves a link to a same-named file elsewhere alone', () => {
-		const res = planLinkRemoval('![[other.m4a]]', FILE, 'Notes/a.md', resolve);
-		expect(res.status).toBe('nothing');
+	it('leaves a link to a same-named file elsewhere alone (resolved from the note\'s own folder)', () => {
+		const sameName = (linktext: string, source: string): string | null => (linktext === 'x.m4a' ? (source.startsWith('A/') ? 'A/x.m4a' : 'B/x.m4a') : null);
+		expect(planLinkRemoval('![[x.m4a]]', 'B/x.m4a', 'A/note.md', sameName).status).toBe('nothing');
+		const ok = planLinkRemoval('![[x.m4a]]', 'B/x.m4a', 'B/note.md', sameName);
+		expect(ok.status).toBe('ok');
+		expect(planLinkRemoval('![[other.m4a]]', FILE, 'Notes/a.md', resolve).status).toBe('nothing');
+	});
+
+	it('rewrites by position: identical text elsewhere on the line, or one form inside another, is never touched', () => {
+		// The bare link text is a substring of the embed text; replacing by text would corrupt the embed.
+		expect(planOf('![[meeting.m4a]] and [[meeting.m4a]]').nextText).toBe(' and meeting.m4a');
+		expect(planOf('[[meeting.m4a]] then ![[meeting.m4a]]').nextText).toBe('meeting.m4a then ');
+	});
+
+	it('leaves a reference written inside inline code alone, and says so when it is the only one', () => {
+		expect(planOf('real ![[meeting.m4a]] and `![[meeting.m4a]]`').nextText).toBe('real  and `![[meeting.m4a]]`');
+		expect(planLinkRemoval('write `![[meeting.m4a]]` to embed', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
+	});
+
+	it('measures list structure inside a blockquote like outside one', () => {
+		expect(planOf('> - ![[meeting.m4a]]\n>   - child\n> - three').nextText).toBe('> - \n>   - child\n> - three');
+		expect(planOf('> - one\n> - ![[meeting.m4a]]\n> - three').nextText).toBe('> - one\n> - three');
 	});
 
 	it('drops a list item that is left empty when it has no children', () => {
@@ -190,6 +209,31 @@ describe('removeLinks', () => {
 		});
 		expect(res.ok && res.value.map((o) => o.status)).toEqual(['written', 'skipped']);
 		expect(live['B.md']).toBe('![[meeting.m4a]]');
+	});
+
+	it('checks the capability before EVERY note: switching it off mid-job stops the next write', async () => {
+		const live = { 'A.md': '![[meeting.m4a]]', 'B.md': '![[meeting.m4a]]' };
+		fakeStore(live);
+		const p = plugin() as unknown as { settings: { attachmentAllowLinkRemoval: boolean } };
+		apply.mockImplementationOnce(async (_p, target) => {
+			p.settings.attachmentAllowLinkRemoval = false; // the user switches it off while note A is being written
+			if (target.kind !== 'composite') return err('failed');
+			const out = target.recompute(live['A.md']);
+			if (!out.ok) return err(out.error);
+			live['A.md'] = out.value.content;
+			return ok(undefined);
+		});
+		const res = await removeLinks(p as never, FILE, ['A.md', 'B.md'].map((n) => planFor(n, live[n as keyof typeof live])));
+		expect(res.ok && res.value.map((o) => o.status)).toEqual(['written', 'skipped']);
+		expect(live['B.md']).toBe('![[meeting.m4a]]');
+	});
+
+	it('a callback that throws stops the job instead of escaping', async () => {
+		const live = { 'A.md': '![[meeting.m4a]]' };
+		fakeStore(live);
+		const res = await removeLinks(plugin(), FILE, [planFor('A.md', live['A.md'])], { shouldContinue: () => { throw new Error('boom'); } });
+		expect(res).toEqual({ ok: true, value: [{ notePath: 'A.md', status: 'skipped' }] });
+		expect(live['A.md']).toBe('![[meeting.m4a]]');
 	});
 
 	it('maps a thrown write to failed instead of rejecting', async () => {
