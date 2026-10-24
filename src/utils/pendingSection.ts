@@ -7,7 +7,8 @@
  */
 
 const PENDING_HEADING = /^ {0,3}##[ \t]+Pending(?:[ \t]+#+)?[ \t]*$/i;
-const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+// A fence may open at any indentation and inside list items ("- ```", "1. ```").
+const FENCE_OPEN = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})(.*)$/;
 
 interface Scan {
     /** Offset just past the first real Pending heading line (incl. its line break), or -1. */
@@ -38,7 +39,7 @@ function scan(doc: string): Scan {
         } else if (inFrontmatter) {
             if (/^(---|\.\.\.)\s*$/.test(line)) inFrontmatter = false;
         } else if (fence) {
-            const close = new RegExp(`^ {0,3}${fence.char === '`' ? '`' : '~'}{${fence.len},}[ \\t]*$`);
+            const close = new RegExp(`^[ \\t]*${fence.char === '`' ? '`' : '~'}{${fence.len},}[ \\t]*$`);
             if (close.test(line)) fence = null;
         } else {
             const open = FENCE_OPEN.exec(line);

@@ -248,10 +248,11 @@ function scanNoteLines(content: string): NoteLine[] {
         if (offset < frontmatterEnd) {
             fenced = true;
         } else if (fence) {
-            const close = new RegExp(`^ {0,3}${fence.char}{${fence.len},}[ \\t]*$`);
+            const close = new RegExp(`^[ \\t]*${fence.char}{${fence.len},}[ \\t]*$`);
             if (close.test(text)) fence = null;
         } else {
-            const open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text);
+            // A fence may open at any indentation and inside list items ("- ```", "1. ```").
+            const open = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})(.*)$/.exec(text);
             if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
                 fence = { char: open[1][0], len: open[1].length };
                 fenced = true;

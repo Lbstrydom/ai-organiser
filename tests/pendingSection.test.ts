@@ -55,6 +55,14 @@ describe('addUrlsToPendingSection', () => {
         expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
     });
 
+    it('fences opened inside list items hide a heading-looking line in them', () => {
+        for (const opener of ['- ```', '1. ```', '* ~~~', '  - ```']) {
+            const fence = opener.includes('~') ? '~~~' : '```';
+            const doc = `a\n${opener}\n  ## Pending\n  ${fence}\ntail`;
+            expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
+        }
+    });
+
     it('tilde fences', () => {
         const doc = '~~~\n## Pending\n~~~\ntail';
         expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);

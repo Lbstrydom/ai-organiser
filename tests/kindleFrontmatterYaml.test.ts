@@ -218,6 +218,12 @@ describe('appendHighlightsToExisting note-only highlights', () => {
         expect(out.endsWith('## After\n\nmine\n')).toBe(true);
     });
 
+    it('a "## Notes" line inside a list-item fence is not the Notes section', () => {
+        const existing = '---\ntitle: T\n---\n# B\n\n- ```\n  ## Notes\n  ```\n';
+        const out = appendHighlightsToExisting(existing, [noteOnlyHighlight()], 'bullet');
+        expect(out).toBe(existing.trimEnd() + '\n\n## Notes\n\n> [!note] Page 3, Location 10-11\n> my thought\n');
+    });
+
     it('backticks inside a YAML block scalar are not a Markdown fence', () => {
         for (const eol of ['\n', '\r\n']) {
             const existing = ['---', 'description: |', '  ```', '---', '# Book', '## Notes', 'old', '## Summary', 'keep', ''].join(eol);
