@@ -73,6 +73,13 @@ describe('planLinkRemoval', () => {
 		expect(planOf('![[meeting.m4a]] `a ![[meeting.m4a]] b`').nextText).toBe(' `a ![[meeting.m4a]] b`');
 	});
 
+	it('does not let backticks in an adjacent fenced block or an unmatched run decide what is code', () => {
+		// The paragraph stops at the fence: its backticks are not inline code for the line above.
+		expect(planOf('![[meeting.m4a]]\n```js\nlet a = `x`;\n```').nextText).toBe('```js\nlet a = `x`;\n```');
+		// An unmatched run of a different length is literal; it does not swallow the real link after it.
+		expect(planOf('a ``` b ![[meeting.m4a]] c `d`').nextText).toBe('a ``` b  c `d`');
+	});
+
 	it('treats a code span that crosses a line break as code', () => {
 		expect(planLinkRemoval('see `start\n![[meeting.m4a]] end` after', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
 		// A blank line ends the paragraph, so an unclosed backtick does not reach the next one.

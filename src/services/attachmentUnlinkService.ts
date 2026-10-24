@@ -89,26 +89,23 @@ function indentOf(line: string): number {
 }
 
 /**
- * Character ranges of inline code spans on a line. A run of backticks closes at the next run of the same
- * length; an OPENING run preceded by an odd number of backslashes loses its first backtick to the escape.
+ * Character ranges of inline code spans in a text. A run of backticks closes at the next run of the same
+ * length, and a run with no matching later run is literal text (it does not swallow the rest). An OPENING run
+ * preceded by an odd number of backslashes loses its first backtick to the escape.
  */
-function inlineCodeRanges(line: string): Array<[number, number]> {
+function inlineCodeRanges(text: string): Array<[number, number]> {
+    const runs = [...text.matchAll(/`+/g)].map((m) => ({ start: m.index ?? 0, len: m[0].length }));
     const ranges: Array<[number, number]> = [];
-    let open: { start: number; len: number } | null = null;
-    for (const m of line.matchAll(/`+/g)) {
-        const start = m.index ?? 0;
-        const len = m[0].length;
-        if (open) {
-            if (len === open.len) {
-                ranges.push([open.start, start + len]);
-                open = null;
-            }
-            continue;
-        }
+    for (let i = 0; i < runs.length; i++) {
         let slashes = 0;
-        for (let k = start - 1; k >= 0 && line[k] === '\\'; k--) slashes++;
+        for (let k = runs[i].start - 1; k >= 0 && text[k] === '\\'; k--) slashes++;
         const escaped = slashes % 2 === 1;
-        if (len - (escaped ? 1 : 0) > 0) open = { start: escaped ? start + 1 : start, len: len - (escaped ? 1 : 0) };
+        const len = runs[i].len - (escaped ? 1 : 0);
+        if (len <= 0) continue;
+        const close = runs.findIndex((r, j) => j > i && r.len === len);
+        if (close < 0) continue;
+        ranges.push([escaped ? runs[i].start + 1 : runs[i].start, runs[close].start + runs[close].len]);
+        i = close;
     }
     return ranges;
 }
@@ -117,12 +114,13 @@ function inlineCodeRanges(line: string): Array<[number, number]> {
  * Is the span [start, end) of line `i` inside an inline code span? A code span may cross line breaks within a
  * paragraph, so the paragraph (the run of non-blank lines around the line) is scanned as one text.
  */
-function inInlineCode(lines: readonly string[], i: number, start: number, end: number): boolean {
-    const blank = (l: string): boolean => l.trim() === '';
+function inInlineCode(lines: readonly string[], mask: readonly boolean[], i: number, start: number, end: number): boolean {
+    // The paragraph stops at a blank line and at frontmatter or fenced code, whose backticks are not inline code.
+    const edge = (k: number): boolean => lines[k].trim() === '' || mask[k];
     let from = i;
-    while (from > 0 && !blank(lines[from - 1])) from--;
+    while (from > 0 && !edge(from - 1)) from--;
     let to = i;
-    while (to < lines.length - 1 && !blank(lines[to + 1])) to++;
+    while (to < lines.length - 1 && !edge(to + 1)) to++;
     const clean = (l: string): string => l.replace(/\r$/, '');
     let offset = 0;
     for (let k = from; k < i; k++) offset += clean(lines[k]).length + 1;
@@ -151,7 +149,7 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         if (hits.length === 0) continue;
         if (mask[i]) { outsideBody = true; continue; }
         // A reference written inside inline code is literal text, not a link: leave it alone.
-        const live = hits.filter((h) => !inInlineCode(lines, i, h.start, h.end));
+        const live = hits.filter((h) => !inInlineCode(lines, mask, i, h.start, h.end));
         if (live.length === 0) { outsideBody = true; continue; }
         inBody = true;
         // Rewrite by position (last first), so identical text elsewhere on the line is never touched.

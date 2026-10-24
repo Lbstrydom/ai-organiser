@@ -1040,7 +1040,11 @@ export class EmbedScanResultsModal extends Modal {
             this.applyFiltersAndRender();
             return false;
         }
-        if (checked.status === 'failed') return false;
+        if (checked.status === 'failed') {
+            // Nothing was decided, but the stale banner may have changed and the buttons must follow the lock.
+            this.applyFiltersAndRender();
+            return false;
+        }
         this.notReadyPaths = null;
         for (const file of checked.safe) this.keptCards.delete(file.path);
         for (const { file, eligibility } of checked.kept) {
@@ -1162,14 +1166,19 @@ export class EmbedScanResultsModal extends Modal {
     private async enableRemovalAndStart(filePath: string): Promise<void> {
         const plugin = this.ctx?.plugin;
         if (!plugin || this.busy) return;
+        this.busy = true;
+        this.applyFiltersAndRender();
         plugin.settings.attachmentAllowLinkRemoval = true;
         try {
             await plugin.saveSettings();
         } catch {
             plugin.settings.attachmentAllowLinkRemoval = false;
             new Notice(formatGuidance(describeError(this.t, 'write-failed')), 8000);
+            this.busy = false;
+            this.applyFiltersAndRender();
             return;
         }
+        this.busy = false;
         if (this.closed) return;
         this.refreshKeptCards();
         this.applyFiltersAndRender();
