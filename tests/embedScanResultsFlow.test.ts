@@ -102,7 +102,7 @@ async function selectAndDelete(h: Harness): Promise<void> {
 }
 
 const keptPanel = (h: Harness) => h.el.querySelector('[role="region"]');
-const buttonLabels = (root: Element | null) => [...(root?.querySelectorAll('button') ?? [])].map((b) => b.textContent);
+const buttonLabels = (root: Element | null) => Array.from((root?.querySelectorAll('button') ?? [])).map((b) => b.textContent);
 
 beforeEach(() => {
 	resetEgressChoice();
@@ -136,7 +136,7 @@ describe('kept files', () => {
 		const h = setup();
 		reval.mockResolvedValue({ ok: true, value: new Map([[REC, kept({ reasons: ['file-changed'], referenceCount: 0, blockers: { referrers: [], sameNameFiles: [], unreadable: [] } })]]) });
 		await selectAndDelete(h);
-		const scan = [...keptPanel(h)!.querySelectorAll('button')].find((b) => b.textContent === 'Scan again')!;
+		const scan = Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Scan again')!;
 		scan.click();
 		expect(h.rescan).toHaveBeenCalledTimes(1);
 	});
@@ -146,7 +146,7 @@ describe('kept files', () => {
 		reval.mockResolvedValue({ ok: true, value: new Map([[REC, kept()]]) });
 		await selectAndDelete(h);
 		expect(buttonLabels(keptPanel(h))).toEqual(['Open note', 'Turn on and continue']);
-		([...keptPanel(h)!.querySelectorAll('button')].find((b) => b.textContent === 'Turn on and continue') as HTMLElement).click();
+		(Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Turn on and continue') as HTMLElement).click();
 		await flush();
 		expect(h.settings.attachmentAllowLinkRemoval).toBe(true);
 		expect(previews).toHaveLength(1);
@@ -208,7 +208,7 @@ describe('Remove the link and delete', () => {
 	async function toPreview(h: Harness) {
 		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
 		await selectAndDelete(h);
-		([...keptPanel(h)!.querySelectorAll('button')].find((b) => b.textContent === 'Remove the link and delete') as HTMLElement).click();
+		(Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Remove the link and delete') as HTMLElement).click();
 		await flush();
 	}
 
@@ -264,7 +264,7 @@ describe('Remove the link and delete', () => {
 		unlink.mockImplementation((_p, _f, _plans, opts) => { shouldContinue = opts?.shouldContinue; return new Promise((r) => { release = r as typeof release; }); });
 		previews[0].onApply();
 		await flush();
-		expect([...keptPanel(h)!.querySelectorAll('button')].every((b) => b.disabled)).toBe(true);
+		expect(Array.from(keptPanel(h)!.querySelectorAll('button')).every((b) => b.disabled)).toBe(true);
 		expect(shouldContinue?.()).toBe(true);
 		h.modal.close();
 		expect(shouldContinue?.()).toBe(false);

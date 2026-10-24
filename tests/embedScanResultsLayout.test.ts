@@ -57,12 +57,12 @@ function open(res: EmbedScanResult) {
 	return { modal, el: (modal as unknown as { contentEl: HTMLElement }).contentEl };
 }
 
-const names = (el: HTMLElement) => [...el.querySelectorAll('.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-filename')].map((n) => n.textContent);
+const names = (el: HTMLElement) => Array.from(el.querySelectorAll('.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-filename')).map((n) => n.textContent);
 
 describe('Find embeds results layout', () => {
 	it('puts the possibly orphaned files first and open, with the in-use files collapsed under a one-line count', () => {
 		const { el } = open(result());
-		const children = [...el.children].map((c) => c.className);
+		const children = Array.from(el.children).map((c) => c.className);
 		const orphanAt = children.findIndex((c) => c.includes('ai-organiser-embed-scan-orphans'));
 		const resultsAt = children.findIndex((c) => c.includes('ai-organiser-embed-scan-results'));
 		expect(orphanAt).toBeGreaterThan(-1);
@@ -98,7 +98,7 @@ describe('Find embeds results layout', () => {
 
 	it('counts the orphans in the type chips and filters them by type', () => {
 		const { el } = open(result());
-		const chips = () => [...el.querySelectorAll('.ai-organiser-embed-scan-chip')] as HTMLElement[];
+		const chips = () => Array.from(el.querySelectorAll('.ai-organiser-embed-scan-chip')) as HTMLElement[];
 		const labels = chips().map((c) => c.textContent);
 		expect(labels).toContain('Audio (4)');
 		expect(labels).toContain('Image (1)');

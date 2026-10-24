@@ -47,7 +47,7 @@ describe('Kept panel', () => {
 		expect(region?.getAttribute('aria-label')).toBe(en.embedScan.keptPanelLabel);
 		expect(host.textContent).toContain('meeting.m4a');
 		expect(host.textContent).toContain('Used in 2026-01 standup, line 4');
-		const buttons = [...host.querySelectorAll('button')];
+		const buttons = Array.from(host.querySelectorAll('button'));
 		expect(buttons.map((b) => b.textContent)).toEqual(['Open note', 'Remove the link and delete']);
 		expect(buttons[0].getAttribute('aria-label')).toBe('Open note: meeting.m4a');
 		buttons[0].click();
@@ -57,10 +57,10 @@ describe('Kept panel', () => {
 
 	it('offers a one-click enable when link removal is off, and no remove button', () => {
 		const { host, h } = render([referenced('off')]);
-		const labels = [...host.querySelectorAll('button')].map((b) => b.textContent);
+		const labels = Array.from(host.querySelectorAll('button')).map((b) => b.textContent);
 		expect(labels).toEqual(['Open note', 'Turn on and continue']);
 		expect(host.textContent).toContain('Removing links is off.');
-		[...host.querySelectorAll('button')][1].click();
+		Array.from(host.querySelectorAll('button'))[1].click();
 		expect(h.calls).toEqual(['enable:Rec/meeting.m4a']);
 	});
 
@@ -69,7 +69,7 @@ describe('Kept panel', () => {
 		const { host } = render([card]);
 		expect(host.textContent).toContain('Used in the canvas Board');
 		expect(host.textContent).toContain(en.embedScan.keptCanvasHint);
-		expect([...host.querySelectorAll('button')].map((b) => b.textContent)).toEqual(['Open canvas']);
+		expect(Array.from(host.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Open canvas']);
 	});
 
 	it('names the other file for an ambiguous link, the unreadable note, and offers Scan again for a changed file', () => {
@@ -80,14 +80,14 @@ describe('Kept panel', () => {
 		expect(host.textContent).toContain('A link could mean this file or Archive/meeting.m4a');
 		expect(host.textContent).toContain('Broken could not be read');
 		expect(host.textContent).toContain(en.embedScan.keptUnreadableHint);
-		const scan = [...host.querySelectorAll('button')].find((b) => b.textContent === 'Scan again');
+		const scan = Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Scan again');
 		scan?.click();
 		expect(h.calls).toEqual(['scan']);
 	});
 
 	it('disables every action while a workflow is running', () => {
 		const { host } = render([referenced()], handlers(), true);
-		expect([...host.querySelectorAll('button')].every((b) => b.disabled)).toBe(true);
+		expect(Array.from(host.querySelectorAll('button')).every((b) => b.disabled)).toBe(true);
 	});
 
 	it('never writes a style attribute, and disposes its listeners', () => {
