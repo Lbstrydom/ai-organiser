@@ -5,6 +5,7 @@
  */
 
 import { ItemView, TFile, TFolder, WorkspaceLeaf, Menu, Notice } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import { logger } from '../../utils/logger';
 import AIOrganiserPlugin from '../../main';
 import { RAGService } from '../../services/ragService';
@@ -362,7 +363,7 @@ export class RelatedNotesView extends ItemView {
             this.renderLoadingState();
 
             // Read file content
-            const content = await this.app.vault.cachedRead(currentFile);
+            const content = toModelText(await this.app.vault.cachedRead(currentFile), currentFile.path);
 
             if (!content.trim()) {
                 const tEmpty = this.plugin.t?.modals?.relatedNotes;

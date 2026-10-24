@@ -1,4 +1,5 @@
 import { App, Modal, TFile } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import { logger } from '../../utils/logger';
 import type AIOrganiserPlugin from '../../main';
 import { RAGService } from '../../services/ragService';
@@ -134,7 +135,7 @@ export class RelatedNotesModal extends Modal {
         this.listEl.empty();
 
         try {
-            const content = await this.app.vault.cachedRead(currentFile);
+            const content = toModelText(await this.app.vault.cachedRead(currentFile), currentFile.path);
             if (!content.trim()) {
                 this.statusEl.setText(this.plugin.t.messages.noContent);
                 return;

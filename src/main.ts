@@ -1,4 +1,5 @@
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
+import { toModelText } from './utils/excalidrawContent';
 import {
     ConnectionTestError,
     ConnectionTestResult,
@@ -1920,7 +1921,7 @@ export default class AIOrganiserPlugin extends Plugin {
             for (const file of files) {
                 if (abortController.signal.aborted) { aborted = true; break; }
                 try {
-                    const content = await this.app.vault.read(file);
+                    const content = toModelText(await this.app.vault.read(file), file.path);
                     if (!content.trim()) { processed++; controller.recordProgress(processed); statusBar.update(processed, files.length, Date.now() - startedAt); continue; }
 
                     // A batch of 2+ notes repeats the same instruction head within the cache TTL.
@@ -1964,7 +1965,7 @@ export default class AIOrganiserPlugin extends Plugin {
             return;
         }
 
-        const content = await this.app.vault.read(activeFile);
+        const content = toModelText(await this.app.vault.read(activeFile), activeFile.path);
         if (!content.trim()) {
             new Notice('Cannot analyze empty note', 3000);
             return;

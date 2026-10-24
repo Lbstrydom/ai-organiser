@@ -12,6 +12,7 @@
  */
 
 import { App, TFile, TFolder } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import { logger } from '../../utils/logger';
 import type {
     SelectedSource,
@@ -200,7 +201,7 @@ export class PresentationSourceService {
         }
         let body: string;
         try {
-            body = await this.app.vault.read(abs);
+            body = toModelText(await this.app.vault.read(abs), abs.path);
         } catch (e) {
             failures.push({
                 selected: src,
@@ -256,7 +257,7 @@ export class PresentationSourceService {
         for (const file of capped) {
             if (standaloneNotePaths.has(file.path)) continue;
             try {
-                const body = await this.app.vault.read(file);
+                const body = toModelText(await this.app.vault.read(file), file.path);
                 if (!body.trim()) continue;
                 usable.push({
                     kind: 'note',

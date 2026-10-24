@@ -1,4 +1,5 @@
 import { App, Notice, TFile } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import { getFs } from '../../utils/desktopRequire';
 import { tryNativeFilePicker, openVaultFilePicker } from '../utils/filePickers';
 import type { ChatMode, ChatModeHandler, ModalContext, SendResult, ActionDescriptor, ActionCallbacks, FreeChatCallbacks } from './ChatModeHandler';
@@ -481,7 +482,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
                     try {
                         let text: string;
                         if (file.extension === 'md') {
-                            text = await this.app.vault.read(file);
+                            text = toModelText(await this.app.vault.read(file), file.path);
                         } else {
                             const result = await this.documentService.extractText(file);
                             text = result.success ? result.text ?? '' : '';
@@ -700,7 +701,7 @@ export class FreeChatModeHandler implements ChatModeHandler {
                 const file = this.app.vault.getAbstractFileByPath(att.path);
                 if (file instanceof TFile) {
                     if (file.extension === 'md') {
-                        att.extractedText = await this.app.vault.read(file);
+                        att.extractedText = toModelText(await this.app.vault.read(file), file.path);
                     } else {
                         const res = await this.documentService.extractText(file);
                         att.extractedText = res.success ? res.text ?? '' : '';

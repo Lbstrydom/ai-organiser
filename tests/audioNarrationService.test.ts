@@ -72,6 +72,7 @@ import {
     executeNarration,
     buildOutputPath,
 } from '../src/services/audioNarration/audioNarrationService';
+import { drawingNote } from './helpers/excalidrawFixture';
 import { decodeError } from '../src/services/audioNarration/narrationTypes';
 import type { PreparedNarration } from '../src/services/audioNarration/narrationTypes';
 
@@ -405,5 +406,31 @@ describe('executeNarration', () => {
         }
         // Most importantly — createBinary must NOT have been called
         expect((plugin.app.vault.createBinary as ReturnType<typeof vi.fn>)).not.toHaveBeenCalled();
+    });
+});
+
+describe('prepareNarration — Excalidraw drawings', () => {
+    beforeEach(() => {
+        apiKeyResult.value = { provider: 'gemini', apiKey: 'test-key', model: 'gemini-3.1-flash-tts-preview', endpoint: '' };
+    });
+
+    it('narrates the drawing words, never the compressed blob', async () => {
+        const plugin = makeMockPlugin(drawingNote());
+        const r = await prepareNarration(plugin as never, makeMockFile('Map.excalidraw.md'));
+        expect(r.ok).toBe(true);
+        if (r.ok) {
+            expect(r.value.spokenText).toContain('Intake');
+            expect(r.value.spokenText).toContain('Decision');
+            expect(r.value.spokenText).not.toContain('N4KAkARALgngDgUw');
+        }
+    });
+
+    it('reports EMPTY_CONTENT (no TTS call) for a drawing with no words', async () => {
+        const plugin = makeMockPlugin(drawingNote({ elements: [] }));
+        const r = await prepareNarration(plugin as never, makeMockFile('Blank.excalidraw.md'));
+        expect(r.ok).toBe(false);
+        if (!r.ok) {
+            expect(decodeError(r.error).code).toBe('EMPTY_CONTENT');
+        }
     });
 });
