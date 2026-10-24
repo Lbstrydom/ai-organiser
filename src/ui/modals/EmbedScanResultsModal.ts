@@ -44,6 +44,18 @@ import {
 } from '../../services/embedScanService';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
+import { describeKept, type KeptCard, type KeptContext } from '../../services/attachmentKeptModel';
+import {
+    isLinkRemovalEnabled,
+    planLinkRemoval,
+    removeLinks,
+    type NotePlan,
+    type UnlinkOutcome,
+} from '../../services/attachmentUnlinkService';
+import type { BatchResult, Result } from '../../core/result';
+import { isFeatureEnabled } from '../../services/featureService';
+import { renderKeptPanel } from './EmbedScanKeptPanel';
+import { RemoveLinkPreviewModal } from './RemoveLinkPreviewModal';
 
 // ─── Sort options ────────────────────────────────────────────────────────────
 
@@ -120,10 +132,24 @@ export interface EmbedScanModalContext {
 /** The user's answer to "send text to the embedding provider?", remembered per provider for the session. */
 const sessionEgressChoice = new Map<string, boolean>();
 
-/** Forget the session answers (called when the plugin loads). */
+/** Open state of the collapsed groups, remembered for the session. `null` = no choice yet (the default rule applies). */
+let sessionInUseOpen: boolean | null = null;
+let sessionMissingOpen = false;
+
+/** Forget the session answers and group choices (called when the plugin loads). */
 export function resetEgressChoice(): void {
     sessionEgressChoice.clear();
+    sessionInUseOpen = null;
+    sessionMissingOpen = false;
 }
+
+/** The outcome of re-checking the selected files against the live vault. */
+type SafetyCheck =
+    | { status: 'ok'; safe: TFile[]; kept: Array<{ file: TFile; eligibility: Eligibility }> }
+    /** Obsidian is still indexing links: nothing could be proven, nothing was decided */
+    | { status: 'not-ready' }
+    /** Could not check (already reported to the user) */
+    | { status: 'failed' };
 
 type SuggestState =
     | { status: 'loading' }
@@ -158,6 +184,19 @@ export class EmbedScanResultsModal extends Modal {
     private duplicateProgress: { done: number; total: number } | null = null;
     private duplicateAbort: AbortController | null = null;
     private duplicateOf = new Map<string, string[]>();
+    /** Files the last re-check kept, with the evidence, until they are fixed, deleted or the window closes. */
+    private keptCards = new Map<string, { card: KeptCard; eligibility: Eligibility }>();
+    private keptEl!: HTMLElement;
+    private notReadyEl!: HTMLElement;
+    /** Set while the re-check could not run because Obsidian is indexing; the selection is kept for a retry. */
+    private notReadyPaths: string[] | null = null;
+    /** One check or link-removal workflow at a time; the action buttons are disabled while it runs. */
+    private busy = false;
+    private duplicatesOnly = false;
+    private orphansOpen = true;
+    private chipsEl!: HTMLElement;
+    private chipCleanups: (() => void)[] = [];
+    private keptCleanups: (() => void)[] = [];
     private suggestions = new Map<string, SuggestState>();
     /** Set when the modal closes, so work that finishes later does not touch a dead modal. */
     private closed = false;
@@ -263,13 +302,17 @@ export class EmbedScanResultsModal extends Modal {
         // ── Status line (showing filtered count) ──
         this.statusEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-status' });
 
-        // ── Results container ──
-        this.resultsContainer = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-results' });
+        // ── Kept files (what the delete-time re-check refused, and why) and the not-ready row ──
+        this.keptEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-kept-wrap' });
+        this.notReadyEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-not-ready' });
 
-        // ── Possibly Orphaned section (vault scope only) ──
+        // ── Possibly orphaned section (vault scope only): the focus of the window, so it comes first ──
         if (this.scanResult.possiblyOrphaned.length > 0) {
             this.orphansContainer = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-orphans' });
         }
+
+        // ── Files that are in use (collapsed by default when there is anything to clean up) ──
+        this.resultsContainer = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-results' });
 
         // ── Files that could not be read (block deleting anything) ──
         this.couldNotReadEl = contentEl.createDiv({ cls: 'ai-organiser-embed-scan-could-not-read' });
@@ -310,51 +353,9 @@ export class EmbedScanResultsModal extends Modal {
         // Controls row: type filters + sort + min-size
         const controlsRow = container.createDiv({ cls: 'ai-organiser-embed-scan-controls' });
 
-        // Type filter chips
-        const typeChips = controlsRow.createDiv({ cls: 'ai-organiser-embed-scan-type-chips' });
-        for (const type of ALL_EMBED_TYPES) {
-            const count = this.scanResult.targets.filter(t => t.type === type).length;
-            if (count === 0) continue; // Don't show empty types
-
-            const chip = typeChips.createEl('button', {
-                cls: `ai-organiser-embed-scan-chip ${this.filters.activeTypes.has(type) ? 'active' : ''}`,
-            });
-            chip.setAttribute('role', 'checkbox');
-            chip.setAttribute('aria-checked', this.filters.activeTypes.has(type) ? 'true' : 'false');
-            chip.setAttribute('aria-label', `${getTypeLabel(type, this.t)} (${count})`);
-            chip.setAttribute('tabindex', '0');
-
-            const chipIcon = chip.createSpan({ cls: 'ai-organiser-embed-scan-chip-icon' });
-            setIcon(chipIcon, getEmbedTypeIcon(type));
-            chip.createSpan({ text: `${getTypeLabel(type, this.t)} (${count})` });
-
-            this.cleanups.push(listen(chip, 'click', () => this.toggleTypeFilter(type, chip)));
-            this.cleanups.push(listen(chip, 'keydown', (e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    this.toggleTypeFilter(type, chip);
-                }
-            }));
-        }
-
-        // "Large files" chip (at or above the size set in settings)
-        const hasLarge = this.scanResult.targets.some((x) => x.sizeBytes >= this.largeBytes)
-            || this.scanResult.possiblyOrphaned.some((f) => f.stat.size >= this.largeBytes);
-        if (hasLarge) {
-            const largeChip = typeChips.createEl('button', {
-                cls: `ai-organiser-embed-scan-chip ${this.largeOnly ? 'active' : ''}`,
-                attr: { role: 'checkbox', 'aria-checked': String(this.largeOnly), 'aria-label': embedScan.largeChip },
-            });
-            const largeIcon = largeChip.createSpan({ cls: 'ai-organiser-embed-scan-chip-icon' });
-            setIcon(largeIcon, 'hard-drive');
-            largeChip.createSpan({ text: embedScan.largeChip });
-            this.cleanups.push(listen(largeChip, 'click', () => {
-                this.largeOnly = !this.largeOnly;
-                largeChip.toggleClass('active', this.largeOnly);
-                largeChip.setAttribute('aria-checked', String(this.largeOnly));
-                this.applyFiltersAndRender();
-            }));
-        }
+        // Type, Large and Duplicates chips (rebuilt when the duplicate analysis finishes)
+        this.chipsEl = controlsRow.createDiv({ cls: 'ai-organiser-embed-scan-type-chips' });
+        this.renderChipRow();
 
         // Min-size dropdown
         const sizeWrapper = controlsRow.createDiv({ cls: 'ai-organiser-embed-scan-size-filter' });
@@ -400,6 +401,89 @@ export class EmbedScanResultsModal extends Modal {
         }));
     }
 
+    private orphanType(file: TFile): EmbedTargetType {
+        return classifyExtension(`.${file.extension}`);
+    }
+
+    private isDuplicate(path: string): boolean {
+        const members = this.duplicateOf.get(path);
+        return !!members && members.length > 1;
+    }
+
+    /** Files of a type across the referenced files and the possibly orphaned ones. */
+    private countOfType(type: EmbedTargetType): number {
+        return this.scanResult.targets.filter((x) => x.type === type).length
+            + this.scanResult.possiblyOrphaned.filter((f) => this.orphanType(f) === type).length;
+    }
+
+    private renderChipRow(): void {
+        for (const dispose of this.chipCleanups) dispose();
+        this.chipCleanups = [];
+        this.chipsEl.empty();
+        const embedScan = this.t.embedScan;
+
+        for (const type of ALL_EMBED_TYPES) {
+            const count = this.countOfType(type);
+            if (count === 0) continue; // Don't show empty types
+
+            const chip = this.chipsEl.createEl('button', {
+                cls: `ai-organiser-embed-scan-chip ${this.filters.activeTypes.has(type) ? 'active' : ''}`,
+            });
+            chip.setAttribute('role', 'checkbox');
+            chip.setAttribute('aria-checked', this.filters.activeTypes.has(type) ? 'true' : 'false');
+            chip.setAttribute('aria-label', `${getTypeLabel(type, this.t)} (${count})`);
+            chip.setAttribute('tabindex', '0');
+
+            const chipIcon = chip.createSpan({ cls: 'ai-organiser-embed-scan-chip-icon' });
+            setIcon(chipIcon, getEmbedTypeIcon(type));
+            chip.createSpan({ text: `${getTypeLabel(type, this.t)} (${count})` });
+
+            this.chipCleanups.push(listen(chip, 'click', () => this.toggleTypeFilter(type, chip)));
+            this.chipCleanups.push(listen(chip, 'keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    this.toggleTypeFilter(type, chip);
+                }
+            }));
+        }
+
+        // "Large files" chip (at or above the size set in settings)
+        const hasLarge = this.scanResult.targets.some((x) => x.sizeBytes >= this.largeBytes)
+            || this.scanResult.possiblyOrphaned.some((f) => f.stat.size >= this.largeBytes);
+        if (hasLarge) {
+            const largeChip = this.chipsEl.createEl('button', {
+                cls: `ai-organiser-embed-scan-chip ${this.largeOnly ? 'active' : ''}`,
+                attr: { role: 'checkbox', 'aria-checked': String(this.largeOnly), 'aria-label': embedScan.largeChip },
+            });
+            const largeIcon = largeChip.createSpan({ cls: 'ai-organiser-embed-scan-chip-icon' });
+            setIcon(largeIcon, 'hard-drive');
+            largeChip.createSpan({ text: embedScan.largeChip });
+            this.chipCleanups.push(listen(largeChip, 'click', () => {
+                this.largeOnly = !this.largeOnly;
+                largeChip.toggleClass('active', this.largeOnly);
+                largeChip.setAttribute('aria-checked', String(this.largeOnly));
+                this.applyFiltersAndRender();
+            }));
+        }
+
+        // "Duplicates" chip: only once the opt-in duplicate analysis has found some
+        const duplicateFiles = [...this.duplicateOf.keys()].filter((path) => this.isDuplicate(path)).length;
+        if (duplicateFiles > 0) {
+            const dupChip = this.chipsEl.createEl('button', {
+                cls: `ai-organiser-embed-scan-chip ${this.duplicatesOnly ? 'active' : ''}`,
+                attr: { role: 'checkbox', 'aria-checked': String(this.duplicatesOnly), 'aria-label': `${embedScan.duplicatesChip} (${duplicateFiles})` },
+            });
+            setIcon(dupChip.createSpan({ cls: 'ai-organiser-embed-scan-chip-icon' }), 'copy');
+            dupChip.createSpan({ text: `${embedScan.duplicatesChip} (${duplicateFiles})` });
+            this.chipCleanups.push(listen(dupChip, 'click', () => {
+                this.duplicatesOnly = !this.duplicatesOnly;
+                dupChip.toggleClass('active', this.duplicatesOnly);
+                dupChip.setAttribute('aria-checked', String(this.duplicatesOnly));
+                this.applyFiltersAndRender();
+            }));
+        }
+    }
+
     private toggleTypeFilter(type: EmbedTargetType, chip: HTMLElement): void {
         if (this.filters.activeTypes.has(type)) {
             this.filters.activeTypes.delete(type);
@@ -440,15 +524,18 @@ export class EmbedScanResultsModal extends Modal {
     // ─── Filter + Sort + Render ──────────────────────────────────────────────
 
     private applyFiltersAndRender(): void {
+        if (this.closed) return;
         for (const dispose of this.renderCleanups) dispose();
         this.renderCleanups = [];
         this.updateSummary();
         const filtered = this.getFilteredTargets();
         this.updateStatus(filtered.length);
-        this.renderResults(filtered);
+        this.renderKept();
+        this.renderNotReady();
         if (this.orphansContainer) {
             this.renderOrphans();
         }
+        this.renderResults(filtered);
         this.updateSelectionToolbar();
         this.renderBanner();
         this.renderTools();
@@ -462,6 +549,7 @@ export class EmbedScanResultsModal extends Modal {
             // Min size filter
             if (t.sizeBytes < this.filters.minSizeBytes) return false;
             if (this.largeOnly && t.sizeBytes < this.largeBytes) return false;
+            if (this.duplicatesOnly && !(t.file && this.isDuplicate(t.file.path))) return false;
             // Search query
             if (this.filters.searchQuery) {
                 const query = this.filters.searchQuery;
@@ -529,16 +617,42 @@ export class EmbedScanResultsModal extends Modal {
 
     private renderResults(targets: EmbedTarget[]): void {
         this.resultsContainer.empty();
+        const inUse = targets.filter((x) => x.file !== null);
+        const missing = targets.filter((x) => x.file === null);
 
-        if (targets.length === 0) {
-            const emptyEl = this.resultsContainer.createDiv({ cls: 'ai-organiser-embed-scan-empty' });
-            emptyEl.createSpan({ text: this.t.embedScan.noResults });
+        if (inUse.length === 0 && missing.length === 0) {
+            if (this.getFilteredOrphans().length === 0) {
+                const emptyEl = this.resultsContainer.createDiv({ cls: 'ai-organiser-embed-scan-empty' });
+                emptyEl.createSpan({ text: this.t.embedScan.noResults });
+            }
             return;
         }
 
-        for (const target of targets) {
-            this.renderTargetRow(this.resultsContainer, target);
+        const es = this.t.embedScan;
+        // With something to clean up the in-use files stay out of the way; with nothing else to show they open.
+        const hasOrphanSection = this.scanResult.possiblyOrphaned.length > 0;
+        if (inUse.length > 0) {
+            this.renderGroup('inuse', plural(es.inUseSummary, inUse.length), inUse, sessionInUseOpen ?? !hasOrphanSection,
+                (open) => { sessionInUseOpen = open; });
         }
+        if (missing.length > 0) {
+            this.renderGroup('missing', plural(es.missingTargetsSummary, missing.length), missing, sessionMissingOpen,
+                (open) => { sessionMissingOpen = open; });
+        }
+    }
+
+    /** A collapsible group of referenced files. The user's open/closed choice is remembered for the session. */
+    private renderGroup(kind: 'inuse' | 'missing', title: string, targets: EmbedTarget[], open: boolean, remember: (open: boolean) => void): void {
+        const details = this.resultsContainer.createEl('details', {
+            cls: `ai-organiser-embed-scan-group ai-organiser-embed-scan-group-${kind}`,
+        });
+        details.open = open;
+        const summary = details.createEl('summary', { cls: 'ai-organiser-embed-scan-group-summary', text: title });
+        summary.setAttribute('tabindex', '0');
+        // The click toggles `open` after this handler runs, so the new state is the opposite of the current one.
+        this.renderCleanups.push(listen(summary, 'click', () => remember(!details.open)));
+        const body = details.createDiv({ cls: 'ai-organiser-embed-scan-group-body' });
+        for (const target of targets) this.renderTargetRow(body, target);
     }
 
     private renderTargetRow(container: HTMLElement, target: EmbedTarget): void {
@@ -727,25 +841,42 @@ export class EmbedScanResultsModal extends Modal {
 
     // ─── Orphan rendering ────────────────────────────────────────────────────
 
+    /** The possibly orphaned files that pass the current filters, in the chosen order (largest first by default). */
+    private getFilteredOrphans(): TFile[] {
+        const { searchQuery, activeTypes, minSizeBytes, sortField, sortDirection } = this.filters;
+        const dir = sortDirection === 'desc' ? -1 : 1;
+        return this.scanResult.possiblyOrphaned
+            .filter((f) =>
+                f.stat.size >= minSizeBytes
+                && (!this.largeOnly || f.stat.size >= this.largeBytes)
+                && activeTypes.has(this.orphanType(f))
+                && (!this.duplicatesOnly || this.isDuplicate(f.path))
+                && (!searchQuery || f.path.toLowerCase().includes(searchQuery)))
+            // A file nothing references has no reference count to sort by, so that order falls back to size.
+            .sort((a, b) => sortField === 'name' ? a.path.localeCompare(b.path) * dir
+                : sortField === 'size' ? (a.stat.size - b.stat.size) * dir
+                : b.stat.size - a.stat.size);
+    }
+
     private renderOrphans(): void {
         this.orphansContainer.empty();
         const embedScan = this.t.embedScan;
 
-        const orphans = this.scanResult.possiblyOrphaned;
-        // Apply min-size and large-file filters to orphans too
-        const filteredOrphans = orphans.filter(f =>
-            f.stat.size >= this.filters.minSizeBytes && (!this.largeOnly || f.stat.size >= this.largeBytes));
+        // The same search, type, size, duplicates and sort controls as the referenced files
+        const filteredOrphans = this.getFilteredOrphans();
 
         if (filteredOrphans.length === 0) return;
 
-        // Collapsible section — default collapsed
+        // Collapsible section, open by default: this is what the user came to clean up
         const details = this.orphansContainer.createEl('details', {
             cls: 'ai-organiser-embed-scan-orphan-section'
         });
+        details.open = this.orphansOpen;
         const summary = details.createEl('summary', {
             cls: 'ai-organiser-embed-scan-orphan-summary'
         });
         summary.setAttribute('tabindex', '0');
+        this.renderCleanups.push(listen(summary, 'click', () => { this.orphansOpen = !details.open; }));
 
         const summaryIcon = summary.createSpan({ cls: 'ai-organiser-embed-scan-orphan-icon' });
         setIcon(summaryIcon, 'alert-triangle');
@@ -767,13 +898,7 @@ export class EmbedScanResultsModal extends Modal {
             this.createCheckbox(row, file.path, orphanEligibility.eligible);
 
             const icon = row.createSpan({ cls: 'ai-organiser-embed-scan-type-icon' });
-            setIcon(icon, getEmbedTypeIcon(
-                (['png','jpg','jpeg','gif','webp','bmp','svg','heic','heif','tiff','tif','avif'].includes(file.extension)) ? 'image'
-                : file.extension === 'pdf' ? 'pdf'
-                : (['mp3','m4a','wav','webm','ogg','mp4','mpeg','mpga','oga'].includes(file.extension)) ? 'audio'
-                : (['mp4','mov','avi'].includes(file.extension)) ? 'video'
-                : 'document'
-            ));
+            setIcon(icon, getEmbedTypeIcon(this.orphanType(file)));
 
             row.createSpan({ cls: 'ai-organiser-embed-scan-filename', text: file.name });
             const sizeBadge = row.createSpan({ cls: 'ai-organiser-embed-scan-badge size' });
@@ -858,12 +983,8 @@ export class EmbedScanResultsModal extends Modal {
         for (const t of filtered) {
             if (t.file && this.targetEligibility(t)?.eligible) paths.push(t.file.path);
         }
-        if (this.scanResult.possiblyOrphaned.length > 0) {
-            const filteredOrphans = this.scanResult.possiblyOrphaned.filter(f =>
-                f.stat.size >= this.filters.minSizeBytes && (!this.largeOnly || f.stat.size >= this.largeBytes));
-            for (const f of filteredOrphans) {
-                if (this.orphanEligibility(f).eligible) paths.push(f.path);
-            }
+        for (const f of this.getFilteredOrphans()) {
+            if (this.orphanEligibility(f).eligible) paths.push(f.path);
         }
         return paths;
     }
@@ -877,15 +998,11 @@ export class EmbedScanResultsModal extends Modal {
     }
 
     /**
-     * Rebuild the reference graph from the CURRENT vault, drop anything that is no longer safe,
-     * and only then ask for confirmation. Fails closed if the link index is not ready.
+     * Check the selected files against the CURRENT vault: the ones still safe, and the ones kept back with
+     * the evidence for why. A failure to check is reported and treated as "nothing is safe"; a link index
+     * that is still building is its own outcome, so the user gets an honest message and a retry.
      */
-    /**
-     * Check the selected files against the CURRENT vault. Returns the ones still safe and the
-     * ones kept back; a failure to check (for example the link index is not ready) is reported
-     * and treated as "nothing is safe".
-     */
-    private async checkSafe(selected: TFile[]): Promise<{ safe: TFile[]; kept: TFile[] } | null> {
+    private async checkSafe(selected: TFile[]): Promise<SafetyCheck> {
         const settings = this.ctx?.plugin.settings;
         const identities = selected.map((f) => this.scanIdentity.get(f.path) ?? { path: f.path, size: f.stat.size, mtime: f.stat.mtime });
         const res = await revalidate(createAppVaultPort(this.app), {
@@ -898,28 +1015,72 @@ export class EmbedScanResultsModal extends Modal {
             protectedFolders: settings?.protectedFolders ?? [],
         });
         if (!res.ok) {
+            if (res.error === 'metadata-not-ready') return { status: 'not-ready' };
+            if (res.error === 'scan-out-of-date') this.stale = true;
             new Notice(formatGuidance(describeError(this.t, res.error)), 8000);
-            return null;
+            return { status: 'failed' };
         }
-        return {
-            safe: selected.filter((f) => res.value.get(f.path)?.eligible),
-            kept: selected.filter((f) => !res.value.get(f.path)?.eligible),
-        };
+        const safe: TFile[] = [];
+        const kept: Array<{ file: TFile; eligibility: Eligibility }> = [];
+        for (const file of selected) {
+            const eligibility = res.value.get(file.path);
+            if (eligibility?.eligible) safe.push(file);
+            else kept.push({ file, eligibility: eligibility ?? { eligible: false, reasons: ['target-missing'], referenceCount: 0 } });
+        }
+        return { status: 'ok', safe, kept };
     }
 
-    private async revalidateAndConfirm(selected: TFile[]): Promise<void> {
-        const es = this.t.embedScan;
-        const checking = new Notice(es.revalidating, 0);
-        const checked = await this.checkSafe(selected);
-        checking.hide();
-        if (!checked || this.closed) return;
-        const { safe, kept } = checked;
-        if (kept.length > 0) {
-            for (const f of kept) this.selectedPaths.delete(f.path);
-            new Notice(plural(es.keptNotice, kept.length), 8000);
-            this.stale = true;
+    /**
+     * Take in what a re-check found: files now safe lose their Kept card, kept files get one (with the
+     * blocking note, canvas or file named). False when nothing could be decided (not ready, or failed).
+     */
+    private recordCheck(selected: TFile[], checked: SafetyCheck): checked is Extract<SafetyCheck, { status: 'ok' }> {
+        if (checked.status === 'not-ready') {
+            this.notReadyPaths = selected.map((f) => f.path);
             this.applyFiltersAndRender();
+            return false;
         }
+        if (checked.status === 'failed') {
+            // Nothing was decided, but the stale banner may have changed and the buttons must follow the lock.
+            this.applyFiltersAndRender();
+            return false;
+        }
+        this.notReadyPaths = null;
+        for (const file of checked.safe) this.keptCards.delete(file.path);
+        for (const { file, eligibility } of checked.kept) {
+            this.selectedPaths.delete(file.path);
+            this.keptCards.set(file.path, {
+                eligibility,
+                card: describeKept({ path: file.path, name: file.name, sizeBytes: file.stat.size }, eligibility, this.keptContext()),
+            });
+        }
+        if (checked.kept.length > 0) {
+            new Notice(plural(this.t.embedScan.keptNotice, checked.kept.length), 8000);
+            this.stale = true;
+        }
+        this.applyFiltersAndRender();
+        return true;
+    }
+
+    /**
+     * Rebuild the reference graph from the CURRENT vault, drop anything that is no longer safe,
+     * and only then ask for confirmation. Fails closed if the link index is not ready.
+     */
+    private async revalidateAndConfirm(selected: TFile[]): Promise<void> {
+        if (this.busy) return;
+        const es = this.t.embedScan;
+        this.busy = true;
+        const checking = new Notice(es.revalidating, 0);
+        let checked: SafetyCheck;
+        try {
+            checked = await this.checkSafe(selected);
+        } finally {
+            checking.hide();
+            this.busy = false;
+        }
+        if (this.closed) return;
+        if (!this.recordCheck(selected, checked)) return;
+        const { safe } = checked;
         if (safe.length === 0) return;
 
         const totalSize = safe.reduce((sum, f) => sum + f.stat.size, 0);
@@ -932,6 +1093,179 @@ export class EmbedScanResultsModal extends Modal {
                 await this.executeDelete(safe);
             }
         ).open();
+    }
+
+    // ─── Kept files, not-ready row, remove-the-link flow ──────────────────
+
+    private keptContext(): KeptContext {
+        const plugin = this.ctx?.plugin;
+        const settings = plugin?.settings;
+        const linkRemoval = !settings ? 'unavailable'
+            : isLinkRemovalEnabled(settings) ? 'on'
+            : isFeatureEnabled(settings, 'embed-scan') ? 'off'
+            : 'unavailable';
+        return { protectedFolders: this.protectedFolders, linkRemoval };
+    }
+
+    /** Describe every kept file again (the link-removal setting may have changed). */
+    private refreshKeptCards(): void {
+        for (const [path, entry] of this.keptCards) {
+            const file = this.app.vault.getAbstractFileByPath(path);
+            const name = file instanceof TFile ? file.name : path.split('/').pop() ?? path;
+            const size = file instanceof TFile ? file.stat.size : entry.card.sizeBytes;
+            this.keptCards.set(path, { eligibility: entry.eligibility, card: describeKept({ path, name, sizeBytes: size }, entry.eligibility, this.keptContext()) });
+        }
+    }
+
+    private renderKept(): void {
+        if (!this.keptEl) return;
+        for (const dispose of this.keptCleanups) dispose();
+        this.keptEl.empty();
+        this.keptCleanups = renderKeptPanel(
+            this.keptEl,
+            [...this.keptCards.values()].map((entry) => entry.card),
+            this.t,
+            {
+                open: (path) => {
+                    void this.app.workspace.openLinkText(path, '', false);
+                    this.close();
+                },
+                removeAndDelete: (filePath) => { void this.startUnlinkFlow(filePath); },
+                enableRemoval: (filePath) => { void this.enableRemovalAndStart(filePath); },
+                scanAgain: () => {
+                    this.close();
+                    this.ctx?.onRescan?.();
+                },
+            },
+            this.busy,
+        );
+    }
+
+    private renderNotReady(): void {
+        if (!this.notReadyEl) return;
+        this.notReadyEl.empty();
+        if (!this.notReadyPaths) return;
+        const es = this.t.embedScan;
+        const row = this.notReadyEl.createDiv({ cls: 'ai-organiser-embed-scan-banner', attr: { role: 'status' } });
+        row.createSpan({ text: `${es.notReadyText} ${es.notReadyHint}` });
+        const retry = row.createEl('button', { text: es.notReadyRetry, attr: { type: 'button' } });
+        retry.disabled = this.busy;
+        this.renderCleanups.push(listen(retry, 'click', () => this.retryNotReady()));
+    }
+
+    private retryNotReady(): void {
+        const files = (this.notReadyPaths ?? [])
+            .map((path) => this.app.vault.getAbstractFileByPath(path))
+            .filter((f): f is TFile => f instanceof TFile);
+        this.notReadyPaths = null;
+        this.applyFiltersAndRender();
+        if (files.length > 0) void this.revalidateAndConfirm(files);
+    }
+
+    /** One click on the card: turn the setting on, then carry on to the preview. */
+    private async enableRemovalAndStart(filePath: string): Promise<void> {
+        const plugin = this.ctx?.plugin;
+        if (!plugin || this.busy) return;
+        this.busy = true;
+        this.applyFiltersAndRender();
+        plugin.settings.attachmentAllowLinkRemoval = true;
+        try {
+            await plugin.saveSettings();
+        } catch {
+            plugin.settings.attachmentAllowLinkRemoval = false;
+            new Notice(formatGuidance(describeError(this.t, 'write-failed')), 8000);
+            this.busy = false;
+            this.applyFiltersAndRender();
+            return;
+        }
+        this.busy = false;
+        if (this.closed) return;
+        this.refreshKeptCards();
+        this.applyFiltersAndRender();
+        await this.startUnlinkFlow(filePath);
+    }
+
+    /**
+     * Plan the removal of every link to a kept file from the notes that hold them, and show it. Nothing is
+     * written until Apply; a note that cannot be edited safely (protected, or the link sits in a code block or
+     * the properties) stops the whole action with a reason.
+     */
+    private async startUnlinkFlow(filePath: string): Promise<void> {
+        const plugin = this.ctx?.plugin;
+        const entry = this.keptCards.get(filePath);
+        const file = this.app.vault.getAbstractFileByPath(filePath);
+        if (!plugin || !entry || !(file instanceof TFile) || this.busy) return;
+        if (!isLinkRemovalEnabled(plugin.settings)) {
+            new Notice(formatGuidance(describeError(this.t, 'link-removal-off')), 8000);
+            return;
+        }
+        this.busy = true;
+        this.applyFiltersAndRender();
+        let handedOff = false;
+        let alreadyGone = false;
+        try {
+            const resolve = (linktext: string, sourcePath: string): string | null =>
+                this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
+            const plans: NotePlan[] = [];
+            for (const notePath of new Set((entry.eligibility.blockers?.referrers ?? []).map((r) => r.path))) {
+                const note = this.app.vault.getAbstractFileByPath(notePath);
+                if (!(note instanceof TFile) || !assertWritable(plugin.settings, 'modify', notePath).ok) {
+                    new Notice(formatGuidance(describeError(this.t, 'protected-path')), 8000);
+                    return;
+                }
+                const planned = planLinkRemoval(await this.app.vault.read(note), filePath, notePath, resolve);
+                if (planned.status === 'not-removable') {
+                    new Notice(`${formatGuidance(describeError(this.t, 'link-not-removable'))} ${notePath}`, 10000);
+                    return;
+                }
+                if (planned.status === 'ok') plans.push(planned.plan);
+            }
+            if (this.closed) return;
+            if (plans.length === 0) {
+                // The links are already gone: just check the file again (after the lock is released).
+                alreadyGone = true;
+                return;
+            }
+            // The lock stays on while the preview is open; Apply hands it to the job, closing it releases it.
+            new RemoveLinkPreviewModal(
+                this.app, this.t, file.name, plans,
+                () => { void this.runUnlink(file, plans); },
+                () => { this.busy = false; this.applyFiltersAndRender(); },
+            ).open();
+            handedOff = true;
+        } catch {
+            new Notice(formatGuidance(describeError(this.t, 'unlink-failed')), 8000);
+        } finally {
+            if (!handedOff) {
+                this.busy = false;
+                this.applyFiltersAndRender();
+                if (alreadyGone && !this.closed) void this.revalidateAndConfirm([file]);
+            }
+        }
+    }
+
+    /**
+     * Apply the approved plan. The job belongs to the service, not to this window: closing the window stops
+     * it before the NEXT note (a note write is never interrupted) and the outcome is still announced.
+     */
+    private async runUnlink(file: TFile, plans: NotePlan[]): Promise<void> {
+        const plugin = this.ctx?.plugin;
+        if (!plugin) return;
+        // The lock was taken when the flow started and is still held (the preview kept it).
+        this.busy = true;
+        this.applyFiltersAndRender();
+        const res = await removeLinks(plugin, file.path, plans, { shouldContinue: () => !this.closed });
+        announceUnlink(this.t, res, plans.length);
+        if (this.closed) return;
+        this.busy = false;
+        if (res.ok && res.value.errors.some((e) => e.error === 'stale')) {
+            // A note changed after the preview: nothing in it was written. Show the updated plan for a fresh Apply.
+            this.applyFiltersAndRender();
+            void this.startUnlinkFlow(file.path);
+            return;
+        }
+        // Removing the links is not deleting: check again, and only a file that is now safe reaches the confirmation.
+        await this.revalidateAndConfirm([file]);
     }
 
     private getSelectedFiles(): TFile[] {
@@ -950,28 +1284,40 @@ export class EmbedScanResultsModal extends Modal {
         // Confirmation approves a specific validated state. A reference may have appeared while
         // the dialog was open, so check again immediately before trashing.
         const checked = await this.checkSafe(candidates);
-        if (!checked) return;
-        if (checked.kept.length > 0) {
-            for (const f of checked.kept) this.selectedPaths.delete(f.path);
-            new Notice(plural(embedScan.keptNotice, checked.kept.length), 8000);
-            this.stale = true;
-        }
+        if (this.closed) return;
+        if (!this.recordCheck(candidates, checked)) return;
         const files = checked.safe;
 
-        for (const file of files) {
-            try {
-                if (!assertWritable(this.ctx?.plugin.settings, 'delete', file.path).ok) {
-                    new Notice(formatGuidance(describeError(this.t, 'protected-path')), 6000);
-                    continue;
+        this.busy = true;
+        try {
+            let first = true;
+            for (const file of files) {
+                // Moving large files takes a while; the first verdict is not used for the later files.
+                if (!first) {
+                    const fresh = await this.checkSafe([file]);
+                    if (this.closed) return;
+                    const decided = this.recordCheck([file], fresh);
+                    if (!decided) break; // not ready or failed: stop, nothing else is trashed on an old verdict
+                    if (fresh.safe.length === 0) continue; // kept now, with its card
                 }
-                await this.app.fileManager.trashFile(file);
-                deletedCount++;
-                // Remove from scan result
-                this.removeFromScanResult(file.path);
-                this.selectedPaths.delete(file.path);
-            } catch {
-                new Notice(embedScan.deleteError.replace('{file}', file.name));
+                first = false;
+                try {
+                    if (!assertWritable(this.ctx?.plugin.settings, 'delete', file.path).ok) {
+                        new Notice(formatGuidance(describeError(this.t, 'protected-path')), 6000);
+                        continue;
+                    }
+                    await this.app.fileManager.trashFile(file);
+                    deletedCount++;
+                    // Remove from scan result
+                    this.removeFromScanResult(file.path);
+                    this.selectedPaths.delete(file.path);
+                    this.keptCards.delete(file.path);
+                } catch {
+                    new Notice(embedScan.deleteError.replace('{file}', file.name));
+                }
             }
+        } finally {
+            this.busy = false;
         }
 
         if (deletedCount > 0) {
@@ -1164,6 +1510,7 @@ export class EmbedScanResultsModal extends Modal {
             // One shared array per group (not one peer list per file); a row removes itself when it needs "the others".
             for (const path of group.paths) this.duplicateOf.set(path, group.paths);
         }
+        this.renderChipRow();
         this.applyFiltersAndRender();
     }
 
@@ -1270,12 +1617,35 @@ export class EmbedScanResultsModal extends Modal {
         for (const dispose of this.toolbarCleanups) dispose();
         this.toolbarCleanups = [];
         this.duplicateAbort?.abort();
+        for (const dispose of this.chipCleanups) dispose();
+        this.chipCleanups = [];
+        for (const dispose of this.keptCleanups) dispose();
+        this.keptCleanups = [];
         for (const ref of this.vaultRefs) this.app.vault.offref(ref);
         this.vaultRefs = [];
         for (const cleanup of this.cleanups) cleanup();
         this.cleanups = [];
         this.contentEl.empty();
     }
+}
+
+// ─── Remove-the-link outcome ────────────────────────────────────────────────
+
+/** Tell the user what happened. Touches nothing of the results window, so it is safe after the window closed. */
+function announceUnlink(t: Translations, res: Result<BatchResult<UnlinkOutcome>>, total: number): void {
+    const es = t.embedScan;
+    if (!res.ok) {
+        new Notice(formatGuidance(describeError(t, res.error === 'link-removal-off' ? 'link-removal-off' : 'unlink-failed')), 8000);
+        return;
+    }
+    const written = res.value.items.length;
+    if (written === total) {
+        new Notice(plural(es.unlinkDone, written), 5000);
+        return;
+    }
+    const blocked = res.value.errors.find((x) => x.error !== 'skipped');
+    const code = blocked?.error === 'stale' ? 'link-changed' : blocked?.error === 'refused-protected' ? 'protected-path' : 'unlink-failed';
+    new Notice(`${es.unlinkPartial.replace('{done}', String(written)).replace('{total}', String(total))} ${formatGuidance(describeError(t, code))}`, 10000);
 }
 
 // ─── Egress confirmation ───────────────────────────────────────────────────

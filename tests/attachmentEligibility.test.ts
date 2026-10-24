@@ -287,3 +287,93 @@ describe('createAppVaultPort readiness', () => {
 		expect(portFor({}).isResolved()).toBe(false); // no tracker attached at all
 	});
 });
+
+// ---- blockers: the verdict names what stands in the way ---------------------------------------
+
+describe('revalidate blockers', () => {
+	const scanned = id('Rec/meeting.m4a');
+	const input = (over: Record<string, unknown> = {}) => ({ files: [scanned], scanStartedAt: 1000, occurrences: [] as StoredOccurrence[], changes: EMPTY_CHANGES, protectedFolders: [] as string[], ...over });
+
+	it('names the note and line that reference the file (a note the scan never read, e.g. an excluded folder)', async () => {
+		const port = makePort({
+			notes: { 'Minutes/2026-01.md': { text: 'intro\n![[meeting.m4a]]', mtime: 100 } },
+			files: { 'Rec/meeting.m4a': scanned },
+		});
+		const res = await revalidate(port, input({ scannedReferrers: [] }));
+		const e = res.ok ? res.value.get('Rec/meeting.m4a') : null;
+		expect(e?.eligible).toBe(false);
+		expect(e?.reasons).toEqual(['still-referenced']);
+		expect(e?.blockers?.referrers).toEqual([{ path: 'Minutes/2026-01.md', extension: 'md', lineNumber: 2, linktext: 'meeting.m4a' }]);
+	});
+
+	it('names a canvas referrer with line 0', async () => {
+		const port = makePort({
+			notes: { 'Board.canvas': { text: JSON.stringify({ nodes: [{ id: 'n1', type: 'file', file: 'Rec/meeting.m4a' }] }), mtime: 100, ext: 'canvas' } },
+			files: { 'Rec/meeting.m4a': scanned },
+		});
+		const res = await revalidate(port, input({ scannedReferrers: [] }));
+		const e = res.ok ? res.value.get('Rec/meeting.m4a') : null;
+		expect(e?.blockers?.referrers).toEqual([{ path: 'Board.canvas', extension: 'canvas', lineNumber: 0, linktext: 'Rec/meeting.m4a' }]);
+	});
+
+	it('names the other file a link could have meant', async () => {
+		const port = makePort({
+			notes: { 'n.md': { text: '![[meeting.m4a]]', mtime: 100 } },
+			files: { 'Rec/meeting.m4a': scanned, 'Archive/meeting.m4a': id('Archive/meeting.m4a') },
+		});
+		const res = await revalidate(port, input({ scannedReferrers: [] }));
+		const e = res.ok ? res.value.get('Rec/meeting.m4a') : null;
+		expect(e?.reasons).toContain('ambiguous-reference');
+		expect(e?.blockers?.sameNameFiles).toEqual(['Archive/meeting.m4a']);
+	});
+
+	it('names an unreadable note once, so the user knows which one to fix', async () => {
+		const port = makePort({ notes: { 'Broken.md': { text: 'x', mtime: 100 } }, files: { 'Rec/meeting.m4a': scanned } });
+		port.readText = async () => null;
+		const res = await revalidate(port, input({ scannedReferrers: [] }));
+		const e = res.ok ? res.value.get('Rec/meeting.m4a') : null;
+		expect(e?.reasons).toEqual(['scan-incomplete']);
+		expect(e?.blockers?.unreadable).toEqual([{ path: 'Broken.md', kind: 'markdown-unreadable' }]);
+	});
+
+	it('adds no blockers to the cheap display verdict and changes no reason', () => {
+		const display = eligibilityFromScan(scanned, 1, false, [], []);
+		expect(display.blockers).toBeUndefined();
+		expect(display.reasons).toEqual(['still-referenced']);
+	});
+});
+
+// ---- scale: a big vault with a big excluded folder re-checks quickly ---------------------------
+
+describe('revalidate at scale', () => {
+	it('re-checks a 5,000-note vault (most notes unchanged, 500 new, ambiguity everywhere) well inside a second', async () => {
+		const notes: Record<string, { text: string; mtime: number }> = {};
+		const files: Record<string, FileIdentity> = { 'Rec/a.m4a': id('Rec/a.m4a'), 'Other/a.m4a': id('Other/a.m4a') };
+		const occurrences: StoredOccurrence[] = [];
+		const scannedReferrers: { path: string; mtime: number }[] = [];
+		for (let i = 0; i < 5000; i++) {
+			const path = `Excluded/n${i}.md`;
+			const stale = i < 500;
+			notes[path] = { text: `x ![[a.m4a]] ${i}`, mtime: stale ? 5000 : 100 };
+			if (!stale) {
+				occurrences.push({ referrerPath: path, kind: 'markdown', linktext: 'a.m4a', lineNumber: 1 });
+				scannedReferrers.push({ path, mtime: 100 });
+			}
+		}
+		const port = makePort({ notes, files });
+		const started = Date.now();
+		const res = await revalidate(port, { files: [id('Rec/a.m4a')], scanStartedAt: 1000, occurrences, scannedReferrers, changes: EMPTY_CHANGES, protectedFolders: [] });
+		const e = res.ok ? res.value.get('Rec/a.m4a') : null;
+		expect(Date.now() - started).toBeLessThan(2000);
+		expect(e?.blockers?.referrers.length).toBe(5000);
+		expect(e?.blockers?.sameNameFiles).toEqual(['Other/a.m4a']);
+	});
+
+	it('names at most ten same-named files, however many there are', async () => {
+		const files: Record<string, FileIdentity> = { 'Rec/a.m4a': id('Rec/a.m4a') };
+		for (let i = 0; i < 40; i++) files[`Dup${i}/a.m4a`] = id(`Dup${i}/a.m4a`);
+		const port = makePort({ notes: { 'n.md': { text: '![[a.m4a]]', mtime: 5000 } }, files });
+		const res = await revalidate(port, { files: [id('Rec/a.m4a')], scanStartedAt: 1000, occurrences: [], changes: EMPTY_CHANGES, protectedFolders: [] });
+		expect(res.ok && res.value.get('Rec/a.m4a')?.blockers?.sameNameFiles.length).toBe(10);
+	});
+});

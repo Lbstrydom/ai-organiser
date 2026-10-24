@@ -10131,3 +10131,168 @@
 .ai-organiser-catchup-episode .inline-title {
 	display: none;
 }
+
+/* ── Find embeds results: in-use group, Kept panel, remove-the-link preview ─────────────── */
+
+.ai-organiser-embed-scan-group {
+    margin-top: 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+}
+
+.ai-organiser-embed-scan-group-summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-embed-scan-group-summary:hover {
+    background: var(--background-secondary);
+}
+
+.ai-organiser-embed-scan-group-body {
+    padding: 0 8px 8px;
+}
+
+.ai-organiser-embed-scan-kept {
+    margin: 8px 0;
+    border: 1px solid var(--text-warning);
+    border-radius: var(--radius-s);
+    background: var(--background-secondary);
+}
+
+.ai-organiser-embed-scan-kept-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-weight: var(--font-semibold);
+    color: var(--text-warning);
+}
+
+.ai-organiser-embed-scan-kept-card {
+    padding: 8px 12px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-embed-scan-kept-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.ai-organiser-embed-scan-kept-entry {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-embed-scan-kept-text {
+    flex: 1 1 220px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ai-organiser-embed-scan-kept-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.ai-organiser-embed-scan-unlink-note {
+    margin-bottom: 12px;
+}
+
+.ai-organiser-embed-scan-unlink-change {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 4px 8px;
+    margin-top: 6px;
+    font-size: var(--font-ui-smaller);
+}
+
+.ai-organiser-embed-scan-unlink-before,
+.ai-organiser-embed-scan-unlink-after {
+    grid-column: 2;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.ai-organiser-embed-scan-unlink-label {
+    margin-inline-end: 8px;
+    color: var(--text-muted);
+}
+
+@media (max-width: 600px) {
+    .ai-organiser-embed-scan-kept-actions button,
+    .ai-organiser-embed-scan-kept-entry button {
+        min-height: 44px;
+        width: 100%;
+        flex: 0 0 auto;
+    }
+
+    .ai-organiser-embed-scan-kept-entry {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* In a column the 220px basis would become a height. */
+    .ai-organiser-embed-scan-kept-text {
+        flex: 0 0 auto;
+    }
+}
+
+/* Orphan rows: the whole file name is the point, so it wraps instead of truncating, and the path sits on its own line. */
+.ai-organiser-embed-scan-orphan-list {
+    max-height: none;
+    overflow-y: visible;
+}
+
+.ai-organiser-embed-scan-orphan-row {
+    flex-wrap: wrap;
+}
+
+.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-filename {
+    flex: 1 1 180px;
+    white-space: normal;
+    overflow-wrap: anywhere;
+}
+
+.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-path {
+    flex-basis: 100%;
+    padding-left: 0;
+}
+
+/* The results container only holds the collapsible groups now, which draw their own border. */
+.ai-organiser-embed-scan-results {
+    max-height: none;
+    overflow-y: visible;
+    border: none;
+    margin-bottom: 12px;
+}
+
+/* In an orphan row the action sits beside the name and the path takes its own line below. */
+.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-action-btn {
+    order: 2;
+    margin-inline-start: auto;
+}
+
+.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-path {
+    order: 3;
+}
+
+.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-reason {
+    order: 3;
+}
+
+.ai-organiser-embed-scan-orphan-row .ai-organiser-embed-scan-path {
+    order: 4;
+}
