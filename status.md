@@ -1,6 +1,16 @@
 # Project Status Log
 
 
+## 2026-10-24 — Persona-test fixes (catch-up audio cleanup readiness, protected output folder, P3 batch)
+
+From the 2026-10-24 full persona test (0 P0, 1 P1, 1 P2, 5 P3). Branch `claude/persona-fixes-2026-10-24-19d0c1`; no version bump.
+
+- **P1** The opt-in catch-up audio cleanup never ran on current Obsidian (it needed `metadataCache.resolved`, which is gone). New `src/utils/metadataIndexState.ts`: link-index completeness is proven (Obsidian's own cleanliness check, the old flag, or the documented `resolved` event), never inferred from a flag or from silence; fails closed with no proof. Also used by the audio-reference test, the Drive offload eligibility gate and the protected-referrer guard (which treated a missing flag as ready). A sweep held up by the index retries on the next `resolved` event.
+- **P2** A protected newsletter output folder now says so (`catchup-output-protected`) before any spend and at each write, instead of "Check your AI provider settings".
+- **P3** Lookback longer than retention is said under the setting; "about 0 min" and "One day" wording; plural cleanup notice; "Check folder" shows a checking state; Start over keeps the same days; Discard of an unfinished episode asks first. Skipped: double clear-tags notice, clipped mobile dropdown, "No newsletters stored" for a digest without a brief, and the OS-level delay on a missing drive.
+- Verified: unit tests (incl. a regression test that fails on the old readiness check), GPT code audit 3 rounds (H0 at the end), Gemini gate per group with full code coverage. Not verified: a live Obsidian 1.15.0 session (its behaviour was read from the app file, not measured).
+
+
 ## 2026-10-22 — Vault hygiene, agent index and connectors (protected folders, attachment helper, Drive inventory/offload, inbox sweep, upkeep, agent connectors)
 
 Built autonomously on `claude/xenodochial-kapitsa-9777fb` from an audited plan (GPT plan audit 3 rounds + Gemini 2; per-cluster GPT code audits; consolidated Gemini gates). Every capability is default-off and byte-identical when off; folders are user-chosen and nothing assumes PARA.
