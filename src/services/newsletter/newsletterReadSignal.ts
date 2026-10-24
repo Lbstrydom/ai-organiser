@@ -78,7 +78,7 @@ const HASH_RE = /^[0-9a-f]{12}$/;
 export const BRIEF_START_MARKER = '<!-- DAILY_BRIEF_START -->';
 export const BRIEF_END_MARKER = '<!-- DAILY_BRIEF_END -->';
 
-// ── The two seams Louis may want to change cheaply ───────────────────────────
+// ── The two seams a maintainer may want to change cheaply ───────────────────────────
 
 /**
  * SEAM 1 — scope of effect. Does a read of bucket `date` influence the brief for `currentBucketStr`?
