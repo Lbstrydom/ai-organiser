@@ -1,108 +1,114 @@
 /**
  * Is Obsidian's link index complete? One answer for every feature that draws a conclusion from
- * `resolvedLinks` ("nothing links to this file") before something destructive.
+ * `resolvedLinks` ("nothing links to this file") before something destructive or protective.
  *
- * The runtime fields differ by Obsidian version (older builds expose `resolved`; 1.14 and 1.15 expose
- * `initialized`) and are undocumented. Read from the 1.15 app bundle: `initialized` becomes true
- * once the cache has QUEUED its link resolution, not once it has finished, so it can never prove
- * completeness. The fields are therefore only HINTS that can say "still building"; completeness
- * comes from the documented `changed` and `resolved` metadata-cache events, watched by a tracker
- * the plugin attaches at load (`trackMetadataIndex`).
+ * Readiness must be PROVEN, never assumed from a flag's presence or from silence:
  *
- *  - `building`  the index is (or may be) incomplete: wait.
- *  - `ready`     the index is complete enough for the policy.
- *  - `unknown`   nothing establishes it either way: callers that can do harm fail closed.
+ *  - `initialized` (1.14+) and the older `resolved` flag are undocumented and differ by version.
+ *    Read from the 1.15 app bundle, `initialized` becomes true once link resolution has been QUEUED,
+ *    not finished, so it can say "not yet" but never "done".
+ *  - Obsidian's own definition of "done" is `isCacheClean()`: no indexing task in progress, an empty
+ *    link-resolver queue that is not running. That method, or the fields it reads, is a positive
+ *    proof when present.
+ *  - The documented `resolved` event (fired when the link-resolver queue stops) is a proof the plugin
+ *    can always observe: `trackMetadataIndex` watches it, and `changed`, from load.
+ *
+ * Strict result: `ready` only with a proof and nothing saying "building"; `building` when something
+ * says so (a false flag, queued work, a `changed` not yet followed by `resolved`) or a flag is
+ * positive but no proof exists yet; `unknown` when nothing at all can be established. Callers that
+ * could do harm treat both `building` and `unknown` as "do not proceed".
  */
 
 import type { App, EventRef, Plugin } from 'obsidian';
 
 export type MetadataIndexState = 'ready' | 'building' | 'unknown';
 
-/**
- * `strict` (destructive or protection-sensitive decisions) additionally needs observed completion;
- * `lenient` trusts a positive hint and ignores in-flight `changed` events, for a caller that must
- * not be wedged by a `changed` whose `resolved` never arrives.
- */
-export type ReadinessPolicy = 'strict' | 'lenient';
-
-/** With no `changed` seen since the tracker attached, this long after attach is taken as "already indexed". */
-export const QUIET_MS = 15_000;
-
 interface Tracked {
     /** A file was indexed (`changed`) since the last `resolved`. Only `resolved` clears it. */
     pending: boolean;
     resolvedSeen: boolean;
-    changedSeen: boolean;
-    attachedAt: number;
 }
 
 const tracked = new WeakMap<object, Tracked>();
 
-interface CacheHints {
+interface CacheFields {
     initialized?: unknown;
     resolved?: unknown;
     linkResolverQueue?: unknown;
     inProgressTaskCount?: unknown;
+    isCacheClean?: unknown;
 }
 
-/**
- * Work in flight, from whatever shape the queue has: an array or Set with entries, or Obsidian's own
- * queue object (pending `items`, or a `runnable` that is running). Any other shape says nothing;
- * a thrown error says nothing either (these are undocumented internals).
- */
+type Probe = 'clean' | 'busy' | 'none';
+
+interface QueueShape {
+    items?: unknown;
+    runnable?: { isRunning?: () => unknown };
+}
+
+/** Obsidian's own queue object: pending `items` plus a `runnable`. Anything else is not that shape. */
+function asQueueObject(queue: unknown): (QueueShape & { items: unknown[]; runnable: { isRunning: () => unknown } }) | null {
+    if (typeof queue !== 'object' || queue === null) return null;
+    const q = queue as QueueShape;
+    return Array.isArray(q.items) && typeof q.runnable?.isRunning === 'function'
+        ? (q as QueueShape & { items: unknown[]; runnable: { isRunning: () => unknown } })
+        : null;
+}
+
+/** Work in flight, from any shape the queue has. An error or an unknown shape says nothing. */
 function queueBusy(queue: unknown): boolean {
     try {
         if (Array.isArray(queue)) return queue.length > 0;
         if (queue instanceof Set) return queue.size > 0;
-        if (typeof queue !== 'object' || queue === null) return false;
-        const q = queue as { items?: unknown; runnable?: { isRunning?: () => unknown } };
-        if (Array.isArray(q.items) && q.items.length > 0) return true;
-        return typeof q.runnable?.isRunning === 'function' && q.runnable.isRunning() === true;
+        const q = asQueueObject(queue);
+        return q !== null && (q.items.length > 0 || q.runnable.isRunning() === true);
     } catch {
         return false;
     }
 }
 
-/**
- * What the runtime fields say. Any boolean `false`, queued link work or an in-progress indexing task
- * is building. A boolean `true` is ready only as a hint (see the file comment): the strict policy
- * still demands observed completion.
- */
-function hintOf(cache: CacheHints): 'ready' | 'building' | 'none' {
-    const flags = [cache.initialized, cache.resolved].filter((v): v is boolean => typeof v === 'boolean');
-    const tasks = typeof cache.inProgressTaskCount === 'number' ? cache.inProgressTaskCount : 0;
-    if (flags.includes(false) || tasks > 0 || queueBusy(cache.linkResolverQueue)) return 'building';
-    return flags.length > 0 ? 'ready' : 'none';
+/** Obsidian's own cleanliness check, via its method when present, else the fields it reads. */
+function probeOf(cache: CacheFields): Probe {
+    try {
+        if (typeof cache.isCacheClean === 'function') return (cache.isCacheClean as () => unknown).call(cache) === true ? 'clean' : 'busy';
+    } catch {
+        // fall through to the fields
+    }
+    const tasks = typeof cache.inProgressTaskCount === 'number' ? cache.inProgressTaskCount : null;
+    if ((tasks !== null && tasks > 0) || queueBusy(cache.linkResolverQueue)) return 'busy';
+    try {
+        return tasks === 0 && asQueueObject(cache.linkResolverQueue) !== null ? 'clean' : 'none';
+    } catch {
+        return 'none';
+    }
 }
 
-export function getMetadataIndexState(app: App, policy: ReadinessPolicy, now: number = Date.now()): MetadataIndexState {
+/** The state of the link index. Needs `trackMetadataIndex` to have run (otherwise `unknown`). */
+export function getMetadataIndexState(app: App): MetadataIndexState {
     const cache = app?.metadataCache;
     if (!cache) return 'unknown';
-    const hint = hintOf(cache as unknown as CacheHints);
-    if (hint === 'building') return 'building';
     const t = tracked.get(cache);
-
-    if (policy === 'lenient') {
-        if (hint === 'ready') return 'ready';
-        return t?.resolvedSeen && !t.pending ? 'ready' : 'unknown';
-    }
-
-    // Strict: completion must have been observed, whatever the fields claim.
     if (!t) return 'unknown';
-    if (t.pending) return 'building';
-    if (t.resolvedSeen) return 'ready';
-    if (hint === 'none') return 'unknown';
-    // A hint-only index: believable only when nothing has been indexing since we started watching.
-    return !t.changedSeen && now - t.attachedAt >= QUIET_MS ? 'ready' : 'building';
+    const fields = cache as unknown as CacheFields;
+
+    const flags = [fields.initialized, fields.resolved].filter((v): v is boolean => typeof v === 'boolean');
+    const probe = probeOf(fields);
+    if (flags.includes(false) || probe === 'busy' || t.pending) return 'building';
+
+    // A proof: Obsidian's own cleanliness check, the old `resolved` flag (set when resolution
+    // finishes), or a completed resolution this plugin has seen.
+    if (probe === 'clean' || fields.resolved === true || t.resolvedSeen) return 'ready';
+    // `initialized` alone only says resolution was queued: wait for a proof.
+    return flags.length > 0 ? 'building' : 'unknown';
 }
 
 /**
  * Start watching the documented index events. Call once from `onload`; the listeners are removed
  * with the plugin.
  */
-export function trackMetadataIndex(plugin: Plugin, now: number = Date.now()): void {
+export function trackMetadataIndex(plugin: Plugin): void {
     const cache = plugin.app.metadataCache;
-    const observer = observeMetadataIndex(cache, now);
+    const observer = observeMetadataIndex(cache);
     plugin.registerEvent(cache.on('changed', () => observer.changed()));
     plugin.registerEvent(cache.on('resolved', () => observer.resolved()));
     plugin.register(() => observer.detach());
@@ -115,18 +121,17 @@ export interface IndexObserver {
     detach(): void;
 }
 
-export function observeMetadataIndex(cache: object, now: number = Date.now()): IndexObserver {
-    const t: Tracked = { pending: false, resolvedSeen: false, changedSeen: false, attachedAt: now };
+export function observeMetadataIndex(cache: object): IndexObserver {
+    const t: Tracked = { pending: false, resolvedSeen: false };
     tracked.set(cache, t);
     return {
-        changed: () => { t.pending = true; t.changedSeen = true; },
+        changed: () => { t.pending = true; },
         resolved: () => { t.pending = false; t.resolvedSeen = true; },
         detach: () => { if (tracked.get(cache) === t) tracked.delete(cache); },
     };
 }
 
 export interface WaitOptions {
-    policy: ReadinessPolicy;
     timeoutMs: number;
     signal?: AbortSignal;
     /** Polled while waiting: true ends the wait as `aborted` (the plugin was unloaded). */
@@ -146,9 +151,10 @@ const POLL_MS = 250;
 /**
  * Wait until the index is ready, the timeout passes, or the caller cancels. Never rejects.
  * Subscribes BEFORE the first check so a transition cannot be missed; re-evaluates on every
- * `resolved` (an event with the state still `building` keeps waiting) and on a short poll (the
- * quiet-period rule becomes true with no event); settles exactly once and releases its listener
- * and timers on every exit. Callers write only after `outcome === 'ready'`.
+ * `resolved` (an event with the state still `building` keeps waiting) and on a short poll (queue
+ * fields change with no event); settles exactly once and releases its listener and timers on every
+ * exit. Cancellation outranks readiness on every path, the timeout included. Callers write only
+ * after `outcome === 'ready'`.
  */
 export function waitForMetadataIndex(app: App, opts: WaitOptions): Promise<WaitResult> {
     return new Promise<WaitResult>((resolve) => {
@@ -157,28 +163,30 @@ export function waitForMetadataIndex(app: App, opts: WaitOptions): Promise<WaitR
         let poll: number | null = null;
         let timer: number | null = null;
 
-        const finish = (outcome: WaitOutcome, state: MetadataIndexState): void => {
+        const cancelled = (): boolean => opts.signal?.aborted === true || opts.shouldStop?.() === true;
+        const finish = (outcome: WaitOutcome): void => {
             if (settled) return;
             settled = true;
             if (ref) app.metadataCache.offref(ref);
             if (poll !== null) window.clearInterval(poll);
             if (timer !== null) window.clearTimeout(timer);
             opts.signal?.removeEventListener('abort', onAbort);
-            resolve({ outcome, state });
+            resolve({ outcome, state: getMetadataIndexState(app) });
         };
-        const check = (): void => {
+        /** Cancellation first, then readiness; `final` also ends the wait when it is neither. */
+        const settle = (final: boolean): void => {
             if (settled) return;
-            const state = getMetadataIndexState(app, opts.policy);
-            if (opts.signal?.aborted || opts.shouldStop?.()) return finish('aborted', state);
-            if (state === 'ready') finish('ready', state);
+            if (cancelled()) return finish('aborted');
+            if (getMetadataIndexState(app) === 'ready') return finish('ready');
+            if (final) finish('timeout');
         };
-        const onAbort = (): void => finish('aborted', getMetadataIndexState(app, opts.policy));
+        const onAbort = (): void => finish('aborted');
 
-        ref = app.metadataCache.on('resolved', check);
+        ref = app.metadataCache.on('resolved', () => settle(false));
         opts.signal?.addEventListener('abort', onAbort);
-        check();
+        settle(false);
         if (settled) return;
-        poll = window.setInterval(check, POLL_MS);
-        timer = window.setTimeout(() => finish('timeout', getMetadataIndexState(app, opts.policy)), Math.max(0, opts.timeoutMs));
+        poll = window.setInterval(() => settle(false), POLL_MS);
+        timer = window.setTimeout(() => settle(true), Math.max(0, opts.timeoutMs));
     });
 }

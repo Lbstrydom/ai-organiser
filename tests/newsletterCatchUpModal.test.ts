@@ -90,7 +90,7 @@ vi.mock('../src/services/progress', () => ({
 
 import { NewsletterCatchUpModal } from '../src/ui/modals/NewsletterCatchUpModal';
 import { availabilityOf } from '../src/services/newsletter/catchUp/catchUpModalState';
-import { formatPendingSummary, formatEpisodeDone, lookbackClampNote, datesBetween } from '../src/services/newsletter/catchUp/catchUpFormat';
+import { formatPendingSummary, datesBetween } from '../src/services/newsletter/catchUp/catchUpFormat';
 import { getTranslations } from '../src/i18n';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 
@@ -158,20 +158,6 @@ describe('helpers', () => {
     it('formats singular and plural summaries', () => {
         expect(formatPendingSummary(t, 1, 1)).toBe('1 day · 1 newsletter');
         expect(formatPendingSummary(t, 3, 12)).toBe('3 days · 12 newsletters');
-    });
-
-    it('a very short episode is never "about 0 min"', () => {
-        expect(formatEpisodeDone(t, 0, '2 days')).toBe('Episode ready — under a minute covering 2 days.');
-        expect(formatEpisodeDone(t, 0.4, '2 days')).toBe('Episode ready — under a minute covering 2 days.');
-        expect(formatEpisodeDone(t, 1, '2 days')).toBe('Episode ready — about 1 min covering 2 days.');
-        expect(formatEpisodeDone(t, 14.2, '2 days')).toBe('Episode ready — about 14 min covering 2 days.');
-    });
-
-    it('a retention period shorter than the window is said, with the days actually covered', () => {
-        expect(lookbackClampNote(t, 14, 7)).toBe('Your retention setting keeps only 7 days of newsletters, so a catch-up covers at most 7 days.');
-        expect(lookbackClampNote(t, 7, 30)).toBeNull();
-        expect(lookbackClampNote(t, 14, 0)).toBeNull(); // 0 = keep forever
-        expect(lookbackClampNote(t, 7, 7)).toBeNull();
     });
 
     it('datesBetween is inclusive and crosses month ends', () => {

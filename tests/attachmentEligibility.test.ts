@@ -267,22 +267,22 @@ describe('createAppVaultPort readiness', () => {
 
 	it('is resolved only when completion was observed and the flags do not say building', () => {
 		const ready = { initialized: true };
-		observeMetadataIndex(ready, 0).resolved();
+		observeMetadataIndex(ready).resolved();
 		expect(portFor(ready).isResolved()).toBe(true);
 
 		const building = { initialized: false };
-		observeMetadataIndex(building, 0).resolved();
+		observeMetadataIndex(building).resolved();
 		expect(portFor(building).isResolved()).toBe(false);
 
 		// Old Obsidian shape.
 		const oldShape = { resolved: true };
-		observeMetadataIndex(oldShape, 0).resolved();
+		observeMetadataIndex(oldShape).resolved();
 		expect(portFor(oldShape).isResolved()).toBe(true);
 	});
 
 	it('an absent signal is no longer "resolved" (it used to be): unknown fails closed', () => {
 		const none = {};
-		observeMetadataIndex(none, Date.now());
+		observeMetadataIndex(none);
 		expect(portFor(none).isResolved()).toBe(false);
 		expect(portFor({}).isResolved()).toBe(false); // no tracker attached at all
 	});

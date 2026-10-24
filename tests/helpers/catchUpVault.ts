@@ -132,7 +132,7 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
     };
 
     // The plugin's index tracker, already past a completed resolution: a fully indexed vault.
-    const index = observeMetadataIndex(app.metadataCache, 0);
+    const index = observeMetadataIndex(app.metadataCache);
     index.resolved();
 
     return {
@@ -144,7 +144,12 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
         remove: (p) => { files.delete(p); tfiles.delete(p); },
         exists: (p) => files.has(p),
         text: (p) => { const v = files.get(p); return typeof v === 'string' ? v : ''; },
-        emit: (source, name, ...args) => { for (const h of [...handlers.values()]) if (h.source === source && h.name === name) h.cb(...args); },
+        emit: (source, name, ...args) => {
+            // The plugin's own tracker hears the documented events the way it does in Obsidian.
+            if (source === 'cache' && name === 'changed') index.changed();
+            if (source === 'cache' && name === 'resolved') index.resolved();
+            for (const h of [...handlers.values()]) if (h.source === source && h.name === name) h.cb(...args);
+        },
         listeners: () => handlers.size,
     };
 }

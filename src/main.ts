@@ -183,7 +183,7 @@ export default class AIOrganiserPlugin extends Plugin {
     private catchUpCleanupCancelled = false;
     private catchUpCleanupRunning = false;
     private catchUpCleanupRerun = false;
-    /** Marked episodes held up by something that may pass within the day; `unknown` until a sweep completes, kept on a skipped sweep. */
+    /** Marked episodes held up by something that may pass within the day; `unknown` until a sweep completes. A skipped sweep keeps it, except one held up by the link index, which sets `unknown` so the 30-minute tick retries. */
     private catchUpRetryPending: number | 'unknown' = 'unknown';
     /** Armed when a sweep was held up by the link index; the next `resolved` event schedules one retry. */
     private readonly catchUpIndexGate = createIndexRetryGate();

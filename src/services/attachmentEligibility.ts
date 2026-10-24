@@ -248,10 +248,12 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
     return {
         beginAttempt: () => { index = null; },
         namespaceSignature: () => app.vault.getFiles().map((f) => f.path).sort().join('\u0001'),
-        // Strict: this gate feeds the Drive offload (a trash after link rewrites), so an index that is
-        // building OR whose state cannot be established is not "resolved" (see utils/metadataIndexState).
-        isResolved: () => getMetadataIndexState(app, 'strict') === 'ready',
-        waitResolved: async (timeoutMs) => (await waitForMetadataIndex(app, { policy: 'strict', timeoutMs })).outcome === 'ready',
+        // This gate feeds the Drive offload (a trash after link rewrites), so an index that is building
+        // OR whose state cannot be established is not "resolved" (see utils/metadataIndexState). Renames
+        // and moves are covered twice: the cache queues their relinking (the live state reads "building"),
+        // and `namespaceSignature` below lets the barrier notice a changed vault.
+        isResolved: () => getMetadataIndexState(app) === 'ready',
+        waitResolved: async (timeoutMs) => (await waitForMetadataIndex(app, { timeoutMs })).outcome === 'ready',
         listReferrers: () => [
             ...app.vault.getMarkdownFiles().map((f) => ({ path: f.path, extension: 'md' as const, mtime: f.stat.mtime })),
             ...app.vault

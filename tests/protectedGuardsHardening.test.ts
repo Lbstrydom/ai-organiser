@@ -69,7 +69,7 @@ describe('guards fail closed when the target cannot be established', () => {
 	it('finds a protected note that links to the file', () => {
 		setActiveProtection(() => ['P']);
 		const metadataCache = { resolvedLinks: { 'P/n.md': { 'a.pdf': 1 }, 'Q/m.md': { 'a.pdf': 1 } } };
-		observeMetadataIndex(metadataCache, 0).resolved(); // a completely indexed vault
+		observeMetadataIndex(metadataCache).resolved(); // a completely indexed vault
 		const app = { metadataCache } as never;
 		expect(referrersProtectedActive(app, 'a.pdf')).toBe(true);
 		expect(referrersProtectedActive(app, 'other.pdf')).toBe(false);
@@ -83,11 +83,11 @@ describe('guards fail closed when the target cannot be established', () => {
 		expect(referrersProtectedActive(unobserved, 'other.pdf')).toBe(true);
 		// Same index once a completed resolution has been observed: only real referrers count.
 		const cache = { initialized: true, resolvedLinks: links };
-		observeMetadataIndex(cache, 0).resolved();
+		observeMetadataIndex(cache).resolved();
 		expect(referrersProtectedActive({ metadataCache: cache } as never, 'other.pdf')).toBe(false);
 		// Still being built (flag false): fail closed regardless of what was observed.
 		const building = { initialized: false, resolvedLinks: links };
-		observeMetadataIndex(building, 0).resolved();
+		observeMetadataIndex(building).resolved();
 		expect(referrersProtectedActive({ metadataCache: building } as never, 'other.pdf')).toBe(true);
 		// Nothing protected: nothing to refuse.
 		setActiveProtection(() => []);

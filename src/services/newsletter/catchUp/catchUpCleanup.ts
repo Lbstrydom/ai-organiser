@@ -372,7 +372,7 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
     const { app } = deps;
     const awaitIndex = (timeoutMs: number): Promise<WaitResult> => (deps.waitForIndex
         ? deps.waitForIndex(timeoutMs)
-        : waitForMetadataIndex(app, { policy: 'strict', timeoutMs, shouldStop: deps.shouldStop }));
+        : waitForMetadataIndex(app, { timeoutMs, shouldStop: deps.shouldStop }));
     // Nothing is read until the link index is complete: a "no reference" drawn from a partial one is a guess.
     const first = await awaitIndex(INDEX_WAIT_MS);
     if (first.outcome === 'aborted') return ok({ kind: 'skipped', reason: 'cancelled' });

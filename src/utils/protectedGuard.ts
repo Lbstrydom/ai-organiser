@@ -60,7 +60,7 @@ export function referrersProtectedActive(app: App, filePath: string): boolean {
     if (!resolved) return hasActiveProtection();
     // A link index that is still being built, or whose completeness cannot be established, is not a
     // complete footprint either.
-    if (getMetadataIndexState(app, 'strict') !== 'ready') return hasActiveProtection();
+    if (getMetadataIndexState(app) !== 'ready') return hasActiveProtection();
     for (const [referrer, targets] of Object.entries(resolved)) {
         if (targets && targets[filePath] && isProtectedActive(referrer)) return true;
     }

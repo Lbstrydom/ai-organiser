@@ -1,8 +1,10 @@
 /**
  * Catch-up episode notes — build, parse and the vault IO around them.
  *
- * The episode note IS the coverage record: written ONCE, AFTER its audio exists, and never
- * edited. Everything here is confined to the newsletter output root (the existing
+ * The episode note IS the coverage record: written ONCE, AFTER its audio exists. Its coverage is
+ * never edited; the only later change is the opt-in audio cleanup (`catchUpCleanup`), which marks
+ * the note `catchup_audio_removed` and rewrites its listen line, leaving coverage untouched.
+ * Everything here is confined to the newsletter output root (the existing
  * `output-root` write class used by every digest and newsletter-note write); a containment
  * assertion runs immediately before each mutation.
  */
@@ -355,12 +357,12 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
 /**
  * Has Obsidian finished indexing links? While it has not, the link table is incomplete and a "no
  * reference" drawn from it is a guess. Readiness must be positively established: an absent flag
- * is not proof. The decision lives in `utils/metadataIndexState` (strict policy): runtime flags
- * differ by Obsidian version (`resolved` on older builds, `initialized` on newer) and are only
- * hints beside the documented `changed` / `resolved` events. Neither signal => not ready.
+ * is not proof. The decision lives in `utils/metadataIndexState`: runtime flags differ by Obsidian
+ * version (`resolved` on older builds, `initialized` on newer) and can say "not yet" but not "done";
+ * completion is proven by Obsidian's own cleanliness check or the documented `resolved` event.
  */
 export function isMetadataIndexReady(app: App): boolean {
-    return getMetadataIndexState(app, 'strict') === 'ready';
+    return getMetadataIndexState(app) === 'ready';
 }
 
 export type AudioReference = 'yes' | 'no' | 'unknown';

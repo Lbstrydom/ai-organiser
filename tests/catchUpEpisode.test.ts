@@ -394,17 +394,29 @@ describe('the reference check is only as sure as the vault index', () => {
     it('an absent readiness flag with no observed resolved event is not proof of a complete index', async () => {
         const vault = makeCatchUpVault();
         delete (vault.app.metadataCache as unknown as { resolved?: boolean }).resolved;
-        observeMetadataIndex(vault.app.metadataCache, Date.now()); // fresh tracker: nothing observed yet
+        observeMetadataIndex(vault.app.metadataCache); // fresh tracker: nothing observed yet
         expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('unknown');
     });
 
     // REGRESSION (persona test 2026-10-24): on Obsidian 1.14.5 only `initialized` exists. The old check
     // required `resolved === true`, so discarded audio could never be proven unreferenced.
-    it('Obsidian 1.14.5 shape (`initialized: true`, no `resolved`) can prove "no reference"', async () => {
+    it('Obsidian 1.14/1.15 shape (`initialized: true`, no `resolved`, idle queue) can prove "no reference"', async () => {
+        const vault = makeCatchUpVault();
+        const cache = vault.app.metadataCache as unknown as Record<string, unknown>;
+        delete cache.resolved;
+        cache.initialized = true;
+        cache.inProgressTaskCount = 0;
+        cache.linkResolverQueue = { items: [], runnable: { isRunning: () => false } };
+        observeMetadataIndex(vault.app.metadataCache); // isolated: no resolved event observed
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('no');
+    });
+
+    it('`initialized: true` alone, with nothing proving completion, is unknown (it only means resolution was queued)', async () => {
         const vault = makeCatchUpVault();
         delete (vault.app.metadataCache as unknown as { resolved?: boolean }).resolved;
         vault.app.metadataCache.initialized = true;
-        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('no');
+        observeMetadataIndex(vault.app.metadataCache);
+        expect(await isAudioReferenced(vault.app as never, ROOT, 'catchup-x-12345678.mp3')).toBe('unknown');
     });
 
     it('`initialized: false` is building: unknown, not "no"', async () => {

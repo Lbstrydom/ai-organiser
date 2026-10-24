@@ -92,7 +92,7 @@ function deps(over: Partial<CleanupDeps> = {}): CleanupDeps {
         now: () => DAY1,
         // No timers in unit tests: evaluate the real strict state once, as the real wait does first.
         waitForIndex: async () => {
-            const state = getMetadataIndexState(vault.app as never, 'strict');
+            const state = getMetadataIndexState(vault.app as never);
             return { outcome: over.shouldStop?.() ? 'aborted' : state === 'ready' ? 'ready' : 'timeout', state };
         },
         ...over,
@@ -460,7 +460,7 @@ describe('safety gates', () => {
     it('neither flag and no resolved event seen: fail closed as index-unavailable, nothing is read', async () => {
         addEpisode();
         delete (vault.app.metadataCache as { resolved?: boolean }).resolved;
-        observeMetadataIndex(vault.app.metadataCache, Date.now()); // a fresh tracker: no completed resolution observed yet
+        observeMetadataIndex(vault.app.metadataCache); // a fresh tracker: no completed resolution observed yet
         expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-unavailable' });
         expect(plugin.loadData).not.toHaveBeenCalled();
         expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
@@ -475,21 +475,38 @@ describe('safety gates', () => {
 
     // REGRESSION (persona test 2026-10-24): Obsidian 1.14.5 has no `resolved` property, only
     // `initialized`. The old check (`resolved === true`) made every sweep end as index-not-ready.
-    it('Obsidian 1.14.5 shape (`initialized: true`, no `resolved`) marks the eligible episode', async () => {
+    // Isolated from any event: a fresh tracker, so only the cache's own cleanliness can prove completion.
+    it('Obsidian 1.14/1.15 shape (`initialized: true`, no `resolved`, idle queue) marks the eligible episode', async () => {
         addEpisode();
-        delete (vault.app.metadataCache as { resolved?: boolean }).resolved;
-        vault.app.metadataCache.initialized = true;
+        const cache = vault.app.metadataCache as unknown as Record<string, unknown>;
+        delete cache.resolved;
+        cache.initialized = true;
+        cache.inProgressTaskCount = 0;
+        cache.linkResolverQueue = { items: [], runnable: { isRunning: () => false } };
+        observeMetadataIndex(vault.app.metadataCache); // no resolved event seen by the plugin
         expect(vault.app.metadataCache).not.toHaveProperty('resolved');
         const report = completed(await sweep());
         expect(report).toMatchObject({ marked: 1 });
         expect(vault.text(notePath(episode()))).toContain("catchup_audio_removed: '2026-11-30'");
     });
 
+    it('`initialized: true` alone is not proof of a complete index: wait, do not read', async () => {
+        addEpisode();
+        const cache = vault.app.metadataCache as unknown as Record<string, unknown>;
+        delete cache.resolved;
+        cache.initialized = true;
+        const observer = observeMetadataIndex(vault.app.metadataCache);
+        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
+        expect(plugin.loadData).not.toHaveBeenCalled();
+        observer.resolved(); // the documented event arrives
+        expect(completed(await sweep()).marked).toBe(1);
+    });
+
     it('an index that starts rebuilding after being ready stops the sweep (changed without resolved)', async () => {
         addEpisode();
-        vault.index.changed();
+        vault.emit('cache', 'changed');
         expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
-        vault.index.resolved();
+        vault.emit('cache', 'resolved');
         expect(completed(await sweep()).marked).toBe(1);
     });
 
@@ -503,8 +520,8 @@ describe('safety gates', () => {
         writeNote = async (p, b, n) => { const r = await realWrite(p, b, n); vault.index.changed(); return r; };
         const out = await sweep({
             waitForIndex: async () => {
-                if (getMetadataIndexState(vault.app as never, 'strict') === 'building') vault.index.resolved();
-                const state = getMetadataIndexState(vault.app as never, 'strict');
+                if (getMetadataIndexState(vault.app as never) === 'building') vault.index.resolved();
+                const state = getMetadataIndexState(vault.app as never);
                 return { outcome: state === 'ready' ? 'ready' : 'timeout', state };
             },
         });
@@ -573,6 +590,7 @@ describe('vault changes during the sweep', () => {
             const r = await writeNote(path, baseline, next);
             vault.emit('vault', 'modify', { path });
             vault.emit('cache', 'changed', { path });
+            vault.emit('cache', 'resolved'); // Obsidian follows a re-index with a resolved event
             return r;
         };
         const report = completed(await sweep({ writeNote: emitting }));
