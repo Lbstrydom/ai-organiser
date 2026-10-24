@@ -43,6 +43,11 @@ export interface OperationRecord {
         to: string;
         sources: number;
         titles: string[];
+        /**
+         * The same story titles grouped by day. Written for every new operation; its presence is what marks
+         * the newer episode-note template. A record made before it has none and keeps the original template.
+         */
+        dayTitles?: Array<{ date: string; titles: string[] }>;
     };
     script: string;
     scriptIdentity: string;
@@ -125,6 +130,7 @@ export function coerceRecord(raw: unknown): OperationRecord | null {
             to: f.to,
             sources: typeof f.sources === 'number' ? f.sources : 0,
             titles: Array.isArray(f.titles) ? f.titles.filter((t): t is string => typeof t === 'string') : [],
+            ...(Array.isArray(f.dayTitles) ? { dayTitles: readDayTitles(f.dayTitles) } : {}),
         },
         script: r.script,
         scriptIdentity: r.scriptIdentity,
@@ -261,4 +267,16 @@ export async function ackEpisodes(
         return { changed: true, value: n };
     });
     return added ?? 0;
+}
+
+/** Per-day titles from a stored record: keep well-formed days only, so one bad entry cannot reject the record. */
+function readDayTitles(raw: unknown[]): Array<{ date: string; titles: string[] }> {
+    const out: Array<{ date: string; titles: string[] }> = [];
+    for (const item of raw) {
+        if (!item || typeof item !== 'object') continue;
+        const { date, titles } = item as { date?: unknown; titles?: unknown };
+        if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !Array.isArray(titles)) continue;
+        out.push({ date, titles: titles.filter((t): t is string => typeof t === 'string') });
+    }
+    return out;
 }

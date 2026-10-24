@@ -44,6 +44,16 @@ export function normaliseCleanupDays(raw: unknown): number {
     return Math.min(CATCHUP_CLEANUP_MAX_DAYS, Math.floor(raw));
 }
 
+/** What Smart daily does when the last episode is still unheard and days are pending. */
+export type WhenBehind = 'wait' | 'replace';
+
+export const WHEN_BEHIND_MODES: readonly WhenBehind[] = ['wait', 'replace'];
+
+/** Anything but a recognised value is `wait`: the setting that trashes nothing. */
+export function normaliseWhenBehind(raw: unknown): WhenBehind {
+    return raw === 'replace' ? 'replace' : 'wait';
+}
+
 /** Written in a coverage map when a day is covered but no revision is known. */
 export const WHOLE_DAY = 'whole';
 
@@ -142,6 +152,38 @@ export interface PendingResult {
 }
 
 export type PendingRunKind = 'manual' | 'auto';
+
+/**
+ * One daily audio file a catch-up could tidy away, with the identity the person CONSENTS to. The tidy
+ * re-reads the vault only to validate these facts, never to find more to remove.
+ */
+export interface TidyFile {
+    date: string;
+    name: string;
+    path: string;
+    bytes: number;
+    /** File modification time (ms); a changed file is a different recording. */
+    mtime: number;
+    /** The ledger revision the recording narrated, or null when its provenance is gone. */
+    narratedRev: number | null;
+    digestPath: string;
+    /** Hash of the written brief the day had when the person consented. */
+    briefHash: string;
+}
+
+/** The superseded daily audio of the days a catch-up covers in full. */
+export interface TidyPlan {
+    files: TidyFile[];
+    bytes: number;
+    days: string[];
+}
+
+/** A window day left out of the plan on purpose, and why (so the window can say so). */
+export interface SkippedDay {
+    date: string;
+    /** `heard-daily-audio`: the reader listened to that day's daily audio. `open-day`: story memory is off and the day has not closed. */
+    reason: 'heard-daily-audio' | 'open-day';
+}
 
 /** What "caught up" may honestly say. */
 export type CaughtUpState =

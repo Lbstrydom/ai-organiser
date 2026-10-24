@@ -104,6 +104,7 @@ export const GUIDANCE_CODES = [
     // Drive offload
     'mount-invalid',
     'mount-missing',
+    'mount-slow',
     'mount-inside-vault',
     'mount-vault-unverified',
     'name-invalid',
@@ -141,6 +142,9 @@ export const GUIDANCE_CODES = [
     'catchup-unresolved',
     'catchup-too-much',
     'catchup-output-protected',
+    'catchup-daily-only',
+    'catchup-replace-unsafe',
+    'catchup-replace-partial',
     // Newsletter read signal
     'read-signal-off',
     'read-not-digest',

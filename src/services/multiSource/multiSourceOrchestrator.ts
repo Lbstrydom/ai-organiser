@@ -16,6 +16,7 @@
  */
 
 import { TFile } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import { Result, ok, err, BatchResult, BatchError } from '../../core/result';
 import { logger } from '../../utils/logger';
 import { withBusyIndicator } from '../../utils/busyIndicator';
@@ -152,7 +153,11 @@ export class MultiSourceOrchestrator {
     private async processNote(file: TFile, opts: MultiSourceRunOptions): Promise<SourceOutcome> {
         const base: ProcessedSource = { type: 'note', title: file.basename, date: opts.today, success: false };
         try {
-            const content = await this.deps.app.vault.read(file);
+            const content = toModelText(await this.deps.app.vault.read(file), file.path);
+            if (!content.trim()) {
+                // Nothing readable (e.g. a drawing with no text): no provider call.
+                return { processed: { ...base, error: 'Note has no readable text' } };
+            }
             this.deps.notify(this.deps.plugin.t.messages.summarizingNoteContent, 5000);
             const summary = await this.deps.summarizeContent(content, opts.personaPrompt, opts.focusContext, false, opts.signal);
             if (summary) {

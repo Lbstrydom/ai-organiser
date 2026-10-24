@@ -44,6 +44,7 @@ export const DATA_ONLY_KEYS = [
     'newsletter-read-briefs',
     'newsletter-catchup-draft',
     'newsletter-catchup-acks',
+    'newsletter-catchup-playback',
     'capture-inbox-journal',
 ] as const;
 

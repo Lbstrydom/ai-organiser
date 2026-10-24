@@ -27,6 +27,7 @@ import { DocumentExtractionService } from '../documentExtractionService';
 import { chunkPlainTextAsync } from '../../utils/textChunker';
 import { getTranslations } from '../../i18n';
 import { logger } from '../../utils/logger';
+import { excalidrawIndexParts } from '../../utils/excalidrawContent';
 import { normaliseFrontmatterTags } from '../../utils/tagFrontmatter';
 
 export { INDEX_SCHEMA_VERSION } from './types';
@@ -383,7 +384,18 @@ export class VectorStoreService implements AttachmentConsumer {
 
             // Read file content
             const content = await this.app.vault.read(file);
-            const contentHash = await createContentHash(content);
+            // An Excalidraw drawing is indexed by its words only (the compressed blob is noise). Its
+            // change identity covers every input the index is built from: the words, the embedded-files
+            // list when attachment indexing is on (that list is also all the attachment collector sees),
+            // and the tags (they feed the metadata prefix). Every other note: `indexable === content`,
+            // hashed as before.
+            const tags = this.getFileTags(file);
+            const drawing = excalidrawIndexParts(content, file.path);
+            const indexable = drawing ? drawing.text : content;
+            const drawingEmbeds = drawing && this.settings.indexAttachmentText ? drawing.embeds : '';
+            const contentHash = await createContentHash(
+                drawing ? [indexable, drawingEmbeds, tags.join(',')].join('\u0001') : content
+            );
             const changeTracker = this.getChangeTracker();
             const hasChanged = changeTracker ? changeTracker.hasChanged(file.path, contentHash) : true;
 
@@ -393,22 +405,17 @@ export class VectorStoreService implements AttachmentConsumer {
                 return true;
             }
 
-            if (!content.trim()) {
-                const oldDocs = await this.vectorStore.getDocumentsByFile(file.path);
-                if (oldDocs.length > 0) {
-                    await this.vectorStore.remove(oldDocs.map(d => d.id));
-                }
-                changeTracker?.updateHash(file.path, contentHash);
+            if (!indexable.trim() && !drawingEmbeds) {
+                await this.dropNoteDocuments(file.path, contentHash);
                 return true;
             }
 
             // Chunk splitting with optional overlap
             const chunkSize = this.settings.chunkSize || 2000;
             const overlap = Math.max(0, Math.min(this.settings.chunkOverlap || 0, chunkSize - 1));
-            const chunks = this.splitIntoChunks(content, chunkSize, overlap)
+            const chunks = this.splitIntoChunks(indexable, chunkSize, overlap)
                 .slice(0, this.settings.maxChunksPerNote);
 
-            const tags = this.getFileTags(file);
             const folderPath = file.parent?.path || '';
             const metadataPrefix = this.buildMetadataPrefix(file.basename, folderPath, tags);
 
@@ -439,10 +446,13 @@ export class VectorStoreService implements AttachmentConsumer {
             // `sourceAttachment`. PDFs are deferred to Phase 4. The host note replace-on-
             // upsert (persist below removes ALL of this note's docs) keeps these in sync —
             // a deleted attachment's chunks drop on the next (forced) re-index.
+            let attachmentsFailed = false;
             if (this.settings.indexAttachmentText) {
+                // A drawing's embedded files live in its Embedded Files section; hand the collector exactly
+                // what the change identity covers (and never the multi-megabyte blob).
                 const attRes = await collectAttachmentChunks(
                     file.path,
-                    content,
+                    drawing ? `${indexable}\n${drawingEmbeds}` : content,
                     this.settings.maxAttachmentCharsPerNote || 50_000,
                     this.buildAttachmentDeps(file),
                 );
@@ -467,7 +477,22 @@ export class VectorStoreService implements AttachmentConsumer {
                     if (attRes.value.skipped.length > 0) {
                         logger.debug('Search', `Attachment indexing for ${file.path}: ${attRes.value.skipped.length} skipped`, attRes.value.skipped);
                     }
+                } else {
+                    attachmentsFailed = true;
                 }
+            }
+
+            // A drawing with no words and no extractable attachment text has nothing to embed:
+            // drop its stale documents and record the new identity. A FAILED attachment collection is
+            // not "no attachment text": keep what is indexed and leave the identity unrecorded so the
+            // next pass retries.
+            if (drawing && documents.length === 0) {
+                if (attachmentsFailed) {
+                    logger.warn('Search', `Attachment collection failed for ${file.path}; keeping existing documents`);
+                    return false;
+                }
+                await this.dropNoteDocuments(file.path, contentHash);
+                return true;
             }
 
             // Persistence step (shared by the queue path and the direct
@@ -523,6 +548,17 @@ export class VectorStoreService implements AttachmentConsumer {
             logger.error('Search', `Error indexing note ${file.path}`, error);
             return false;
         }
+    }
+
+    /** A note with nothing to embed: drop its stored documents, forget stale results, record the new identity. */
+    private async dropNoteDocuments(path: string, contentHash: string): Promise<void> {
+        if (!this.vectorStore) return;
+        const oldDocs = await this.vectorStore.getDocumentsByFile(path);
+        if (oldDocs.length > 0) {
+            await this.vectorStore.remove(oldDocs.map(d => d.id));
+            this.searchCache.invalidateForFile(path);
+        }
+        this.getChangeTracker()?.updateHash(path, contentHash);
     }
 
     /**

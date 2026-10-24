@@ -11,6 +11,7 @@ import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
 import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
+import { normaliseWhenBehind } from '../../services/newsletter/catchUp/catchUpTypes';
 import { getReadMode, isReadMode, type NewsletterReadMode } from '../../services/newsletter/newsletterReadMode';
 import { bumpReadGeneration } from '../../services/newsletter/newsletterReadSignal';
 import { lookbackClampNote } from '../../services/newsletter/catchUp/catchUpFormat';
@@ -284,22 +285,6 @@ export class NewsletterSettingsSection extends BaseSettingSection {
             if (this.plugin.settings.newsletterAudioPodcast) {
                 const cu = nl?.catchUp;
                 const audioMode = getAudioMode(this.plugin.settings);
-                new Setting(this.containerEl).setName(cu?.heading || 'Catch-up audio').setHeading();
-                new Setting(this.containerEl)
-                    .setName(cu?.modeLabel || 'Audio delivery')
-                    .setDesc(audioMode === 'daily' ? (cu?.modeDailyHint || '') : (cu?.modeDesc || ''))
-                    .addDropdown(drop => drop
-                        .addOption('on-demand', cu?.modeOnDemand || 'On demand — one catch-up episode when you ask')
-                        .addOption('smart-daily', cu?.modeSmartDaily || 'Smart daily — automatic, but waits until your last episode is heard')
-                        .addOption('daily', cu?.modeDaily || 'Daily — a new audio every day (previous behaviour)')
-                        .setValue(audioMode)
-                        .onChange(value => {
-                            if (!isAudioMode(value)) return;
-                            this.plugin.settings.newsletterAudioMode = value;
-                            void this.plugin.saveSettings();
-                            this.settingTab.display();
-                        }));
-
                 new Setting(this.containerEl)
                     .setName(nl?.podcastVoice || 'Podcast voice')
                     .setDesc(nl?.podcastVoiceDesc || 'Voice used for the audio podcast')
@@ -311,6 +296,23 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         .onChange(value => {
                             this.plugin.settings.newsletterPodcastVoice = value;
                             void this.plugin.saveSettings();
+                        }));
+
+                new Setting(this.containerEl).setName(cu?.heading || 'Catch-up audio').setHeading();
+                new Setting(this.containerEl)
+                    .setClass('ai-organiser-wide-select')
+                    .setName(cu?.modeLabel || 'Audio delivery')
+                    .setDesc((audioMode === 'daily' ? cu?.modeDescDaily : audioMode === 'smart-daily' ? cu?.modeDescSmartDaily : cu?.modeDescOnDemand) || '')
+                    .addDropdown(drop => drop
+                        .addOption('on-demand', cu?.modeOnDemand || 'On demand')
+                        .addOption('smart-daily', cu?.modeSmartDaily || 'Smart daily')
+                        .addOption('daily', cu?.modeDaily || 'Daily')
+                        .setValue(audioMode)
+                        .onChange(value => {
+                            if (!isAudioMode(value)) return;
+                            this.plugin.settings.newsletterAudioMode = value;
+                            void this.plugin.saveSettings();
+                            this.settingTab.display();
                         }));
 
                 if (audioMode === 'daily') {
@@ -345,12 +347,15 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                                     btn.setDisabled(false).setButtonText(nl?.audioRegenerateButton || 'Regenerate now');
                                 }
                             }));
+                    // What On demand would offer, switched off: a Daily user can see it without it acting on anything.
+                    this.renderCatchUpSettings(true);
                 } else {
                     this.renderCatchUpSettings();
                 }
             }
 
             // ── Local news ──────────────────────────────────────────────
+            new Setting(this.containerEl).setName(nl?.briefMemoryHeading || 'Written brief and story memory').setHeading();
             new Setting(this.containerEl)
                 .setName(nl?.homeRegion || 'Home region')
                 .setDesc(nl?.homeRegionDesc || 'Local news about this region is given its own section and is never dropped to make room for international stories. Separate alternative names with semicolons. Leave empty to turn this off.')
@@ -386,19 +391,23 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     }));
 
             if (this.plugin.settings.newsletterStoryMemory !== false) {
+                // One map of the three "mark as" ideas, once, where all of them live.
+                new Setting(this.containerEl)
+                    .setName(nl?.listenReadKnown || 'How listened, read and known fit together')
+                    .setDesc(nl?.listenReadKnownDesc || '');
                 this.renderReadSignal(nl);
                 new Setting(this.containerEl)
-                    .setName(nl?.markCaughtUp || 'Mark all caught up')
-                    .setDesc(nl?.markCaughtUpDesc || 'Tell the brief you are up to date, so earlier stories stop being repeated.')
+                    .setName(nl?.markCaughtUp || 'Mark all stories as already known')
+                    .setDesc(nl?.markCaughtUpDesc || 'Known: tell the brief you already know every earlier story, so it stops retelling them.')
                     .addButton(btn => btn
-                        .setButtonText(nl?.markCaughtUpButton || 'Mark caught up')
+                        .setButtonText(nl?.markCaughtUpButton || 'Mark as known')
                         .onClick(async () => {
                             btn.setDisabled(true);
                             try {
                                 const { runMarkCaughtUp } = await import('../../commands/newsletterCommands');
                                 await runMarkCaughtUp(this.plugin);
                             } finally {
-                                btn.setDisabled(false).setButtonText(nl?.markCaughtUpButton || 'Mark caught up');
+                                btn.setDisabled(false).setButtonText(nl?.markCaughtUpButton || 'Mark as known');
                             }
                         }));
             }
@@ -433,7 +442,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
             .setName(nl?.retentionDays || 'Keep newsletters for')
             .setDesc(nl?.retentionDaysDesc || 'Automatically delete newsletters and digest files older than this. Set to 0 to keep forever.')
             .addSlider(slider => slider
-                .setLimits(0, 365, 7)
+                .setLimits(0, 365, 1)
                 .setValue(this.plugin.settings.newsletterRetentionDays ?? 30)
                 .setDynamicTooltip()
                 .onChange(value => {
@@ -545,6 +554,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         const settings = this.plugin.settings;
         const mode = getReadMode(settings);
         new Setting(this.containerEl)
+            .setClass('ai-organiser-wide-select')
             .setName(nl?.readMode || 'Briefs you have read')
             .setDesc(nl?.readModeDesc || 'Stop retelling stories from earlier days that you have already read in the written brief.')
             .addDropdown(dd => dd
@@ -598,11 +608,14 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         }
     }
 
-    private renderCatchUpSettings(): void {
+    private renderCatchUpSettings(preview = false): void {
         const cu = this.plugin.t.settings?.newsletter?.catchUp;
         const settings = this.plugin.settings;
+        // In the Daily preview the controls live in one switched-off group; otherwise they sit directly in the section.
+        const host = preview ? this.containerEl.createDiv({ cls: 'ai-organiser-catchup-preview' }) : this.containerEl;
+        if (preview) host.createDiv({ cls: 'setting-item-description', text: cu?.dailyPreviewNote || '' });
 
-        new Setting(this.containerEl)
+        new Setting(host)
             .setName(cu?.lookbackDays || 'Catch-up window (days)')
             .setDesc(cu?.lookbackDaysDesc || 'How many calendar days, today included, a catch-up looks back over.')
             .addSlider(slider => slider
@@ -615,7 +628,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     this.refreshClampNote?.();
                 }));
         // Said where it is set, and as it changes: a retention period shorter than the window silently shortens it.
-        const clampNote = this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-catchup-clamp-note', attr: { role: 'status' } });
+        const clampNote = host.createDiv({ cls: 'setting-item-description ai-organiser-catchup-clamp-note', attr: { role: 'status' } });
         this.refreshClampNote = () => {
             const text = lookbackClampNote(this.plugin.t, settings.newsletterCatchUpLookbackDays, settings.newsletterRetentionDays ?? 30);
             clampNote.setText(text ?? '');
@@ -623,7 +636,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
         };
         this.refreshClampNote();
 
-        new Setting(this.containerEl)
+        new Setting(host)
             .setName(cu?.maxMins || 'Longest episode (minutes)')
             .setDesc((cu?.maxMinsDesc || 'An episode aims for about {base} minutes, and up to this limit when {days} or more days are pending.')
                 .replace('{base}', String(CATCHUP_BASE_CAP_MINS)).replace('{days}', String(CATCHUP_BIG_THRESHOLD_DAYS)))
@@ -636,7 +649,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
-        new Setting(this.containerEl)
+        new Setting(host)
             .setName(cu?.statusBar || 'Show pending days in the status bar')
             .setDesc(cu?.statusBarDesc || 'Desktop only. Click the status bar item to open the catch-up window.')
             .addToggle(toggle => toggle
@@ -646,7 +659,23 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
-        new Setting(this.containerEl)
+        // Only Smart daily acts on its own, so only there is there anything to decide.
+        if (getAudioMode(settings) === 'smart-daily') {
+            new Setting(host)
+                .setClass('ai-organiser-wide-select')
+                .setName(cu?.whenBehindLabel || 'When I am behind')
+                .setDesc(cu?.whenBehindDesc || '')
+                .addDropdown(drop => drop
+                    .addOption('wait', cu?.whenBehindWait || 'Wait for me')
+                    .addOption('replace', cu?.whenBehindReplace || 'Replace my unheard episode automatically')
+                    .setValue(normaliseWhenBehind(settings.newsletterCatchUpWhenBehind))
+                    .onChange(value => {
+                        settings.newsletterCatchUpWhenBehind = normaliseWhenBehind(value);
+                        void this.plugin.saveSettings();
+                    }));
+        }
+
+        new Setting(host)
             .setName(cu?.cleanupDays || 'Remove audio of heard episodes after (days)')
             .setDesc(cu?.cleanupDaysDesc || 'Sends the audio file of an episode you have listened to to your trash once its newest day is this many days old. The note and transcript stay. Episodes you have not listened to are never touched. Off at 0.')
             .addSlider(slider => slider
@@ -659,8 +688,13 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 }));
 
         if (settings.newsletterStoryMemory === false) {
-            new Setting(this.containerEl)
+            new Setting(host)
                 .setDesc(cu?.memoryOffNote || 'Story memory is off, so a catch-up covers whole days and only days that have closed.');
+        }
+
+        if (preview) {
+            // A look at what On demand would offer: nothing here can change a stored value.
+            host.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLButtonElement>('input, select, button').forEach((control) => { control.disabled = true; });
         }
     }
 

@@ -186,3 +186,83 @@ describe('enhanceAudioPlayersIn — default playback speed', () => {
         expect(a.el.playbackRate).toBe(1);
     });
 });
+
+describe('enhanceAudioPlayersIn: playback reporting', () => {
+    function setup() {
+        const a = makeAudio(100);
+        const onPlayback = vi.fn();
+        const container = mount(a.el);
+        const dispose = enhanceAudioPlayersIn(container, { onPlayback });
+        return { a, onPlayback, container, dispose };
+    }
+
+    it('reports play, pause and end with the player source', () => {
+        const { a, onPlayback } = setup();
+        Object.defineProperty(a.el, 'paused', { value: false, configurable: true });
+        a.fire('play');
+        a.fire('playing');
+        a.fire('timeupdate');
+        Object.defineProperty(a.el, 'paused', { value: true, configurable: true });
+        a.fire('pause');
+        a.fire('ended');
+        expect(onPlayback.mock.calls.map((c) => c[1])).toEqual(['playing', 'playing', 'playing', 'paused', 'ended']);
+        expect(onPlayback.mock.calls[0][0]).toBe('brief-test.wav');
+    });
+
+    it('a time update on a paused or ended player is not a heartbeat', () => {
+        const { a, onPlayback } = setup();
+        Object.defineProperty(a.el, 'paused', { value: true, configurable: true });
+        a.fire('timeupdate');
+        expect(onPlayback).not.toHaveBeenCalled();
+    });
+
+    it('re-rendering the same player reports once, not twice', () => {
+        const { a, onPlayback, container } = setup();
+        enhanceAudioPlayersIn(container, { onPlayback });
+        a.fire('play');
+        expect(onPlayback).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops reporting after dispose', () => {
+        const { a, onPlayback, dispose } = setup();
+        dispose();
+        a.fire('play');
+        expect(onPlayback).not.toHaveBeenCalled();
+    });
+
+    it('without the hook nothing is attached (existing behaviour)', () => {
+        const a = makeAudio(100);
+        const container = mount(a.el);
+        const spy = vi.spyOn(a.el, 'addEventListener');
+        enhanceAudioPlayersIn(container, {});
+        expect(spy.mock.calls.map((c) => c[0])).not.toContain('play');
+    });
+});
+
+describe('enhanceAudioPlayersIn: disposing frees the element for a new render', () => {
+    it('listen detection works again on the same element after a dispose', () => {
+        const a = makeAudio(100);
+        const container = mount(a.el);
+        const first = vi.fn();
+        const dispose = enhanceAudioPlayersIn(container, { onListened: first });
+        dispose();
+        const second = vi.fn();
+        enhanceAudioPlayersIn(container, { onListened: second });
+        a.play(0, 90);
+        a.fire('timeupdate');
+        expect(first).not.toHaveBeenCalled();
+        expect(second).toHaveBeenCalledTimes(1);
+    });
+
+    it('playback reporting works again on the same element after a dispose', () => {
+        const a = makeAudio(100);
+        const container = mount(a.el);
+        const first = vi.fn();
+        enhanceAudioPlayersIn(container, { onPlayback: first })();
+        const second = vi.fn();
+        enhanceAudioPlayersIn(container, { onPlayback: second });
+        a.fire('play');
+        expect(first).not.toHaveBeenCalled();
+        expect(second).toHaveBeenCalledTimes(1);
+    });
+});

@@ -899,6 +899,8 @@ export interface Translations {
             forgetReadDone: string;
             briefMarkedRead: string;      // "{n}" stories newly counted
             briefAlreadyRead: string;
+            listenReadKnown: string;
+            listenReadKnownDesc: string;
             markCaughtUp: string;
             markCaughtUpDesc: string;
             markCaughtUpButton: string;
@@ -908,14 +910,16 @@ export interface Translations {
             caughtUpError: string;
             retentionDays: string;
             retentionDaysDesc: string;
+            briefMemoryHeading: string;
             catchUp: {
                 heading: string;
                 modeLabel: string;
-                modeDesc: string;
+                modeDescOnDemand: string;
+                modeDescSmartDaily: string;
+                modeDescDaily: string;
                 modeOnDemand: string;
                 modeSmartDaily: string;
                 modeDaily: string;
-                modeDailyHint: string;
                 modeNotice: string;
                 lookbackDays: string;
                 lookbackDaysDesc: string;
@@ -924,6 +928,10 @@ export interface Translations {
                 statusBar: string;
                 statusBarDesc: string;
                 memoryOffNote: string;
+                whenBehindLabel: string;
+                whenBehindDesc: string;
+                whenBehindWait: string;
+                whenBehindReplace: string;
                 cleanupDays: string;
                 cleanupDaysDesc: string;
                 cleanupOff: string;
@@ -931,6 +939,7 @@ export interface Translations {
                 cleanupNoticeOne: string;      // exactly one episode
                 lookbackClampNote: string;     // "{n}" days actually kept
                 audioRemovedLine: string;      // "{date}"
+                dailyPreviewNote: string;      // shown above the disabled catch-up controls in Daily mode
             };
         };
         audioNarration: {
@@ -1802,7 +1811,69 @@ export interface Translations {
             pendingLine: string;          // "{summary} pending"
             covers: string;               // "Covers {from} to {to}"
             coversOne: string;            // "Covers {date}"
+            coversList: string;           // "Covers {dates}" for days that are not consecutive
+            skippedHeard: string;         // "{n} earlier days are left out ...: {dates}."
+            skippedHeardOne: string;
+            includeSkipped: string;       // "Include them too"
+            skippedOpen: string;          // "{dates} is left out until the day closes ..."
+            includeAll: string;           // "Include all {n} days again"
+            includeAllOne: string;
+            datesMore: string;            // "and {n} more"
+            sizeUnknown: string;
+            markMapHint: string;
+            tidyLabel: string;            // "Also remove the daily audio for these days ({count} files, {size})"
+            tidyLabelOne: string;
+            tidyDone: string;             // "{n}", "{size}"
+            tidyDoneOne: string;
+            tidyPartial: string;          // "{left}", "{total}"
+            tidyUnknown: string;
+            tidyWhyHalted: string;
+            tidyWhyProtected: string;
+            tidyWhyLinked: string;
+            tidyWhyChanged: string;
+            tidyWhyChecking: string;
+            statusBarSkipped: string;     // "{n} days left out (already listened to)"
+            statusBarSkippedOne: string;
+            evidenceDegraded: string;     // the listening history could not be read
+            waitingTitleOne: string;      // "Waiting: your last episode is unheard, {pending}."
+            waitingTitleMany: string;     // "Waiting: {count} episodes are unheard, {pending}."
+            waitingPending: string;       // "{days} pending"
+            waitingEndsOne: string;
+            waitingEndsMany: string;
+            statusBarWaiting: string;     // "Waiting: last episode unheard · {pending}"
+            replaceOne: string;           // the Replace button
+            replaceMany: string;          // "... {count} ..."
+            replaceChecking: string;
+            replaceBlockedTitle: string;
+            replaceBlockedIntro: string;
+            replaceWhyPlaying: string;
+            replaceWhyPlayed: string;
+            replaceWhyTooNew: string;
+            replaceWhyLinked: string;
+            waitingReplaceSoon: string;
+            replaceWhyProtected: string;
+            replaceWhyChecking: string;
+            replaceWhyInFlight: string;
+            replaceWhyAcked: string;
+            replaceWhyOther: string;
+            replaceWhyNothing: string;
+            replaceConfirmOne: string;
+            replaceConfirmMany: string;   // "{count}"
+            replaceTrashIntro: string;
+            replaceTrashItem: string;     // "{note} · {audio} ({size})"
+            replaceMakes: string;         // "{summary}", "{dates}"
+            replaceLost: string;          // "{n}", "{dates}"
+            replaceLinked: string;        // "{n}"
+            replaceLinkedOne: string;
+            replaceGo: string;
+            replaceRetired: string;
+            replaceRetiredMany: string;
+            replaceKept: string;          // "{why}"
+            replacePartial: string;       // "{files}"
+            statusBarWaitingMany: string; // "Waiting: {count} episodes unheard · {pending}"
             noStored: string;             // "No newsletters stored for {dates}."
+            noBrief: string;              // digest exists, no daily brief: "{dates}"
+            includeAgainHint: string;
             unresolved: string;           // "Updates on {dates} could not be checked. Open the digest or fetch again."
             unresolvedOnly: string;
             gap: string;                  // "Older material is unavailable. ..."
@@ -4458,6 +4529,7 @@ export interface ProgressStrings {
         catchUpWritingScript: string;
         catchUpShortening: string;
         catchUpSynthesising: string;   // "Narrating part {done} of {total}…"
+        catchUpSynthesisingStart: string; // before the first part is done
         catchUpSaving: string;
     };
     audioNarration: {

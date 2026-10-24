@@ -290,7 +290,7 @@ export async function buildReferenceIndex(app: App, outputRoot: string, folderFi
 
 // ── Change tracking: from before discovery until the last destructive step ───
 
-interface ChangeTracker {
+export interface ChangeTracker {
     /**
      * Declare the events this sweep's OWN note write will cause, so only those are ignored. Returns
      * the way to revoke what has not been consumed: a write that fails leaves no standing exemption.
@@ -306,7 +306,7 @@ interface ChangeTracker {
  * per expected event (a `modify` and a `changed`), never by exempting the path for the whole
  * sweep: a later external edit of the same note still counts.
  */
-function trackChanges(app: App): ChangeTracker {
+export function trackChanges(app: App): ChangeTracker {
     const expected = new Map<string, number>();
     let dirty = false;
     const refs: Array<{ owner: 'vault' | 'cache'; ref: EventRef }> = [];
