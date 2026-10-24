@@ -44,6 +44,7 @@ export const DATA_ONLY_KEYS = [
     'newsletter-read-briefs',
     'newsletter-catchup-draft',
     'newsletter-catchup-acks',
+    'capture-inbox-journal',
 ] as const;
 
 export type DataOnlyKey = (typeof DATA_ONLY_KEYS)[number];
