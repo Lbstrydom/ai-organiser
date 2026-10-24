@@ -422,6 +422,8 @@ export interface AIOrganiserSettings {
     attachmentDuplicateMaxMB: number;
     /** Heading "Link to note" appends the attachment embed under. */
     attachmentLinkHeading: string;
+    /** Offer "Remove the link and delete" on kept files. Edits notes (always previewed); default off. */
+    attachmentAllowLinkRemoval: boolean;
 
     // === AGENT INDEX (F3) ===
     /** Where the index is written (vault-relative; a dot-folder Obsidian does not index). */
@@ -1011,6 +1013,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     attachmentLargeFileMB: 20,
     attachmentDuplicateMaxMB: 50,
     attachmentLinkHeading: 'Attachments',
+    attachmentAllowLinkRemoval: false,
 
     // Agent index — off until the user turns the feature on; no free text is exported by default
     agentIndexOutputPath: '.ai-organiser/agent-index.jsonl',

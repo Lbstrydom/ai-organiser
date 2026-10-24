@@ -1,0 +1,200 @@
+/**
+ * Attachment helper: "Remove the link and delete".
+ *
+ * A kept file is blocked because a note still links to it. This service plans the removal of those
+ * links, and applies it ONLY as the exact plan the user approved in the preview:
+ *
+ *  - `planLinkRemoval` is pure. It finds the references to one file in one note with the same
+ *    extractor the scan uses, resolves each from the note's own path (a same-named file elsewhere is
+ *    untouched) and rewrites body lines only (frontmatter and code fences are never edited).
+ *  - `removeLinks` writes one note at a time through `applyNoteEdit` (composite target, `review:false`
+ *    because the caller's preview is the approval). The commit re-plans against the live text and
+ *    refuses unless the re-plan equals what was approved, so a note that changed after the preview is
+ *    never edited behind the user's back. It stops at the first note that is not written and never
+ *    rolls back (a rollback could overwrite the user's own edits).
+ *  - The write is a capability: `isLinkRemovalEnabled` (Find embeds on AND the setting on, default off)
+ *    is checked again before any write.
+ */
+import type AIOrganiserPlugin from '../main';
+import { Result, ok, err } from '../core/result';
+import { nonBodyLines } from '../utils/markdownRegions';
+import { isFeatureEnabled } from './featureService';
+import { applyNoteEdit, type CompositeTarget } from './noteEdit/applyNoteEdit';
+import { extractReferencesFromLine, isExternalUrl, normalizeEmbedPath } from './embedScanService';
+import type { AIOrganiserSettings } from '../core/settings';
+
+export type Resolve = (linktext: string, sourcePath: string) => string | null;
+
+/** One changed line. `after: null` means the line is dropped. */
+export interface LineChange {
+    /** 1-based line number in the note as it was planned */
+    line: number;
+    before: string;
+    after: string | null;
+}
+
+export interface NotePlan {
+    notePath: string;
+    /** The note text the plan was made from */
+    baseline: string;
+    changes: LineChange[];
+    nextText: string;
+}
+
+export type PlanResult =
+    | { status: 'ok'; plan: NotePlan }
+    /** No reference to the file in this note any more */
+    | { status: 'nothing' }
+    /** References exist, but only where this action does not edit (frontmatter, code) */
+    | { status: 'not-removable' };
+
+export type UnlinkStatus = 'written' | 'stale' | 'refused-protected' | 'failed' | 'skipped';
+
+export interface UnlinkOutcome {
+    notePath: string;
+    status: UnlinkStatus;
+}
+
+/** The two gates of the write capability, in one place. Fails closed. */
+export function isLinkRemovalEnabled(settings: Pick<AIOrganiserSettings, 'attachmentAllowLinkRemoval' | 'featureFlags'>): boolean {
+    return isFeatureEnabled(settings, 'embed-scan') && settings.attachmentAllowLinkRemoval === true;
+}
+
+const WIKI_FULL = /^\[\[([^\]|]+)(?:\|([^\]]*))?\]\]$/;
+const MD_LINK_FULL = /^\[([^\]]+)\]\(([^)]+)\)$/;
+const LIST_MARKER_ONLY = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]*(?:\[[ xX]\][ \t]*)?)$/;
+
+/** What replaces one reference: nothing for an embed, its visible text for a link. */
+function replacementFor(originalText: string): string {
+    if (originalText.startsWith('![')) return '';
+    const wiki = originalText.match(WIKI_FULL);
+    if (wiki) {
+        if (wiki[2] !== undefined && wiki[2].trim() !== '') return wiki[2];
+        const target = normalizeEmbedPath(wiki[1]);
+        return target.split('/').pop() ?? target;
+    }
+    const md = originalText.match(MD_LINK_FULL);
+    if (md) return md[1];
+    return '';
+}
+
+function indentOf(line: string): number {
+    const m = line.match(/^[ \t]*/);
+    return m ? m[0].replaceAll('\t', '    ').length : 0;
+}
+
+/** Plan the removal of every reference to `filePath` in one note. Pure. */
+export function planLinkRemoval(text: string, filePath: string, notePath: string, resolve: Resolve): PlanResult {
+    const lines = text.split('\n');
+    const mask = nonBodyLines(lines);
+    const next: Array<string | null> = lines.map((l) => l);
+    const changes: LineChange[] = [];
+    let inBody = false;
+    let outsideBody = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const raw = lines[i];
+        const cr = raw.endsWith('\r') ? '\r' : '';
+        const line = cr ? raw.slice(0, -1) : raw;
+        const hits = extractReferencesFromLine(line, i + 1).filter((ref) => {
+            if (isExternalUrl(ref.path)) return false;
+            const linktext = normalizeEmbedPath(ref.path);
+            return linktext !== '' && resolve(linktext, notePath) === filePath;
+        });
+        if (hits.length === 0) continue;
+        if (mask[i]) { outsideBody = true; continue; }
+        inBody = true;
+        let edited = line;
+        for (const hit of new Set(hits.map((h) => h.originalText))) {
+            edited = edited.split(hit).join(replacementFor(hit));
+        }
+        // A line the removal emptied (or left as a bare list marker) goes, unless that would orphan the
+        // list item's own continuation or children.
+        let after: string | null = edited;
+        if (edited.trim() === '') {
+            after = null;
+        } else if (LIST_MARKER_ONLY.test(edited)) {
+            const follower = lines.slice(i + 1).find((l) => l.trim() !== '');
+            const hasChildren = follower !== undefined && indentOf(follower) > indentOf(edited);
+            after = hasChildren ? edited : null;
+        }
+        changes.push({ line: i + 1, before: line, after: after === null ? null : after });
+        next[i] = after === null ? null : after + cr;
+    }
+
+    if (changes.length === 0) return { status: outsideBody && !inBody ? 'not-removable' : 'nothing' };
+
+    // Dropping a blank-only line must not leave two blank lines in a row.
+    const out: string[] = [];
+    for (let i = 0; i < next.length; i++) {
+        const cur = next[i];
+        if (cur === null) {
+            const prevBlank = out.length > 0 && out[out.length - 1].trim() === '';
+            const following = next[i + 1];
+            if (prevBlank && following !== undefined && following !== null && following.trim() === '') i++;
+            continue;
+        }
+        out.push(cur);
+    }
+    const nextText = out.join('\n');
+    return { status: 'ok', plan: { notePath, baseline: text, changes, nextText } };
+}
+
+function sameChanges(a: readonly LineChange[], b: readonly LineChange[]): boolean {
+    return a.length === b.length && a.every((c, i) => c.line === b[i].line && c.before === b[i].before && c.after === b[i].after);
+}
+
+export interface RemoveLinksOptions {
+    /** Polled between notes; false stops before the next note (a note write itself is never interrupted). */
+    shouldContinue?: () => boolean;
+}
+
+/**
+ * Apply the approved plans, one note at a time. Never throws. `err('link-removal-off')` when the
+ * capability is off (nothing is written); otherwise the typed outcome of each note, stopping at the
+ * first one that was not written.
+ */
+export async function removeLinks(
+    plugin: AIOrganiserPlugin,
+    filePath: string,
+    plans: readonly NotePlan[],
+    opts: RemoveLinksOptions = {},
+): Promise<Result<UnlinkOutcome[]>> {
+    if (!isLinkRemovalEnabled(plugin.settings)) return err('link-removal-off');
+    const resolveFrom = (linktext: string, sourcePath: string): string | null =>
+        plugin.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
+    const outcomes: UnlinkOutcome[] = [];
+    let stopped = false;
+    for (const plan of plans) {
+        if (stopped || opts.shouldContinue?.() === false) {
+            stopped = true;
+            outcomes.push({ notePath: plan.notePath, status: 'skipped' });
+            continue;
+        }
+        const target: CompositeTarget = {
+            kind: 'composite',
+            filePath: plan.notePath,
+            baseline: plan.baseline,
+            recompute: (current) => {
+                const replan = planLinkRemoval(current, filePath, plan.notePath, resolveFrom);
+                if (replan.status !== 'ok') return err('link-changed');
+                // The approved plan, and nothing else, is what may be written.
+                if (!sameChanges(replan.plan.changes, plan.changes)) return err('link-changed');
+                return ok({ content: replan.plan.nextText });
+            },
+        };
+        let status: UnlinkStatus;
+        try {
+            const res = await applyNoteEdit(plugin, target, { review: false });
+            if (res.ok) status = 'written';
+            else if (res.error === 'link-changed' || res.error === 'baseline-changed') status = 'stale';
+            else if (res.error === 'protected-path') status = 'refused-protected';
+            else status = 'failed';
+        } catch {
+            status = 'failed';
+        }
+        outcomes.push({ notePath: plan.notePath, status });
+        if (status !== 'written') stopped = true;
+    }
+    return ok(outcomes);
+}

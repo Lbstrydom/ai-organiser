@@ -36,6 +36,10 @@ export const GUIDANCE_CODES = [
     'file-changed',
     'not-linkable',
     'link-failed',
+    'link-changed',
+    'link-not-removable',
+    'link-removal-off',
+    'unlink-failed',
     'trash-failed',
     // Agent index
     'output-path-invalid',

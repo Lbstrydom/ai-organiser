@@ -12,6 +12,7 @@ import {
     getCanvasFilesInFolder,
     EmbedScanOptions,
 } from '../services/embedScanService';
+import { listAllReferrerFiles } from '../services/referrerSet';
 import { EmbedScanResultsModal, resetEgressChoice } from '../ui/modals/EmbedScanResultsModal';
 import { EmbedScanScopeModal, EmbedScanScope } from '../ui/modals/EmbedScanScopeModal';
 
@@ -63,10 +64,9 @@ async function executeScan(plugin: AIOrganiserPlugin, scope: EmbedScanScope): Pr
             break;
         }
         case 'vault': {
-            files = [
-                ...plugin.getNonExcludedMarkdownFiles(),
-                ...app.vault.getFiles().filter((f) => f.extension === 'canvas'),
-            ];
+            // Every note counts as a referrer, excluded folders included: the delete-time re-check reads
+            // them all, so scanning fewer would list files as orphaned that it then refuses to trash.
+            files = listAllReferrerFiles(app);
             break;
         }
     }
