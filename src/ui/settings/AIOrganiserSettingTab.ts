@@ -28,6 +28,7 @@ import { PresentationModelsSettingsSection } from './PresentationModelsSettingsS
 import { BrandSettingsSection } from './BrandSettingsSection';
 import { FeaturesSettingsSection } from './FeaturesSettingsSection';
 import { ProtectedFoldersSettingsSection } from './ProtectedFoldersSettingsSection';
+import { FindEmbedsSettingsSection } from './FindEmbedsSettingsSection';
 import { AgentIndexSettingsSection } from './AgentIndexSettingsSection';
 import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
 import { InboxSweepSettingsSection } from './InboxSweepSettingsSection';
@@ -354,6 +355,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-vault-upkeep', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-vault-upkeep', this.plugin.t.vaultUpkeep.sectionTitle, 'broom');
                 new VaultUpkeepSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-find-embeds', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-find-embeds', this.plugin.t.embedScan.settingsTitle, 'hard-drive');
+                new FindEmbedsSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-export', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-export', t.export?.title || 'Document Export', 'file-output');

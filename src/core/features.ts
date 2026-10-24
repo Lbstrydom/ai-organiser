@@ -202,6 +202,7 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-inbox-sweep': 'inbox-sweep',
     'sub-google-tasks': 'google-tasks-export',
     'sub-vault-upkeep': 'vault-upkeep',
+    'sub-find-embeds': 'embed-scan',
     'sub-agent-connectors': 'agent-connectors',
 });
 
