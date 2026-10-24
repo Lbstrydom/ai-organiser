@@ -8,11 +8,13 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 vi.mock('obsidian', async () => {
 	const base = await import('./mocks/obsidian');
 	class DomModal {
+		/** Every modal opened in the test, so a test can reach the confirmation dialog. */
+		static opened: DomModal[] = [];
 		app: unknown;
 		contentEl: HTMLElement;
 		modalEl = document.createElement('div');
 		titleEl = document.createElement('div');
-		constructor(app: unknown) { this.app = app; this.contentEl = document.createElement('div'); }
+		constructor(app: unknown) { this.app = app; this.contentEl = document.createElement('div'); DomModal.opened.push(this); }
 		open() { (this as unknown as { onOpen?: () => void }).onOpen?.(); }
 		close() { (this as unknown as { onClose?: () => void }).onClose?.(); }
 	}
@@ -193,6 +195,27 @@ describe('a batch trash re-checks each later file', () => {
 		expect(h.app.fileManager.trashFile).toHaveBeenCalledTimes(1);
 		expect(h.app.fileManager.trashFile.mock.calls[0][0]).toBe(first);
 		expect(reval).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe('the real confirmation dialog', () => {
+	it('does not trash when a reference appears while the dialog is open: confirming re-checks first', async () => {
+		const obsidian = (await import('obsidian')) as unknown as { Modal: { opened: Array<{ contentEl: HTMLElement }> } };
+		const h = setup();
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, safe()]]) }); // the check before the dialog
+		await selectAndDelete(h);
+		const dialog = obsidian.Modal.opened.filter((m) => m.contentEl.querySelector('h3')?.textContent?.startsWith('Delete 1 file')).pop();
+		expect(dialog).toBeDefined();
+		// While the dialog is open a note starts linking the file: the next check says so.
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		const ack = dialog!.contentEl.querySelector('input[type="checkbox"]') as HTMLInputElement;
+		ack.checked = true;
+		ack.dispatchEvent(new Event('change'));
+		(dialog!.contentEl.querySelector('button.mod-warning') as HTMLElement).click();
+		await flush();
+		expect(reval).toHaveBeenCalledTimes(2);
+		expect(h.app.fileManager.trashFile).not.toHaveBeenCalled();
+		expect(keptPanel(h)!.textContent).toContain('Used in 2026-01 standup, line 4');
 	});
 });
 

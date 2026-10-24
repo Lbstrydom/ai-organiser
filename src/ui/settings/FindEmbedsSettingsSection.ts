@@ -26,7 +26,11 @@ export class FindEmbedsSettingsSection extends BaseSettingSection {
             .setDesc(es.allowLinkRemovalDesc)
             .addToggle((toggle) => toggle
                 .setValue(this.plugin.settings.attachmentAllowLinkRemoval === true)
-                .onChange((value) => { void this.enqueueSave(value); }));
+                .onChange((value) => {
+                    // The runtime value changes NOW (switching it off must stop removal at once); only the save is queued.
+                    this.plugin.settings.attachmentAllowLinkRemoval = value;
+                    void this.enqueueSave(value);
+                }));
     }
 
     private enqueueSave(value: boolean): Promise<void> {
@@ -35,12 +39,11 @@ export class FindEmbedsSettingsSection extends BaseSettingSection {
     }
 
     private async save(value: boolean): Promise<void> {
-        const previous = this.plugin.settings.attachmentAllowLinkRemoval;
-        this.plugin.settings.attachmentAllowLinkRemoval = value;
         try {
             await this.plugin.saveSettings();
         } catch (e) {
-            this.plugin.settings.attachmentAllowLinkRemoval = previous;
+            // Put the previous value back only if nothing newer has been chosen since this save started.
+            if (this.plugin.settings.attachmentAllowLinkRemoval === value) this.plugin.settings.attachmentAllowLinkRemoval = !value;
             logger.error('Core', 'Could not save the link removal setting', e);
             new Notice(formatGuidance(describeError(this.plugin.t, 'write-failed')), 8000);
             this.settingTab.display();

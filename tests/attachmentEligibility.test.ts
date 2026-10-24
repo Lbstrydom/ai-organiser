@@ -368,4 +368,12 @@ describe('revalidate at scale', () => {
 		expect(e?.blockers?.referrers.length).toBe(5000);
 		expect(e?.blockers?.sameNameFiles).toEqual(['Other/a.m4a']);
 	});
+
+	it('names at most ten same-named files, however many there are', async () => {
+		const files: Record<string, FileIdentity> = { 'Rec/a.m4a': id('Rec/a.m4a') };
+		for (let i = 0; i < 40; i++) files[`Dup${i}/a.m4a`] = id(`Dup${i}/a.m4a`);
+		const port = makePort({ notes: { 'n.md': { text: '![[a.m4a]]', mtime: 5000 } }, files });
+		const res = await revalidate(port, { files: [id('Rec/a.m4a')], scanStartedAt: 1000, occurrences: [], changes: EMPTY_CHANGES, protectedFolders: [] });
+		expect(res.ok && res.value.get('Rec/a.m4a')?.blockers?.sameNameFiles.length).toBe(10);
+	});
 });

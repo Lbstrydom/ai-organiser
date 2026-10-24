@@ -80,6 +80,17 @@ describe('planLinkRemoval', () => {
 		expect(planOf('a ``` b ![[meeting.m4a]] c `d`').nextText).toBe('a ``` b  c `d`');
 	});
 
+	it('keeps inline code inside one block: a heading or list item does not share backticks with the next line', () => {
+		expect(planOf('# a `tick\nreal ![[meeting.m4a]] and `code`').nextText).toBe('# a `tick\nreal  and `code`');
+		expect(planOf('- one `\n- ![[meeting.m4a]] `two`').nextText).toBe('- one `\n-  `two`');
+	});
+
+	it('refuses to rewrite a link whose display text would become block syntax', () => {
+		expect(planLinkRemoval('[[meeting.m4a|# Heading]]', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
+		expect(planLinkRemoval('[---](meeting.m4a)\nrest', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
+		expect(planOf('See [[meeting.m4a|# not at the start]]').nextText).toBe('See # not at the start');
+	});
+
 	it('treats a code span that crosses a line break as code', () => {
 		expect(planLinkRemoval('see `start\n![[meeting.m4a]] end` after', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
 		// A blank line ends the paragraph, so an unclosed backtick does not reach the next one.

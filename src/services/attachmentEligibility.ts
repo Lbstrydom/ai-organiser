@@ -43,6 +43,9 @@ export interface FileIdentity {
     mtime: number;
 }
 
+/** How many same-named files a verdict names (the rest are a count away, not a list). */
+const MAX_SAME_NAME_EVIDENCE = 10;
+
 /** One note or canvas that references the file. */
 export interface BlockerRef {
     path: string;
@@ -285,7 +288,7 @@ async function buildEligibility(
                 protectedFolders: input.protectedFolders,
                 blockers: {
                     referrers: refsByTarget.get(scanned.path) ?? [],
-                    sameNameFiles: [...new Set((sameName.get(scanned.path) ?? []).flat())].filter((p) => p !== scanned.path),
+                    sameNameFiles: [...new Set((sameName.get(scanned.path) ?? []).flat())].filter((p) => p !== scanned.path).slice(0, MAX_SAME_NAME_EVIDENCE),
                     unreadable,
                 },
             }),

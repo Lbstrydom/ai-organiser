@@ -110,17 +110,31 @@ function inlineCodeRanges(text: string): Array<[number, number]> {
     return ranges;
 }
 
+const HEADING = /^[ \t]{0,3}#{1,6}(?:[ \t]|$)/;
+const BLOCK_START = /^[ \t>]*(?:#{1,6}(?:[ \t]|$)|[-*+][ \t]|\d{1,9}[.)][ \t]|(?:[-*_][ \t]*){3,}$)/;
+const startsBlock = (line: string): boolean => BLOCK_START.test(line);
+
+/**
+ * Display text that, once the link wrapper is gone, would start a block construct it did not start before
+ * (a heading, a quote, a list item, a rule, a fence). Removal is refused rather than changing the note's structure.
+ */
+function createsBlockSyntax(before: string, after: string): boolean {
+    const BLOCKY = /^[ \t]{0,3}(?:#{1,6}(?:[ \t]|$)|>|[-*+][ \t]|\d{1,9}[.)][ \t]|(?:[-*_][ \t]*){3,}$|`{3,}|~{3,}|\|)/;
+    return BLOCKY.test(after) && !BLOCKY.test(before);
+}
+
 /**
  * Is the span [start, end) of line `i` inside an inline code span? A code span may cross line breaks within a
  * paragraph, so the paragraph (the run of non-blank lines around the line) is scanned as one text.
  */
 function inInlineCode(lines: readonly string[], mask: readonly boolean[], i: number, start: number, end: number): boolean {
-    // The paragraph stops at a blank line and at frontmatter or fenced code, whose backticks are not inline code.
+    // The paragraph stops at a blank line, at frontmatter or fenced code, and at a line that starts a new block
+    // (a heading, a list item, a rule): inline code never crosses those.
     const edge = (k: number): boolean => lines[k].trim() === '' || mask[k];
     let from = i;
-    while (from > 0 && !edge(from - 1)) from--;
+    while (from > 0 && !edge(from - 1) && !startsBlock(lines[from]) && !HEADING.test(lines[from - 1])) from--;
     let to = i;
-    while (to < lines.length - 1 && !edge(to + 1)) to++;
+    while (to < lines.length - 1 && !edge(to + 1) && !startsBlock(lines[to + 1]) && !HEADING.test(lines[to])) to++;
     const clean = (l: string): string => l.replace(/\r$/, '');
     let offset = 0;
     for (let k = from; k < i; k++) offset += clean(lines[k]).length + 1;
@@ -159,6 +173,7 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         }
         // A line the removal emptied (or left as a bare list marker) goes, unless that would orphan the
         // list item's own continuation or children.
+        if (createsBlockSyntax(line, edited)) return { status: 'not-removable' };
         let after: string | null = edited;
         if (edited.trim() === '') {
             after = null;
