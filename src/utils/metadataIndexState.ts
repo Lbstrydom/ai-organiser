@@ -2,11 +2,12 @@
  * Is Obsidian's link index complete? One answer for every feature that draws a conclusion from
  * `resolvedLinks` ("nothing links to this file") before something destructive.
  *
- * `initialized`, `resolved` and `linkResolverQueue` are undocumented runtime fields that differ by
- * Obsidian version (older builds expose `resolved`, 1.14 exposes `initialized`), and their
- * completion semantics are not guaranteed. They are therefore only HINTS. The lifecycle comes from
- * the documented `changed` and `resolved` metadata-cache events, watched by a tracker the plugin
- * attaches at load (`trackMetadataIndex`).
+ * The runtime fields differ by Obsidian version (older builds expose `resolved`; 1.14 and 1.15 expose
+ * `initialized`) and are undocumented. Read from the 1.15 app bundle: `initialized` becomes true
+ * once the cache has QUEUED its link resolution, not once it has finished, so it can never prove
+ * completeness. The fields are therefore only HINTS that can say "still building"; completeness
+ * comes from the documented `changed` and `resolved` metadata-cache events, watched by a tracker
+ * the plugin attaches at load (`trackMetadataIndex`).
  *
  *  - `building`  the index is (or may be) incomplete: wait.
  *  - `ready`     the index is complete enough for the policy.
@@ -41,19 +42,36 @@ interface CacheHints {
     initialized?: unknown;
     resolved?: unknown;
     linkResolverQueue?: unknown;
+    inProgressTaskCount?: unknown;
 }
 
-/** An array or Set with entries is work in flight; any other shape says nothing. */
+/**
+ * Work in flight, from whatever shape the queue has: an array or Set with entries, or Obsidian's own
+ * queue object (pending `items`, or a `runnable` that is running). Any other shape says nothing;
+ * a thrown error says nothing either (these are undocumented internals).
+ */
 function queueBusy(queue: unknown): boolean {
-    if (Array.isArray(queue)) return queue.length > 0;
-    if (queue instanceof Set) return queue.size > 0;
-    return false;
+    try {
+        if (Array.isArray(queue)) return queue.length > 0;
+        if (queue instanceof Set) return queue.size > 0;
+        if (typeof queue !== 'object' || queue === null) return false;
+        const q = queue as { items?: unknown; runnable?: { isRunning?: () => unknown } };
+        if (Array.isArray(q.items) && q.items.length > 0) return true;
+        return typeof q.runnable?.isRunning === 'function' && q.runnable.isRunning() === true;
+    } catch {
+        return false;
+    }
 }
 
-/** What the runtime fields say: any boolean `false` or queued work is building; a boolean `true` is ready. */
+/**
+ * What the runtime fields say. Any boolean `false`, queued link work or an in-progress indexing task
+ * is building. A boolean `true` is ready only as a hint (see the file comment): the strict policy
+ * still demands observed completion.
+ */
 function hintOf(cache: CacheHints): 'ready' | 'building' | 'none' {
     const flags = [cache.initialized, cache.resolved].filter((v): v is boolean => typeof v === 'boolean');
-    if (flags.includes(false) || queueBusy(cache.linkResolverQueue)) return 'building';
+    const tasks = typeof cache.inProgressTaskCount === 'number' ? cache.inProgressTaskCount : 0;
+    if (flags.includes(false) || tasks > 0 || queueBusy(cache.linkResolverQueue)) return 'building';
     return flags.length > 0 ? 'ready' : 'none';
 }
 

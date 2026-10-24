@@ -36,6 +36,13 @@ describe('hints alone (lenient policy)', () => {
         ['queued link work is building', { initialized: true, linkResolverQueue: [{}] }, 'building'],
         ['an empty queue says nothing', { initialized: true, linkResolverQueue: [] }, 'ready'],
         ['a queue of an unknown shape says nothing', { initialized: true, linkResolverQueue: { x: 1 } }, 'ready'],
+        // The shape Obsidian 1.15 actually has (read from its app bundle): a null queue until link resolution starts, then an object.
+        ['1.15: initialized, queue not started (null)', { initialized: true, inProgressTaskCount: 0, linkResolverQueue: null }, 'ready'],
+        ['1.15: idle queue object', { initialized: true, inProgressTaskCount: 0, linkResolverQueue: { items: [], runnable: { isRunning: () => false } } }, 'ready'],
+        ['1.15: queue has pending items', { initialized: true, inProgressTaskCount: 0, linkResolverQueue: { items: [{}], runnable: { isRunning: () => false } } }, 'building'],
+        ['1.15: queue is running', { initialized: true, inProgressTaskCount: 0, linkResolverQueue: { items: [], runnable: { isRunning: () => true } } }, 'building'],
+        ['1.15: files still being indexed', { initialized: true, inProgressTaskCount: 3, linkResolverQueue: null }, 'building'],
+        ['a queue whose probe throws says nothing', { initialized: true, linkResolverQueue: { runnable: { isRunning: () => { throw new Error('x'); } } } }, 'ready'],
     ])('%s', (_label, hints, expected) => {
         const { app } = makeApp(hints);
         expect(getMetadataIndexState(app, 'lenient')).toBe(expected);
