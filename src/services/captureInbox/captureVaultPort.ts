@@ -8,6 +8,7 @@
  * because an attachment can arrive after its note.
  */
 import { TFile, type App } from 'obsidian';
+import { sha256Hex } from '../attachmentDuplicateService';
 import { classifyByExtension, extensionOf, isKnownUnsupportedMedia } from './mediaSignature';
 import type { CaptureVaultPort, ResolvedAttachments, VaultFileInfo } from './captureScanner';
 import type { ProcessorPort } from './captureProcessor';
@@ -17,7 +18,32 @@ const WIKI = /!?\[\[([^\]\n]{1,300})\]\]/g;
 const MD_LINK = /!?\[[^\]\n]{0,300}\]\(\s*(?:<([^>\n]{1,500})>|([^)\s]{1,500}))(?:\s+"[^"\n]{0,300}")?\s*\)/g;
 
 /** The link targets named in note text: wiki links and markdown links, alias and heading stripped. */
-export function extractLinkTargets(text: string): string[] {
+/**
+ * The note text with fenced code blocks and inline code removed. Link-looking text inside code is literal text, not an
+ * attachment: `![[clip.m4a]]` shown in a code fence must not pull that file into a capture.
+ */
+export function withoutCode(text: string): string {
+    const out: string[] = [];
+    let fence: { char: string; len: number } | null = null;
+    for (const line of text.split('\n')) {
+        const m = /^\s{0,3}(`{3,}|~{3,})/.exec(line);
+        if (fence === null) {
+            if (m) {
+                fence = { char: m[1][0], len: m[1].length };
+                out.push('');
+                continue;
+            }
+            out.push(line.replace(/`[^`\n]{0,300}`/g, ' '));
+        } else {
+            if (m && m[1][0] === fence.char && m[1].length >= fence.len && /^\s{0,3}[`~]+\s*$/.test(line)) fence = null;
+            out.push('');
+        }
+    }
+    return out.join('\n');
+}
+
+export function extractLinkTargets(rawText: string): string[] {
+    const text = withoutCode(rawText);
     const found = new Set<string>();
     for (const m of text.matchAll(WIKI)) found.add(m[1].split('|')[0].split('#')[0].trim());
     for (const m of text.matchAll(MD_LINK)) {
@@ -37,6 +63,7 @@ export function extractLinkTargets(text: string): string[] {
 const looksLikeMedia = (name: string): boolean => classifyByExtension(name) !== null || isKnownUnsupportedMedia(name);
 
 export function createVaultPort(app: App): CaptureVaultPort & ProcessorPort {
+    const digests = new Map<string, string>();
     let reverse: { at: number; map: Map<string, string[]> } | null = null;
     const reverseMap = (): Map<string, string[]> => {
         const now = Date.now();
@@ -83,6 +110,22 @@ export function createVaultPort(app: App): CaptureVaultPort & ProcessorPort {
         },
         referrersOf(path: string): string[] {
             return reverseMap().get(path) ?? [];
+        },
+        async digestOf(path: string, size: number, mtime: number): Promise<string | null> {
+            const key = `${path}|${size}|${mtime}`;
+            const hit = digests.get(key);
+            if (hit !== undefined) return hit;
+            const file = app.vault.getAbstractFileByPath(path);
+            if (!(file instanceof TFile)) return null;
+            try {
+                const digest = await sha256Hex(await app.vault.readBinary(file));
+                // Only the latest digest per path is kept: the cache is a memory of what was already read, not an archive.
+                for (const k of digests.keys()) if (k.startsWith(`${path}|`)) digests.delete(k);
+                digests.set(key, digest);
+                return digest;
+            } catch {
+                return null;
+            }
         },
         async readBytes(path: string): Promise<Uint8Array> {
             const file = app.vault.getAbstractFileByPath(path);

@@ -368,6 +368,24 @@ describe('createOrganisedNote', () => {
   });
 });
 
+describe('same-size attachment swap (writer)', () => {
+  it('Accept refuses when an attachment now has different bytes of the same size', async () => {
+    const s = setup();
+    const id = 'Inbox/Voice note.md';
+    const text = 'Buy milk and eggs tomorrow\n';
+    s.port.files.set(id, text);
+    s.port.sizes.set('Inbox/Voice note.m4a', 99);
+    const attachments = [{ path: 'Inbox/Voice note.m4a', size: 99, kind: 'audio' as const, digest: 'digest-one' }];
+    const fingerprint = await computeFingerprint(text, attachments);
+    s.set(upsertEntry(s.journal, { id, state: 'awaiting_review', fingerprint, processingVersion: 1, attempts: 0, createdAt: 1, updatedAt: 1, hasNote: true, source: 'transcript', text: 'x y z', attachments, proposal: { title: 'T', tags: [], folder: null } }));
+    (s.port as unknown as { fileDigest: (p: string) => Promise<string> }).fileDigest = async () => 'digest-two';
+    expect(await acceptCapture(s.deps, id)).toEqual({ ok: false, error: 'capture-changed' });
+    expect(s.port.edits).toBe(0);
+    (s.port as unknown as { fileDigest: (p: string) => Promise<string> }).fileDigest = async () => 'digest-one';
+    expect((await acceptCapture(s.deps, id)).ok).toBe(true);
+  });
+});
+
 describe('final-gate regressions (writer)', () => {
   async function accepted(s: ReturnType<typeof setup>) {
     const { id } = await seedNote(s);

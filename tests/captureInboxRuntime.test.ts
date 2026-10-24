@@ -6,7 +6,8 @@ import { CaptureRuntime, HINT_DEBOUNCE_MS, MIN_AUTO_INTERVAL_MS, type RuntimeDep
 import { acceptCapture, type WriterDeps, type WriterPort } from '../src/services/captureInbox/captureWriter';
 import { getEntry, upsertEntry } from '../src/services/captureInbox/captureJournal';
 import { computeFingerprint } from '../src/services/captureInbox/enrichmentBlock';
-import { extractLinkTargets } from '../src/services/captureInbox/captureVaultPort';
+import { extractLinkTargets, withoutCode } from '../src/services/captureInbox/captureVaultPort';
+import { sha256Hex } from '../src/services/attachmentDuplicateService';
 import { ok, err, type Result } from '../src/core/result';
 import { emptyJournal, type CaptureConfig, type CaptureEntry, type CaptureJournal } from '../src/services/captureInbox/captureTypes';
 import type { SweepPolicy } from '../src/services/inboxSweep/sweepGuard';
@@ -41,6 +42,7 @@ function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed
       readText: async (p) => files.get(p)?.text ?? '',
       resolveAttachments: (p) => ({ resolved: p === 'Inbox/a.md' ? ['Inbox/a.mp3'] : [], unresolvedMedia: [] }),
       referrersOf: () => [],
+      digestOf: async () => sha256Hex(new Uint8Array([0x49, 0x44, 0x33, 4]).buffer),
     },
     isSwept: async () => false, isEnabled: over.enabled ?? (() => true),
     digitisationEnabled: () => true, transcribe, digitise: async () => ok('x'), classify,
@@ -88,14 +90,15 @@ describe('CaptureRuntime', () => {
 
   it('does not run two jobs at once', async () => {
     const s = setup();
-    let release!: () => void;
+    let release: (() => void) | undefined;
     s.transcribe.mockImplementation(() => new Promise<Result<string>>((resolve) => { release = () => resolve(ok('words here')); }));
     const rt = new CaptureRuntime(s.deps);
     const first = rt.runOnce({ trigger: 'manual' });
-    await new Promise((r) => setTimeout(r, 20));
+    for (let i = 0; i < 100 && !release; i++) await new Promise((r) => setTimeout(r, 20));
+
     expect(rt.isRunning()).toBe(true);
     expect(await rt.runOnce({ trigger: 'manual' })).toBeNull();
-    release();
+    release!();
     await first;
     expect(s.transcribe).toHaveBeenCalledTimes(1);
   });
@@ -220,14 +223,14 @@ describe('audit regressions (runtime)', () => {
 
   it('recovery waits for a run in flight instead of failing its jobs', async () => {
     const s = setup();
-    let release!: () => void;
+    let release: (() => void) | undefined;
     s.transcribe.mockImplementation(() => new Promise<Result<string>>((resolve) => { release = () => resolve(ok('words here')); }));
     const rt = new CaptureRuntime(s.deps);
     const run = rt.runOnce({ trigger: 'manual' });
-    await new Promise((r) => setTimeout(r, 20));
+    for (let i = 0; i < 100 && !release; i++) await new Promise((r) => setTimeout(r, 20));
     await rt.recoverOnStart();
     expect(getEntry(s.journal(), 'Inbox/a.md')!.state).toBe('processing');
-    release();
+    release!();
     await run;
   });
 
@@ -248,6 +251,23 @@ describe('audit regressions (runtime)', () => {
     const again = await new CaptureRuntime(s.deps).runOnce({ trigger: 'manual' });
     expect(again?.scan.captures.map((c) => c.id)).not.toContain(companion);
     expect(again?.scan.captures.map((c) => c.id)).not.toContain(media);
+  });
+});
+
+describe('links in code are text, not attachments', () => {
+  it('ignores fenced code (backticks and tildes, any length) and inline code', () => {
+    const text = ['![[real.m4a]]', '```md', '![[in-fence.m4a]]', '```', '~~~~', '![](in-tilde.png)', '~~~~', 'use `![[inline.m4a]]` like so', '![[after.m4a]]'].join('\n');
+    expect(extractLinkTargets(text).sort()).toEqual(['after.m4a', 'real.m4a']);
+  });
+
+  it('an unclosed fence hides the rest, and a shorter or different closing fence does not end it', () => {
+    expect(extractLinkTargets('![[a.m4a]]\n```\n![[b.m4a]]')).toEqual(['a.m4a']);
+    expect(extractLinkTargets('````\n```\n![[b.m4a]]\n````\n![[c.m4a]]')).toEqual(['c.m4a']);
+    expect(extractLinkTargets('```\n~~~\n![[b.m4a]]\n```\n![[c.m4a]]')).toEqual(['c.m4a']);
+  });
+
+  it('withoutCode keeps line structure', () => {
+    expect(withoutCode('a\n```\nx\n```\nb').split('\n')).toHaveLength(5);
   });
 });
 

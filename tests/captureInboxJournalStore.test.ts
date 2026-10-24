@@ -3,7 +3,7 @@ import type { Plugin } from 'obsidian';
 
 vi.stubGlobal('window', globalThis);
 
-import { CAPTURE_JOURNAL_DATA_KEY, CaptureJournalStore, LAZY_PERSIST_MS } from '../src/services/captureInbox/captureJournalStore';
+import { CAPTURE_JOURNAL_BACKUP_DATA_KEY, CAPTURE_JOURNAL_DATA_KEY, CaptureJournalStore, LAZY_PERSIST_MS } from '../src/services/captureInbox/captureJournalStore';
 import { DATA_ONLY_KEYS, __resetChainForTests, saveSettingsData } from '../src/core/pluginDataStore';
 import { upsertEntry } from '../src/services/captureInbox/captureJournal';
 import type { CaptureEntry } from '../src/services/captureInbox/captureTypes';
@@ -33,8 +33,33 @@ describe('CaptureJournalStore', () => {
     expect(f.data.someSetting).toBe(true);
   });
 
-  it('is not loaded until load() runs, and loads what was persisted (fail closed on garbage)', async () => {
-    const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: 'garbage' });
+  it('a corrupt stored journal stops the store: not loaded, every write refused, nothing overwritten', async () => {
+    const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: { version: 1, entries: { 'a.md': null } } });
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    expect(store.corruption()).toMatch(/malformed/);
+    expect(store.isLoaded()).toBe(false);
+    await expect(store.mutate((j) => upsertEntry(j, entry('x.md')))).rejects.toThrow('capture-journal-not-loaded');
+    expect(() => store.mutateLazy((j) => j)).toThrow('capture-journal-not-loaded');
+    expect(f.saves).toHaveLength(0);
+    expect(f.data[CAPTURE_JOURNAL_DATA_KEY]).toEqual({ version: 1, entries: { 'a.md': null } });
+  });
+
+  it('an explicit reset keeps a copy of the unreadable data, then starts empty', async () => {
+    const stored = { version: 1, entries: { 'a.md': 'broken' } };
+    const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: stored });
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    expect(await store.resetCorrupt()).toBe(true);
+    expect(f.data[CAPTURE_JOURNAL_BACKUP_DATA_KEY]).toEqual(stored);
+    expect(store.corruption()).toBeNull();
+    expect(store.isLoaded()).toBe(true);
+    expect(Object.keys(store.get().entries)).toEqual([]);
+    expect(await store.resetCorrupt()).toBe(false);
+  });
+
+  it('is not loaded until load() runs, and loads what was persisted', async () => {
+    const f = fakePlugin();
     const store = new CaptureJournalStore(f.plugin);
     expect(store.isLoaded()).toBe(false);
     await store.load();

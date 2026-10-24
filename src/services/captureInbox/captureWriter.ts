@@ -17,6 +17,7 @@ import { Result, ok, err } from '../../core/result';
 import { assertWritable } from '../../core/protectedPaths';
 import { logger } from '../../utils/logger';
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
+import { sha256Hex } from '../attachmentDuplicateService';
 import { exclusionReason, type SweepPolicy } from '../inboxSweep/sweepGuard';
 import { addAlias, bump, bumpBucket, finish, getEntry, pruneFinished, rekey, upsertEntry } from './captureJournal';
 import {
@@ -45,6 +46,8 @@ export interface WriterPort {
     folderExists(path: string): boolean;
     /** The size of a file now, or null when it is gone. */
     fileSize(path: string): Promise<number | null>;
+    /** sha256 of a file's bytes now, or null when it cannot be read. Optional: without it the fingerprint compares sizes only. */
+    fileDigest?(path: string): Promise<string | null>;
     /** A note whose frontmatter `key` equals `value` (crash recovery), or null. */
     findNoteByFrontmatter(key: string, value: string): string | null;
 }
@@ -147,12 +150,14 @@ async function acceptLocked(deps: WriterDeps, id: string, edits: AcceptEdits, op
         : acceptNote(deps, entry, content, policy, edited);
 }
 
-async function currentAttachments(deps: WriterDeps, entry: CaptureEntry): Promise<{ path: string; size: number }[] | null> {
-    const out: { path: string; size: number }[] = [];
+async function currentAttachments(deps: WriterDeps, entry: CaptureEntry): Promise<{ path: string; size: number; digest?: string }[] | null> {
+    const out: { path: string; size: number; digest?: string }[] = [];
     for (const a of entry.attachments ?? []) {
         const size = await deps.port.fileSize(a.path);
         if (size === null) return null;
-        out.push({ path: a.path, size });
+        // Judged by content, not just length: a file swapped for another of the same size is a different capture.
+        const digest = a.digest !== undefined && deps.port.fileDigest ? (await deps.port.fileDigest(a.path)) ?? 'unreadable' : undefined;
+        out.push({ path: a.path, size, digest });
     }
     return out;
 }
@@ -394,6 +399,15 @@ export function createWriterPort(plugin: AIOrganiserPlugin): WriterPort {
         folderExists: (path) => {
             const f = app.vault.getAbstractFileByPath(path);
             return f !== null && !(f instanceof TFile);
+        },
+        async fileDigest(path) {
+            const file = app.vault.getAbstractFileByPath(path);
+            if (!(file instanceof TFile)) return null;
+            try {
+                return await sha256Hex(await app.vault.readBinary(file));
+            } catch {
+                return null;
+            }
         },
         async fileSize(path) {
             const stat = await app.vault.adapter.stat(path);

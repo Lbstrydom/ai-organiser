@@ -26,7 +26,7 @@ import { CaptureJournalStore } from '../services/captureInbox/captureJournalStor
 import { processAgain, retryCapture } from '../services/captureInbox/captureProcessor';
 import { CaptureRuntime } from '../services/captureInbox/captureRuntime';
 import { acceptCapture, createOrganisedNote, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
-import { clearHeldMirror, setCaptureActive, setHeldMirror } from '../services/captureInbox/heldMirror';
+import { clearHeldMirror, setCaptureActive, setCaptureCorrupt, setHeldMirror } from '../services/captureInbox/heldMirror';
 import { estimateCost, formatEstimate } from '../services/captureInbox/costEstimate';
 import { CaptureInboxStatusBar } from '../ui/components/CaptureInboxStatusBar';
 import { CaptureInboxQueueModal } from '../ui/modals/CaptureInboxQueueModal';
@@ -37,6 +37,12 @@ import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { runInboxSweep, sweepBlocker } from './inboxSweepCommands';
 
 const controllers = new WeakMap<Plugin, CaptureController>();
+const corruptStores = new WeakMap<Plugin, CaptureJournalStore>();
+
+/** The journal store when its saved data could not be read (the settings offer a reset), else null. */
+export function getCorruptJournalStore(plugin: AIOrganiserPlugin): CaptureJournalStore | null {
+    return corruptStores.get(plugin) ?? null;
+}
 
 /** The live controller, or null when the feature is off or has not finished loading. */
 export function getCaptureController(plugin: AIOrganiserPlugin): CaptureController | null {
@@ -213,6 +219,14 @@ function trackRenames(plugin: AIOrganiserPlugin, store: CaptureJournalStore): vo
 async function start(plugin: AIOrganiserPlugin): Promise<void> {
     const store = new CaptureJournalStore(plugin);
     await store.load();
+    if (store.corruption() !== null) {
+        // Fail closed: no runtime, no commands that process, and the sweep refuses to run until the user resets.
+        corruptStores.set(plugin, store);
+        setCaptureCorrupt(true);
+        plugin.register(() => { setCaptureCorrupt(false); corruptStores.delete(plugin); });
+        guidance(plugin, 'capture-journal-corrupt', 15000);
+        return;
+    }
     const mirror = () => setHeldMirror(heldPaths(store.get()));
     mirror();
     const unsubscribe = store.subscribe(mirror);
@@ -262,6 +276,7 @@ export function registerCaptureInboxCommands(plugin: AIOrganiserPlugin): void {
     const withController = (run: (c: CaptureController) => void): void => {
         const c = getCaptureController(plugin);
         if (c) run(c);
+        else if (getCorruptJournalStore(plugin)) guidance(plugin, 'capture-journal-corrupt', 12000);
         else new Notice(t.captureInbox.queueChecking, 3000);
     };
     plugin.addCommand({ id: 'process-capture-inbox', name: t.commands.processCaptureInbox, icon: 'inbox', callback: () => withController((c) => { c.processNow().catch((e: unknown) => logger.error('CaptureInbox', 'Process failed', e)); }) });

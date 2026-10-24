@@ -4031,6 +4031,7 @@ export const en: Translations = {
         "capture-destination-refused": { message: "That folder cannot be used for an organised note.", nextStep: "Choose an existing folder inside your destination folder that is not protected." },
         "capture-busy": { message: "This capture is already being saved.", nextStep: "Wait a moment. It will show as accepted when it is done." },
         "capture-inbox-invalid": { message: "An inbox folder is protected or is used by the plugin for its own output.", nextStep: "Choose inbox folders that are not protected and not an output folder, in the capture inbox setup." },
+        "capture-journal-corrupt": { message: "The capture inbox could not read its saved progress, so it is stopped. Your notes are untouched.", nextStep: "Open the capture inbox settings and choose Reset capture journal. A copy of the unreadable data is kept. Captures handled before may then be processed again." },
         "capture-source-excluded": { message: "This note is now kept out by your rules, so nothing was created from it.", nextStep: "Check your keep-out rules, or open the note and change what matches them." },
         "capture-no-provider": { message: "No AI provider is set up.", nextStep: "Choose a provider in the AI provider settings, then process the captures again." },
         "sweep-no-folders": { message: "No inbox folders are chosen.", nextStep: "Pick the folders to sweep. You can do this in the sweep setup." },
@@ -4628,7 +4629,10 @@ export const en: Translations = {
         processAgainConfirm: "Processing again uses your provider and may cost money. Continue?",
         skip: "Skip",
         skippedNotice: "Capture skipped.",
-        failedLine: "Failed at {stage}. {detail}"
+        failedLine: "Failed at {stage}. {detail}",
+        resetJournal: "Reset capture journal",
+        resetJournalConfirm: "A copy of the unreadable journal is kept. Captures handled before may be processed again, and your provider may charge again. Continue?",
+        resetJournalDone: "Capture journal reset. Reload Obsidian to start the capture inbox."
     },
     googleTasks: {
         sectionTitle: "Google Tasks export",

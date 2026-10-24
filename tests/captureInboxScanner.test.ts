@@ -13,6 +13,7 @@ const policy: SweepPolicy = { excludedFolders: ['Private'], excludedTags: ['secr
 
 const f = (path: string, over: Partial<VaultFileInfo> = {}): VaultFileInfo => ({ path, extension: path.split('.').pop() ?? '', ctime: 5000, mtime: 5000, size: 100, ...over });
 
+const digests: Record<string, string> = {};
 function port(files: VaultFileInfo[], texts: Record<string, string>, links: Record<string, { resolved?: string[]; unresolvedMedia?: string[] }> = {}) {
   const reads: string[] = [];
   const p: CaptureVaultPort = {
@@ -20,6 +21,7 @@ function port(files: VaultFileInfo[], texts: Record<string, string>, links: Reco
     readText: async (path) => { reads.push(path); return texts[path] ?? ''; },
     resolveAttachments: (path) => ({ resolved: links[path]?.resolved ?? [], unresolvedMedia: links[path]?.unresolvedMedia ?? [] }),
     referrersOf: (p) => Object.entries(links).filter(([, l]) => (l.resolved ?? []).includes(p)).map(([n]) => n),
+    digestOf: async (path, size) => digests[path] ?? `d:${path}:${size}`,
   };
   return { p, reads };
 }
@@ -158,6 +160,28 @@ describe('scanInbox', () => {
     const r = await scanInbox(p, deps());
     expect(r.captures.map((c) => c.id)).toEqual(['Inbox/new.md']);
     expect(r.olderIgnored).toBe(1);
+  });
+
+  it('a same-size attachment swap changes the fingerprint (content, not just length, identifies a capture)', async () => {
+    const files = [f('Inbox/n.md'), f('Inbox/a.m4a', { size: 500 })];
+    const links = { 'Inbox/n.md': { resolved: ['Inbox/a.m4a'] } };
+    const { p } = port(files, { 'Inbox/n.md': 'typed words here now' }, links);
+    digests['Inbox/a.m4a'] = 'digest-one';
+    const first = await scanInbox(p, deps());
+    digests['Inbox/a.m4a'] = 'digest-two';
+    const second = await scanInbox(p, deps());
+    delete digests['Inbox/a.m4a'];
+    expect(first.captures[0].attachments[0]).toMatchObject({ size: 500, digest: 'digest-one' });
+    expect(second.captures[0].fingerprint).not.toBe(first.captures[0].fingerprint);
+  });
+
+  it('never reads (digests) a file that is kept out or too large', async () => {
+    const read: string[] = [];
+    const files = [f('Inbox/n.md'), f('Private/a.m4a'), f('Inbox/big.m4a', { size: 11 * 1024 * 1024 }), f('Inbox/m.md'), f('Inbox/ok.m4a', { size: 5 })];
+    const base = port(files, { 'Inbox/n.md': 'x words here now', 'Inbox/m.md': 'y words here now' }, { 'Inbox/n.md': { resolved: ['Private/a.m4a', 'Inbox/big.m4a'] }, 'Inbox/m.md': { resolved: ['Inbox/ok.m4a'] } });
+    base.p.digestOf = async (path) => { read.push(path); return 'd'; };
+    await scanInbox(base.p, deps());
+    expect(read).toEqual(['Inbox/ok.m4a']);
   });
 
   it('does nothing without an inbox folder', async () => {

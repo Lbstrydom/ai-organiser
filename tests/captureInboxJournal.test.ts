@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-    addAlias, alreadyHandled, awaitingCount, bump, bumpBucket, canStartProcessing, coerceJournal, finish,
+    addAlias, alreadyHandled, awaitingCount, bump, bumpBucket, canStartProcessing, decodeJournal, finish,
     getEntry, heldPaths, reconcile, rekey, upsertEntry,
 } from '../src/services/captureInbox/captureJournal';
 import { MAX_ATTEMPTS, MAX_AWAITING_REVIEW, emptyJournal } from '../src/services/captureInbox/captureTypes';
@@ -145,14 +145,32 @@ describe('capture journal', () => {
         });
     });
 
-    it('coerceJournal drops malformed nested records instead of trusting them', () => {
-    const raw = { version: 1, entries: { 'a.md': mk('a.md', 'ready'), bad: null, worse: { id: 5 }, odd: { id: 'x', state: 'bogus' } }, tombstones: { t: { id: 't' }, ok: { id: 'ok', fingerprintHash: 'h', state: 'accepted', at: 1 } }, aliases: { m: 'a.md', n: 7 }, counters: { processed: 'x', failed: { a: 1, b: 'no' }, skipped: [] } };
-    const j = coerceJournal(raw);
-    expect(Object.keys(j.entries)).toEqual(['a.md']);
-    expect(Object.keys(j.tombstones)).toEqual(['ok']);
-    expect(j.aliases).toEqual({ m: 'a.md' });
-    expect(j.counters).toMatchObject({ processed: 0, failed: { a: 1 }, skipped: {} });
-    expect(() => awaitingCount(j)).not.toThrow();
+  it('decodeJournal FAILS CLOSED on anything stored that it cannot fully read (never an empty journal)', () => {
+    const good = { version: 1, entries: { 'a.md': mk('a.md', 'ready') }, tombstones: { ok: { id: 'ok', fingerprintHash: 'h', state: 'accepted', at: 1 } }, aliases: { m: 'a.md' }, counters: { processed: 2, failed: { a: 1 }, skipped: {} } };
+    const decoded = decodeJournal(JSON.parse(JSON.stringify(good)));
+    expect(decoded.status).toBe('ok');
+    const bad: Array<[string, unknown]> = [
+      ['not an object', 'garbage'],
+      ['an array', []],
+      ['unsupported version', { version: 2, entries: {} }],
+      ['no entries', { version: 1 }],
+      ['null entry', { ...good, entries: { ...good.entries, bad: null } }],
+      ['entry without state', { ...good, entries: { 'a.md': { id: 'a.md' } } }],
+      ['unknown state', { ...good, entries: { 'a.md': { id: 'a.md', state: 'bogus' } } }],
+      ['bad tombstone', { ...good, tombstones: { t: { id: 't' } } }],
+      ['bad alias', { ...good, aliases: { m: 7 } }],
+      ['bad counter', { ...good, counters: { processed: 'x' } }],
+      ['bad counter bucket', { ...good, counters: { failed: { a: 'no' } } }],
+    ];
+    for (const [name, raw] of bad) expect(decodeJournal(raw).status, name).toBe('corrupt');
+  });
+
+  it('nothing stored is a fresh start, and missing optional parts default', () => {
+    expect(decodeJournal(undefined).status).toBe('empty');
+    expect(decodeJournal(null).status).toBe('empty');
+    const minimal = decodeJournal({ version: 1, entries: {} });
+    expect(minimal.status).toBe('ok');
+    if (minimal.status === 'ok') expect(minimal.journal.counters.processed).toBe(0);
   });
 
   it('never prunes an accepted tombstone however many skipped ones there are', () => {
@@ -165,11 +183,4 @@ describe('capture journal', () => {
     expect(Object.values(j.tombstones).filter((t) => t.state === 'skipped').length).toBeLessThanOrEqual(2000);
   });
 
-  it('coerceJournal fails closed to an empty journal on unknown or malformed data', () => {
-        expect(coerceJournal(null)).toEqual(emptyJournal());
-        expect(coerceJournal({ version: 2 })).toEqual(emptyJournal());
-        expect(coerceJournal('x')).toEqual(emptyJournal());
-        const good = upsertEntry(emptyJournal(), mk('a.md', 'ready'));
-        expect(coerceJournal(JSON.parse(JSON.stringify(good))).entries['a.md'].state).toBe('ready');
-    });
 });

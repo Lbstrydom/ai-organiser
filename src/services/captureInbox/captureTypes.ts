@@ -54,6 +54,8 @@ export interface InsertedSpans {
 export interface CaptureAttachmentRef {
     path: string;
     size: number;
+    /** sha256 of the file's bytes: a swapped file of the same size is a different capture */
+    digest?: string;
     kind: 'audio' | 'image';
 }
 
@@ -181,6 +183,7 @@ export const CAPTURE_ERROR_CODES = [
     'capture-inbox-invalid',
     'capture-no-provider',
     'capture-source-excluded',
+    'capture-journal-corrupt',
 ] as const;
 export type CaptureErrorCode = (typeof CAPTURE_ERROR_CODES)[number];
 

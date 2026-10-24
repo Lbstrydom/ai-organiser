@@ -22,7 +22,7 @@ import { validateScriptUrl } from '../services/appsScriptClient';
 import { logger } from '../utils/logger';
 import { estimateSweep, runSweep, type NoteProposals, type SweepDeps } from '../services/inboxSweep/sweepService';
 import { commitReview, repairApprovals, sendApproved, sweepPolicy, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
-import { freezeHeldMirror, isCaptureActive, isHeldMirrorLoaded, unfreezeHeldMirror } from '../services/captureInbox/heldMirror';
+import { freezeHeldMirror, isCaptureActive, isCaptureCorrupt, isHeldMirrorLoaded, unfreezeHeldMirror } from '../services/captureInbox/heldMirror';
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
 import { validateReportPath } from '../services/inboxSweep/sweepReport';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
@@ -80,6 +80,7 @@ export function sweepBlocker(plugin: AIOrganiserPlugin): string | null {
     if (!validateReportPath(s.sweepReportPath, s.protectedFolders).ok) return 'sweep-report-invalid';
     if (!plugin.llmService) return 'sweep-no-provider';
     // The capture inbox holds raw captures out of the sweep; until it has loaded it cannot say which.
+    if (isCaptureActive() && isCaptureCorrupt()) return 'capture-journal-corrupt';
     if (isCaptureActive() && !isHeldMirrorLoaded()) return 'sweep-capture-loading';
     return null;
 }

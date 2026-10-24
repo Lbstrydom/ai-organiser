@@ -189,6 +189,37 @@ describe('frontmatter shapes the keys cannot be added to', () => {
   });
 });
 
+describe('frontmatter is judged by what the YAML means', () => {
+  const keys = { id: 'x', status: 's' };
+
+  it('refuses scalar frontmatter (a bare word is not a mapping)', () => {
+    expect(setCaptureKeys('---\nhello\n---\nbody\n', keys).ok).toBe(false);
+    expect(setCaptureKeys('---\n42\n---\nbody\n', keys).ok).toBe(false);
+    expect(applyAccept('---\nhello\n---\nbody\n', ID, content)).toEqual({ ok: false, error: 'capture-frontmatter-unreadable' });
+  });
+
+  it('refuses frontmatter that does not parse', () => {
+    expect(setCaptureKeys('---\ntags: [a\nbroken: : :\n---\nbody\n', keys).ok).toBe(false);
+  });
+
+  it('refuses a note that already has capture keys in ANY spelling (plain, double-quoted, single-quoted, flow)', () => {
+    for (const fm of ['capture-id: user', '"capture-id": user', "'capture-id': user", '"capture-status": done', '? capture-id\n: user']) {
+      expect(setCaptureKeys(`---\n${fm}\n---\nbody\n`, keys), fm).toEqual({ ok: false, error: 'capture-keys-exist' });
+    }
+  });
+
+  it('still accepts a normal mapping and an empty one', () => {
+    expect(setCaptureKeys('---\ntags: [a]\ntitle: "x"\n---\nbody\n', keys).ok).toBe(true);
+    expect(setCaptureKeys('---\n---\nbody\n', keys).ok).toBe(true);
+  });
+
+  it('reads the id by meaning, quoted key or not', () => {
+    expect(readCaptureId('---\n"capture-id": abc\n---\nx')).toBe('abc');
+    expect(readCaptureId('---\ncapture-id: "a: b"\n---\nx')).toBe('a: b');
+    expect(readCaptureId('---\nhello\n---\nx')).toBeNull();
+  });
+});
+
 describe('capture id in the note', () => {
   it('reads back what it wrote, including a quoted or single-quoted id', () => {
     for (const id of ['plain-uuid-1234', 'Inbox/odd: name #1.md', '- leading dash']) {

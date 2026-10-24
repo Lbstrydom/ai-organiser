@@ -129,10 +129,10 @@ export function normaliseForFingerprint(text: string): string {
  */
 export async function computeFingerprint(
     text: string,
-    attachments: readonly Pick<CaptureAttachmentRef, 'path' | 'size'>[],
+    attachments: readonly Pick<CaptureAttachmentRef, 'path' | 'size' | 'digest'>[],
     inserted: Pick<InsertedSpans, 'frontmatterCreated'> = { frontmatterCreated: false },
 ): Promise<string> {
     const base = normaliseForFingerprint(stripCaptureInsertions(text, inserted));
-    const att = attachments.map((a) => `${a.path}:${a.size}`).sort();
+    const att = attachments.map((a) => `${a.path}:${a.size}:${a.digest ?? ''}`).sort();
     return sha256Hex(new TextEncoder().encode(JSON.stringify({ t: base, a: att })).buffer);
 }

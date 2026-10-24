@@ -37,6 +37,11 @@ export interface CaptureVaultPort {
      * note): the port then answers from Obsidian's link index alone, so nothing is read.
      */
     resolveAttachments(notePath: string, text?: string): ResolvedAttachments;
+    /**
+     * sha256 of a file's bytes, cached by (path, size, mtime) so an unchanged file is read once. Called only for
+     * attachments that already passed the exclusion guard and the size cap. null = unreadable.
+     */
+    digestOf(path: string, size: number, mtime: number): Promise<string | null>;
     /** Notes anywhere in the vault that embed or link this file (from the link index; no reads) */
     referrersOf(path: string): string[];
 }
@@ -46,6 +51,8 @@ export interface ScannedAttachment {
     ext: string;
     kind: MediaKind | null;
     size: number;
+    /** sha256 of the bytes (media attachments only) */
+    digest?: string;
 }
 
 export interface ScannedCapture {
@@ -151,6 +158,7 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'too-large');
             continue;
         }
+        for (const a of attachments) if (a.kind !== null) a.digest = (await port.digestOf(a.path, a.size, info.get(a.path)?.mtime ?? 0)) ?? 'unreadable';
         const entry = journal.entries[id];
         const fingerprint = await computeFingerprint(text, attachments, entry?.inserted);
         if (alreadyHandled(journal, id, fingerprint, revision)) continue;
@@ -187,6 +195,7 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'too-large');
             continue;
         }
+        att.digest = (await port.digestOf(id, file.size, file.mtime)) ?? 'unreadable';
         const fingerprint = await computeFingerprint('', [att], journal.entries[id]?.inserted);
         if (alreadyHandled(journal, id, fingerprint, revision)) continue;
         outcome.captures.push({ id, notePath: null, text: '', attachments: [att], missingAttachments: [], fingerprint, ctime: file.ctime });

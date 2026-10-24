@@ -11,6 +11,7 @@
 import type { LanguageCode } from '../types';
 import type { PromptParts } from '../prompts/promptParts';
 import { Result } from '../../core/result';
+import { sha256Hex } from '../attachmentDuplicateService';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { rankByTitleOverlap } from '../attachmentHomeService';
 import { exclusionReason, policyRevisionOf, type SweepPolicy } from '../inboxSweep/sweepGuard';
@@ -95,6 +96,13 @@ function providerFailure(message: string): Error {
     return NON_RETRIABLE_ERROR.test(message) ? new NonRetriable(message) : new Error(message);
 }
 
+/** The bytes about to be sent must be the bytes the capture was judged with; a file swapped since the scan drops the job. */
+async function assertSameBytes(att: { digest?: string }, bytes: Uint8Array): Promise<void> {
+    if (!att.digest || att.digest === 'unreadable') return;
+    const copy = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    if ((await sha256Hex(copy)) !== att.digest) throw new Cancelled();
+}
+
 /** A stage failure that retrying cannot fix does not consume attempts. */
 class NonRetriable extends Error {}
 class Cancelled extends Error {}
@@ -112,7 +120,7 @@ function markerPresent(cap: ScannedCapture, deps: CaptureDeps): boolean {
 }
 
 function toRefs(cap: ScannedCapture): CaptureAttachmentRef[] {
-    return cap.attachments.filter((a) => a.kind !== null).map((a) => ({ path: a.path, size: a.size, kind: a.kind as 'audio' | 'image' }));
+    return cap.attachments.filter((a) => a.kind !== null).map((a) => ({ path: a.path, size: a.size, digest: a.digest, kind: a.kind as 'audio' | 'image' }));
 }
 
 /**
@@ -333,6 +341,7 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
                 const bytes = await deps.port.readBytes(att.path);
                 if (bytes.byteLength > config.maxAttachmentBytes) throw new Skip('too-large');
                 if (!checkSignature(att.path, bytes).ok) throw new Skip('invalid-media');
+                await assertSameBytes(att, bytes);
                 const sizeNow = await deps.port.stat(att.path);
                 if (!sizeNow || sizeNow.size !== att.size) throw new Skip('invalid-media');
                 const late = await stillAllowed(deps, cap);
@@ -354,6 +363,7 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
                 const bytes = await deps.port.readBytes(att.path);
                 if (bytes.byteLength > config.maxAttachmentBytes) throw new Skip('too-large');
                 if (!checkSignature(att.path, bytes).ok) throw new Skip('invalid-media');
+                await assertSameBytes(att, bytes);
                 const late = await stillAllowed(deps, cap);
                 if (late) throw new Skip(late);
                 const result = await deps.digitise(att.path);

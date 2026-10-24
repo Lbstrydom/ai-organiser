@@ -31,6 +31,17 @@ export function setCaptureActive(value: boolean): void {
 export function isCaptureActive(): boolean {
     return active;
 }
+
+let corrupt = false;
+
+/** The capture journal could not be read: the sweep must not run until the user resolves it. */
+export function setCaptureCorrupt(value: boolean): void {
+    corrupt = value;
+}
+
+export function isCaptureCorrupt(): boolean {
+    return corrupt;
+}
 let frozen = false;
 let pending: Mirror | null = null;
 

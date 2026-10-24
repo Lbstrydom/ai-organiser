@@ -4389,6 +4389,9 @@ export interface Translations {
         skip: string;
         skippedNotice: string;
         failedLine: string;
+        resetJournal: string;
+        resetJournalConfirm: string;
+        resetJournalDone: string;
     };
     googleTasks: {
         sectionTitle: string;

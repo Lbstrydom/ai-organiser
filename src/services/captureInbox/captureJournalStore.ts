@@ -9,10 +9,12 @@
 import type { Plugin } from 'obsidian';
 import { loadPluginData, updatePluginData } from '../../core/pluginDataStore';
 import { logger } from '../../utils/logger';
-import { coerceJournal } from './captureJournal';
+import { decodeJournal } from './captureJournal';
 import { emptyJournal, type CaptureJournal } from './captureTypes';
 
 export const CAPTURE_JOURNAL_DATA_KEY = 'capture-inbox-journal';
+/** Where an unreadable journal is kept (never deleted) when the user chooses to reset. */
+export const CAPTURE_JOURNAL_BACKUP_DATA_KEY = 'capture-inbox-journal-backup';
 
 /** How long a lazy (observation-only) change may wait before it is written. */
 export const LAZY_PERSIST_MS = 5000;
@@ -22,6 +24,7 @@ type Listener = (journal: CaptureJournal) => void;
 export class CaptureJournalStore {
     private journal: CaptureJournal = emptyJournal();
     private loaded = false;
+    private corrupt: string | null = null;
     private dirty = false;
     private timer: number | null = null;
     private readonly listeners = new Set<Listener>();
@@ -37,12 +40,46 @@ export class CaptureJournalStore {
         return this.journal;
     }
 
+    /** Why the stored journal could not be read, or null. While set the store is NOT loaded and refuses every write. */
+    corruption(): string | null {
+        return this.corrupt;
+    }
+
     async load(): Promise<CaptureJournal> {
         const data = await loadPluginData(this.plugin);
-        this.journal = coerceJournal(data[CAPTURE_JOURNAL_DATA_KEY]);
+        const decoded = decodeJournal(data[CAPTURE_JOURNAL_DATA_KEY]);
+        if (decoded.status === 'corrupt') {
+            // Fail closed: nothing is decoded, nothing is overwritten, nothing runs.
+            this.corrupt = decoded.reason;
+            this.loaded = false;
+            this.journal = emptyJournal();
+            logger.error('CaptureInbox', `The capture journal could not be read (${decoded.reason}); the capture inbox is stopped`);
+            return this.journal;
+        }
+        this.corrupt = null;
+        this.journal = decoded.journal;
         this.loaded = true;
         this.emit();
         return this.journal;
+    }
+
+    /** The user's explicit choice: keep a copy of the unreadable journal, then start from an empty one. */
+    async resetCorrupt(): Promise<boolean> {
+        if (this.corrupt === null) return false;
+        try {
+            await updatePluginData(this.plugin, (data) => {
+                data[CAPTURE_JOURNAL_BACKUP_DATA_KEY] = data[CAPTURE_JOURNAL_DATA_KEY];
+                data[CAPTURE_JOURNAL_DATA_KEY] = emptyJournal();
+                return { changed: true };
+            });
+        } catch (e) {
+            logger.error('CaptureInbox', 'Could not reset the capture journal', e);
+            return false;
+        }
+        this.corrupt = null;
+        this.journal = emptyJournal();
+        this.loaded = true;
+        return true;
     }
 
     subscribe(listener: Listener): () => void {

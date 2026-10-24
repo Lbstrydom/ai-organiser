@@ -3,6 +3,7 @@
  * INSERTIONS: nothing the user wrote is re-serialised, re-ordered or re-quoted. The strip is the
  * exact inverse, which is what lets a capture's fingerprint ignore the plugin's own write.
  */
+import * as yaml from 'js-yaml';
 import { Result, ok, err } from '../../core/result';
 import { CAPTURE_ID_KEY, CAPTURE_STATUS_KEY } from './captureTypes';
 
@@ -62,9 +63,22 @@ export function setCaptureKeys(text: string, keys: { id: string; status: string 
         return ok({ text: `---${eol}${lines}---${eol}${text}`, frontmatterCreated: true });
     }
     const body = text.slice(region.bodyStart, region.closerStart);
-    // Only a block mapping can take two more `key: value` lines: flow style ({a: 1}), a list or a scalar cannot.
-    const first = body.split('\n').map((l) => l.trim()).find((l) => l !== '' && !l.startsWith('#'));
-    if (first !== undefined && (first.startsWith('{') || first.startsWith('[') || first.startsWith('- ') || first === '-')) return err('frontmatter-unclosed');
+    // Judged by what the YAML MEANS, not by how its lines look. Two more `key: value` lines can only be appended to a
+    // block mapping: flow style ({a: 1}), a list, a plain scalar or a document that does not parse cannot take them.
+    let parsed: unknown;
+    try {
+        parsed = yaml.load(body);
+    } catch {
+        return err('frontmatter-unclosed');
+    }
+    if (parsed !== null && parsed !== undefined) {
+        if (typeof parsed !== 'object' || Array.isArray(parsed)) return err('frontmatter-unclosed');
+        const first = body.split('\n').map((l) => l.trim()).find((l) => l !== '' && !l.startsWith('#'));
+        if (first !== undefined && first.startsWith('{')) return err('frontmatter-unclosed');
+        // The user's own capture keys in ANY spelling (plain, quoted, flow) block the insertion.
+        const own = parsed as Record<string, unknown>;
+        if (Object.hasOwn(own, CAPTURE_ID_KEY) || Object.hasOwn(own, CAPTURE_STATUS_KEY)) return err('capture-keys-exist');
+    }
     const already = body.split('\n').some((l) => keyLine(CAPTURE_ID_KEY).test(l) || keyLine(CAPTURE_STATUS_KEY).test(l));
     if (already) return err('capture-keys-exist');
     return ok({ text: text.slice(0, region.closerStart) + lines + text.slice(region.closerStart), frontmatterCreated: false });
@@ -74,22 +88,15 @@ export function setCaptureKeys(text: string, keys: { id: string; status: string 
 export function readCaptureId(text: string): string | null {
     const region = findFrontmatter(text);
     if (region === null || region === 'unclosed') return null;
-    for (const line of text.slice(region.bodyStart, region.closerStart).split('\n')) {
-        const m = /^capture-id:\s*(.*?)\r?$/.exec(line);
-        if (!m) continue;
-        const raw = m[1];
-        if (raw.length >= 2 && raw.startsWith("'") && raw.endsWith("'")) return raw.slice(1, -1).replaceAll("''", "'") || null;
-        if (raw.startsWith('"')) {
-            try {
-                const parsed: unknown = JSON.parse(raw);
-                return typeof parsed === 'string' ? parsed : null;
-            } catch {
-                return null;
-            }
-        }
-        return raw || null;
+    try {
+        const parsed: unknown = yaml.load(text.slice(region.bodyStart, region.closerStart));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+        const value = (parsed as Record<string, unknown>)[CAPTURE_ID_KEY];
+        if (typeof value === 'string') return value === '' ? null : value;
+        return typeof value === 'number' ? String(value) : null;
+    } catch {
+        return null;
     }
-    return null;
 }
 
 /** The exact inverse of {@link setCaptureKeys}. */

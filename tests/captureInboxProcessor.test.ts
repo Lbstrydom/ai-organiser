@@ -6,6 +6,7 @@ import { runJobs, syncEntries, retryCapture, processAgain, type CaptureDeps, typ
 import { scanInbox, type CaptureVaultPort, type VaultFileInfo } from '../src/services/captureInbox/captureScanner';
 import { getEntry, upsertEntry } from '../src/services/captureInbox/captureJournal';
 import { ok, err, type Result } from '../src/core/result';
+import { sha256Hex } from '../src/services/attachmentDuplicateService';
 import { MAX_AWAITING_REVIEW, emptyJournal, type CaptureConfig, type CaptureJournal } from '../src/services/captureInbox/captureTypes';
 import type { SweepPolicy } from '../src/services/inboxSweep/sweepGuard';
 import type { PromptParts } from '../src/services/prompts/promptParts';
@@ -49,6 +50,7 @@ function world(): World {
     readText: async (p) => { calls.reads.push(p); return files.get(p)?.text ?? ''; },
     resolveAttachments: (p) => ({ resolved: links.get(p) ?? [], unresolvedMedia: [] }),
     referrersOf: (p) => [...links].filter(([, l]) => l.includes(p)).map(([n]) => n),
+    digestOf: async (p) => { const b = files.get(p)?.bytes; return b ? sha256Hex(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer) : null; },
   };
   const port: ProcessorPort = {
     readBytes: async (p) => { calls.reads.push(p); return files.get(p)?.bytes ?? new Uint8Array(0); },
@@ -414,6 +416,21 @@ describe('final-gate regressions (processor)', () => {
     w.deps.vault.referrersOf = () => ['Private/note.md'];
     await runJobs(w.deps, scan, { cancelled: () => false }, 10);
     expect(w.calls.transcribe).toEqual([]);
+  });
+});
+
+describe('digest check before upload', () => {
+  it('a file swapped for another of the same size after the scan is not uploaded; the job is dropped', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
+    w.addMedia('Inbox/x.mp3', MP3);
+    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    await syncEntries(w.deps, scan);
+    const swapped = new Uint8Array(MP3.length); swapped.set(MP3); swapped[MP3.length - 1] ^= 0xff; // same size, same header, different bytes
+    w.files.get('Inbox/x.mp3')!.bytes = swapped;
+    await runJobs(w.deps, scan, { cancelled: () => false }, 10);
+    expect(w.calls.transcribe).toEqual([]);
+    expect(getEntry(w.journal(), 'Inbox/a.md')!.state).toBe('ready');
   });
 });
 

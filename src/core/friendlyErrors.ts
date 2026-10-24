@@ -76,6 +76,7 @@ export const GUIDANCE_CODES = [
     'capture-inbox-invalid',
     'capture-no-provider',
     'capture-source-excluded',
+    'capture-journal-corrupt',
     'tasks-no-list',
     'tasks-not-ready',
     'script-tasks-off',

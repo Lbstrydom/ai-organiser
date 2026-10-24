@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { sweepPolicy, sweepRunPolicy } from '../src/services/inboxSweep/sweepCommit';
 import { sweepBlocker } from '../src/commands/inboxSweepCommands';
 import { exclusionReason } from '../src/services/inboxSweep/sweepGuard';
-import { clearHeldMirror, freezeHeldMirror, heldMirrorPaths, isHeldMirrorLoaded, setCaptureActive, setHeldMirror, unfreezeHeldMirror } from '../src/services/captureInbox/heldMirror';
+import { clearHeldMirror, freezeHeldMirror, heldMirrorPaths, isHeldMirrorLoaded, setCaptureActive, setCaptureCorrupt, setHeldMirror, unfreezeHeldMirror } from '../src/services/captureInbox/heldMirror';
 
 const plugin = (captureOn: boolean) => (setCaptureActive(captureOn), {
   settings: {
@@ -18,7 +18,7 @@ const plugin = (captureOn: boolean) => (setCaptureActive(captureOn), {
   llmService: {},
 });
 
-beforeEach(() => { unfreezeHeldMirror(); clearHeldMirror(); setCaptureActive(false); });
+beforeEach(() => { unfreezeHeldMirror(); clearHeldMirror(); setCaptureActive(false); setCaptureCorrupt(false); });
 
 describe('sweep and capture inbox interplay', () => {
   it('the sweep does not read a held capture, but reads its neighbours', () => {
@@ -52,6 +52,16 @@ describe('sweep and capture inbox interplay', () => {
     expect(exclusionReason('Inbox/anything.md', 'text', policy)).toBe('folder');
     setHeldMirror([]);
     expect(sweepBlocker(p as never)).not.toBe('sweep-capture-loading');
+  });
+
+  it('a corrupt capture journal stops the sweep with its own guidance, until the user resets it', () => {
+    const p = plugin(true);
+    setCaptureCorrupt(true);
+    expect(sweepBlocker(p as never)).toBe('capture-journal-corrupt');
+    setCaptureCorrupt(false);
+    expect(sweepBlocker(p as never)).toBe('sweep-capture-loading');
+    setHeldMirror([]);
+    expect(sweepBlocker(p as never)).not.toBe('capture-journal-corrupt');
   });
 
   it('a feature flag switched on after load (no registrar, no journal) does not make the sweep wait', () => {

@@ -5,7 +5,8 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { evaluateSetup, toFolderSet } from '../../core/setupState';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
-import { getCaptureController } from '../../commands/captureInboxCommands';
+import { getCaptureController, getCorruptJournalStore } from '../../commands/captureInboxCommands';
+import { ConfirmationModal } from '../modals/ConfirmationModal';
 import { openCaptureInboxSetup } from '../modals/CaptureInboxSetupModal';
 import { captureBlocker } from '../../services/captureInbox/captureConfig';
 import { emptyCounters, type CaptureCounters } from '../../services/captureInbox/captureTypes';
@@ -48,6 +49,15 @@ export class CaptureInboxSettingsSection extends BaseSettingSection {
         const blocker = captureBlocker(s, !!this.plugin.llmService);
         if (blocker) this.containerEl.createDiv({ cls: 'setting-item-description', text: formatGuidance(describeError(t, blocker)) });
 
+        const corrupt = getCorruptJournalStore(this.plugin);
+        if (corrupt) {
+            this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', text: formatGuidance(describeError(t, 'capture-journal-corrupt')) });
+            new Setting(this.containerEl).addButton((b) => b.setWarning().setButtonText(c.resetJournal).onClick(() => {
+                new ConfirmationModal(this.plugin.app, c.resetJournal, c.resetJournalConfirm, () => {
+                    void corrupt.resetCorrupt().then((ok) => { new Notice(ok ? c.resetJournalDone : formatGuidance(describeError(t, 'capture-write-failed')), 8000); });
+                }, this.plugin).open();
+            }));
+        }
         const ctl = getCaptureController(this.plugin);
         new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.setupButton).setCta().onClick(() => openCaptureInboxSetup(this.plugin, () => this.settingTab.display())))

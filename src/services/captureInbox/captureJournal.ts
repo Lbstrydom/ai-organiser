@@ -202,42 +202,72 @@ export function reconcile(journal: CaptureJournal, blockPresent: (id: string) =>
     return { journal: next, retryWrites };
 }
 
-/** Normalise unknown persisted data into a journal (fail closed to an empty one). */
-export function coerceJournal(raw: unknown): CaptureJournal {
-    if (!raw || typeof raw !== 'object') return emptyJournal();
-    const r = raw as Partial<CaptureJournal>;
-    if (r.version !== 1 || typeof r.entries !== 'object' || r.entries === null) return emptyJournal();
-    const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
-    const states = new Set<string>(['new', 'waiting_for_stable', 'ready', 'processing', 'awaiting_review', 'accept_pending_write', 'accepted', 'organised', 'failed', 'skipped', 'skipped_by_user']);
+export type JournalDecode =
+    | { status: 'empty'; journal: CaptureJournal }
+    | { status: 'ok'; journal: CaptureJournal }
+    | { status: 'corrupt'; reason: string };
+
+const ENTRY_STATES = new Set<string>(['new', 'waiting_for_stable', 'ready', 'processing', 'awaiting_review', 'accept_pending_write', 'accepted', 'organised', 'failed', 'skipped', 'skipped_by_user']);
+const isRecord = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * Read the persisted journal. FAILS CLOSED: nothing stored is a fresh start, but anything stored that cannot be fully
+ * understood is `corrupt`, never silently turned into an empty journal. An empty journal forgets which captures were
+ * handled, so every one would be processed (and charged) again, and it would lose held captures and pending writes.
+ */
+export function decodeJournal(raw: unknown): JournalDecode {
+    if (raw === undefined || raw === null) return { status: 'empty', journal: emptyJournal() };
+    if (!isRecord(raw)) return { status: 'corrupt', reason: 'not an object' };
+    if (raw.version !== 1) return { status: 'corrupt', reason: 'unsupported version' };
+    if (!isRecord(raw.entries)) return { status: 'corrupt', reason: 'entries missing' };
     const entries: Record<string, CaptureEntry> = {};
-    for (const [key, value] of Object.entries(r.entries)) {
-        if (isRecord(value) && typeof value.id === 'string' && typeof value.state === 'string' && states.has(value.state)) entries[key] = value as unknown as CaptureEntry;
+    for (const [key, value] of Object.entries(raw.entries)) {
+        if (!isRecord(value) || typeof value.id !== 'string' || typeof value.state !== 'string' || !ENTRY_STATES.has(value.state)) {
+            return { status: 'corrupt', reason: `entry ${key} is malformed` };
+        }
+        entries[key] = value as unknown as CaptureEntry;
     }
     const tombstones: Record<string, CaptureTombstone> = {};
-    if (isRecord(r.tombstones)) {
-        for (const [key, value] of Object.entries(r.tombstones)) {
-            if (isRecord(value) && typeof value.id === 'string' && typeof value.fingerprintHash === 'string') tombstones[key] = value as unknown as CaptureTombstone;
+    if (raw.tombstones !== undefined) {
+        if (!isRecord(raw.tombstones)) return { status: 'corrupt', reason: 'tombstones malformed' };
+        for (const [key, value] of Object.entries(raw.tombstones)) {
+            if (!isRecord(value) || typeof value.id !== 'string' || typeof value.fingerprintHash !== 'string') return { status: 'corrupt', reason: `tombstone ${key} is malformed` };
+            tombstones[key] = value as unknown as CaptureTombstone;
         }
     }
     const aliases: Record<string, string> = {};
-    if (isRecord(r.aliases)) for (const [key, value] of Object.entries(r.aliases)) if (typeof value === 'string') aliases[key] = value;
-    const counts = (v: unknown): Record<string, number> => {
+    if (raw.aliases !== undefined) {
+        if (!isRecord(raw.aliases)) return { status: 'corrupt', reason: 'aliases malformed' };
+        for (const [key, value] of Object.entries(raw.aliases)) {
+            if (typeof value !== 'string') return { status: 'corrupt', reason: `alias ${key} is malformed` };
+            aliases[key] = value;
+        }
+    }
+    const base = emptyJournal().counters;
+    const c = raw.counters;
+    if (c !== undefined && !isRecord(c)) return { status: 'corrupt', reason: 'counters malformed' };
+    const num = (v: unknown, fallback: number): number | null => (v === undefined ? fallback : typeof v === 'number' && Number.isFinite(v) ? v : null);
+    const counts = (v: unknown): Record<string, number> | null => {
+        if (v === undefined) return {};
+        if (!isRecord(v)) return null;
         const out: Record<string, number> = {};
-        if (isRecord(v)) for (const [k, n] of Object.entries(v)) if (typeof n === 'number' && Number.isFinite(n)) out[k] = n;
+        for (const [k, n] of Object.entries(v)) {
+            if (typeof n !== 'number' || !Number.isFinite(n)) return null;
+            out[k] = n;
+        }
         return out;
     };
-    const c: Record<string, unknown> = isRecord(r.counters) ? r.counters : {};
-    const num = (v: unknown): number => (typeof v === 'number' && Number.isFinite(v) ? v : 0);
-    return {
-        version: 1,
-        entries,
-        tombstones,
-        aliases,
-        counters: {
-            processed: num(c.processed), acceptedUnchanged: num(c.acceptedUnchanged), acceptedEdited: num(c.acceptedEdited), rejected: num(c.rejected),
-            failed: counts(c.failed), skipped: counts(c.skipped),
-        },
-    };
+    const cc = (c ?? {});
+    const processed = num(cc.processed, base.processed);
+    const acceptedUnchanged = num(cc.acceptedUnchanged, base.acceptedUnchanged);
+    const acceptedEdited = num(cc.acceptedEdited, base.acceptedEdited);
+    const rejected = num(cc.rejected, base.rejected);
+    const failed = counts(cc.failed);
+    const skipped = counts(cc.skipped);
+    if (processed === null || acceptedUnchanged === null || acceptedEdited === null || rejected === null || failed === null || skipped === null) {
+        return { status: 'corrupt', reason: 'counters malformed' };
+    }
+    return { status: 'ok', journal: { version: 1, entries, tombstones, aliases, counters: { processed, acceptedUnchanged, acceptedEdited, rejected, failed, skipped } } };
 }
 
 export function entriesInState(journal: CaptureJournal, ...states: CaptureState[]): CaptureEntry[] {
