@@ -12,7 +12,7 @@ import type AIOrganiserPlugin from '../../main';
 import { isFeatureEnabled } from '../../services/featureService';
 import { isCatchUpEnabled } from '../../services/newsletter/newsletterAudioMode';
 import { buildCatchUpSnapshot } from '../../services/newsletter/catchUp/catchUpSelection';
-import { pendingCounts } from '../../services/newsletter/catchUp/catchUpModalState';
+import { deriveWaiting, pendingCounts } from '../../services/newsletter/catchUp/catchUpModalState';
 import { formatPendingSummary } from '../../services/newsletter/catchUp/catchUpFormat';
 import { logger } from '../../utils/logger';
 
@@ -90,8 +90,14 @@ export class CatchUpStatusBar {
         const unheard = snapshot.unheard.length;
         const m = this.plugin.t.modals.newsletterCatchUp;
 
+        // Smart daily is holding back: say so, not just "1 not listened".
+        const waiting = deriveWaiting(snapshot, this.plugin.settings);
         let label: string;
-        if (days > 0) {
+        if (waiting) {
+            const pending = (waiting.days === 1 ? m.daysOne : m.daysMany).replace('{n}', String(waiting.days));
+            label = (waiting.episodes.length > 1 ? m.statusBarWaitingMany : m.statusBarWaiting)
+                .replace('{count}', String(waiting.episodes.length)).replace('{pending}', m.waitingPending.replace('{days}', pending));
+        } else if (days > 0) {
             const summary = formatPendingSummary(this.plugin.t, days, newsletters);
             label = unheard > 0 ? `${m.statusBarLabel.replace('{summary}', summary)} · ${m.statusBarUnheard.replace('{n}', String(unheard))}` : m.statusBarLabel.replace('{summary}', summary);
         } else if (unheard > 0) {
@@ -105,8 +111,12 @@ export class CatchUpStatusBar {
         const icon = el.createSpan({ cls: 'ai-organiser-catchup-status-icon' });
         setIcon(icon, 'headphones');
         el.createSpan({ text: ` ${label}` });
-        el.setAttribute('aria-label', label);
-        el.setAttribute('title', m.statusBarTooltip);
+        // The left-out count is in the accessible name too: a native tooltip is not reliably shown on keyboard focus.
+        const leftOut = snapshot.skipped.filter((s) => s.reason === 'heard-daily-audio').length;
+        const leftOutText = leftOut > 0 ? (leftOut === 1 ? m.statusBarSkippedOne : m.statusBarSkipped).replace('{n}', String(leftOut)) : '';
+        el.setAttribute('aria-label', leftOutText ? `${label}. ${leftOutText}` : label);
+        const tip = waiting ? (waiting.episodes.length > 1 ? m.waitingEndsMany : m.waitingEndsOne) : m.statusBarTooltip;
+        el.setAttribute('title', leftOutText ? `${tip}. ${leftOutText}` : tip);
         el.show();
     }
 

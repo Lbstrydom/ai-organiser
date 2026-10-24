@@ -26,7 +26,7 @@ function snapshot(over: Partial<CatchUpSnapshot> = {}): CatchUpSnapshot {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
         state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null,
-        oldestStoredDate: null, expiringDates: [], ...over,
+        oldestStoredDate: null, expiringDates: [], skipped: [], noBriefDates: [], evidenceDegraded: false, autoPendingDays: 0, tidy: null, ...over,
     };
 }
 
@@ -40,6 +40,15 @@ const input = (over: Partial<ModalInput> = {}): ModalInput => ({
 });
 
 describe('deriveModalView', () => {
+    it('carries the skipped days and the plan dates through, so the window cannot imply a range', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({
+            window: ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'], plan: plan(['2026-10-20', '2026-10-23']), state: 'pending',
+            skipped: [{ date: '2026-10-22', reason: 'heard-daily-audio' }],
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-21'], coveredDates: [], openDates: [] },
+        }) }));
+        expect(v).toMatchObject({ kind: 'pending', dates: ['2026-10-20', '2026-10-23'], skipped: [{ date: '2026-10-22', reason: 'heard-daily-audio' }], windowDates: ['2026-10-20', '2026-10-22', '2026-10-23'] });
+    });
+
     it('unavailable states win over everything else', () => {
         expect(deriveModalView(input({ availability: 'audio-off', snapshot: snapshot({ plan: plan(['2026-10-22']) }) }))).toEqual({ kind: 'unavailable', reason: 'audio-off' });
         expect(deriveModalView(input({ availability: 'wrong-mode' }))).toEqual({ kind: 'unavailable', reason: 'wrong-mode' });
@@ -53,6 +62,32 @@ describe('deriveModalView', () => {
     it('four or more pending days are "big" (the 20 minute tier)', () => {
         const v = deriveModalView(input({ snapshot: snapshot({ plan: plan(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']) }) }));
         expect(v).toMatchObject({ kind: 'pending', days: 4, capMinutes: 20, big: true });
+    });
+
+    it('waiting is derived from the settings and carries every blocking episode, newest first', () => {
+        const s = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [ep('20261020-100000-aaaa', '2026-10-19'), ep('20261021-100000-bbbb', '2026-10-20')], autoPendingDays: 2 });
+        const smart = { newsletterAudioPodcast: true, newsletterAudioMode: 'smart-daily' };
+        const v = deriveModalView(input({ snapshot: s, settings: smart }));
+        expect(v).toMatchObject({ kind: 'pending', waiting: { days: 2 } });
+        expect((v as { waiting: { episodes: Array<{ id: string }> } }).waiting.episodes.map((e) => e.id)).toEqual(['20261021-100000-bbbb', '20261020-100000-aaaa']);
+        expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ waiting: null });
+    });
+
+    it('says automatic replacement will act (not that it waits) when that setting is on', () => {
+        const s = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [ep('20261020-100000-aaaa', '2026-10-19')], autoPendingDays: 1 });
+        const smart = { newsletterAudioPodcast: true, newsletterAudioMode: 'smart-daily' };
+        expect(deriveModalView(input({ snapshot: s, settings: { ...smart, newsletterCatchUpWhenBehind: 'replace' } }))).toMatchObject({ waiting: null, replaceSoon: true });
+        expect(deriveModalView(input({ snapshot: s, settings: { ...smart, newsletterCatchUpWhenBehind: 'wait' } }))).toMatchObject({ waiting: { days: 1 }, replaceSoon: false });
+        expect(deriveModalView(input({ snapshot: snapshot({ ...s, autoPendingDays: 0 }), settings: { ...smart, newsletterCatchUpWhenBehind: 'replace' } }))).toMatchObject({ replaceSoon: false });
+        expect(deriveModalView(input({ snapshot: s, settings: { newsletterAudioPodcast: true, newsletterAudioMode: 'on-demand', newsletterCatchUpWhenBehind: 'replace' } }))).toMatchObject({ replaceSoon: false });
+    });
+
+    it('include-all never offers a still-open day (it would stay left out)', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({
+            window: ['2026-10-22', '2026-10-23'], state: 'caught-up',
+            skipped: [{ date: '2026-10-23', reason: 'open-day' }],
+        }) }));
+        expect(v).toMatchObject({ kind: 'caught-up', windowDates: ['2026-10-22'] });
     });
 
     it('an unfinished operation takes the window, whatever else is pending', () => {
@@ -140,5 +175,22 @@ describe('the status bar and the window agree on what is pending', () => {
         });
         expect(pendingCounts(s).days).toBe(1);
         expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ days: 1, noStoredDates: ['2026-10-20', '2026-10-21'] });
+    });
+});
+
+describe('days left out for want of a brief', () => {
+    it('splits the not-stored days from the stored-but-no-brief days', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({
+            window: ['2026-10-19', '2026-10-20', '2026-10-21'], plan: plan(['2026-10-21']), state: 'pending',
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19', '2026-10-20'], coveredDates: [], openDates: [] },
+            noBriefDates: ['2026-10-20'],
+        }) }));
+        expect(v).toMatchObject({ noStoredDates: ['2026-10-19'], noBriefDates: ['2026-10-20'] });
+    });
+
+    it('a snapshot without the split (an older caller) keeps every day under "not stored"', () => {
+        const s = snapshot({ pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19'], coveredDates: [], openDates: [] } });
+        delete (s as { noBriefDates?: unknown }).noBriefDates;
+        expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ noStoredDates: ['2026-10-19'], noBriefDates: [] });
     });
 });

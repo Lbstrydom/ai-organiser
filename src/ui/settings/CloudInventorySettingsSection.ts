@@ -9,9 +9,10 @@ import { validateScriptUrl } from '../../services/appsScriptClient';
 import { approvedRoots, inventoryConfigKey, testConnection, toTestResult } from '../../services/cloudInventory/cloudInventoryService';
 import { getInventorySecret, openCloudInventorySetup, runRefresh } from '../../commands/cloudInventoryCommands';
 import { isFeatureEnabled } from '../../services/featureService';
-import { checkMountFolder } from '../../services/offload/localMount';
+import { checkMountFolderWithin } from '../../services/offload/localMount';
 import { basePath } from '../../services/offload/offloadRuntime';
 import { nodeDeps } from '../../services/offload/fingerprint';
+import { logger } from '../../utils/logger';
 
 /**
  * Drive folder inventory settings: a status row, the paired folders, the script link with a
@@ -44,10 +45,14 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
                     const checked = pair.localMountFolder ?? '';
                     try {
                         const deps = nodeDeps();
-                        const res = deps ? await checkMountFolder(deps, checked, basePath(this.plugin) ?? undefined) : null;
+                        const res = deps ? await checkMountFolderWithin(deps, checked, basePath(this.plugin) ?? undefined) : null;
                         // The path was edited while the check ran: its answer is about a path that is gone.
                         if ((pair.localMountFolder ?? '') !== checked) { status.setText(''); return; }
                         status.setText(res?.ok ? o.folderOk : formatGuidance(describeError(this.plugin.t, res ? res.error : 'mount-invalid')));
+                    } catch (e) {
+                        // Nothing here should throw, but a button that goes quiet is worse than an honest generic answer.
+                        logger.warn('Offload', 'Checking the Drive folder failed unexpectedly', e);
+                        status.setText(formatGuidance(describeError(this.plugin.t, 'mount-missing')));
                     } finally {
                         b.setDisabled(false);
                     }

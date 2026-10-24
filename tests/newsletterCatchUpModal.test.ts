@@ -73,16 +73,26 @@ vi.mock('../src/services/newsletter/catchUp/catchUpService', () => ({
     runCatchUp, resumeCatchUp, discardOperation,
 }));
 
+const runDailyAudioTidy = vi.hoisted(() => vi.fn());
+vi.mock('../src/services/newsletter/catchUp/catchUpTidy', () => ({ runDailyAudioTidy }));
+
 vi.mock('../src/services/newsletter/catchUp/catchUpRuntime', () => ({
     createCatchUpPorts: () => ({}),
+    createDailyTidyDeps: () => ({}),
     previewCost: (_p: unknown, cap: number) => ({ ttsUsd: cap === 0 ? null : 0.04, spokenChars: 1000 }),
 }));
+
+const prepareReplace = vi.hoisted(() => vi.fn());
+const replaceAndRunCatchUp = vi.hoisted(() => vi.fn());
+vi.mock('../src/services/newsletter/catchUp/catchUpReplace', () => ({ prepareReplace, replaceAndRunCatchUp }));
 
 const markEpisodeListened = vi.hoisted(() => vi.fn(async () => ({ ok: true, value: { acked: true, buckets: 0 } })));
 vi.mock('../src/services/newsletter/catchUp/catchUpListen', () => ({ markEpisodeListened }));
 
+const progressOpts = vi.hoisted(() => ({ value: null as null | { resolvePhase: (p: { key: string; params?: Record<string, string | number> }) => string } }));
 vi.mock('../src/services/progress', () => ({
-    withProgressResult: async (_o: unknown, op: (r: unknown) => Promise<unknown>) => {
+    withProgressResult: async (o: { resolvePhase: never }, op: (r: unknown) => Promise<unknown>) => {
+        progressOpts.value = o as never;
         const reporter = { signal: new AbortController().signal, setPhase: vi.fn(), setCancellable: vi.fn() };
         return op(reporter);
     },
@@ -113,13 +123,13 @@ const plan = (dates: string[]) => ({
     length: { capMinutes: dates.length >= 4 ? 20 : 15, wordBudget: 1950 }, from: dates[0], to: dates.at(-1), createdAt: 1, planHash: 'abcd1234',
 });
 const episode = (id: string, from: string, to: string) => ({
-    id, from, to, coverage: { [to]: { kind: 'whole' } }, audio: `catchup-${id}.mp3`, fingerprint: 'ab', minutes: 10, sources: 3, notePath: `Catch-up/${id}.md`,
+    id, from, to, coverage: Object.fromEntries(datesBetween(from, to).map((d) => [d, { kind: 'whole' }])), audio: `catchup-${id}.mp3`, fingerprint: 'ab', minutes: 10, sources: 3, notePath: `Catch-up/${id}.md`,
 });
 function snapshot(over: Record<string, unknown> = {}) {
     return {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
-        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], ...over,
+        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, tidy: null, ...over,
     };
 }
 
@@ -217,6 +227,81 @@ describe('the window', () => {
         expect(root.textContent).not.toMatch(/expired/i);
     });
 
+    it('says which days were left out because their daily audio was heard, and can bring them back', async () => {
+        snapshotRef.value = snapshot({
+            plan: plan(['2026-10-23']), state: 'pending',
+            skipped: [{ date: '2026-10-21', reason: 'heard-daily-audio' }, { date: '2026-10-22', reason: 'heard-daily-audio' }],
+        });
+        const { root } = await open();
+        expect(root.textContent).toContain('2 earlier days are left out because you already listened to their daily audio: 2026-10-21, 2026-10-22.');
+        click(root, 'Include them too');
+        await flush();
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
+        expect(last.forceDates).toEqual(['2026-10-21', '2026-10-22']);
+    });
+
+    it('a still-open day is said to be left out when story memory is off', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22']), state: 'pending', skipped: [{ date: '2026-10-23', reason: 'open-day' }] });
+        const { root } = await open();
+        expect(root.textContent).toContain('2026-10-23 is left out until the day closes, because story memory is off.');
+    });
+
+    it('the Covers line never spans days that are not included', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-24']), state: 'pending' });
+        const { root } = await open();
+        expect(root.textContent).toContain('Covers 2026-10-21, 2026-10-24');
+        expect(root.textContent).not.toContain('Covers 2026-10-21 to 2026-10-24');
+    });
+
+    it('caught up: any day in the window can be included again, not only the last episode range', async () => {
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up' });
+        const { root } = await open();
+        expect(buttons(root)).toContain('Include all 3 days again');
+        click(root, 'Include all 3 days again');
+        await flush();
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
+        expect(last.forceDates).toEqual(['2026-10-21', '2026-10-22', '2026-10-23']);
+    });
+
+    it('smart daily: says it is waiting, how many days are pending and what ends the wait', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22', '2026-10-23']), state: 'pending', unheard: [episode('20261021-100000-aaaa', '2026-10-19', '2026-10-21')], autoPendingDays: 2 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily' }));
+        expect(root.textContent).toContain('Waiting: your last episode is unheard, 2 days pending.');
+        expect(root.textContent).toContain('This ends when you listen to it, mark it listened, or replace it.');
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Open to listen', 'Mark listened']));
+        expect(root.textContent).not.toContain('Your last episode is not marked as listened');
+        expect(root.querySelector('[role="status"].ai-organiser-catchup-waiting')).toBeTruthy();
+    });
+
+    it('smart daily with several unheard episodes names them all', async () => {
+        snapshotRef.value = snapshot({
+            plan: plan(['2026-10-23']), state: 'pending', autoPendingDays: 1,
+            unheard: [episode('20261020-100000-aaaa', '2026-10-17', '2026-10-18'), episode('20261021-100000-bbbb', '2026-10-19', '2026-10-21')],
+        });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily' }));
+        expect(root.textContent).toContain('Waiting: 2 episodes are unheard, 1 day pending.');
+        expect(root.textContent).toContain('This ends when you listen to each one, mark them listened, or replace them.');
+        expect(root.textContent).toContain('2026-10-19 → 2026-10-21');
+        expect(root.textContent).toContain('2026-10-17 → 2026-10-18');
+        expect(root.querySelectorAll('.ai-organiser-catchup-waiting-episode')).toHaveLength(2);
+    });
+
+    it('with automatic replacement on, says the episode will be replaced instead of claiming to wait', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22', '2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')], autoPendingDays: 2 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily', newsletterCatchUpWhenBehind: 'replace' }));
+        expect(root.textContent).toContain('Your unheard episode is replaced at a fetch once that is safe: it is not playing, was not played in the last day, and is more than half a day old.');
+        expect(root.textContent).not.toContain('Waiting:');
+    });
+
+    it('on demand never claims to be waiting', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')], autoPendingDays: 1 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'on-demand' }));
+        expect(root.textContent).not.toContain('Waiting:');
+        expect(root.textContent).toContain('Your last episode is not marked as listened');
+    });
+
     it('an unheard episode shows a warning ABOVE Generate, with Mark listened', async () => {
         snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
         const { root } = await open();
@@ -236,7 +321,7 @@ describe('nothing to generate', () => {
         const { root } = await open();
         expect(root.textContent).toContain('You are caught up through 2026-10-23.');
         expect(buttons(root)).not.toContain('Generate');
-        expect(buttons(root)).toEqual(expect.arrayContaining(['Open latest episode', 'Include again…']));
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Open to listen', 'Include again…']));
     });
 
     it('Include again re-reads with the latest episode\'s dates and the window can then generate', async () => {
@@ -371,6 +456,303 @@ describe('an unfinished operation', () => {
     });
 });
 
+describe('honest labels', () => {
+    it('Open to listen opens the note AND gets the window out of the way', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
+        const p = plugin();
+        const { root } = await open(p);
+        click(root, 'Open to listen');
+        await flush();
+        const openLinkText = (p as never as { app: { workspace: { openLinkText: ReturnType<typeof vi.fn> } } }).app.workspace.openLinkText;
+        expect(openLinkText).toHaveBeenCalledWith('Catch-up/e1.md', '', false);
+        expect(root.childElementCount).toBe(0); // the window closed
+    });
+
+    it('a note that cannot be opened keeps the window open', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
+        const p = plugin();
+        (p as never as { app: { workspace: { openLinkText: ReturnType<typeof vi.fn> } } }).app.workspace.openLinkText.mockRejectedValue(new Error('gone'));
+        const { root } = await open(p);
+        click(root, 'Open to listen');
+        await flush();
+        expect(buttons(root)).toContain('Mark listened');
+    });
+
+    it('the three old open buttons are one label everywhere', async () => {
+        snapshotRef.value = snapshot({ state: 'caught-up', latestEpisode: episode('e1', '2026-10-20', '2026-10-22') });
+        const { root } = await open();
+        expect(buttons(root)).toContain('Open to listen');
+        expect(buttons(root).some((b) => /Open (latest )?episode/.test(b ?? ''))).toBe(false);
+    });
+
+    it('a screen never offers Open to listen twice for the same episode', async () => {
+        const ep = episode('e1', '2026-10-20', '2026-10-22');
+        snapshotRef.value = snapshot({ state: 'caught-up', unheard: [ep], latestEpisode: ep });
+        const { root } = await open();
+        expect(buttons(root).filter((b) => b === 'Open to listen')).toHaveLength(1);
+        // A different latest episode is a different note, so it keeps its own button.
+        snapshotRef.value = snapshot({ state: 'caught-up', unheard: [ep], latestEpisode: episode('e2', '2026-10-23', '2026-10-23') });
+        const second = await open();
+        expect(buttons(second.root).filter((b) => b === 'Open to listen')).toHaveLength(2);
+    });
+
+    it('says in one line that marking listened concerns only this episode', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
+        const { root } = await open();
+        expect(root.textContent).toContain('Marking listened only concerns this episode.');
+    });
+});
+
+describe('replacing an unheard episode', () => {
+    const cand = (id: string, extra: Record<string, unknown> = {}) => ({
+        id, noteName: `Catch-up 2026-10-19 to 2026-10-21 ${id}.md`, audioName: `catchup-${id}-abcd1234.mp3`, audioBytes: 3355443,
+        from: '2026-10-19', to: '2026-10-21', dates: ['2026-10-19', '2026-10-20', '2026-10-21'], inboundLinks: 0, meta: {}, ...extra,
+    });
+    const ready = (cands: unknown[], over: Record<string, unknown> = {}) => ({
+        ok: true,
+        value: {
+            kind: 'ready', candidates: cands, lostDays: [], episodeIds: (cands as Array<{ id: string }>).map((c) => c.id),
+            preview: { plan: plan(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']) }, ...over,
+        },
+    });
+    const done = { ok: true, value: { episode: { opId: 'op', notePath: 'Catch-up/N.md', audioPath: 'A.mp3', minutes: 14.2, from: '2026-10-19', to: '2026-10-23', days: 5, sources: 10, created: true }, retired: [{ id: 'e1', note: 'trashed', audio: 'trashed' }] } };
+
+    beforeEach(() => {
+        prepareReplace.mockReset();
+        replaceAndRunCatchUp.mockReset();
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')] });
+    });
+
+    it('is offered next to an unheard episode, worded for one or many', async () => {
+        const { root } = await open();
+        expect(buttons(root)).toContain('Replace my unheard episode with one fresh catch-up covering everything');
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-17', '2026-10-18'), episode('e2', '2026-10-19', '2026-10-21')] });
+        const second = await open();
+        expect(buttons(second.root)).toContain('Replace my 2 unheard episodes with one fresh catch-up covering everything');
+    });
+
+    it('is not offered when nothing is unheard', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending' });
+        const { root } = await open();
+        expect(buttons(root).some((b) => /^Replace my/.test(b ?? ''))).toBe(false);
+    });
+
+    it('checks first, then names every file that goes to the trash and previews what is made BEFORE any spend', async () => {
+        let release: (v: unknown) => void = () => undefined;
+        prepareReplace.mockReturnValue(new Promise((r) => { release = r; }));
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await flush();
+        expect(root.textContent).toContain('Checking what can be replaced…');
+        expect(root.querySelector('[role="status"]')).toBeTruthy();
+        release(ready([cand('e1')]));
+        await vi.waitFor(() => expect(root.textContent).toContain('Replace your unheard episode?'));
+        expect(root.textContent).toContain('These go to your trash:');
+        expect(root.textContent).toContain('Catch-up 2026-10-19 to 2026-10-21 e1.md · catchup-e1-abcd1234.mp3 (3.2 MB)');
+        expect(root.textContent).toContain('Then one new episode covers 5 days · 10 newsletters');
+        expect(root.textContent).toContain('Length: about 20 min');
+        expect(root.textContent).toContain('Voice cost: about $0.04');
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Keep it', 'Replace and generate']));
+        expect(replaceAndRunCatchUp).not.toHaveBeenCalled();
+    });
+
+    it('Keep it leaves everything untouched', async () => {
+        prepareReplace.mockResolvedValue(ready([cand('e1')]));
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Keep it'));
+        click(root, 'Keep it');
+        await flush();
+        expect(replaceAndRunCatchUp).not.toHaveBeenCalled();
+        expect(root.textContent).toContain('Your last episode is not marked as listened');
+    });
+
+    it('confirming runs the frozen target set with the previewed hash, then says the old episode is in the trash', async () => {
+        prepareReplace.mockResolvedValue(ready([cand('e1')]));
+        replaceAndRunCatchUp.mockResolvedValue(done);
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
+        click(root, 'Replace and generate');
+        await vi.waitFor(() => expect(replaceAndRunCatchUp).toHaveBeenCalledTimes(1));
+        expect(replaceAndRunCatchUp.mock.calls[0][1]).toMatchObject({ episodeIds: ['e1'], previewHash: 'abcd1234', acceptLostDays: false, purpose: 'manual' });
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready — about 14 min covering 5 days · 10 newsletters.'));
+        expect(root.textContent).toContain('The old episode is in your trash.');
+    });
+
+    it('lost days are shown, and confirming accepts them', async () => {
+        prepareReplace.mockResolvedValue(ready([cand('e1')], { lostDays: ['2026-10-19'] }));
+        replaceAndRunCatchUp.mockResolvedValue(done);
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
+        expect(root.textContent).toContain('1 of its days cannot be made again (2026-10-19)');
+        expect(root.textContent).toContain('The written briefs stay.');
+        click(root, 'Replace and generate');
+        await vi.waitFor(() => expect(replaceAndRunCatchUp.mock.calls[0][1]).toMatchObject({ acceptLostDays: true }));
+    });
+
+    it('warns when other notes link to the files', async () => {
+        prepareReplace.mockResolvedValue(ready([cand('e1', { inboundLinks: 2 })]));
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(root.textContent).toContain('2 other notes link to these files, and those links will break.'));
+    });
+
+    it('a blocked replacement says why in plain words and offers nothing destructive', async () => {
+        prepareReplace.mockResolvedValue({ ok: true, value: { kind: 'blocked', refused: [{ id: 'e1', reason: 'playing-now' }, { id: 'e2', reason: 'index-not-ready' }] } });
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(root.textContent).toContain('Nothing was replaced'));
+        expect(root.textContent).toContain('It is playing right now.');
+        expect(root.textContent).toContain('Obsidian is still checking your notes');
+        expect(buttons(root)).not.toContain('Replace and generate');
+        click(root, 'Close');
+    });
+
+    it('a partial retirement is reported honestly after the episode is saved', async () => {
+        prepareReplace.mockResolvedValue(ready([cand('e1')]));
+        replaceAndRunCatchUp.mockResolvedValue({ ...done, value: { ...done.value, retired: [{ id: 'e1', noteName: 'Catch-up e1.md', audioName: 'catchup-e1-abcd1234.mp3', note: 'trashed', audio: 'failed' }] } });
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
+        click(root, 'Replace and generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        expect(root.textContent).toContain('The old episode could not be fully moved to your trash: catchup-e1-abcd1234.mp3.');
+        expect(root.textContent).not.toContain('in your trash.');
+    });
+
+    it('a refusal at run time shows readable guidance, never a code', async () => {
+        prepareReplace.mockResolvedValue(ready([cand('e1')]));
+        replaceAndRunCatchUp.mockResolvedValue({ ok: false, error: 'catchup-replace-unsafe' });
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
+        click(root, 'Replace and generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('could not be replaced, so nothing was changed'));
+        expect(root.textContent).not.toContain('catchup-replace-unsafe');
+    });
+});
+
+describe('tidying the superseded daily audio', () => {
+    const tidyFile = (d: string) => ({ date: d, name: `brief-${d}-abcd1234.mp3`, path: `R/${d}/brief-${d}-abcd1234.mp3`, bytes: 524288, mtime: 1, narratedRev: null, digestPath: `R/Digest — ${d}.md`, briefHash: 'aa' });
+    const tidy = { files: [tidyFile('2026-10-21'), tidyFile('2026-10-22')], bytes: 1048576, days: ['2026-10-21', '2026-10-22'] };
+    const done = { ok: true, value: { opId: 'op-1', notePath: 'Catch-up/N.md', audioPath: 'A.mp3', minutes: 14.2, from: '2026-10-21', to: '2026-10-23', days: 3, sources: 6, created: true } };
+    const box = (root: HTMLElement) => root.querySelector('.ai-organiser-catchup-tidy input') as HTMLInputElement | null;
+
+    beforeEach(() => {
+        runDailyAudioTidy.mockReset();
+        runCatchUp.mockReset();
+        runCatchUp.mockResolvedValue(done);
+    });
+
+    it('offers a checkbox, ON by default, naming how many files and how much space', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        const { root } = await open();
+        expect(root.textContent).toContain('Also remove the daily audio for these days (2 files, 1.0 MB)');
+        expect(box(root)!.type).toBe('checkbox');
+        expect(box(root)!.checked).toBe(true);
+        expect(root.querySelector('.ai-organiser-catchup-tidy label input')).toBeTruthy();
+    });
+
+    it('is absent when there is no daily audio to tidy', async () => {
+        const { root } = await open();
+        expect(box(root)).toBeNull();
+        expect(root.textContent).not.toContain('Also remove the daily audio');
+    });
+
+    it('runs AFTER the episode is saved, for exactly the consented files, and reports it', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 2, removedBytes: 1048576, daysDone: ['2026-10-21', '2026-10-22'], skipped: [], halted: null } } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(runDailyAudioTidy).toHaveBeenCalledTimes(1));
+        expect(runCatchUp.mock.invocationCallOrder[0]).toBeLessThan(runDailyAudioTidy.mock.invocationCallOrder[0]);
+        expect(runDailyAudioTidy.mock.calls[0][1]).toEqual({ files: tidy.files, episodeId: 'op-1' });
+        await vi.waitFor(() => expect(root.textContent).toContain('Removed the daily audio for 2 days (1.0 MB). The written briefs stay.'));
+    });
+
+    it('unticked means nothing is removed', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        const { root } = await open();
+        const b = box(root)!;
+        b.checked = false;
+        b.dispatchEvent(new Event('change'));
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        expect(runDailyAudioTidy).not.toHaveBeenCalled();
+    });
+
+    it('a failed generation never tidies', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runCatchUp.mockResolvedValue({ ok: false, error: 'catchup-tts-failed' });
+        const { root } = await open();
+        click(root, 'Generate');
+        await flush(); await flush();
+        expect(runDailyAudioTidy).not.toHaveBeenCalled();
+    });
+
+    it('a partial tidy is a warning AFTER the saved episode, never a failure of it', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 1, removedBytes: 524288, daysDone: ['2026-10-21'], skipped: [{ name: 'x', reason: 'protected' }], halted: null } } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        expect(root.textContent).toContain('1 of 2 daily audio files were left in place.');
+        expect(root.querySelector('.ai-organiser-catchup-banner.is-warn')).toBeTruthy();
+    });
+
+    it('halting part-way is NOT success even if some files were removed, and says why', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 1, removedBytes: 524288, daysDone: ['2026-10-21'], skipped: [{ name: 'b', reason: 'linked-elsewhere' }], halted: 'changed-during-tidy' } } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('1 of 2 daily audio files were left in place.'));
+        expect(root.textContent).toContain('Some are linked from other notes.');
+        expect(root.textContent).toContain('Your notes changed while this ran, so it stopped.');
+        expect(root.textContent).not.toContain('Removed the daily audio for');
+    });
+
+    it('a tidy skipped because the index was not ready says so', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'skipped', reason: 'index-not-ready' } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Obsidian was still checking your notes.'));
+    });
+
+    it('a tidy that throws or is skipped is reported the same way, and the episode stays saved', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockRejectedValue(new Error('boom'));
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('The daily audio could not be fully checked, so some files may still be there.'));
+        expect(root.textContent).toContain('Episode ready');
+        expect(root.textContent).not.toMatch(/\d of \d daily audio files/);
+    });
+
+    it('Replace offers the same option and tidies after the replacement', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')] });
+        prepareReplace.mockResolvedValue({
+            ok: true,
+            value: {
+                kind: 'ready', lostDays: [], episodeIds: ['e1'],
+                candidates: [{ id: 'e1', noteName: 'n.md', audioName: 'a.mp3', audioBytes: 10, from: '2026-10-19', to: '2026-10-21', dates: [], inboundLinks: 0, meta: {} }],
+                preview: { plan: plan(['2026-10-19', '2026-10-20', '2026-10-21']), tidy },
+            },
+        });
+        replaceAndRunCatchUp.mockResolvedValue({ ok: true, value: { episode: done.value, retired: [{ id: 'e1', noteName: 'n.md', audioName: 'a.mp3', note: 'trashed', audio: 'trashed' }] } });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 2, removedBytes: 1048576, daysDone: ['2026-10-21', '2026-10-22'], skipped: [], halted: null } } });
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
+        expect(root.textContent).toContain('Also remove the daily audio for these days (2 files, 1.0 MB)');
+        click(root, 'Replace and generate');
+        await vi.waitFor(() => expect(runDailyAudioTidy).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(root.textContent).toContain('The old episode is in your trash. Removed the daily audio for 2 days'));
+    });
+});
+
 describe('generating', () => {
     const done = { ok: true, value: { opId: 'op', notePath: 'Catch-up/N.md', audioPath: 'A.mp3', minutes: 14.2, from: '2026-10-21', to: '2026-10-23', days: 3, sources: 6, created: true } };
 
@@ -381,7 +763,7 @@ describe('generating', () => {
         await vi.waitFor(() => expect(runCatchUp).toHaveBeenCalledTimes(1));
         expect(runCatchUp.mock.calls[0][1]).toMatchObject({ previewHash: 'abcd1234', interactive: true });
         await vi.waitFor(() => expect(root.textContent).toContain('Episode ready — about 14 min covering 3 days · 6 newsletters.'));
-        expect(buttons(root)).toContain('Open episode note');
+        expect(buttons(root)).toContain('Open to listen');
     });
 
     it('a sub-minute episode never reads "about 0 min"', async () => {
@@ -519,5 +901,77 @@ describe('failures and lifecycle', () => {
         modal.close();
         const answer = await (modal as never as { renderOverrun(i: unknown): Promise<string> }).renderOverrun({ estimatedMinutes: 20, capMinutes: 15 });
         expect(answer).toBe('cancel');
+    });
+});
+
+describe('left-out days are described honestly', () => {
+    const pendingSnap = (over: Record<string, unknown> = {}) => snapshot({
+        plan: plan(['2026-10-22']), state: 'pending',
+        pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19', '2026-10-20'], coveredDates: [], openDates: [] },
+        ...over,
+    });
+
+    it('a day with a digest but no daily brief is not called "not stored"', async () => {
+        snapshotRef.value = pendingSnap({ noBriefDates: ['2026-10-20'] });
+        const { root } = await open();
+        expect(root.textContent).toContain('No newsletters stored for 2026-10-19.');
+        expect(root.textContent).toContain('The newsletters for 2026-10-20 have no daily brief yet, so there is nothing to turn into audio.');
+        expect(root.textContent).not.toContain('No newsletters stored for 2026-10-19, 2026-10-20');
+    });
+
+    it('with no digest at all for any day the wording is unchanged', async () => {
+        snapshotRef.value = pendingSnap();
+        const { root } = await open();
+        expect(root.textContent).toContain('No newsletters stored for 2026-10-19, 2026-10-20.');
+        expect(root.textContent).not.toContain('no daily brief yet');
+    });
+
+    it('neither note appears once you are caught up (nothing to explain)', async () => {
+        snapshotRef.value = snapshot({
+            latestEpisode: episode('e1', '2026-10-20', '2026-10-22'),
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19', '2026-10-20'], coveredDates: [], openDates: [] },
+            noBriefDates: ['2026-10-20'],
+        });
+        const { root } = await open();
+        expect(root.textContent).toContain('You are caught up');
+        expect(root.textContent).not.toContain('No newsletters stored');
+        expect(root.textContent).not.toContain('no daily brief yet');
+    });
+
+    it('Include again says what it does', async () => {
+        snapshotRef.value = snapshot({ latestEpisode: episode('e1', '2026-10-20', '2026-10-22') });
+        const { root } = await open();
+        expect(root.textContent).toContain('Include again makes another episode for the days of your last one.');
+    });
+
+    it('no hint when there is no episode to include again', async () => {
+        snapshotRef.value = snapshot();
+        const { root } = await open();
+        expect(root.textContent).not.toContain('Include again makes another');
+    });
+});
+
+describe('progress and failure wording for the voice step', () => {
+    it('the voice step is never "part 0 of N": it starts as "Making the audio" and then counts parts', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22']), state: 'pending' });
+        runCatchUp.mockResolvedValue({ ok: true, value: { opId: 'o', notePath: 'Catch-up/x.md', audioPath: 'a.mp3', minutes: 3, from: '2026-10-21', to: '2026-10-22', days: 2, sources: 4, created: true } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        const resolve = progressOpts.value!.resolvePhase;
+        expect(resolve({ key: 'synthesising', params: { done: 0, total: 1 } })).toBe('Making the audio… this can take a minute or two.');
+        expect(resolve({ key: 'synthesising', params: { done: 2, total: 3 } })).toBe('Narrating part 2 of 3…');
+        expect(resolve({ key: 'synthesising', params: { done: 0, total: 1 } })).not.toMatch(/part 0/);
+    });
+
+    it('a failed voice step says the service may be busy, and to resume later', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22']), state: 'pending' });
+        runCatchUp.mockResolvedValue({ ok: false, error: 'catchup-tts-failed' });
+        const { root } = await open();
+        click(root, 'Generate');
+        await flush(); await flush();
+        expect(root.textContent).toContain('voice service may be busy');
+        expect(root.textContent).toContain('resume in a few minutes');
+        expect(root.textContent).not.toContain('catchup-tts-failed');
     });
 });

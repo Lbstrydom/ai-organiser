@@ -14,6 +14,7 @@ import {
     buildEpisodeNote,
     buildEpisodeFrontmatter,
     parseEpisodeContent,
+    markAudioRemovedText,
     episodeFolderPath,
     loadEpisodes,
     findLatestEpisode,
@@ -141,6 +142,78 @@ describe('episode note content', () => {
     it('a single-day episode heading is a plain date', () => {
         const note = buildEpisodeNote(input({ from: '2026-10-23', to: '2026-10-23' }));
         expect(note).toContain('# Newsletter catch-up — 2026-10-23\n');
+    });
+
+    it('an episode made without per-day titles is the original note, byte for byte', () => {
+        const note = buildEpisodeNote(input({ coverage: { '2026-10-21': { kind: 'revision', rev: 3 }, '2026-10-22': { kind: 'whole' } }, audio: 'catchup-x.mp3', minutes: 14.34, titles: ['A one', 'B two'], script: 'Hello.' }));
+        expect(note).toBe([
+            '---',
+            'aio_type: newsletter-catchup',
+            'catchup_id: 20261023-081502-a1b2',
+            "catchup_from: '2026-10-21'",
+            "catchup_to: '2026-10-23'",
+            'catchup_coverage:',
+            "  '2026-10-21': 3",
+            "  '2026-10-22': whole",
+            'catchup_audio: catchup-x.mp3',
+            'catchup_fingerprint: c3d4e5f6',
+            'catchup_minutes: 14.3',
+            'catchup_sources: 9',
+            '---',
+            '',
+            '# Newsletter catch-up — 2026-10-21 → 2026-10-23',
+            '',
+            '🎧 **Listen:** ![[catchup-x.mp3]]',
+            '',
+            '## Covered stories',
+            '',
+            '- A one',
+            '- B two',
+            '',
+            '> [!note]- Transcript',
+            '> Hello.',
+            '',
+        ].join('\n'));
+    });
+
+    describe('with per-day titles (the newer template)', () => {
+        const days = [{ date: '2026-10-22', titles: ['B two'] }, { date: '2026-10-21', titles: ['A one', 'A two'] }];
+
+        it('groups the covered stories under a heading per day, oldest first', () => {
+            const note = buildEpisodeNote(input({ dayTitles: days }));
+            expect(note).toContain('## Covered stories\n\n### 2026-10-21\n\n- A one\n- A two\n\n### 2026-10-22\n\n- B two\n\n> [!note]- Transcript');
+        });
+
+        it('leaves a day with no title out, and the whole list out when no day has one', () => {
+            expect(buildEpisodeNote(input({ dayTitles: [{ date: '2026-10-21', titles: ['  '] }, { date: '2026-10-22', titles: ['B two'] }] }))).not.toContain('### 2026-10-21');
+            expect(buildEpisodeNote(input({ dayTitles: [{ date: '2026-10-21', titles: [] }] }))).not.toContain('## Covered stories');
+        });
+
+        it('a hostile title still cannot inject structure', () => {
+            const note = buildEpisodeNote(input({ dayTitles: [{ date: '2026-10-21', titles: ['x\n## injected\n---'] }] }));
+            expect(note).toContain('- x ## injected ---');
+            expect(note).not.toMatch(/^## injected/m);
+        });
+
+        it('carries the class that hides the internal property rows, and still parses as an episode', () => {
+            const note = buildEpisodeNote(input({ dayTitles: days }));
+            const fm = yaml.load(/^---\n([\s\S]*?)\n---/.exec(note)![1]) as Record<string, unknown>;
+            expect(fm.cssclasses).toEqual(['ai-organiser-catchup-episode']);
+            const meta = parseEpisodeContent(note, 'p.md')!;
+            expect(meta.id).toBe('20261023-081502-a1b2');
+            expect(meta.coverage).toEqual(input().coverage);
+        });
+
+        it('the original template never gets the class', () => {
+            expect(buildEpisodeFrontmatter(input()).cssclasses).toBeUndefined();
+        });
+
+        it('audio removal still works on a newer note', () => {
+            const note = buildEpisodeNote(input({ dayTitles: days }));
+            const res = markAudioRemovedText(note, input().audio, '2026-11-01', 'Audio removed');
+            expect(res.ok).toBe(true);
+            if (res.ok) expect(res.value).toContain('catchup_audio_removed');
+        });
     });
 
     it('garbage and non-episode notes parse to null', () => {

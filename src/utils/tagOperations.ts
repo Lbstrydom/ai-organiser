@@ -8,7 +8,7 @@ export class TagOperations {
 
     constructor(app: App) {
         this.app = app;
-        this.batchProcessor = new BatchProcessor();
+        this.batchProcessor = new BatchProcessor({ announceResult: false }); // the clear commands report the result (with protected-folder counts) themselves
     }
 
     /**

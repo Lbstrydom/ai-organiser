@@ -3,7 +3,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import * as crypto from 'node:crypto';
-import { checkMountFolder, collisionName, isSafeFileName, placeFile, resolveDestination } from '../src/services/offload/localMount';
+import { checkMountFolder, checkMountFolderWithin, collisionName, isSafeFileName, placeFile, resolveDestination } from '../src/services/offload/localMount';
 import { hashStream, streamFingerprinter, type NodeDeps } from '../src/services/offload/fingerprint';
 
 // The mount code idles with window timers (Obsidian popout-window safe); node has no window.
@@ -222,5 +222,69 @@ describe('fingerprint', () => {
 		const ctl = new AbortController();
 		ctl.abort();
 		expect(await streamFingerprinter(deps)(file, { signal: ctl.signal })).toEqual({ ok: false, error: 'cancelled' });
+	});
+});
+
+describe('checkMountFolderWithin', () => {
+	it('answers like checkMountFolder when the folder answers in time', async () => {
+		const res = await checkMountFolderWithin(deps, mount);
+		expect(res.ok && res.value).toBe(fs.realpathSync(mount));
+		expect(await checkMountFolderWithin(deps, path.join(tmp, 'nope'))).toEqual({ ok: false, error: 'mount-missing' });
+	});
+
+	it('gives up with mount-slow when the probe hangs, and ignores its late answer', async () => {
+		vi.useFakeTimers();
+		try {
+			let release = (): void => undefined;
+			const hang = new Promise<string>((_, reject) => { release = () => reject(new Error('gone')); });
+			const slowDeps = { ...deps, fs: { promises: { realpath: () => hang, stat: () => hang } } } as unknown as NodeDeps;
+			const pending = checkMountFolderWithin(slowDeps, mount, undefined, 5000);
+			await vi.advanceTimersByTimeAsync(5000);
+			expect(await pending).toEqual({ ok: false, error: 'mount-slow' });
+			release(); // the abandoned probe finally settles, so it stops counting against the limit
+			await vi.advanceTimersByTimeAsync(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it('does not leave its timer running after a prompt answer', async () => {
+		vi.useFakeTimers();
+		try {
+			await checkMountFolderWithin(deps, mount, undefined, 5000);
+			expect(vi.getTimerCount()).toBe(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});
+
+describe('checkMountFolderWithin bounds abandoned probes', () => {
+	it('reuses a pending probe for the same folder, and refuses more than three unresolved', async () => {
+		vi.useFakeTimers();
+		try {
+			let calls = 0;
+			let release = (): void => undefined;
+			const hang = new Promise<string>((_, reject) => { release = () => reject(new Error('gone')); });
+			const slowDeps = { ...deps, fs: { promises: { realpath: () => { calls++; return hang; }, stat: () => hang } } } as unknown as NodeDeps;
+			const ask = async (root: string): Promise<unknown> => {
+				const pending = checkMountFolderWithin(slowDeps, root, undefined, 1000);
+				await vi.advanceTimersByTimeAsync(1000);
+				return pending;
+			};
+			const a = path.join(tmp, 'a');
+			expect(await ask(a)).toEqual({ ok: false, error: 'mount-slow' });
+			expect(await ask(a)).toEqual({ ok: false, error: 'mount-slow' });
+			expect(calls).toBe(1); // the second click reused the first probe
+			await ask(path.join(tmp, 'b'));
+			await ask(path.join(tmp, 'c'));
+			expect(calls).toBe(3);
+			expect(await ask(path.join(tmp, 'd'))).toEqual({ ok: false, error: 'mount-slow' });
+			expect(calls).toBe(3); // a fourth unresolved probe was refused, not started
+			release();
+			await vi.advanceTimersByTimeAsync(0);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 });

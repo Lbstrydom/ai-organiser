@@ -52,6 +52,7 @@ function plugin(over: Record<string, unknown> = {}) {
 const snapshot = (days: number, unheard = 0) => ({
     plan: days === 0 ? null : { entries: Array.from({ length: days }, (_, i) => ({ date: `2026-10-2${i}`, newsletters: 2 })) },
     unheard: Array.from({ length: unheard }, (_, i) => ({ id: `e${i}` })),
+    skipped: [] as Array<{ date: string; reason: string }>,
 });
 
 beforeEach(() => {
@@ -128,6 +129,42 @@ describe('CatchUpStatusBar', () => {
         await settle();
         expect(item.hidden).toBe(false);
         expect(item.attrs['aria-label']).toBe('2 not listened');
+        bar.dispose();
+    });
+
+    it('says in the tooltip how many days were left out because they were listened to', async () => {
+        snap.value = { ...snapshot(2, 0), skipped: [{ date: '2026-10-21', reason: 'heard-daily-audio' }, { date: '2026-10-22', reason: 'heard-daily-audio' }, { date: '2026-10-23', reason: 'open-day' }] } as never;
+        const { p, item } = plugin();
+        const bar = new CatchUpStatusBar(p);
+        bar.mount();
+        bar.refresh();
+        await settle();
+        expect(item.attrs.title).toContain('2 days left out because you already listened to them');
+        expect(item.attrs['aria-label']).toContain('2 days left out because you already listened to them');
+        bar.dispose();
+    });
+
+    it('smart daily waiting: says so plainly in the label and the accessible name', async () => {
+        snap.value = { ...snapshot(2, 1), autoPendingDays: 2 } as never;
+        const { p, item } = plugin({ newsletterAudioMode: 'smart-daily' });
+        const bar = new CatchUpStatusBar(p);
+        bar.mount();
+        bar.refresh();
+        await settle();
+        expect(item.attrs['aria-label']).toBe('Waiting: last episode unheard · 2 days pending');
+        expect(item.attrs.title).toContain('This ends when you listen to it, mark it listened, or replace it.');
+        bar.dispose();
+    });
+
+    it('other modes keep the unchanged label even with an unheard episode', async () => {
+        snap.value = { ...snapshot(2, 1), autoPendingDays: 2 } as never;
+        const { p, item } = plugin({ newsletterAudioMode: 'on-demand' });
+        const bar = new CatchUpStatusBar(p);
+        bar.mount();
+        bar.refresh();
+        await settle();
+        expect(item.attrs['aria-label']).toContain('1 not listened');
+        expect(item.attrs['aria-label']).not.toContain('Waiting');
         bar.dispose();
     });
 

@@ -63,18 +63,26 @@ export function insertContentIntoTranslatePrompt(prompt: string, content: string
 
 /**
  * Defensive sanitiser for values interpolated into XML-tagged prompt sections.
- * Strips angle brackets entirely so the input cannot close the surrounding tag
- * and inject competing instructions. Article titles never legitimately contain
- * `<` or `>` — stripping is safer than substitution because the LLM echoes the
- * sanitised input back in its translation, so any artificial glyph (zero-width
- * space, entity reference) would corrupt the emitted heading.
+ * Removes the angle brackets of anything that looks like a tag, and any `<` that
+ * tries to close one, so the input cannot close the surrounding tag and inject
+ * competing instructions. Stripping is safer than substitution because the LLM
+ * echoes the sanitised input back in its translation, so any artificial glyph
+ * (zero-width space, entity reference) would corrupt the emitted heading.
+ *
+ * A bare `<` or `>` that is not part of a tag ("a < b", "x>y") is kept: it cannot
+ * alter the prompt's structure, and deleting it changed what the title says.
  *
  * Intentionally minimal — full prompt-escape architecture across all translate
  * prompts is tracked separately; this hardens only `buildTitleTranslationPrompt`
  * which is the new code path on this branch.
  */
 function escapePromptValue(value: string): string {
-    return value.replaceAll(/[<>]/g, '');
+    return value
+        // A real tag (`<tag>`, `</tag>`, `<br/>`, `<a href="x">`, `<!-- -->`, `<?pi?>`): drop the brackets, keep the words (as before).
+        // Plain words between a `<` and a later `>` ("x<y and p>q") are comparison text, not a tag, and stay.
+        .replaceAll(/<(\/?[A-Za-z][\w:-]*(?:\s+[^<>=]*=[^<>]*)?\/?|[!?][^<>]*)>/g, '$1')
+        // An attempt to close a tag that the first rule did not pair up: `< /title`, `</title` with no `>`.
+        .replaceAll(/<(?=\s*\/)/g, '');
 }
 
 /**

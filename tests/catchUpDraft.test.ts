@@ -262,3 +262,25 @@ describe('acknowledgements', () => {
         expect(Object.keys(await loadAcks(p as never))).toEqual(['new']);
     });
 });
+
+describe('per-day titles in a stored record', () => {
+    it('a record made before them has none, so it keeps the original episode template', () => {
+        const coerced = coerceRecord(structuredClone(record()));
+        expect(coerced).not.toBeNull();
+        expect('dayTitles' in coerced!.frozen).toBe(false);
+    });
+
+    it('survives a round trip', () => {
+        const r = record();
+        r.frozen.dayTitles = [{ date: '2026-10-22', titles: ['A fictional story'] }, { date: '2026-10-23', titles: [] }];
+        expect(coerceRecord(structuredClone(r))!.frozen.dayTitles).toEqual(r.frozen.dayTitles);
+    });
+
+    it('drops malformed days without rejecting the record', () => {
+        const raw = structuredClone(record()) as unknown as { frozen: Record<string, unknown> };
+        raw.frozen.dayTitles = [{ date: '2026-10-22', titles: ['ok', 7] }, { date: 'yesterday', titles: ['x'] }, { date: '2026-10-23' }, null, 'junk'];
+        const coerced = coerceRecord(raw);
+        expect(coerced).not.toBeNull();
+        expect(coerced!.frozen.dayTitles).toEqual([{ date: '2026-10-22', titles: ['ok'] }]);
+    });
+});
