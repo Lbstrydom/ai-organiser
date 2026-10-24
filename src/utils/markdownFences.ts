@@ -17,7 +17,15 @@ interface OpenFence {
     container: number;
 }
 
-const OPENER = /^( *)(?:((?:[-*+]|\d{1,9}[.)])( +))?)(`{3,}|~{3,})(.*)$/;
+/** Replace leading spaces and tabs by the equivalent number of spaces (tab stops every 4 columns). */
+function expandLeadingWhitespace(line: string): string {
+    const lead = /^[ \t]*/.exec(line)?.[0] ?? '';
+    let column = 0;
+    for (const ch of lead) column = ch === '\t' ? column + 4 - (column % 4) : column + 1;
+    return ' '.repeat(column) + line.slice(lead.length);
+}
+
+const OPENER =/^( *)(?:((?:[-*+]|\d{1,9}[.)])( +))?)(`{3,}|~{3,})(.*)$/;
 
 export class FenceTracker {
     private fence: OpenFence | null = null;
@@ -25,7 +33,7 @@ export class FenceTracker {
     /** Feed the next line. True when it is a fence delimiter or inside a fenced block. */
     next(rawLine: string): boolean {
         this.justOpened = false;
-        const line = rawLine.replace(/\r$/, '').replace(/^\t+/, tabs => ' '.repeat(4 * tabs.length));
+        const line = expandLeadingWhitespace(rawLine.replace(/\r$/, ''));
         const indent = line.length - line.trimStart().length;
 
         if (this.fence) {
@@ -46,7 +54,9 @@ export class FenceTracker {
         if (lead.length > 3) return false;
         // A backtick fence's info string may not contain a backtick.
         if (ticks[0] === '`' && info.includes('`')) return false;
-        const container = marker ? lead.length + marker.length - gap.length + (gap.length >= 5 ? 1 : gap.length) : 0;
+        // Five or more spaces after a list marker: the content starts with indented code.
+        if (marker && gap.length >= 5) return false;
+        const container = marker ? lead.length + marker.length : 0;
         this.fence = { char: ticks[0], len: ticks.length, container };
         this.justOpened = true;
         return true;
