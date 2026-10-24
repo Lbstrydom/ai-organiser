@@ -36,6 +36,7 @@ import { RESEARCH_SOFT_BUDGET_MS, RESEARCH_HARD_BUDGET_MS } from '../../services
 import { getExtendDisplayMs } from '../../services/chat/presentationConstants';
 
 import { guardActiveNote } from '../../utils/protectedGuard';
+import { addUrlsToPendingSection } from '../../utils/pendingSection';
 const PHASE_ORDER: ResearchPhase[] = ['idle', 'searching', 'continuing', 'reviewing', 'extracting', 'synthesizing', 'done'];
 
 const HIGHLIGHT_EQUAL_RE = /==([^=][\s\S]*?)==/g;
@@ -894,15 +895,12 @@ export class ResearchModeHandler implements ChatModeHandler {
         const t = ctx.plugin.t.modals.unifiedChat as Record<string, string>;
         const editor = cb.getEditor();
         if (!editor) return;
-        const urls = this.selectedUrls.map(u => `- ${u}`).join('\n');
         const doc = editor.getValue();
-        if (doc.includes('## Pending')) {
-            if (!guardActiveNote(editor)) return;
-            editor.setValue(doc.replace(/(## Pending\n)/, (_m: string, head: string) => `${head}${urls}\n`));
-        } else {
-            if (!guardActiveNote(editor)) return;
-            editor.setValue(doc + '\n\n## Pending\n' + urls + '\n');
-        }
+        const next = addUrlsToPendingSection(doc, this.selectedUrls);
+        // Nothing to add: write nothing and do not report success.
+        if (next === doc) return;
+        if (!guardActiveNote(editor)) return;
+        editor.setValue(next);
         cb.notify(t.savedToPending || 'Source URLs saved to Pending section');
     }
 

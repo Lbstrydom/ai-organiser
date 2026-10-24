@@ -4,6 +4,7 @@
  */
 
 import { getLanguageNameForPrompt } from '../languages';
+import { fillTrailingSlot } from './promptParts';
 
 /**
  * Structured summary response format
@@ -120,6 +121,6 @@ export function insertContentIntoStructuredPrompt(
     promptTemplate: string,
     content: string
 ): string {
-    // Replacer function: insert the text literally (a string would expand `$&`, `$1`, `$$`, ...).
-    return promptTemplate.replace('{{CONTENT}}', () => content);
+    // Last sentinel = the real slot; inserted literally (no `$` expansion).
+    return fillTrailingSlot(promptTemplate, '{{CONTENT}}', content);
 }

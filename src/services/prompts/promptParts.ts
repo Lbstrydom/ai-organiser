@@ -21,3 +21,17 @@ export interface PromptParts {
 export function joinPromptParts(stablePrefix: string | undefined, prompt: string): string {
     return stablePrefix ? `${stablePrefix}\n\n${prompt}` : prompt;
 }
+
+/**
+ * Fill a template's own content slot. The slot is always the LAST occurrence of the
+ * sentinel: every variable field (persona, user focus, language, context, chunk
+ * position) is rendered before it, and only fixed template text follows. Replacing the
+ * first occurrence instead lets a persona or focus string that contains the sentinel
+ * steal the insertion. Inserted literally (no `$` expansion); a template without the
+ * sentinel is returned unchanged.
+ */
+export function fillTrailingSlot(template: string, sentinel: string, text: string): string {
+    const at = template.lastIndexOf(sentinel);
+    if (at === -1) return template;
+    return template.slice(0, at) + text + template.slice(at + sentinel.length);
+}

@@ -5,7 +5,7 @@
  * The personaPrompt field should be passed directly from the caller.
  */
 
-import { PromptParts, joinPromptParts } from './promptParts';
+import { PromptParts, joinPromptParts, fillTrailingSlot } from './promptParts';
 
 export interface SummaryPromptOptions {
   length: 'brief' | 'standard' | 'detailed';
@@ -223,14 +223,14 @@ SECTIONS_PLACEHOLDER
 }
 
 export function insertContentIntoPrompt(prompt: string, content: string): string {
-  // A replacer function inserts the text literally; a string replacement would expand
-  // `$&`, `$1`, `$$`, `$` + backtick and `$'` found in the document.
-  return prompt.replace('CONTENT_PLACEHOLDER', () => content);
+  // The slot is the template's last sentinel, so persona / focus text containing the
+  // sentinel cannot intercept it; the text is inserted literally (no `$` expansion).
+  return fillTrailingSlot(prompt, 'CONTENT_PLACEHOLDER', content);
 }
 
 export function insertSectionsIntoPrompt(prompt: string, sections: string[]): string {
   const formattedSections = sections
     .map((s, i) => `[Section ${i + 1}/${sections.length}]\n${s}`)
     .join('\n\n');
-  return prompt.replace('SECTIONS_PLACEHOLDER', () => formattedSections);
+  return fillTrailingSlot(prompt, 'SECTIONS_PLACEHOLDER', formattedSections);
 }

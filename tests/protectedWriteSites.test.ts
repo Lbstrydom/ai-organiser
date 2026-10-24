@@ -51,7 +51,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/ui/modals/MermaidChatModal.ts': { count: 3, cls: 'guarded', reason: 'editor writes call guardActiveNote' },
 	'src/ui/modals/QuickPeekModal.ts': { count: 2, cls: 'guarded', reason: 'editor writes call guardActiveNote' },
 	'src/ui/modals/UnifiedChatModal.ts': { count: 3, cls: 'guarded', exempt: 1, reason: 'insert calls guardActiveNote; vault.create is the chat export under the chat output root' },
-	'src/ui/chat/ResearchModeHandler.ts': { count: 5, cls: 'guarded', exempt: 2, reason: 'insert calls guardActiveNote; vault.create/modify target the research output note' },
+	'src/ui/chat/ResearchModeHandler.ts': { count: 4, cls: 'guarded', exempt: 2, reason: 'insert calls guardActiveNote; vault.create/modify target the research output note' },
 	'src/main.ts': { count: 3, cls: 'guarded', reason: 'suggested title and folder renames call assertWritable; createFolder is for the suggested folder' },
 	'src/commands/notebookLMCommands.ts': { count: 2, cls: 'guarded', reason: 'selection-tag writes call assertWritable' },
 	'src/services/notebooklm/selectionService.ts': { count: 3, cls: 'guarded', reason: 'selection-tag writes call assertWritableActive' },

@@ -4,9 +4,100 @@
  */
 
 import { App, TFolder, Notice } from 'obsidian';
+import * as yaml from 'js-yaml';
 import type AIOrganiserPlugin from '../main';
 import type { BasesTemplate } from './configurationService';
 import { logger } from '../utils/logger';
+
+function isMapping(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Parse a .base document that must be a single YAML mapping; otherwise throw. */
+function parseBaseMapping(content: string): Record<string, unknown> {
+    let parsed: unknown;
+    try {
+        parsed = yaml.load(content);
+    } catch (error) {
+        throw new Error(`Dashboard template is not valid YAML: ${error instanceof Error ? error.message : String(error)}`);
+    }
+    if (!isMapping(parsed)) {
+        throw new Error('Dashboard template is not valid YAML: the document must be a mapping');
+    }
+    return parsed;
+}
+
+/**
+ * Structural check for a .base document. Accepts the native Bases shape (a `views`
+ * list) and the plugin's template dialect (`name` + `columns`); unrelated keys are
+ * allowed. Returns null when valid, otherwise a short reason.
+ */
+export function validateBaseContent(content: string): string | null {
+    let root: Record<string, unknown>;
+    try {
+        root = parseBaseMapping(content);
+    } catch (error) {
+        return error instanceof Error ? error.message : String(error);
+    }
+    const hasViews = Array.isArray(root.views) && root.views.length > 0
+        && root.views.every(v => isMapping(v) && typeof v.type === 'string' && v.type.trim() !== '');
+    const hasTemplateShape = typeof root.name === 'string' && root.name.trim() !== ''
+        && Array.isArray(root.columns) && root.columns.length > 0;
+    if (!hasViews && !hasTemplateShape) {
+        return 'it needs a views list (each view with a type), or a name and a columns list';
+    }
+    const filtered = [root, ...(Array.isArray(root.views) ? root.views : [])];
+    for (const holder of filtered) {
+        if (isMapping(holder) && holder.filters !== undefined && holder.filters !== null && !isFilterNode(holder.filters)) {
+            return 'filters must be text or an and/or/not group of filters';
+        }
+    }
+    return null;
+}
+
+/** A Bases filter: an expression string, or a group whose keys are and / or / not holding filter lists. */
+function isFilterNode(node: unknown): boolean {
+    return filterHeight(node, new Set(), new Map()) >= 0;
+}
+
+const MAX_FILTER_DEPTH = 32;
+
+/**
+ * Height of a valid filter subtree (0 for a string, 1 + deepest child for a group), or -1
+ * when it is invalid. YAML aliases can turn the value into a graph, so cycles on the active
+ * path and nesting beyond MAX_FILTER_DEPTH are rejected, and each shared node is measured
+ * once (its height is memoised, so the depth limit still applies through every alias).
+ */
+function filterHeight(node: unknown, path: Set<object>, heights: Map<object, number>): number {
+    if (typeof node === 'string') return node.trim() !== '' ? 0 : -1;
+    if (!isMapping(node)) return -1;
+    const known = heights.get(node);
+    if (known !== undefined) return path.size + known > MAX_FILTER_DEPTH ? -1 : known;
+    if (path.has(node) || path.size >= MAX_FILTER_DEPTH) return -1;
+    const keys = Object.keys(node);
+    if (keys.length === 0) return -1;
+    path.add(node);
+    let height = 1;
+    for (const key of keys) {
+        const group = node[key];
+        if (!(key === 'and' || key === 'or' || key === 'not') || !Array.isArray(group)) {
+            height = -1;
+            break;
+        }
+        for (const child of group) {
+            const childHeight = filterHeight(child, path, heights);
+            if (childHeight < 0) {
+                height = -1;
+                break;
+            }
+            height = Math.max(height, childHeight + 1);
+        }
+        if (height < 0) break;
+    }
+    path.delete(node);
+    if (height >= 0) heights.set(node, height);
+    return height;
+}
 
 export interface DashboardCreationOptions {
     /** Template to use */
@@ -92,39 +183,70 @@ export class DashboardService {
             return content;
         }
 
-        // Escape any quotes in the folder path
-        const escapedPath = folderPath.replace(/"/g, '\\"');
-        const folderFilter = `file.inFolder("${escapedPath}")`;
+        // Bases string literal: backslash and quote are escaped here; the YAML layer
+        // (single quotes doubled, etc.) is done by the serializer below.
+        const folderFilter = `file.inFolder("${folderPath.replaceAll('\\', '\\\\').replaceAll('"', '\\"')}")`;
 
-        // Check if content has a filters line (simple string format)
-        const filtersMatch = content.match(/^filters:\s*'(.+)'$/m);
-
-        if (filtersMatch) {
-            // Simple string filter - combine with AND
-            const existingFilter = filtersMatch[1];
-            const newFilters = `filters:\n  and:\n    - '${folderFilter}'\n    - '${existingFilter}'`;
-            return content.replace(/^filters:\s*'.+'$/m, () => newFilters);
+        const before = parseBaseMapping(content);
+        const existing = before.filters;
+        let scoped: unknown;
+        if (existing === undefined || existing === null) {
+            scoped = folderFilter;
+        } else if (isMapping(existing) && Object.keys(existing).length === 1 && Array.isArray(existing.and)) {
+            scoped = { and: [folderFilter, ...existing.and] };
+        } else {
+            scoped = { and: [folderFilter, existing] };
         }
 
-        // Check for filters with and/or structure
-        const filtersAndMatch = content.match(/^(filters:\s*\n\s+and:)\s*\n(\s+- )/m);
-        if (filtersAndMatch) {
-            // Insert folder filter before first item in and: array
-            return content.replace(
-                /^(filters:\s*\n\s+and:)\s*\n(\s+- )/m,
-                (_m: string, head: string, indent: string) => `${head}\n    - '${folderFilter}'\n${indent}`
-            );
+        const eol = content.includes('\r\n') ? '\r\n' : '\n';
+        const rendered = yaml
+            .dump({ filters: scoped }, { quotingType: "'", forceQuotes: true, lineWidth: -1 })
+            .replaceAll('\n', eol);
+        const lines = content.split('\n');
+
+        // The top-level `filters` entry: a column-0 line, plain or quoted key.
+        const keyLine = /^["']?filters["']?[ \t]*:/;
+        const at = lines.flatMap((l, i) => (keyLine.test(l) ? [i] : []));
+        if ('filters' in before && at.length !== 1) {
+            throw new Error('Dashboard template cannot be scoped to the folder: unsupported filters layout');
         }
 
-        // No existing filters - add one before columns
-        const columnsMatch = content.match(/^columns:/m);
-        if (columnsMatch && columnsMatch.index !== undefined) {
-            const beforeColumns = content.substring(0, columnsMatch.index);
-            const afterColumns = content.substring(columnsMatch.index);
-            return `${beforeColumns}filters: '${folderFilter}'\n${afterColumns}`;
+        let out: string;
+        if (at.length === 1) {
+            // Replace the whole entry: its line plus the indented lines that belong to it.
+            let end = at[0] + 1;
+            for (let i = at[0] + 1; i < lines.length; i++) {
+                if (/^[ \t]+\S/.test(lines[i])) end = i + 1;
+                else if (lines[i].trim() !== '') break;
+            }
+            out = [...lines.slice(0, at[0]), rendered.slice(0, -1), ...lines.slice(end)].join('\n');
+        } else {
+            const columnsAt = lines.findIndex(l => /^columns[ \t]*:/.test(l));
+            if (columnsAt === -1) {
+                out = content + (content.endsWith('\n') ? '' : eol) + rendered;
+            } else {
+                out = [...lines.slice(0, columnsAt), rendered.slice(0, -1), ...lines.slice(columnsAt)].join('\n');
+            }
         }
 
-        return content;
+        // Verify before emitting: one filters entry holding the intended value, everything
+        // else exactly as parsed from the template.
+        let reason = '';
+        try {
+            const after = parseBaseMapping(out);
+            const rest = { ...before };
+            const afterRest = { ...after };
+            delete rest.filters;
+            delete afterRest.filters;
+            if (JSON.stringify(after.filters) !== JSON.stringify(scoped)) reason = 'filters did not survive the edit';
+            else if (JSON.stringify(afterRest) !== JSON.stringify(rest)) reason = 'other settings changed';
+        } catch (error) {
+            reason = error instanceof Error ? error.message : String(error);
+        }
+        if (reason) {
+            throw new Error(`Dashboard template cannot be scoped to the folder: ${reason}`);
+        }
+        return out;
     }
     
     /**
@@ -189,9 +311,10 @@ export class DashboardService {
                 return false;
             }
             
-            // Validate YAML structure (basic check)
-            if (!content.includes('---') || !content.includes('name:') || !content.includes('columns:')) {
-                new Notice('Invalid dashboard format. Must contain YAML frontmatter with name and columns.');
+            // Validate the YAML structure
+            const invalid = validateBaseContent(content);
+            if (invalid) {
+                new Notice(`Invalid dashboard format: ${invalid}. Fix the YAML and try again.`);
                 return false;
             }
             

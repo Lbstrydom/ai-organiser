@@ -2,6 +2,8 @@
  * Translation Prompts
  */
 
+import { fillTrailingSlot } from './promptParts';
+
 export interface TranslatePromptOptions {
     targetLanguage: string;
     sourceType?: string;
@@ -55,9 +57,8 @@ CONTENT_PLACEHOLDER
 }
 
 export function insertContentIntoTranslatePrompt(prompt: string, content: string): string {
-    // Replacer function form — string-form replacement parses $&, $', $`, $n
-    // as regex backreferences which corrupts content containing those tokens.
-    return prompt.replace('CONTENT_PLACEHOLDER', () => content);
+    // Last sentinel = the real slot; inserted literally (no `$` expansion).
+    return fillTrailingSlot(prompt, 'CONTENT_PLACEHOLDER', content);
 }
 
 /**
