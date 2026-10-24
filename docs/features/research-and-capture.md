@@ -563,15 +563,83 @@ point is the status-bar item `N days pending` (desktop; mobile uses the command)
 ### Not built (deliberately)
 
 Chapters (no navigable seek mechanism in the native player), archive-covered, a USD ceiling setting,
-automatic multi-part episodes, cross-device locking, **marking a brief as read when its digest is opened**
-(needs a second consumption channel so reading never suppresses audio the reader has not heard — its own
-plan), and episode retention.
+automatic multi-part episodes, cross-device locking, and episode retention. (Marking a brief read is the
+separate **read signal** below, which is a second channel so reading never suppresses audio.)
 
 ### Tests
 
 `tests/{newsletterAudioMode,newsletterAudioModeMigration,newsletterLegacyAudioParity,newsletterAudioServiceParity,catchUpCoverage,catchUpSelection,catchUpEpisode,catchUpDraft,catchUpEpisodeAudio,catchUpPrompts,catchUpService,catchUpConsumption,catchUpAudioRemoved,catchUpCleanup,catchUpRuntime,catchUpModalState,newsletterCatchUpModal,catchUpStatusBar,newsletterCatchUpCommands,newsletterCatchUpPicker,newsletterCatchUpSettings}.test.ts`.
 The two `*Parity` files are the byte-identical proof for `daily` mode — captured against the unchanged code
 before it was refactored.
+
+## Newsletter read signal (the written brief adapts to what was read)
+
+**Plan**: [docs/plans/newsletter-read-signal.md](../plans/newsletter-read-signal.md)
+
+With on-demand audio there is no daily playback signal, so the written brief could not tell which stories the
+reader had already consumed. The read signal is a **second, read-only consumption channel**, folded into the
+recall join for the **written brief only** and for **prior-day buckets only**. The brief prompt is unchanged:
+a read story lands in the already-told lists, and the existing "running stories shrink" rule compresses it.
+
+### Setting (`newsletterReadMode`, default `off`, needs story memory)
+
+| Mode | What counts as read |
+|---|---|
+| `off` | Nothing collected, nothing used — **byte-identical** (proved by `tests/newsletterReadOffParity.test.ts`, baseline recorded before the feature) |
+| `explicit` | The `Mark newsletter brief as read` command on a digest note |
+| `read-through` | The command, plus the Reading-view detector |
+
+A value outside the shipped set is coerced to `off` by `migrateNewsletterAudioSettings`.
+
+### Where things live
+
+- `newsletterReadSignal.ts` — the store (`newsletter-read-briefs`, in `DATA_ONLY_KEYS`) and the pure rules.
+  **Credit is by content identity, not revision**: a rendered note carries no revision and a revision number is
+  meaningless against another device's ledger. A mark is a `ReadObservation` (the stories parsed from the
+  displayed brief block); `buildReadCredit` credits a ledger story only when a displayed story matches it
+  (key equality, then the merge's similarity matcher, used only to locate) **and the gist fingerprint is equal**.
+  Stored as `[hash(key), hash(gist)]` pairs: no timestamps, titles or text. Two projections per bucket date
+  (`keys` = background known, `texts` = exact text seen) feed recall, so a changed gist is `continuing`, never `unheard`.
+- `newsletterRecall.ts` — `selectRecall(..., read?)` ORs the read predicates with the heard ones;
+  `selectGenerationRecalls` returns `briefRecall` (sees reads) and `audioRecall` (heard-only).
+- `newsletterReadSession.ts` — the pure attentive-dwell machine (fake-clock testable).
+- `ui/components/briefReadObserver.ts` — the DOM glue (one gated call in the existing markdown post-processor in `main.ts`).
+
+### The two decisions behind one seam each
+
+1. **Scope of effect = prior days.** `READ_CREDITS_CURRENT_BUCKET` / `readAppliesToBucket` in
+   `newsletterReadSignal.ts`. A same-day read compressing the afternoon regeneration would leave the reader's own
+   note without the stories they read that morning (the digest note is also the day's archive).
+2. **Catch-up and podcast audio are read-blind.** `READ_AFFECTS_AUDIO_RECALL` in `newsletterRecall.ts`; the catch-up
+   runtime never receives a read state. `tests/newsletterReadCatchUpParity.test.ts` drives the real catch-up path.
+
+### What counts as a read-through (Reading view only)
+
+A session is bound to one **rendered instance** (the view's container): attentive time of
+`clamp(2.5 s × stories, 20 s, 120 s)` that accrues only while the page is visible, the window focused, the view is the
+**active leaf**, and that container produced activity within 30 s; at least 3 distinct activity bursts; and the last
+story of the brief has been on screen. The snapshot comes from `getSectionInfo(el).text` (the whole note the render
+came from), never stitched from section callbacks. Dwell is in memory only. The session is a render-scoped
+`MarkdownRenderChild`; every commit re-checks eligibility and the **collection generation** (bumped on any mode
+change, "Forget what I have read", story memory off and unload) inside the serialized plugin-data write, so a
+session that qualified earlier cannot commit after a purge or mode switch. Live Preview and Source never run a
+session (the explicit command still works). Leaning toward false negatives is deliberate: a wrongly-read story is
+suppressed and the reader never learns they missed it; a wrongly-unread one is merely retold.
+
+### Failure behaviour
+
+`commitReadObservation` / `clearReadState` / `NewsletterService.markBriefRead` return `Result`; a rejected save means
+nothing was recorded (a false negative). Multi-device: credit only accumulates and is by hash, so a divergent ledger
+cannot credit unseen stories. Backfill: none (use `newsletter-mark-caught-up`).
+
+### Not built
+
+Per-story link tracking, persisted dwell/scroll, reading statistics, a per-story read log with timing, inference from
+file history, a checkbox in the note, read-aware catch-up audio, "since you last read" prompt framing, cross-device merge.
+
+### Tests
+
+`tests/{newsletterReadOffParity,newsletterReadSignal,newsletterReadSession,newsletterReadService,newsletterReadCatchUpParity,briefReadObserver}.test.ts`.
 
 ## Newsletter Story Memory (consumption-aware) + local-news fairness
 
