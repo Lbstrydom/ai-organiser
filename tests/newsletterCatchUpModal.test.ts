@@ -268,7 +268,7 @@ describe('the window', () => {
         const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily' }));
         expect(root.textContent).toContain('Waiting: your last episode is unheard, 2 days pending.');
         expect(root.textContent).toContain('This ends when you listen to it, mark it listened, or replace it.');
-        expect(buttons(root)).toEqual(expect.arrayContaining(['Open episode', 'Mark listened']));
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Open to listen', 'Mark listened']));
         expect(root.textContent).not.toContain('Your last episode is not marked as listened');
         expect(root.querySelector('[role="status"].ai-organiser-catchup-waiting')).toBeTruthy();
     });
@@ -319,7 +319,7 @@ describe('nothing to generate', () => {
         const { root } = await open();
         expect(root.textContent).toContain('You are caught up through 2026-10-23.');
         expect(buttons(root)).not.toContain('Generate');
-        expect(buttons(root)).toEqual(expect.arrayContaining(['Open latest episode', 'Include again…']));
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Open to listen', 'Include again…']));
     });
 
     it('Include again re-reads with the latest episode\'s dates and the window can then generate', async () => {
@@ -451,6 +451,42 @@ describe('an unfinished operation', () => {
         await flush(); await flush();
         const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
         expect(last.forceDates).toBeUndefined();
+    });
+});
+
+describe('honest labels', () => {
+    it('Open to listen opens the note AND gets the window out of the way', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
+        const p = plugin();
+        const { root } = await open(p);
+        click(root, 'Open to listen');
+        await flush();
+        const openLinkText = (p as never as { app: { workspace: { openLinkText: ReturnType<typeof vi.fn> } } }).app.workspace.openLinkText;
+        expect(openLinkText).toHaveBeenCalledWith('Catch-up/e1.md', '', false);
+        expect(root.childElementCount).toBe(0); // the window closed
+    });
+
+    it('a note that cannot be opened keeps the window open', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
+        const p = plugin();
+        (p as never as { app: { workspace: { openLinkText: ReturnType<typeof vi.fn> } } }).app.workspace.openLinkText.mockRejectedValue(new Error('gone'));
+        const { root } = await open(p);
+        click(root, 'Open to listen');
+        await flush();
+        expect(buttons(root)).toContain('Mark listened');
+    });
+
+    it('the three old open buttons are one label everywhere', async () => {
+        snapshotRef.value = snapshot({ state: 'caught-up', latestEpisode: episode('e1', '2026-10-20', '2026-10-22') });
+        const { root } = await open();
+        expect(buttons(root)).toContain('Open to listen');
+        expect(buttons(root).some((b) => /Open (latest )?episode/.test(b ?? ''))).toBe(false);
+    });
+
+    it('says in one line that marking listened concerns only this episode', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
+        const { root } = await open();
+        expect(root.textContent).toContain('Marking listened only concerns this episode.');
     });
 });
 
@@ -714,7 +750,7 @@ describe('generating', () => {
         await vi.waitFor(() => expect(runCatchUp).toHaveBeenCalledTimes(1));
         expect(runCatchUp.mock.calls[0][1]).toMatchObject({ previewHash: 'abcd1234', interactive: true });
         await vi.waitFor(() => expect(root.textContent).toContain('Episode ready — about 14 min covering 3 days · 6 newsletters.'));
-        expect(buttons(root)).toContain('Open episode note');
+        expect(buttons(root)).toContain('Open to listen');
     });
 
     it('a sub-minute episode never reads "about 0 min"', async () => {

@@ -387,19 +387,23 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                     }));
 
             if (this.plugin.settings.newsletterStoryMemory !== false) {
+                // One map of the three "mark as" ideas, once, where all of them live.
+                new Setting(this.containerEl)
+                    .setName(nl?.listenReadKnown || 'How listened, read and known fit together')
+                    .setDesc(nl?.listenReadKnownDesc || '');
                 this.renderReadSignal(nl);
                 new Setting(this.containerEl)
-                    .setName(nl?.markCaughtUp || 'Mark all caught up')
-                    .setDesc(nl?.markCaughtUpDesc || 'Tell the brief you are up to date, so earlier stories stop being repeated.')
+                    .setName(nl?.markCaughtUp || 'Mark all stories as already known')
+                    .setDesc(nl?.markCaughtUpDesc || 'Known: tell the brief you already know every earlier story, so it stops retelling them.')
                     .addButton(btn => btn
-                        .setButtonText(nl?.markCaughtUpButton || 'Mark caught up')
+                        .setButtonText(nl?.markCaughtUpButton || 'Mark as known')
                         .onClick(async () => {
                             btn.setDisabled(true);
                             try {
                                 const { runMarkCaughtUp } = await import('../../commands/newsletterCommands');
                                 await runMarkCaughtUp(this.plugin);
                             } finally {
-                                btn.setDisabled(false).setButtonText(nl?.markCaughtUpButton || 'Mark caught up');
+                                btn.setDisabled(false).setButtonText(nl?.markCaughtUpButton || 'Mark as known');
                             }
                         }));
             }

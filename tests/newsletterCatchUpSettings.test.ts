@@ -245,6 +245,24 @@ describe('catch-up controls', () => {
     });
 });
 
+describe('the listened / read / known map', () => {
+    it('is shown once, in the memory block, and the known control is named plainly', () => {
+        render({ newsletterAudioMode: 'on-demand', newsletterStoryMemory: true });
+        expect(recorded.items.filter((i) => i.name === 'How listened, read and known fit together')).toHaveLength(1);
+        const map = find('How listened, read and known fit together')!;
+        expect(map.desc).toMatch(/Listened: you played a catch-up episode/);
+        expect(map.desc).toMatch(/Read: you read a written brief/);
+        expect(map.desc).toMatch(/Known: you tell the brief you already know every earlier story/);
+        expect(names()).toContain('Mark all stories as already known');
+        expect(names()).not.toContain('Mark all caught up');
+    });
+
+    it('is absent when story memory is off (none of the three concerns it)', () => {
+        render({ newsletterAudioMode: 'on-demand', newsletterStoryMemory: false });
+        expect(names()).not.toContain('How listened, read and known fit together');
+    });
+});
+
 describe('When I am behind', () => {
     it('is offered only in smart daily, with the default selected', () => {
         render({ newsletterAudioMode: 'smart-daily' });

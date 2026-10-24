@@ -898,6 +898,8 @@ export interface Translations {
             forgetReadDone: string;
             briefMarkedRead: string;      // "{n}" stories newly counted
             briefAlreadyRead: string;
+            listenReadKnown: string;
+            listenReadKnownDesc: string;
             markCaughtUp: string;
             markCaughtUpDesc: string;
             markCaughtUpButton: string;
@@ -1812,6 +1814,7 @@ export interface Translations {
             includeAllOne: string;
             datesMore: string;            // "and {n} more"
             sizeUnknown: string;
+            markMapHint: string;
             tidyLabel: string;            // "Also remove the daily audio for these days ({count} files, {size})"
             tidyLabelOne: string;
             tidyDone: string;             // "{n}", "{size}"

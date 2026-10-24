@@ -61,7 +61,7 @@ export async function runRegenerateAudio(plugin: AIOrganiserPlugin): Promise<voi
     // "Regenerate today's audio" is the daily pipeline. When audio is made on demand it would
     // quietly produce a daily recording the catch-up never accounts for, so explain instead.
     if (plugin.settings.newsletterAudioPodcast && getAudioMode(plugin.settings) !== 'daily') {
-        new Notice(formatGuidance(describeError(plugin.t, 'catchup-wrong-mode')), 6000);
+        new Notice(formatGuidance(describeError(plugin.t, 'catchup-daily-only')), 6000);
         return;
     }
     if (!plugin.settings.newsletterAudioPodcast) {
@@ -378,7 +378,7 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'newsletter-mark-caught-up',
-        name: t.commands.newsletterMarkCaughtUp || 'Mark newsletters caught up',
+        name: t.commands.newsletterMarkCaughtUp || 'Mark all newsletter stories as already known',
         icon: 'check-check',
         callback: () => { void runMarkCaughtUp(plugin); },
     });
@@ -399,7 +399,7 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'newsletter-mark-catchup-listened',
-        name: t.commands.newsletterMarkCatchUpListened || 'Mark newsletter catch-up listened',
+        name: t.commands.newsletterMarkCatchUpListened || 'Mark this catch-up episode as listened',
         icon: 'check-circle-2',
         callback: () => { void guarded(plugin, 'mark listened', () => runMarkCatchUpListened(plugin)); },
     });
