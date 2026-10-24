@@ -342,11 +342,13 @@ title: My Book
             expect(result).toBe(existingContent);
         });
 
-        it('should skip note-only highlights (no text)', () => {
+        it('should keep note-only highlights (no text) in the Notes section, as the first import does', () => {
             const newHighlights = [makeHighlight({ text: '', note: 'Note only.' })];
             const result = appendHighlightsToExisting(existingContent, newHighlights, 'blockquote');
 
-            expect(result).toBe(existingContent);
+            expect(result).not.toBe(existingContent);
+            expect(result).toContain('> [!note] Page 42, Location 1406-1407\n> Note only.');
+            expect(result.indexOf('Note only.')).toBeGreaterThan(result.indexOf('## Notes'));
         });
 
         it('should format with the specified style', () => {
