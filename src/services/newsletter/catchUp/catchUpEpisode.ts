@@ -13,6 +13,7 @@ import { ensureFolderExists } from '../../../utils/minutesUtils';
 import { logger } from '../../../utils/logger';
 import { getMetadataIndexState } from '../../../utils/metadataIndexState';
 import { err, ok, type Result } from '../../../core/result';
+import { assertWritable, type ProtectedSource } from '../../../core/protectedPaths';
 import {
     buildEpisodeName,
     coverageToFrontmatter,
@@ -400,16 +401,37 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
     return unknown || indexIncomplete ? 'unknown' : 'no';
 }
 
+/** The stable code for "the folder episodes are saved in is protected" (see `GUIDANCE_CODES`). */
+export const OUTPUT_PROTECTED = 'catchup-output-protected';
+
+/**
+ * May this run write into the episode folder at all? Protection is folder-based, so the folder
+ * itself (inside or equal to a protected folder) answers it for every file the run will create.
+ * Checked before any spend, and again at each write: protection can change mid-run or between a
+ * run and its resume.
+ */
+export function assertEpisodeOutputWritable(source: ProtectedSource, outputRoot: string): Result<void> {
+    return assertWritable(source, 'create', episodeFolderPath(outputRoot)).ok ? ok(undefined) : err(OUTPUT_PROTECTED);
+}
+
 /**
  * Create the episode note — THE commit point. Idempotent by operation id: a note already
- * carrying this id is success, not a collision.
+ * carrying this id is success, not a collision. A protected episode folder refuses the write
+ * (throws `catchup-output-protected`), after the idempotency check so an already-saved episode
+ * still reports as saved.
  */
-export async function writeEpisodeNote(app: App, outputRoot: string, input: EpisodeNoteInput): Promise<{ path: string; created: boolean }> {
+export async function writeEpisodeNote(
+    app: App,
+    outputRoot: string,
+    input: EpisodeNoteInput,
+    protectedSource?: ProtectedSource,
+): Promise<{ path: string; created: boolean }> {
     const existing = await findEpisodeByOpId(app, outputRoot, input.id);
     if (existing) return { path: existing.notePath, created: false };
 
     const folder = episodeFolderPath(outputRoot);
     const path = normalizePath(`${folder}/${buildEpisodeName(input.from, input.to, input.id)}`);
+    if (protectedSource !== undefined && !assertWritable(protectedSource, 'create', path).ok) throw new Error(OUTPUT_PROTECTED);
     assertInside(outputRoot, folder);
     assertInside(outputRoot, path);
     await ensureFolderExists(app.vault, folder);

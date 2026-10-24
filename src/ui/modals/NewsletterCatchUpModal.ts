@@ -30,7 +30,7 @@ import {
 import { createCatchUpPorts, previewCost } from '../../services/newsletter/catchUp/catchUpRuntime';
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
 import { availabilityOf, deriveModalView, type ModalView } from '../../services/newsletter/catchUp/catchUpModalState';
-import { datesBetween, formatDates, formatPendingSummary } from '../../services/newsletter/catchUp/catchUpFormat';
+import { datesBetween, formatDates, formatEpisodeDone, formatPendingSummary } from '../../services/newsletter/catchUp/catchUpFormat';
 import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
@@ -48,6 +48,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     private banner: { text: string; tone: 'info' | 'warn' } | null = null;
     private overrunResolver: ((choice: OverrunChoice) => void) | null = null;
     private includeAgainDates: string[] | null = null;
+    /** Discard of an unfinished episode asks first: the written script has already been paid for. */
+    private confirmingDiscard = false;
     private closed = false;
     private refreshSeq = 0;
 
@@ -247,10 +249,19 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         this.contentEl.createEl('h3', { text: m.resumeTitle });
         this.note(view.phase === 'audio-ready' ? m.resumeAudioReady : m.resumeScripted);
         this.note(m.resumeRange.replace('{from}', view.from).replace('{to}', view.to));
+        if (this.confirmingDiscard) {
+            this.note(m.discardConfirm, 'is-warn');
+            const confirmRow = this.footer();
+            this.button(confirmRow, m.discardKeep, () => { this.confirmingDiscard = false; this.render(); }, true);
+            this.button(confirmRow, m.discard, () => { this.confirmingDiscard = false; void this.discard({ notice: true }); }, 'warning');
+            return;
+        }
         const footer = this.footer();
         this.button(footer, view.action === 'finish-saving' ? m.finishSaving : m.resume, () => { void this.resume(); }, true);
-        this.button(footer, m.startOver, () => { void this.discard(); });
-        this.button(footer, m.discard, () => { void this.discard(true); });
+        // Start over remakes the SAME days: they may no longer be pending (an "Include again" episode,
+        // or one made before a reload), so the range of the unfinished episode is re-offered in full.
+        this.button(footer, m.startOver, () => { void this.discard({ restartDates: datesBetween(view.from, view.to) }); });
+        this.button(footer, m.discard, () => { this.confirmingDiscard = true; this.render(); });
     }
 
     private renderCaughtUp(view: Extract<ModalView, { kind: 'caught-up' }>): void {
@@ -328,8 +339,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         return this.contentEl.createDiv({ cls: 'ai-organiser-catchup-actions' });
     }
 
-    private button(parent: HTMLElement, text: string, onClick: () => void, cta = false): HTMLButtonElement {
-        const btn = parent.createEl('button', { text, cls: cta ? 'mod-cta' : '' });
+    private button(parent: HTMLElement, text: string, onClick: () => void, emphasis: boolean | 'warning' = false): HTMLButtonElement {
+        const btn = parent.createEl('button', { text, cls: emphasis === 'warning' ? 'mod-warning' : emphasis ? 'mod-cta' : '' });
         btn.type = 'button';
         this.cleanups.push(listen(btn, 'click', onClick));
         return btn;
@@ -348,7 +359,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         await this.refresh();
     }
 
-    private async discard(withNotice = false): Promise<void> {
+    /** `restartDates`: Start over - the days to offer again once the record is gone. */
+    private async discard(opts: { notice?: boolean; restartDates?: string[] } = {}): Promise<void> {
         const res = await discardOperation(createCatchUpPorts(this.plugin));
         if (!res.ok) {
             // Keep the operation on screen: it is still there, and saying otherwise would be false.
@@ -356,8 +368,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             await this.refresh();
             return;
         }
-        this.banner = withNotice ? { text: this.plugin.t.modals.newsletterCatchUp.discarded, tone: 'info' } : null;
-        this.includeAgainDates = null;
+        this.banner = opts.notice ? { text: this.plugin.t.modals.newsletterCatchUp.discarded, tone: 'info' } : null;
+        this.includeAgainDates = opts.restartDates ?? null;
         this.plugin.refreshCatchUpStatus?.();
         await this.refresh();
     }
@@ -434,7 +446,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             this.includeAgainDates = null;
             const v = result.value;
             this.banner = {
-                text: m.done.replace('{minutes}', String(v.minutes)).replace('{days}', formatPendingSummary(this.plugin.t, v.days, v.sources)),
+                text: formatEpisodeDone(this.plugin.t, v.minutes, formatPendingSummary(this.plugin.t, v.days, v.sources)),
                 tone: 'info',
             };
             await this.refresh();

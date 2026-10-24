@@ -915,7 +915,9 @@ export interface Translations {
                 cleanupDays: string;
                 cleanupDaysDesc: string;
                 cleanupOff: string;
-                cleanupNotice: string;         // "{count}"
+                cleanupNotice: string;         // "{count}" (plural)
+                cleanupNoticeOne: string;      // exactly one episode
+                lookbackClampNote: string;     // "{n}" days actually kept
                 audioRemovedLine: string;      // "{date}"
             };
         };
@@ -1819,12 +1821,15 @@ export interface Translations {
             overrunBody: string;          // "It is about {estimated} min, and your limit is {cap} min."
             continueAnyway: string;
             shortenAgain: string;
-            done: string;                 // "Episode ready — {minutes} min covering {days}."
+            done: string;                 // "Episode ready — about {minutes} min covering {days}."
+            doneShort: string;            // a sub-minute episode: "... covering {days}."
             openNote: string;
             cancelledNoRecord: string;
             cancelledWithRecord: string;
             changedNotice: string;
             discarded: string;
+            discardConfirm: string;
+            discardKeep: string;
             wrongModeTitle: string;
             wrongModeBody: string;
             audioOffBody: string;
@@ -4213,6 +4218,7 @@ export interface Translations {
         localFolderDesc: string;
         localFolderPlaceholder: string;
         checkFolder: string;
+        checkingFolder: string;
         folderOk: string;
         offloadAction: string;
         modalTitle: string;

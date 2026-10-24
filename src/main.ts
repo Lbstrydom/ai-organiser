@@ -1610,7 +1610,7 @@ export default class AIOrganiserPlugin extends Plugin {
             }
             if (report && report.removed > 0) {
                 logger.debug('Newsletter', `Catch-up audio cleanup removed ${report.removed} audio file(s)`);
-                new Notice(m.cleanupNotice.replace('{count}', String(report.removed)), 6000);
+                new Notice((report.removed === 1 ? m.cleanupNoticeOne : m.cleanupNotice).replace('{count}', String(report.removed)), 6000);
             }
             if (outcome.kind === 'skipped' && outcome.reason !== 'off') logger.debug('Newsletter', `Catch-up audio cleanup skipped: ${outcome.reason}`);
         } catch (e) {

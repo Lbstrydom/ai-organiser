@@ -9987,6 +9987,10 @@
     margin-bottom: var(--size-4-1);
 }
 
+.ai-organiser-catchup-clamp-note.is-hidden {
+    display: none;
+}
+
 .ai-organiser-catchup-note {
     margin: var(--size-4-1) 0;
     color: var(--text-normal);

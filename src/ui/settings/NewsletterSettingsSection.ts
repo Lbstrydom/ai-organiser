@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
 import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
+import { lookbackClampNote } from '../../services/newsletter/catchUp/catchUpFormat';
 import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS, CATCHUP_CLEANUP_MAX_DAYS, normaliseCleanupDays } from '../../services/newsletter/catchUp/catchUpTypes';
 
 const APPS_SCRIPT_TEMPLATE = `// Handles both fetch and confirm via GET query params.
@@ -69,6 +70,9 @@ function doGet(e) {
 }`;
 
 export class NewsletterSettingsSection extends BaseSettingSection {
+    /** Re-evaluates the "retention shortens the catch-up window" note; set while the catch-up settings are shown. */
+    private refreshClampNote: (() => void) | null = null;
+
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
         super(plugin, containerEl, settingTab);
     }
@@ -431,6 +435,7 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .onChange(value => {
                     this.plugin.settings.newsletterRetentionDays = value;
                     void this.plugin.saveSettings();
+                    this.refreshClampNote?.();
                 }));
 
         // Auto-tag toggle
@@ -545,7 +550,16 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .onChange(value => {
                     settings.newsletterCatchUpLookbackDays = value;
                     void this.plugin.saveSettings();
+                    this.refreshClampNote?.();
                 }));
+        // Said where it is set, and as it changes: a retention period shorter than the window silently shortens it.
+        const clampNote = this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-catchup-clamp-note', attr: { role: 'status' } });
+        this.refreshClampNote = () => {
+            const text = lookbackClampNote(this.plugin.t, settings.newsletterCatchUpLookbackDays, settings.newsletterRetentionDays ?? 30);
+            clampNote.setText(text ?? '');
+            clampNote.toggleClass('is-hidden', text === null);
+        };
+        this.refreshClampNote();
 
         new Setting(this.containerEl)
             .setName(cu?.maxMins || 'Longest episode (minutes)')

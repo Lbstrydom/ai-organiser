@@ -38,9 +38,16 @@ export class CloudInventorySettingsSection extends BaseSettingSection {
             })
             .addButton((b) => b.setButtonText(o.checkFolder).onClick(() => {
                 void (async () => {
-                    const deps = nodeDeps();
-                    const res = deps ? await checkMountFolder(deps, pair.localMountFolder ?? '', basePath(this.plugin) ?? undefined) : null;
-                    status.setText(res?.ok ? o.folderOk : formatGuidance(describeError(this.plugin.t, res ? res.error : 'mount-invalid')));
+                    // A folder on a missing drive can take many seconds to answer: say so, and drop the old result.
+                    status.setText(o.checkingFolder);
+                    b.setDisabled(true);
+                    try {
+                        const deps = nodeDeps();
+                        const res = deps ? await checkMountFolder(deps, pair.localMountFolder ?? '', basePath(this.plugin) ?? undefined) : null;
+                        status.setText(res?.ok ? o.folderOk : formatGuidance(describeError(this.plugin.t, res ? res.error : 'mount-invalid')));
+                    } finally {
+                        b.setDisabled(false);
+                    }
                 })();
             }));
     }
