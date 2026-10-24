@@ -617,6 +617,22 @@ no sixth top-level stage — the stage vocabulary is shared with settings and CI
 point is the status-bar item `N days pending` (desktop; mobile uses the command), and the settings grew a
 "Catch-up audio" sub-heading inside the existing Newsletter section.
 
+### Surface polish
+
+- **Episode note template is versioned by the frozen plan.** A plan made now carries `dayTitles`, and its
+  note gets a dated covered list and `cssclasses: [ai-organiser-catchup-episode]` (the stylesheet hides the
+  internal `catchup_*` / `aio_type` / `cssclasses` rows and the file-name title, which carries the id, inside
+  that class). A draft saved before this has no `dayTitles` and is written with the original template, byte
+  for byte. **The file name keeps its id on purpose:** reconcile, Replace, cleanup and listening match the
+  file-name id to the frontmatter id (`parseEpisodeName`), and existing episodes use it.
+- **"Left out" days are told apart:** `noBriefDates` (a digest exists, no usable daily brief) versus not stored;
+  neither is shown once you are caught up.
+- **Daily mode previews the catch-up controls switched off** (one host group, every control disabled), so a Daily
+  user can see what On demand offers; nothing in it can change a stored value.
+- **Check folder** uses `checkMountFolderWithin` (5 s). The abandoned probe stays tracked, the same folder reuses
+  it, and at most 3 can be unresolved, so clicks on a dead drive cannot pile up work. The offload itself keeps
+  the unbounded check.
+
 ### Not built (deliberately)
 
 Chapters (no navigable seek mechanism in the native player), archive-covered, a USD ceiling setting,
@@ -625,7 +641,7 @@ separate **read signal** below, which is a second channel so reading never suppr
 
 ### Tests
 
-`tests/{catchUpLegacyHeard,catchUpSkipped,catchUpEvidenceDegraded,catchUpWaiting,catchUpReplace,catchUpTidy,catchUpPlayback,catchUpPlaybackTracker,catchUpWhenBehindParity,audioPlayerEnhancer}.test.ts` and
+`tests/{batchProcessorNotice,translatePromptsEscape,offloadLocalMount,catchUpLegacyHeard,catchUpSkipped,catchUpEvidenceDegraded,catchUpWaiting,catchUpReplace,catchUpTidy,catchUpPlayback,catchUpPlaybackTracker,catchUpWhenBehindParity,audioPlayerEnhancer}.test.ts` and
 `tests/{newsletterAudioMode,newsletterAudioModeMigration,newsletterLegacyAudioParity,newsletterAudioServiceParity,catchUpCoverage,catchUpSelection,catchUpEpisode,catchUpDraft,catchUpEpisodeAudio,catchUpPrompts,catchUpService,catchUpConsumption,catchUpAudioRemoved,catchUpCleanup,catchUpRuntime,catchUpModalState,newsletterCatchUpModal,catchUpStatusBar,newsletterCatchUpCommands,newsletterCatchUpPicker,newsletterCatchUpSettings}.test.ts`.
 The two `*Parity` files are the byte-identical proof for `daily` mode — captured against the unchanged code
 before it was refactored.

@@ -10124,7 +10124,10 @@
 	}
 }
 
-/* A catch-up episode note: the internal catchup_* property rows are not for the reader. */
-.ai-organiser-catchup-episode .metadata-property[data-property-key^="catchup_"] {
+/* A catch-up episode note: the internal property rows and the file-name title (which carries an id) are not for the reader; the heading below says the same in words. */
+.ai-organiser-catchup-episode .metadata-property[data-property-key^="catchup_"],
+.ai-organiser-catchup-episode .metadata-property[data-property-key="aio_type"],
+.ai-organiser-catchup-episode .metadata-property[data-property-key="cssclasses"],
+.ai-organiser-catchup-episode .inline-title {
 	display: none;
 }
