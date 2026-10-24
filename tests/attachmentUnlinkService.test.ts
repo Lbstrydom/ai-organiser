@@ -89,6 +89,8 @@ describe('planLinkRemoval', () => {
 		expect(planLinkRemoval('[[meeting.m4a|# Heading]]', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
 		expect(planLinkRemoval('[---](meeting.m4a)\nrest', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
 		expect(planOf('See [[meeting.m4a|# not at the start]]').nextText).toBe('See # not at the start');
+		// A bare = or - run would underline the line above into a setext heading.
+		expect(planLinkRemoval('Title\n[[meeting.m4a|===]]\nTail', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
 	});
 
 	it('treats a code span that crosses a line break as code', () => {

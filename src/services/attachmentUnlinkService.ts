@@ -119,7 +119,8 @@ const startsBlock = (line: string): boolean => BLOCK_START.test(line);
  * (a heading, a quote, a list item, a rule, a fence). Removal is refused rather than changing the note's structure.
  */
 function createsBlockSyntax(before: string, after: string): boolean {
-    const BLOCKY = /^[ \t]{0,3}(?:#{1,6}(?:[ \t]|$)|>|[-*+][ \t]|\d{1,9}[.)][ \t]|(?:[-*_][ \t]*){3,}$|`{3,}|~{3,}|\|)/;
+    // Includes a bare run of = or - (a setext heading underline), which turns the line above into a heading.
+    const BLOCKY = /^[ \t]{0,3}(?:#{1,6}(?:[ \t]|$)|>|[-*+][ \t]|\d{1,9}[.)][ \t]|(?:[-*_][ \t]*){3,}$|=+[ \t]*$|-+[ \t]*$|`{3,}|~{3,}|\|)/;
     return BLOCKY.test(after) && !BLOCKY.test(before);
 }
 
