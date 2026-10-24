@@ -90,6 +90,7 @@ export const GUIDANCE_CODES = [
     // Drive offload
     'mount-invalid',
     'mount-missing',
+    'mount-slow',
     'mount-inside-vault',
     'mount-vault-unverified',
     'name-invalid',

@@ -58,6 +58,40 @@ export async function checkMountFolder(deps: NodeDeps, mountRoot: string, vaultR
     }
 }
 
+/** How long the settings button waits for an answer from a folder (a drive that is not connected can take far longer). */
+export const MOUNT_CHECK_TIMEOUT_MS = 5000;
+/** Probes that may be unresolved at once: a dead drive ties up a file-system thread for each, so more are refused, not queued. */
+const MAX_PROBES_IN_FLIGHT = 3;
+const probesInFlight = new Map<string, Promise<Result<string>>>();
+
+/**
+ * `checkMountFolder` with a time limit, for a button the person is waiting on. The operating-system probe of
+ * a missing drive cannot be cancelled or shortened, so on a timeout the late answer is simply ignored; the probe
+ * stays tracked until it settles. Asking again about the same folder reuses it, and only a few can be unresolved
+ * at once, so repeated clicks cannot pile up work. The offload itself keeps the unbounded check: a slow answer
+ * there is still an answer, and nothing is written yet.
+ */
+export async function checkMountFolderWithin(deps: NodeDeps, mountRoot: string, vaultRoot?: string, ms: number = MOUNT_CHECK_TIMEOUT_MS): Promise<Result<string>> {
+    const key = `${mountRoot}
+${vaultRoot ?? ''}`;
+    let probe = probesInFlight.get(key);
+    if (!probe) {
+        if (probesInFlight.size >= MAX_PROBES_IN_FLIGHT) return err('mount-slow');
+        const started = checkMountFolder(deps, mountRoot, vaultRoot);
+        probe = started;
+        probesInFlight.set(key, started);
+        const forget = (): void => { if (probesInFlight.get(key) === started) probesInFlight.delete(key); };
+        started.then(forget, forget);
+    }
+    let timer: number | undefined;
+    const slow = new Promise<Result<string>>((resolve) => { timer = window.setTimeout(() => resolve(err('mount-slow')), ms); });
+    try {
+        return await Promise.race([probe, slow]);
+    } finally {
+        if (timer !== undefined) window.clearTimeout(timer);
+    }
+}
+
 /** True when a relative path climbs out of its root: a leading `..` segment, not a name that merely starts with dots. */
 function escapesRoot(deps: NodeDeps, rel: string): boolean {
     return rel === '..' || rel.startsWith(`..${deps.path.sep}`);

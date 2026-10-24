@@ -209,7 +209,11 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     /** Notes common to every state: days with nothing stored, expiry, the unheard warning. */
     private renderCommon(view: Exclude<ModalView, { kind: 'unavailable' }>, opts: { unheardWarning: boolean }): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
-        if (view.noStoredDates.length > 0) this.note(m.noStored.replace('{dates}', formatDates(this.plugin.t, view.noStoredDates)));
+        // Once you are caught up, a list of days that never had anything to cover is noise, not information.
+        if (view.kind !== 'caught-up') {
+            if (view.noStoredDates.length > 0) this.note(m.noStored.replace('{dates}', formatDates(this.plugin.t, view.noStoredDates)));
+            if (view.noBriefDates.length > 0) this.note(m.noBrief.replace('{dates}', formatDates(this.plugin.t, view.noBriefDates)));
+        }
         if (view.expiringDates.length > 0) this.note(m.expiring.replace('{dates}', formatDates(this.plugin.t, view.expiringDates)), 'is-warn');
         if (view.evidenceDegraded) this.note(this.plugin.t.modals.newsletterCatchUp.evidenceDegraded, 'is-warn');
         this.renderSkipped(view);
@@ -480,6 +484,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     /** Nothing pending: Generate is absent, but replaying and remaking stay reachable. */
     private renderReplayRow(latest: { notePath: string; coverage: Record<string, unknown> } | null, windowDates: readonly string[] = []): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
+        if (latest) this.note(m.includeAgainHint);
         const footer = this.footer();
         // Any day in the window can be brought back, not only the last episode's own range.
         if (windowDates.length > 0) {
@@ -682,7 +687,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
                 freezing: tp.catchUpFreezing,
                 writingScript: tp.catchUpWritingScript,
                 shorteningScript: tp.catchUpShortening,
-                synthesising: tp.catchUpSynthesising,
+                // Nothing is "part 0 of N": until the first part is done the voice is simply starting.
+                synthesising: Number(p.params?.done ?? 0) === 0 ? tp.catchUpSynthesisingStart : tp.catchUpSynthesising,
                 saving: tp.catchUpSaving,
             }[p.key];
             return Object.entries(p.params ?? {}).reduce((acc, [k, v]) => acc.replace(`{${k}}`, String(v)), text);

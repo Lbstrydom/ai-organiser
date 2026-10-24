@@ -4,6 +4,8 @@ export interface BatchProcessorOptions {
     batchSize: number;
     progressUpdateInterval: number;
     silent?: boolean;
+    /** Print the closing "Cleared N notes" notice. Off when the caller reports the result itself. */
+    announceResult?: boolean;
 }
 
 export interface BatchProcessResult {
@@ -22,6 +24,7 @@ export class BatchProcessor {
             batchSize: 10,
             progressUpdateInterval: 5000,
             silent: false,
+            announceResult: true,
             ...options
         };
     }
@@ -85,7 +88,7 @@ export class BatchProcessor {
             }
         }
 
-        if (!this.options.silent && successCount > 0) {
+        if (!this.options.silent && this.options.announceResult && successCount > 0) {
             new Notice(`Cleared ${successCount} notes`);
         }
 

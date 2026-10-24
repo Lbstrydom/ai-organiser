@@ -368,6 +368,7 @@ async function writeScript(
             to: plan.to,
             sources: plan.entries.reduce((n, e) => n + e.newsletters, 0),
             titles: plan.entries.flatMap((e) => e.titles),
+            dayTitles: plan.entries.map((e) => ({ date: e.date, titles: [...e.titles] })),
         },
         script,
         scriptIdentity: await scriptIdentityOf(plan, ports.settings, snapshot.memoryOn),
@@ -548,6 +549,7 @@ async function commitEpisode(
             minutes,
             sources: record.frozen.sources,
             titles: record.frozen.titles,
+            ...(record.frozen.dayTitles ? { dayTitles: record.frozen.dayTitles } : {}),
             script: record.script,
         }, ports.settings);
         await clearOperation(ports.plugin, record.opId);

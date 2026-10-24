@@ -72,7 +72,10 @@ interface Common {
     /** Automatic replacement will replace the unheard episode at the next fetch (see `deriveReplaceSoon`). */
     replaceSoon: boolean;
     latestEpisode: EpisodeMeta | null;
+    /** Days with no digest at all. */
     noStoredDates: string[];
+    /** Days that have a digest but no daily brief to turn into audio. */
+    noBriefDates: string[];
     expiringDates: string[];
     /** Window days left out of the plan on purpose (heard daily audio, still-open day), so the window can say so. */
     skipped: SkippedDay[];
@@ -124,6 +127,7 @@ export function deriveModalView(input: ModalInput): ModalView {
     if (input.availability !== 'ok') return { kind: 'unavailable', reason: input.availability };
 
     const { snapshot, operation } = input;
+    const noBrief = snapshot.noBriefDates ?? [];
     const common: Common = {
         unheard: snapshot.unheard.length > 0
             ? { episode: [...snapshot.unheard].sort((a, b) => (a.id < b.id ? 1 : -1))[0], count: snapshot.unheard.length }
@@ -131,7 +135,8 @@ export function deriveModalView(input: ModalInput): ModalView {
         waiting: input.settings ? deriveWaiting(snapshot, input.settings) : null,
         replaceSoon: input.settings ? deriveReplaceSoon(snapshot, input.settings) : false,
         latestEpisode: snapshot.latestEpisode,
-        noStoredDates: snapshot.pending.noStoredDates,
+        noStoredDates: snapshot.pending.noStoredDates.filter((d) => !noBrief.includes(d)),
+        noBriefDates: noBrief,
         expiringDates: snapshot.expiringDates,
         skipped: snapshot.skipped,
         // What "include all again" can actually re-list: days with a stored brief, minus still-open days (never offered while memory is off).

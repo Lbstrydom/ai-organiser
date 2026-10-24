@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const recorded = vi.hoisted(() => ({ items: [] as Array<{ name: string; desc?: string; heading: boolean; dropdown?: { options: Array<[string, string]>; value: string; change: (v: string) => void }; slider?: { min: number; max: number; value: number; change: (v: number) => void }; toggle?: { value: boolean; change: (v: boolean) => void } }> }));
+const recorded = vi.hoisted(() => ({ items: [] as Array<{ name: string; desc?: string; heading: boolean; cls?: string; dropdown?: { options: Array<[string, string]>; value: string; change: (v: string) => void }; slider?: { min: number; max: number; step: number; value: number; change: (v: number) => void }; toggle?: { value: boolean; change: (v: boolean) => void } }> }));
 
 vi.mock('obsidian', async () => {
     const base = await import('./mocks/obsidian');
@@ -18,7 +18,7 @@ vi.mock('obsidian', async () => {
         setName(n: string) { this.item.name = n; return this; }
         setDesc(d: string) { this.item.desc = d; return this; }
         setHeading() { this.item.heading = true; return this; }
-        setClass() { return this; }
+        setClass(c: string) { this.item.cls = c; return this; }
         addDropdown(cb: (d: unknown) => void) {
             const dd = { options: [] as Array<[string, string]>, value: '', change: (_v: string): void => undefined };
             const api = {
@@ -31,9 +31,9 @@ vi.mock('obsidian', async () => {
             return this;
         }
         addSlider(cb: (s: unknown) => void) {
-            const sl = { min: 0, max: 0, value: 0, change: (_v: number): void => undefined };
+            const sl = { min: 0, max: 0, step: 0, value: 0, change: (_v: number): void => undefined };
             const api = {
-                setLimits: (a: number, b: number) => { sl.min = a; sl.max = b; return api; },
+                setLimits: (a: number, b: number, c?: number) => { sl.min = a; sl.max = b; sl.step = c ?? 0; return api; },
                 setValue: (v: number) => { sl.value = v; return api; },
                 setDynamicTooltip: () => api,
                 onChange: (f: (v: number) => void) => { sl.change = f; return api; },
@@ -124,11 +124,21 @@ describe('audio delivery in the Newsletter section', () => {
         expect(names()).not.toContain('Regenerate audio for today');
     });
 
-    it('daily keeps today\'s controls exactly and hides the catch-up window and length', () => {
+    it('daily keeps the daily controls exactly and previews the catch-up controls switched off', () => {
         render({ newsletterAudioMode: 'daily' });
         expect(names()).toEqual(expect.arrayContaining(['Audio delivery', 'Podcast voice', 'Maximum podcast length (minutes)', 'Regenerate audio for today']));
-        expect(names()).not.toContain('Catch-up window (days)');
-        expect(names()).not.toContain('Longest episode (minutes)');
+        // Shown (disabled in the DOM, see the real-render check) so a Daily user can see what On demand offers.
+        expect(names()).toEqual(expect.arrayContaining(['Catch-up window (days)', 'Longest episode (minutes)']));
+        // Daily-only controls are not duplicated and "When I am behind" stays Smart-daily-only.
+        expect(names().filter((n) => n === 'Audio delivery')).toHaveLength(1);
+        expect(names()).not.toContain('When I am behind');
+    });
+
+    it('the preview does not change a stored value just by being drawn', () => {
+        const { plugin } = render({ newsletterAudioMode: 'daily', newsletterCatchUpLookbackDays: 9, newsletterCatchUpMaxMins: 12 });
+        expect(plugin.settings.newsletterCatchUpLookbackDays).toBe(9);
+        expect(plugin.settings.newsletterCatchUpMaxMins).toBe(12);
+        expect(plugin.saveSettings).not.toHaveBeenCalled();
     });
 
     it('audio off hides every audio control, whatever the stored mode', () => {
@@ -233,9 +243,10 @@ describe('catch-up controls', () => {
         expect(find('Remove audio of heard episodes after (days)')!.slider!.value).toBe(28);
     });
 
-    it('daily mode shows no cleanup control (catch-up is not available there)', () => {
-        render({ newsletterAudioMode: 'daily' });
-        expect(names()).not.toContain('Remove audio of heard episodes after (days)');
+    it('daily mode only previews the cleanup control (switched off in the DOM), and saves nothing', () => {
+        const { plugin } = render({ newsletterAudioMode: 'daily' });
+        expect(names().filter((n) => n === 'Remove audio of heard episodes after (days)')).toHaveLength(1);
+        expect(plugin.saveSettings).not.toHaveBeenCalled();
     });
 
     it('with story memory off the section says catch-up covers whole closed days', () => {
@@ -289,5 +300,49 @@ describe('When I am behind', () => {
         item.dropdown!.change('anything else');
         expect(plugin.settings.newsletterCatchUpWhenBehind).toBe('wait');
         expect(plugin.saveSettings).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('settings structure', () => {
+    const at = (n: string): number => names().indexOf(n);
+
+    it('Podcast voice sits above the Catch-up audio group, which starts at Audio delivery', () => {
+        for (const mode of ['on-demand', 'smart-daily', 'daily']) {
+            recorded.items.length = 0;
+            render({ newsletterAudioMode: mode });
+            expect(at('Podcast voice')).toBeGreaterThan(-1);
+            expect(at('Podcast voice')).toBeLessThan(at('Catch-up audio'));
+            expect(at('Catch-up audio') + 1).toBe(at('Audio delivery'));
+        }
+    });
+
+    it('the Catch-up audio group is closed by a heading before the written-brief controls', () => {
+        render({ newsletterAudioMode: 'on-demand' });
+        const closing = recorded.items.find((i) => i.name === 'Written brief and story memory');
+        expect(closing?.heading).toBe(true);
+        expect(at('Written brief and story memory')).toBeGreaterThan(at('Longest episode (minutes)'));
+        expect(at('Written brief and story memory')).toBeLessThan(at('Home region'));
+        expect(at('Written brief and story memory')).toBeLessThan(at('Story memory'));
+    });
+
+    it('the audio podcast description no longer carries the cutoff jargon, the cutoff explains itself', () => {
+        render({ newsletterAudioMode: 'on-demand' });
+        expect(find('Audio podcast')!.desc).not.toMatch(/schedule trigger/);
+        expect(find('Brief day cutoff')!.desc).toMatch(/does not schedule anything/);
+    });
+
+    it('long-option dropdowns take a full row on a phone', () => {
+        render({ newsletterAudioMode: 'smart-daily' });
+        expect(find('Audio delivery')!.cls).toBe('ai-organiser-wide-select');
+        expect(find('When I am behind')!.cls).toBe('ai-organiser-wide-select');
+        expect(find('Briefs you have read')!.cls).toBe('ai-organiser-wide-select');
+    });
+
+    it('the retention slider steps by one day, so the stored 30 shows as 30 and 1 to 6 days can be set', () => {
+        const { plugin } = render({ newsletterRetentionDays: 30 });
+        const sl = find('Keep newsletters for')!.slider!;
+        expect([sl.min, sl.max, sl.step, sl.value]).toEqual([0, 365, 1, 30]);
+        sl.change(3);
+        expect(plugin.settings.newsletterRetentionDays).toBe(3);
     });
 });

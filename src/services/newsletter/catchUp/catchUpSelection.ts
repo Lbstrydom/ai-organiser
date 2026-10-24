@@ -92,6 +92,8 @@ export interface CatchUpSnapshot {
     expiringDates: string[];
     /** Window days left out of the plan on purpose, with the reason, so the window can say so. */
     skipped: SkippedDay[];
+    /** Window days with a digest note but no usable daily brief (a subset of `pending.noStoredDates`). */
+    noBriefDates: string[];
     /**
      * The listening record could not be read, so no daily audio counted as heard. The window says so
      * and the automatic run holds back: a person may choose to generate anyway, an unattended run may not.
@@ -155,6 +157,8 @@ function fileNamesIn(app: App, folderPath: string): string[] {
 
 interface DayFacts {
     info: BucketInfo;
+    /** The day has a digest note (it may still hold no usable daily brief). */
+    digestExists: boolean;
     brief: string;
     newsletters: number;
     /** Daily audio files this day still holds that its digest embeds (the only ones a tidy may ever touch). */
@@ -225,7 +229,7 @@ async function readDay(
             consumption !== null,
         ),
     };
-    return { info, brief, newsletters, dailyAudio };
+    return { info, brief, newsletters, dailyAudio, digestExists: digest instanceof TFile };
 }
 
 /** Itemise the late additions of a delta bucket from the ledger: stories newer than `since`. */
@@ -360,6 +364,7 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         oldestStoredDate,
         expiringDates: expiringPending(entries.map((e) => e.date), today, settings.newsletterRetentionDays ?? 30),
         skipped,
+        noBriefDates: pending.noStoredDates.filter((d) => days.get(d)?.digestExists === true),
         evidenceDegraded,
         autoPendingDays,
         tidy,

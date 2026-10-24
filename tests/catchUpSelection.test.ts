@@ -457,3 +457,21 @@ describe('window and retention', () => {
         expect(s.expiringDates).toEqual([]);
     });
 });
+
+describe('days with a digest but no usable daily brief', () => {
+    it('are told apart from days with no digest at all', async () => {
+        const v = baseVault();
+        v.set(`${ROOT}/Digest — 2026-10-19.md`, '# Newsletter Digest — 2026-10-19\n\n## Sources\n\n- [[x]]\n'); // a digest, no Daily Brief block
+        v.set(`${ROOT}/Digest — 2026-10-18.md`, digest('2026-10-18', 'tiny')); // a brief under the 50-character floor
+        // 2026-10-17 has no digest at all
+        const s = await buildCatchUpSnapshot({ app: v.app as never, plugin: makePlugin(baseLedger()) as never, settings: settings(), now: NOW });
+        expect(s.pending.noStoredDates).toEqual(expect.arrayContaining(['2026-10-17', '2026-10-18', '2026-10-19']));
+        expect(s.noBriefDates).toEqual(['2026-10-18', '2026-10-19']);
+        expect(s.noBriefDates).not.toContain('2026-10-17');
+    });
+
+    it('a day with a usable brief is in neither list', async () => {
+        const s = await buildCatchUpSnapshot({ app: baseVault().app as never, plugin: makePlugin(baseLedger()) as never, settings: settings(), now: NOW });
+        expect(s.noBriefDates.filter((d) => ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'].includes(d))).toEqual([]);
+    });
+});

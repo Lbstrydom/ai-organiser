@@ -909,6 +909,7 @@ export interface Translations {
             caughtUpError: string;
             retentionDays: string;
             retentionDaysDesc: string;
+            briefMemoryHeading: string;
             catchUp: {
                 heading: string;
                 modeLabel: string;
@@ -937,6 +938,7 @@ export interface Translations {
                 cleanupNoticeOne: string;      // exactly one episode
                 lookbackClampNote: string;     // "{n}" days actually kept
                 audioRemovedLine: string;      // "{date}"
+                dailyPreviewNote: string;      // shown above the disabled catch-up controls in Daily mode
             };
         };
         audioNarration: {
@@ -1866,6 +1868,8 @@ export interface Translations {
             replacePartial: string;       // "{files}"
             statusBarWaitingMany: string; // "Waiting: {count} episodes unheard · {pending}"
             noStored: string;             // "No newsletters stored for {dates}."
+            noBrief: string;              // digest exists, no daily brief: "{dates}"
+            includeAgainHint: string;
             unresolved: string;           // "Updates on {dates} could not be checked. Open the digest or fetch again."
             unresolvedOnly: string;
             gap: string;                  // "Older material is unavailable. ..."
@@ -4395,6 +4399,7 @@ export interface ProgressStrings {
         catchUpWritingScript: string;
         catchUpShortening: string;
         catchUpSynthesising: string;   // "Narrating part {done} of {total}…"
+        catchUpSynthesisingStart: string; // before the first part is done
         catchUpSaving: string;
     };
     audioNarration: {

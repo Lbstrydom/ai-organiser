@@ -89,8 +89,10 @@ vi.mock('../src/services/newsletter/catchUp/catchUpReplace', () => ({ prepareRep
 const markEpisodeListened = vi.hoisted(() => vi.fn(async () => ({ ok: true, value: { acked: true, buckets: 0 } })));
 vi.mock('../src/services/newsletter/catchUp/catchUpListen', () => ({ markEpisodeListened }));
 
+const progressOpts = vi.hoisted(() => ({ value: null as null | { resolvePhase: (p: { key: string; params?: Record<string, string | number> }) => string } }));
 vi.mock('../src/services/progress', () => ({
-    withProgressResult: async (_o: unknown, op: (r: unknown) => Promise<unknown>) => {
+    withProgressResult: async (o: { resolvePhase: never }, op: (r: unknown) => Promise<unknown>) => {
+        progressOpts.value = o as never;
         const reporter = { signal: new AbortController().signal, setPhase: vi.fn(), setCancellable: vi.fn() };
         return op(reporter);
     },
@@ -899,5 +901,77 @@ describe('failures and lifecycle', () => {
         modal.close();
         const answer = await (modal as never as { renderOverrun(i: unknown): Promise<string> }).renderOverrun({ estimatedMinutes: 20, capMinutes: 15 });
         expect(answer).toBe('cancel');
+    });
+});
+
+describe('left-out days are described honestly', () => {
+    const pendingSnap = (over: Record<string, unknown> = {}) => snapshot({
+        plan: plan(['2026-10-22']), state: 'pending',
+        pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19', '2026-10-20'], coveredDates: [], openDates: [] },
+        ...over,
+    });
+
+    it('a day with a digest but no daily brief is not called "not stored"', async () => {
+        snapshotRef.value = pendingSnap({ noBriefDates: ['2026-10-20'] });
+        const { root } = await open();
+        expect(root.textContent).toContain('No newsletters stored for 2026-10-19.');
+        expect(root.textContent).toContain('The newsletters for 2026-10-20 have no daily brief yet, so there is nothing to turn into audio.');
+        expect(root.textContent).not.toContain('No newsletters stored for 2026-10-19, 2026-10-20');
+    });
+
+    it('with no digest at all for any day the wording is unchanged', async () => {
+        snapshotRef.value = pendingSnap();
+        const { root } = await open();
+        expect(root.textContent).toContain('No newsletters stored for 2026-10-19, 2026-10-20.');
+        expect(root.textContent).not.toContain('no daily brief yet');
+    });
+
+    it('neither note appears once you are caught up (nothing to explain)', async () => {
+        snapshotRef.value = snapshot({
+            latestEpisode: episode('e1', '2026-10-20', '2026-10-22'),
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19', '2026-10-20'], coveredDates: [], openDates: [] },
+            noBriefDates: ['2026-10-20'],
+        });
+        const { root } = await open();
+        expect(root.textContent).toContain('You are caught up');
+        expect(root.textContent).not.toContain('No newsletters stored');
+        expect(root.textContent).not.toContain('no daily brief yet');
+    });
+
+    it('Include again says what it does', async () => {
+        snapshotRef.value = snapshot({ latestEpisode: episode('e1', '2026-10-20', '2026-10-22') });
+        const { root } = await open();
+        expect(root.textContent).toContain('Include again makes another episode for the days of your last one.');
+    });
+
+    it('no hint when there is no episode to include again', async () => {
+        snapshotRef.value = snapshot();
+        const { root } = await open();
+        expect(root.textContent).not.toContain('Include again makes another');
+    });
+});
+
+describe('progress and failure wording for the voice step', () => {
+    it('the voice step is never "part 0 of N": it starts as "Making the audio" and then counts parts', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22']), state: 'pending' });
+        runCatchUp.mockResolvedValue({ ok: true, value: { opId: 'o', notePath: 'Catch-up/x.md', audioPath: 'a.mp3', minutes: 3, from: '2026-10-21', to: '2026-10-22', days: 2, sources: 4, created: true } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        const resolve = progressOpts.value!.resolvePhase;
+        expect(resolve({ key: 'synthesising', params: { done: 0, total: 1 } })).toBe('Making the audio… this can take a minute or two.');
+        expect(resolve({ key: 'synthesising', params: { done: 2, total: 3 } })).toBe('Narrating part 2 of 3…');
+        expect(resolve({ key: 'synthesising', params: { done: 0, total: 1 } })).not.toMatch(/part 0/);
+    });
+
+    it('a failed voice step says the service may be busy, and to resume later', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22']), state: 'pending' });
+        runCatchUp.mockResolvedValue({ ok: false, error: 'catchup-tts-failed' });
+        const { root } = await open();
+        click(root, 'Generate');
+        await flush(); await flush();
+        expect(root.textContent).toContain('voice service may be busy');
+        expect(root.textContent).toContain('resume in a few minutes');
+        expect(root.textContent).not.toContain('catchup-tts-failed');
     });
 });

@@ -10100,3 +10100,31 @@
         background-color: CanvasText;
     }
 }
+
+/* Catch-up settings shown switched off while audio delivery is Daily. */
+.ai-organiser-catchup-preview {
+	opacity: 0.55;
+}
+
+/* Long-option dropdowns take their own row on a phone, so the label never clips. */
+@media (max-width: 600px) {
+	.ai-organiser-wide-select.setting-item {
+		flex-wrap: wrap;
+	}
+
+	.ai-organiser-wide-select .setting-item-control {
+		flex: 1 1 100%;
+		justify-content: flex-start;
+	}
+
+	.ai-organiser-wide-select .setting-item-control select {
+		width: 100%;
+		max-width: 100%;
+		text-overflow: ellipsis;
+	}
+}
+
+/* A catch-up episode note: the internal catchup_* property rows are not for the reader. */
+.ai-organiser-catchup-episode .metadata-property[data-property-key^="catchup_"] {
+	display: none;
+}

@@ -26,7 +26,7 @@ function snapshot(over: Partial<CatchUpSnapshot> = {}): CatchUpSnapshot {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
         state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null,
-        oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, tidy: null, ...over,
+        oldestStoredDate: null, expiringDates: [], skipped: [], noBriefDates: [], evidenceDegraded: false, autoPendingDays: 0, tidy: null, ...over,
     };
 }
 
@@ -175,5 +175,22 @@ describe('the status bar and the window agree on what is pending', () => {
         });
         expect(pendingCounts(s).days).toBe(1);
         expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ days: 1, noStoredDates: ['2026-10-20', '2026-10-21'] });
+    });
+});
+
+describe('days left out for want of a brief', () => {
+    it('splits the not-stored days from the stored-but-no-brief days', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({
+            window: ['2026-10-19', '2026-10-20', '2026-10-21'], plan: plan(['2026-10-21']), state: 'pending',
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19', '2026-10-20'], coveredDates: [], openDates: [] },
+            noBriefDates: ['2026-10-20'],
+        }) }));
+        expect(v).toMatchObject({ noStoredDates: ['2026-10-19'], noBriefDates: ['2026-10-20'] });
+    });
+
+    it('a snapshot without the split (an older caller) keeps every day under "not stored"', () => {
+        const s = snapshot({ pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-19'], coveredDates: [], openDates: [] } });
+        delete (s as { noBriefDates?: unknown }).noBriefDates;
+        expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ noStoredDates: ['2026-10-19'], noBriefDates: [] });
     });
 });

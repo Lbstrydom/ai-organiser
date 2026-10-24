@@ -163,6 +163,34 @@ describe('the happy path', () => {
         expect(snap.unheard).toHaveLength(1); // generated, not heard
     });
 
+    it('a new episode note lists its stories under a heading per covered day and hides the internal rows', async () => {
+        const res = await runCatchUp(ports(), opts());
+        if (!res.ok) throw new Error(res.error);
+        const note = vault.text(res.value.notePath);
+        expect(note).toContain('### 2026-10-21');
+        expect(note).toContain('### 2026-10-23');
+        expect(note.indexOf('### 2026-10-21')).toBeLessThan(note.indexOf('### 2026-10-22'));
+        expect(note).toContain('cssclasses:');
+        expect(parseEpisodeContent(note, 'p')).not.toBeNull();
+    });
+
+    it('resuming an operation saved before per-day titles writes the original note, no new properties', async () => {
+        engine.synthesizeChunk.mockRejectedValueOnce(new Error('voice down'));
+        const first = await runCatchUp(ports(), opts());
+        expect(first.ok).toBe(false);
+        const stored = await loadOperation(plugin as never);
+        expect(stored).not.toBeNull();
+        // What an older plugin version would have stored: no per-day titles.
+        delete (stored!.frozen as { dayTitles?: unknown }).dayTitles;
+        await saveOperation(plugin as never, stored!);
+        const res = await resumeCatchUp(ports(), opts());
+        if (!res.ok) throw new Error(res.error);
+        const note = vault.text(res.value.notePath);
+        expect(note).not.toContain('cssclasses');
+        expect(note).not.toContain('### 2026-10-21');
+        expect(note).toContain('## Covered stories');
+    });
+
     it('reports phases in order and stops offering Cancel at the commit', async () => {
         const phases: RunPhase['key'][] = [];
         const setCancellable = vi.fn();
