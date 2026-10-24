@@ -376,10 +376,10 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         // otherwise strand a week of story text in plugin data —
                         // the opposite of what switching it off implies.
                         if (!value) {
-                            try {
-                                await new NewsletterService(this.plugin).clearStoryMemory();
-                            } catch (e) {
-                                logger.warn('Newsletter', 'Failed to clear story memory', e);
+                            const purged = await new NewsletterService(this.plugin).clearStoryMemory();
+                            if (!purged.ok) {
+                                logger.warn('Newsletter', `Failed to clear story memory: ${purged.error}`);
+                                new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
                             }
                         }
                         this.settingTab.display();

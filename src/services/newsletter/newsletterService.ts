@@ -1236,15 +1236,17 @@ export class NewsletterService {
 
     /** Purge all story memory. Called when the feature is switched off, so a
      *  disabled feature does not strand a window of story text in plugin data. */
-    async clearStoryMemory(): Promise<void> {
+    async clearStoryMemory(): Promise<Result<void>> {
         // Three independent stores: attempt every purge even when one fails, then report the failures together.
+        const names = ['story ledger', 'heard history', 'read history'];
         const results = await Promise.allSettled([
             clearStoryLedger(this.plugin),
             clearConsumption(this.plugin),
             this.clearReadHistory().then((r) => { if (!r.ok) throw new Error(r.error); }),
         ]);
-        const failures = results.flatMap((r) => (r.status === 'rejected' ? [r.reason instanceof Error ? r.reason.message : String(r.reason)] : []));
-        if (failures.length > 0) throw new Error(`Story memory purge incomplete: ${failures.join('; ')}`);
+        const failures = results.flatMap((r, i) =>
+            r.status === 'rejected' ? [`${names[i]}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] : []);
+        return failures.length > 0 ? err(`Story memory purge incomplete (${failures.join('; ')})`) : ok(undefined);
     }
 
     /**

@@ -103,6 +103,8 @@ class BriefReadChild extends MarkdownRenderChild {
         private readonly built: { observation: ReadObservation; textHash: string },
         private readonly coversEnd: boolean,
         private readonly isListSection: boolean,
+        /** Captured synchronously with the observation, before any deferred work. */
+        private readonly generation: number,
     ) {
         super(el);
     }
@@ -123,6 +125,8 @@ class BriefReadChild extends MarkdownRenderChild {
     private bind(): void {
         const host = this.host;
         if (!host.enabled()) return;
+        // A purge or mode change between attach and this deferred bind makes the observation stale.
+        if (host.generation() !== this.generation) return;
         const view = findOwningView(host.app, this.el);
         if (!view || view.getMode?.() !== 'preview') { logger.debug('ReadSignal', `no preview view owns this section (view: ${view ? view.getMode?.() : 'none'})`); return; }
         const container = view.containerEl;
@@ -159,7 +163,7 @@ class BriefReadChild extends MarkdownRenderChild {
             dead: false,
             state: createReadSession(this.built.textHash, this.built.observation.displayed.length),
             observation: this.built.observation,
-            generation: host.generation(),
+            generation: this.generation,
             children: 0,
             observed: new Set(),
             observer: null,
@@ -244,7 +248,7 @@ export function attachBriefReadObserver(el: HTMLElement, ctx: MarkdownPostProces
         if (!built) { logger.debug('ReadSignal', 'brief block did not parse into stories'); return; }
         const coversEnd = info.lineStart <= loc.lastStoryLine && info.lineEnd >= loc.lastStoryLine;
         const isList = el.querySelector('li') !== null;
-        ctx.addChild(new BriefReadChild(el, host, built, coversEnd, isList));
+        ctx.addChild(new BriefReadChild(el, host, built, coversEnd, isList, host.generation()));
     } catch (e) {
         logger.warn('Newsletter', 'Brief read observer could not attach', e);
     }

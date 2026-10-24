@@ -134,15 +134,12 @@ export function coerceReadState(raw: unknown): ReadState {
         if (!DATE_KEY_RE.test(date) || !value || typeof value !== 'object') continue;
         const r = value as Partial<ReadRecord>;
         const credited: Array<[string, string]> = [];
-        const seen = new Set<string>();
         if (Array.isArray(r.credited)) {
             for (const pair of r.credited) {
+                // Shape only: duplicates and the cap belong to compactCredited, the one retention policy.
                 if (!Array.isArray(pair) || pair.length !== 2) continue;
                 const [k, g] = pair as unknown[];
                 if (typeof k !== 'string' || typeof g !== 'string' || !HASH_RE.test(k) || !HASH_RE.test(g)) continue;
-                const id = `${k}.${g}`;
-                if (seen.has(id)) continue;
-                seen.add(id);
                 credited.push([k, g]);
             }
         }
@@ -293,7 +290,9 @@ export async function commitReadObservation(
             const credited = buildReadCredit(ledger.buckets[observation.date], observation.displayed);
             if (credited.length === 0) return { changed: false, value: { kind: 'refused', code: 'no-matching-stories' } };
 
-            const state = pruneReadState(coerceReadState(data[READ_DATA_KEY]), todayStr);
+            const stored = coerceReadState(data[READ_DATA_KEY]);
+            const state = pruneReadState(stored, todayStr);
+            const expired = Object.keys(stored.read).length !== Object.keys(state.read).length;
             const existing = state.read[observation.date];
             const heard = consumedRevision(coerceConsumption(data[CONSUMED_DATA_KEY]), observation.date);
             const newly = countNewlyRead(existing, credited, heard);
@@ -301,7 +300,11 @@ export async function commitReadObservation(
             const before = existing?.credited ?? [];
             const merged = compactCredited([...before, ...credited.map((c) => c.pair)]);
             const same = merged.length === before.length && merged.every(([k, g], i) => before[i][0] === k && before[i][1] === g);
-            if (same) return { changed: false, value: { kind: 'noop' } };
+            if (same) {
+                // Nothing new was credited, but expired buckets may have been dropped: persist that too.
+                if (expired) { data[READ_DATA_KEY] = state; return { changed: true, value: { kind: 'noop' } }; }
+                return { changed: false, value: { kind: 'noop' } };
+            }
 
             state.read[observation.date] = { via: existing?.via ?? via, credited: merged };
             // The incoming observation obeys the same retention window as stored state.

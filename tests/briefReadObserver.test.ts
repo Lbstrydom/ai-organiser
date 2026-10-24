@@ -468,3 +468,17 @@ describe('audit round 3', () => {
         expect(FakeIO.instances.length).toBeGreaterThanOrEqual(1);
     });
 });
+
+describe('audit round 4', () => {
+    it('a purge between attach and the deferred bind makes the observation stale: no session is created', () => {
+        const view = newView();
+        activeView = view;
+        const r = render(view, noteText()); // attach captures generation 0 and defers the bind
+        gen += 1;                           // Forget what I have read, before the deferred bind runs
+        flush();
+        expect(FakeIO.instances).toHaveLength(0);
+        step(60, view.containerEl);
+        expect(commits).toHaveLength(0);
+        expect(r.children).toHaveLength(1);
+    });
+});

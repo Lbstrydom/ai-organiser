@@ -150,7 +150,8 @@ describe('clearStoryMemory reports a failed read purge', () => {
         // The ledger purge itself fails first on a failing disk; use a store where only the read key exists.
         const service = new NewsletterService(plugin);
         const before = currentReadGeneration();
-        await expect(service.clearStoryMemory()).rejects.toThrow();
+        const purged = await service.clearStoryMemory();
+        expect(purged.ok).toBe(false);
         expect(currentReadGeneration()).toBeGreaterThanOrEqual(before);
     });
 
@@ -203,9 +204,34 @@ describe('audit round 2', () => {
         const real = p.saveData;
         let calls = 0;
         p.saveData = async (d) => { calls++; if (calls === 1) throw new Error('first purge fails'); return real(d); };
-        await expect(new NewsletterService(plugin).clearStoryMemory()).rejects.toThrow(/purge incomplete: first purge fails/);
+        const purged = await new NewsletterService(plugin).clearStoryMemory();
+        expect(purged.ok).toBe(false);
+        expect(purged.ok ? '' : purged.error).toContain('story ledger: first purge fails');
         expect(calls).toBe(3); // every independent purge was attempted
         expect(data[READ_DATA_KEY]).toBeUndefined();
         expect(data['newsletter-consumed-briefs']).toBeUndefined();
+    });
+});
+
+describe('audit round 4', () => {
+    it('expired buckets are persisted away even when the observation credits nothing new', async () => {
+        const OLD = '2026-09-01';
+        const story = { key: 'port-strike-harbour', title: 'T', gist: 'g', firstRevision: 1, contentRevision: 1 };
+        const store: Record<string, unknown> = {
+            'newsletter-story-ledger': { version: 1, buckets: { [DAY]: { revision: 1, updatedAt: 1, audio: {}, stories: [story] } } },
+            [READ_DATA_KEY]: { version: 1, read: { [OLD]: { via: 'explicit', credited: [pair('x', 'y')] }, [DAY]: { via: 'explicit', credited: [[hashPart(story.key), hashPart('g')]] } } },
+        };
+        const plugin = { loadData: async () => structuredClone(store), saveData: async (d: Record<string, unknown>) => { for (const k of Object.keys(store)) delete store[k]; Object.assign(store, structuredClone(d)); } } as never;
+        const res = await commitReadObservation(plugin, { date: DAY, displayed: [{ key: story.key, title: 'T', gist: 'g' }] }, 'explicit',
+            { eligible: () => true, generation: 0, currentGeneration: () => 0 }, '2026-10-21');
+        expect(res).toEqual({ ok: true, value: { kind: 'noop' } });
+        expect(Object.keys((store[READ_DATA_KEY] as { read: object }).read)).toEqual([DAY]);
+    });
+
+    it('the decoder and the writer share one duplicate policy (latest position wins)', () => {
+        const dup = [pair('a', 'x'), pair('b', 'y'), pair('a', 'x')];
+        const decoded = coerceReadState({ version: 1, read: { [DAY]: { via: 'explicit', credited: dup } } });
+        expect(decoded.read[DAY].credited).toEqual(compactCredited(dup));
+        expect(decoded.read[DAY].credited).toEqual([pair('b', 'y'), pair('a', 'x')]);
     });
 });

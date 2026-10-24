@@ -158,7 +158,7 @@ describe('markBriefRead / clearReadHistory', () => {
 
     it('story memory switched off purges the read store too, but a no-op purge writes nothing', async () => {
         const s = setup({ newsletterReadMode: 'explicit' }, true);
-        await new NewsletterService(s.plugin).clearStoryMemory();
+        expect((await new NewsletterService(s.plugin).clearStoryMemory()).ok).toBe(true);
         expect(s.data['newsletter-read-briefs']).toBeUndefined();
         const quiet = setup({ newsletterReadMode: 'off' }, false);
         await new NewsletterService(quiet.plugin).clearReadHistory();
