@@ -1808,6 +1808,17 @@ export interface Translations {
             includeAllOne: string;
             datesMore: string;            // "and {n} more"
             sizeUnknown: string;
+            tidyLabel: string;            // "Also remove the daily audio for these days ({count} files, {size})"
+            tidyLabelOne: string;
+            tidyDone: string;             // "{n}", "{size}"
+            tidyDoneOne: string;
+            tidyPartial: string;          // "{left}", "{total}"
+            tidyUnknown: string;
+            tidyWhyHalted: string;
+            tidyWhyProtected: string;
+            tidyWhyLinked: string;
+            tidyWhyChanged: string;
+            tidyWhyChecking: string;
             statusBarSkipped: string;     // "{n} days left out (already listened to)"
             statusBarSkippedOne: string;
             evidenceDegraded: string;     // the listening history could not be read

@@ -28,6 +28,7 @@ import {
     recallForCatchUp,
 } from './catchUpPrompts';
 import type { CatchUpPorts, TtsResolution } from './catchUpService';
+import type { TidyDeps } from './catchUpTidy';
 import type { CatchUpPlan } from './catchUpTypes';
 import { estimateSpokenChars } from './catchUpCoverage';
 
@@ -121,6 +122,24 @@ export function createCatchUpPorts(plugin: AIOrganiserPlugin): CatchUpPorts {
                 return err(e instanceof Error ? e.message : String(e));
             }
         },
+    };
+}
+
+/**
+ * What the daily-audio tidy needs from the plugin: the note writer and the sentence for the dead embed.
+ * The digest edit is a deterministic mechanical change to a plugin-generated note under the newsletter
+ * folder (same documented exemption from reviewed edits as the audio cleanup); a baseline mismatch refuses it.
+ */
+export function createDailyTidyDeps(plugin: AIOrganiserPlugin): TidyDeps {
+    return {
+        app: plugin.app,
+        plugin,
+        settings: plugin.settings,
+        writeNote: async (filePath, baseline, nextContent) => {
+            const { applyNoteEdit } = await import('../../noteEdit/applyNoteEdit');
+            return applyNoteEdit(plugin, { kind: 'full-replace', filePath, baseline, nextContent }, { review: false });
+        },
+        removedLine: (date) => plugin.t.settings.newsletter.catchUp.audioRemovedLine.replace('{date}', date),
     };
 }
 

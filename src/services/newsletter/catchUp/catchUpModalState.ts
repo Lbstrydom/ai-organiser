@@ -9,7 +9,7 @@
 import type { CatchUpSnapshot } from './catchUpSelection';
 import type { OperationState } from './catchUpService';
 import { getAudioMode, type AudioModeSettings } from '../newsletterAudioMode';
-import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta, type SkippedDay } from './catchUpTypes';
+import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta, type SkippedDay, type TidyPlan } from './catchUpTypes';
 
 export type Availability = 'ok' | 'audio-off' | 'wrong-mode';
 
@@ -91,6 +91,8 @@ export type ModalView =
         big: boolean;
         planHash: string;
         unresolvedDates: string[];
+        /** Superseded daily audio the episode would let the person remove, or null. */
+        tidy: TidyPlan | null;
     })
     | (Common & { kind: 'caught-up'; through: string })
     | (Common & { kind: 'gap'; lastEpisodeTo: string })
@@ -152,6 +154,7 @@ export function deriveModalView(input: ModalInput): ModalView {
             big: plan.entries.length >= CATCHUP_BIG_THRESHOLD_DAYS,
             planHash: plan.planHash,
             unresolvedDates,
+            tidy: snapshot.tidy,
         };
     }
 

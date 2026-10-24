@@ -143,6 +143,31 @@ export interface PendingResult {
 
 export type PendingRunKind = 'manual' | 'auto';
 
+/**
+ * One daily audio file a catch-up could tidy away, with the identity the person CONSENTS to. The tidy
+ * re-reads the vault only to validate these facts, never to find more to remove.
+ */
+export interface TidyFile {
+    date: string;
+    name: string;
+    path: string;
+    bytes: number;
+    /** File modification time (ms); a changed file is a different recording. */
+    mtime: number;
+    /** The ledger revision the recording narrated, or null when its provenance is gone. */
+    narratedRev: number | null;
+    digestPath: string;
+    /** Hash of the written brief the day had when the person consented. */
+    briefHash: string;
+}
+
+/** The superseded daily audio of the days a catch-up covers in full. */
+export interface TidyPlan {
+    files: TidyFile[];
+    bytes: number;
+    days: string[];
+}
+
 /** A window day left out of the plan on purpose, and why (so the window can say so). */
 export interface SkippedDay {
     date: string;

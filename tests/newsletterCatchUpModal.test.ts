@@ -73,8 +73,12 @@ vi.mock('../src/services/newsletter/catchUp/catchUpService', () => ({
     runCatchUp, resumeCatchUp, discardOperation,
 }));
 
+const runDailyAudioTidy = vi.hoisted(() => vi.fn());
+vi.mock('../src/services/newsletter/catchUp/catchUpTidy', () => ({ runDailyAudioTidy }));
+
 vi.mock('../src/services/newsletter/catchUp/catchUpRuntime', () => ({
     createCatchUpPorts: () => ({}),
+    createDailyTidyDeps: () => ({}),
     previewCost: (_p: unknown, cap: number) => ({ ttsUsd: cap === 0 ? null : 0.04, spokenChars: 1000 }),
 }));
 
@@ -123,7 +127,7 @@ function snapshot(over: Record<string, unknown> = {}) {
     return {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
-        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, ...over,
+        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, tidy: null, ...over,
     };
 }
 
@@ -571,6 +575,125 @@ describe('replacing an unheard episode', () => {
         click(root, 'Replace and generate');
         await vi.waitFor(() => expect(root.textContent).toContain('could not be replaced, so nothing was changed'));
         expect(root.textContent).not.toContain('catchup-replace-unsafe');
+    });
+});
+
+describe('tidying the superseded daily audio', () => {
+    const tidyFile = (d: string) => ({ date: d, name: `brief-${d}-abcd1234.mp3`, path: `R/${d}/brief-${d}-abcd1234.mp3`, bytes: 524288, mtime: 1, narratedRev: null, digestPath: `R/Digest — ${d}.md`, briefHash: 'aa' });
+    const tidy = { files: [tidyFile('2026-10-21'), tidyFile('2026-10-22')], bytes: 1048576, days: ['2026-10-21', '2026-10-22'] };
+    const done = { ok: true, value: { opId: 'op-1', notePath: 'Catch-up/N.md', audioPath: 'A.mp3', minutes: 14.2, from: '2026-10-21', to: '2026-10-23', days: 3, sources: 6, created: true } };
+    const box = (root: HTMLElement) => root.querySelector('.ai-organiser-catchup-tidy input') as HTMLInputElement | null;
+
+    beforeEach(() => {
+        runDailyAudioTidy.mockReset();
+        runCatchUp.mockReset();
+        runCatchUp.mockResolvedValue(done);
+    });
+
+    it('offers a checkbox, ON by default, naming how many files and how much space', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        const { root } = await open();
+        expect(root.textContent).toContain('Also remove the daily audio for these days (2 files, 1.0 MB)');
+        expect(box(root)!.type).toBe('checkbox');
+        expect(box(root)!.checked).toBe(true);
+        expect(root.querySelector('.ai-organiser-catchup-tidy label input')).toBeTruthy();
+    });
+
+    it('is absent when there is no daily audio to tidy', async () => {
+        const { root } = await open();
+        expect(box(root)).toBeNull();
+        expect(root.textContent).not.toContain('Also remove the daily audio');
+    });
+
+    it('runs AFTER the episode is saved, for exactly the consented files, and reports it', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 2, removedBytes: 1048576, daysDone: ['2026-10-21', '2026-10-22'], skipped: [], halted: null } } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(runDailyAudioTidy).toHaveBeenCalledTimes(1));
+        expect(runCatchUp.mock.invocationCallOrder[0]).toBeLessThan(runDailyAudioTidy.mock.invocationCallOrder[0]);
+        expect(runDailyAudioTidy.mock.calls[0][1]).toEqual({ files: tidy.files, episodeId: 'op-1' });
+        await vi.waitFor(() => expect(root.textContent).toContain('Removed the daily audio for 2 days (1.0 MB). The written briefs stay.'));
+    });
+
+    it('unticked means nothing is removed', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        const { root } = await open();
+        const b = box(root)!;
+        b.checked = false;
+        b.dispatchEvent(new Event('change'));
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        expect(runDailyAudioTidy).not.toHaveBeenCalled();
+    });
+
+    it('a failed generation never tidies', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runCatchUp.mockResolvedValue({ ok: false, error: 'catchup-tts-failed' });
+        const { root } = await open();
+        click(root, 'Generate');
+        await flush(); await flush();
+        expect(runDailyAudioTidy).not.toHaveBeenCalled();
+    });
+
+    it('a partial tidy is a warning AFTER the saved episode, never a failure of it', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 1, removedBytes: 524288, daysDone: ['2026-10-21'], skipped: [{ name: 'x', reason: 'protected' }], halted: null } } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        expect(root.textContent).toContain('1 of 2 daily audio files were left in place.');
+        expect(root.querySelector('.ai-organiser-catchup-banner.is-warn')).toBeTruthy();
+    });
+
+    it('halting part-way is NOT success even if some files were removed, and says why', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 1, removedBytes: 524288, daysDone: ['2026-10-21'], skipped: [{ name: 'b', reason: 'linked-elsewhere' }], halted: 'changed-during-tidy' } } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('1 of 2 daily audio files were left in place.'));
+        expect(root.textContent).toContain('Some are linked from other notes.');
+        expect(root.textContent).toContain('Your notes changed while this ran, so it stopped.');
+        expect(root.textContent).not.toContain('Removed the daily audio for');
+    });
+
+    it('a tidy skipped because the index was not ready says so', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'skipped', reason: 'index-not-ready' } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Obsidian was still checking your notes.'));
+    });
+
+    it('a tidy that throws or is skipped is reported the same way, and the episode stays saved', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
+        runDailyAudioTidy.mockRejectedValue(new Error('boom'));
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('The daily audio could not be fully checked, so some files may still be there.'));
+        expect(root.textContent).toContain('Episode ready');
+        expect(root.textContent).not.toMatch(/\d of \d daily audio files/);
+    });
+
+    it('Replace offers the same option and tidies after the replacement', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')] });
+        prepareReplace.mockResolvedValue({
+            ok: true,
+            value: {
+                kind: 'ready', lostDays: [], episodeIds: ['e1'],
+                candidates: [{ id: 'e1', noteName: 'n.md', audioName: 'a.mp3', audioBytes: 10, from: '2026-10-19', to: '2026-10-21', dates: [], inboundLinks: 0, meta: {} }],
+                preview: { plan: plan(['2026-10-19', '2026-10-20', '2026-10-21']), tidy },
+            },
+        });
+        replaceAndRunCatchUp.mockResolvedValue({ ok: true, value: { episode: done.value, retired: [{ id: 'e1', noteName: 'n.md', audioName: 'a.mp3', note: 'trashed', audio: 'trashed' }] } });
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 2, removedBytes: 1048576, daysDone: ['2026-10-21', '2026-10-22'], skipped: [], halted: null } } });
+        const { root } = await open();
+        click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
+        expect(root.textContent).toContain('Also remove the daily audio for these days (2 files, 1.0 MB)');
+        click(root, 'Replace and generate');
+        await vi.waitFor(() => expect(runDailyAudioTidy).toHaveBeenCalledTimes(1));
+        await vi.waitFor(() => expect(root.textContent).toContain('The old episode is in your trash. Removed the daily audio for 2 days'));
     });
 });
 

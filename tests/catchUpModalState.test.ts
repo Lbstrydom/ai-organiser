@@ -26,7 +26,7 @@ function snapshot(over: Partial<CatchUpSnapshot> = {}): CatchUpSnapshot {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
         state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null,
-        oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, ...over,
+        oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, tidy: null, ...over,
     };
 }
 

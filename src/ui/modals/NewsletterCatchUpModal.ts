@@ -27,13 +27,14 @@ import {
     type RunOptions,
     type RunPhase,
 } from '../../services/newsletter/catchUp/catchUpService';
-import { createCatchUpPorts, previewCost } from '../../services/newsletter/catchUp/catchUpRuntime';
+import { createCatchUpPorts, createDailyTidyDeps, previewCost } from '../../services/newsletter/catchUp/catchUpRuntime';
+import { runDailyAudioTidy } from '../../services/newsletter/catchUp/catchUpTidy';
 import { prepareReplace, replaceAndRunCatchUp, type RefuseReason, type ReplacePrep, type RetiredEpisode } from '../../services/newsletter/catchUp/catchUpReplace';
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
 import { availabilityOf, deriveModalView, type ModalView, type Waiting } from '../../services/newsletter/catchUp/catchUpModalState';
 import { formatBytes } from '../../services/notebooklm/notebooklmUtils';
 import { datesBetween, formatDateList, formatDates, formatEpisodeDone, formatPendingSummary, isContiguous } from '../../services/newsletter/catchUp/catchUpFormat';
-import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
+import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta, type TidyPlan } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
 
@@ -58,6 +59,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     private replace: { phase: 'assessing' } | { phase: 'blocked'; prep: Extract<ReplacePrep, { kind: 'blocked' }> } | { phase: 'confirm'; prep: Extract<ReplacePrep, { kind: 'ready' }> } | null = null;
     /** What happened to the old episodes after a replacement, appended to the result banner. */
     private afterRun: { text: string; clean: boolean } | null = null;
+    /** Whether to also remove the superseded daily audio after the episode is saved (on by default when there is any). */
+    private tidyChoice = true;
     /** Bumped whenever the Replace flow is left, so an older assessment can never land in a newer one. */
     private replaceSeq = 0;
 
@@ -294,9 +297,10 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         const cost = previewCost(this.plugin, view.capMinutes);
         this.note(cost.ttsUsd === null ? m.costAzure : m.costTts.replace('{usd}', cost.ttsUsd.toFixed(2)));
         this.note(m.costNote, 'is-muted');
+        this.renderTidyOption(view.tidy);
 
         const footer = this.footer();
-        const generate = this.button(footer, m.generate, () => { void this.generate(view.planHash); }, true);
+        const generate = this.button(footer, m.generate, () => { void this.generate(view.planHash, view.tidy); }, true);
         this.button(footer, m.close, () => this.close());
         queueMicrotask(() => generate.focus());
     }
@@ -381,6 +385,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             const cost = previewCost(this.plugin, plan.length.capMinutes);
             this.note(cost.ttsUsd === null ? m.costAzure : m.costTts.replace('{usd}', cost.ttsUsd.toFixed(2)));
         }
+        this.renderTidyOption(prep.preview.tidy);
         if (prep.lostDays.length > 0) this.note(m.replaceLost.replace('{n}', String(prep.lostDays.length)).replace('{dates}', formatDateList(this.plugin.t, prep.lostDays)), 'is-warn');
         const linked = prep.candidates.reduce((n, c) => n + c.inboundLinks, 0);
         if (linked > 0) this.note((linked === 1 ? m.replaceLinkedOne : m.replaceLinked).replace('{n}', String(linked)), 'is-warn');
@@ -403,6 +408,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             });
             if (!res.ok) return res;
             this.afterRun = this.retirementNote(res.value.retired);
+            await this.tidyAfter(res.value.episode, prep.preview.tidy);
             return ok(res.value.episode);
         });
     }
@@ -566,8 +572,63 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         await this.refresh();
     }
 
-    private async generate(previewHash: string): Promise<void> {
-        await this.execute((ports, opts) => runCatchUp(ports, { ...opts, previewHash, includeAgainDates: this.includeAgainDates ?? undefined }));
+    private async generate(previewHash: string, tidy: TidyPlan | null): Promise<void> {
+        this.afterRun = null;
+        await this.execute(async (ports, opts) => {
+            const res = await runCatchUp(ports, { ...opts, previewHash, includeAgainDates: this.includeAgainDates ?? undefined });
+            if (res.ok) await this.tidyAfter(res.value, tidy);
+            return res;
+        });
+    }
+
+    /** The checkbox: also remove the daily audio this episode makes redundant. Shown only when there is any. */
+    private renderTidyOption(tidy: TidyPlan | null): void {
+        if (!tidy) return;
+        const m = this.plugin.t.modals.newsletterCatchUp;
+        const row = this.contentEl.createDiv({ cls: 'ai-organiser-catchup-tidy' });
+        const label = row.createEl('label');
+        const box = label.createEl('input');
+        box.type = 'checkbox';
+        box.checked = this.tidyChoice;
+        label.createSpan({ text: ' ' + (tidy.files.length === 1 ? m.tidyLabelOne : m.tidyLabel).replace('{count}', String(tidy.files.length)).replace('{size}', formatBytes(tidy.bytes)) });
+        this.cleanups.push(listen(box, 'change', () => { this.tidyChoice = box.checked; }));
+    }
+
+    /** After the episode is SAVED: remove the consented daily audio, and say what happened. Never fails the run. */
+    private async tidyAfter(episode: EpisodeResult, tidy: TidyPlan | null): Promise<void> {
+        if (!tidy || !this.tidyChoice) return;
+        const m = this.plugin.t.modals.newsletterCatchUp;
+        let note: { text: string; clean: boolean };
+        try {
+            const res = await runDailyAudioTidy(createDailyTidyDeps(this.plugin), { files: tidy.files, episodeId: episode.opId });
+            const report = res.ok && res.value.kind === 'done' ? res.value.report : null;
+            // Success means EVERY consented file is gone and nothing stopped the run early.
+            if (report && report.skipped.length === 0 && !report.halted && report.removedFiles === tidy.files.length && report.removedFiles > 0) {
+                const days = report.daysDone.length;
+                note = { text: (days === 1 ? m.tidyDoneOne : m.tidyDone).replace('{n}', String(days)).replace('{size}', formatBytes(report.removedBytes)), clean: true };
+            } else if (!report && !(res.ok && res.value.kind === 'skipped')) {
+                // An error result: how far it got is unknown, so no count is claimed.
+                note = { text: m.tidyUnknown, clean: false };
+            } else {
+                const why = new Set<string>();
+                for (const s of report?.skipped ?? []) {
+                    if (s.reason === 'protected') why.add(m.tidyWhyProtected);
+                    else if (s.reason === 'linked-elsewhere') why.add(m.tidyWhyLinked);
+                    else if (s.reason !== 'trash-failed' && s.reason !== 'write-failed') why.add(m.tidyWhyChanged);
+                }
+                if (report?.halted) why.add(m.tidyWhyHalted);
+                if (res.ok && res.value.kind === 'skipped' && res.value.reason !== 'off') why.add(m.tidyWhyChecking);
+                note = { text: [m.tidyPartial.replace('{left}', String(tidy.files.length - (report?.removedFiles ?? 0))).replace('{total}', String(tidy.files.length)), ...why].join(' '), clean: false };
+            }
+        } catch (e) {
+            logger.warn('Newsletter', 'Daily audio tidy failed', e);
+            note = { text: m.tidyUnknown, clean: false };
+        }
+        this.appendAfterRun(note);
+    }
+
+    private appendAfterRun(note: { text: string; clean: boolean }): void {
+        this.afterRun = this.afterRun ? { text: `${this.afterRun.text} ${note.text}`, clean: this.afterRun.clean && note.clean } : note;
     }
 
     private async resume(): Promise<void> {

@@ -336,17 +336,21 @@ export function expiringPending(entryDates: readonly string[], today: string, re
     return entryDates.filter((d) => d < horizon);
 }
 
-/** A short, stable signature of the coverage a plan would write — compared at Generate time. */
-export function coverageSignature(entries: readonly PendingEntry[]): string {
-    const text = entries
-        .map((e) => `${e.date}:${e.kind}:${e.coverage.kind === 'whole' ? 'w' : e.coverage.rev}:${e.sinceRevision ?? ''}`)
-        .sort()
-        .join('|');
-    // FNV-1a: not a security hash — a cheap, deterministic change detector.
+/** FNV-1a: not a security hash, a cheap deterministic change detector (8 hex digits). */
+export function fnv1a(text: string): string {
     let h = 0x811c9dc5;
     for (let i = 0; i < text.length; i++) {
         h ^= text.charCodeAt(i);
         h = Math.imul(h, 0x01000193) >>> 0;
     }
     return h.toString(16).padStart(8, '0');
+}
+
+/** A short, stable signature of the coverage a plan would write — compared at Generate time. */
+export function coverageSignature(entries: readonly PendingEntry[]): string {
+    const text = entries
+        .map((e) => `${e.date}:${e.kind}:${e.coverage.kind === 'whole' ? 'w' : e.coverage.rev}:${e.sinceRevision ?? ''}`)
+        .sort()
+        .join('|');
+    return fnv1a(text);
 }

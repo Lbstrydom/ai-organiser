@@ -26,6 +26,7 @@ import {
     deriveCaughtUpState,
     deriveCoverage,
     effectiveLookbackDays,
+    fnv1a,
     expiringPending,
     legacyHeard,
     lengthPlan,
@@ -34,6 +35,7 @@ import {
 } from './catchUpCoverage';
 import { findLatestEpisode, findLatestNarratedEpisode, loadEpisodes } from './catchUpEpisode';
 import { loadAcks } from './catchUpDraft';
+import { generatedEmbedLines } from './catchUpDailyEmbed';
 import type {
     BucketInfo,
     CatchUpPlan,
@@ -44,6 +46,8 @@ import type {
     PendingResult,
     PendingRunKind,
     SkippedDay,
+    TidyFile,
+    TidyPlan,
 } from './catchUpTypes';
 
 /** A brief shorter than this is not worth narrating (same floor the daily audio uses). */
@@ -98,6 +102,13 @@ export interface CatchUpSnapshot {
      * quotes this, not the window headline, because an open day is not something Smart daily is waiting to make.
      */
     autoPendingDays: number;
+    /** Daily audio files this catch-up would make redundant, or null when there are none. */
+    tidy: TidyPlan | null;
+}
+
+export function tidyPlanOf(files: readonly TidyFile[]): TidyPlan | null {
+    if (files.length === 0) return null;
+    return { files: [...files], bytes: files.reduce((n, f) => n + f.bytes, 0), days: [...new Set(files.map((f) => f.date))].sort() };
 }
 
 /** Story titles from a brief's bullet lines: `- **Title**: text`. */
@@ -146,6 +157,35 @@ interface DayFacts {
     info: BucketInfo;
     brief: string;
     newsletters: number;
+    /** Daily audio files this day still holds that its digest embeds (the only ones a tidy may ever touch). */
+    dailyAudio: TidyFile[];
+}
+
+/** Bare file names the digest embeds through the generated listen line, outside code blocks (see `catchUpDailyEmbed`). */
+export function embeddedDailyAudioNames(digest: string): Set<string> {
+    return new Set(generatedEmbedLines(digest).map((l) => l.name.toLowerCase()));
+}
+
+/** The day's daily audio files that match the naming contract AND are embedded by its digest. */
+function dailyAudioFor(app: App, folderPath: string, date: string, digestPath: string, digest: string, brief: string, audioMap: Record<string, number> | undefined): TidyFile[] {
+    const folder = app.vault.getAbstractFileByPath(normalizePath(folderPath));
+    if (!folder || !('children' in folder)) return [];
+    const pattern = new RegExp(String.raw`^brief-${date}-[a-f0-9]{8}\.(?:mp3|wav)$`);
+    const embedded = embeddedDailyAudioNames(digest);
+    const briefHash = fnv1a(brief);
+    const out: TidyFile[] = [];
+    for (const child of (folder as { children: unknown[] }).children) {
+        if (!(child instanceof TFile) || !pattern.test(child.name) || !embedded.has(child.name.toLowerCase())) continue;
+        const stat = (child as { stat?: { size?: number; mtime?: number } }).stat;
+        const rev = audioMap?.[child.name];
+        out.push({
+            date, name: child.name, path: child.path, digestPath, briefHash,
+            bytes: typeof stat?.size === 'number' ? stat.size : 0,
+            mtime: typeof stat?.mtime === 'number' ? stat.mtime : 0,
+            narratedRev: typeof rev === 'number' && Number.isInteger(rev) && rev >= 1 ? rev : null,
+        });
+    }
+    return out.sort((a, b) => (a.name < b.name ? -1 : 1));
 }
 
 async function readDay(
@@ -156,14 +196,17 @@ async function readDay(
     consumption: ConsumptionState | null,
     closed: boolean,
 ): Promise<DayFacts> {
-    const digest = app.vault.getAbstractFileByPath(getDigestPath(outputRoot, date));
+    const digestPath = getDigestPath(outputRoot, date);
+    const digest = app.vault.getAbstractFileByPath(digestPath);
     let brief = '';
     let newsletters = 0;
+    let dailyAudio: TidyFile[] = [];
     if (digest instanceof TFile) {
         try {
             const content = await app.vault.cachedRead(digest);
             brief = extractBriefFromDigest(content);
             newsletters = countDigestSources(content, date);
+            dailyAudio = dailyAudioFor(app, normalizePath(`${outputRoot}/${date}`), date, digestPath, content, brief, ledger?.buckets[date]?.audio);
         } catch (e) {
             logger.warn('Newsletter', `Catch-up could not read the digest for ${date}`, e);
         }
@@ -182,7 +225,7 @@ async function readDay(
             consumption !== null,
         ),
     };
-    return { info, brief, newsletters };
+    return { info, brief, newsletters, dailyAudio };
 }
 
 /** Itemise the late additions of a delta bucket from the ledger: stories newer than `since`. */
@@ -259,6 +302,9 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
     for (const d of pending.openDates) skipped.push({ date: d, reason: 'open-day' });
     skipped.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
+    // Daily audio the episode would supersede: files of days it narrates IN FULL (a delta day was covered earlier).
+    const tidy = tidyPlanOf(pending.entries.filter((e) => e.kind === 'full').flatMap((e) => days.get(e.date)?.dailyAudio ?? []));
+
     const oldestStoredDate = window.find((d) => days.get(d)?.info.hasBrief) ?? null;
 
     // A delta whose late additions cannot be itemised into text is unresolved, never silently dropped.
@@ -316,5 +362,6 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         skipped,
         evidenceDegraded,
         autoPendingDays,
+        tidy,
     };
 }
