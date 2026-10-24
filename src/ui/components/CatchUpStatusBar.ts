@@ -113,7 +113,7 @@ export class CatchUpStatusBar {
         el.createSpan({ text: ` ${label}` });
         // The left-out count is in the accessible name too: a native tooltip is not reliably shown on keyboard focus.
         const leftOut = snapshot.skipped.filter((s) => s.reason === 'heard-daily-audio').length;
-        const leftOutText = leftOut > 0 ? m.statusBarSkipped.replace('{n}', String(leftOut)) : '';
+        const leftOutText = leftOut > 0 ? (leftOut === 1 ? m.statusBarSkippedOne : m.statusBarSkipped).replace('{n}', String(leftOut)) : '';
         el.setAttribute('aria-label', leftOutText ? `${label}. ${leftOutText}` : label);
         const tip = waiting ? (waiting.episodes.length > 1 ? m.waitingEndsMany : m.waitingEndsOne) : m.statusBarTooltip;
         el.setAttribute('title', leftOutText ? `${tip}. ${leftOutText}` : tip);

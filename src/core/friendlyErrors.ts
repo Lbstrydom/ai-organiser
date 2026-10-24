@@ -127,6 +127,8 @@ export const GUIDANCE_CODES = [
     'catchup-unresolved',
     'catchup-too-much',
     'catchup-output-protected',
+    'catchup-replace-unsafe',
+    'catchup-replace-partial',
     // Newsletter read signal
     'read-signal-off',
     'read-not-digest',

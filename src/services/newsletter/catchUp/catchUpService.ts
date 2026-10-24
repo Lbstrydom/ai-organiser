@@ -105,6 +105,8 @@ export interface RunOptions {
     kind?: 'manual' | 'auto';
     /** "Include again": re-offer these already-covered dates in full. */
     includeAgainDates?: readonly string[];
+    /** Replace: plan as if these episodes did not exist (their days pending again). The episodes themselves are untouched here. */
+    excludeEpisodeIds?: readonly string[];
 }
 
 export interface EpisodeResult {
@@ -294,32 +296,38 @@ function aborted(opts: RunOptions): boolean {
  * one previewed.
  */
 export async function runCatchUp(ports: CatchUpPorts, opts: RunOptions): Promise<Result<EpisodeResult>> {
-    return withLock(async () => {
-        opts.onPhase?.({ key: 'freezing' });
-        const state = await reconcileOperation(ports);
-        if (state.kind !== 'none' && state.kind !== 'committed') return err('catchup-unresolved');
-        // Before any spend: a protected episode folder would refuse the very last step.
-        const writable = assertEpisodeOutputWritable(ports.settings, getNewsletterOutputFullPath(ports.settings));
-        if (!writable.ok) return err(OUTPUT_PROTECTED);
+    return withLock(() => runCatchUpLocked(ports, opts));
+}
 
-        const snapshot = await buildCatchUpSnapshot(
-            { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports), forceDates: opts.includeAgainDates },
-            opts.kind ?? 'manual',
-        );
-        const plan = snapshot.plan;
-        if (!plan) return err('catchup-nothing-pending');
-        if (opts.previewHash !== undefined && opts.previewHash !== plan.planHash) return err('catchup-changed');
-        if (aborted(opts)) return cancelled();
+/**
+ * The run itself, for a caller that ALREADY holds the single-flight lock (Replace makes the episode and
+ * retires the old one inside one lock). Never call it without the lock.
+ */
+export async function runCatchUpLocked(ports: CatchUpPorts, opts: RunOptions): Promise<Result<EpisodeResult>> {
+    opts.onPhase?.({ key: 'freezing' });
+    const state = await reconcileOperation(ports);
+    if (state.kind !== 'none' && state.kind !== 'committed') return err('catchup-unresolved');
+    // Before any spend: a protected episode folder would refuse the very last step.
+    const writable = assertEpisodeOutputWritable(ports.settings, getNewsletterOutputFullPath(ports.settings));
+    if (!writable.ok) return err(OUTPUT_PROTECTED);
 
-        // Fail fast on a missing TTS setup: no point paying for a script that cannot be voiced.
-        const resolved = await ports.resolveTts();
-        if (!resolved.ok) return err(resolved.code);
-        if (aborted(opts)) return cancelled();
+    const snapshot = await buildCatchUpSnapshot(
+        { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports), forceDates: opts.includeAgainDates, excludeEpisodeIds: opts.excludeEpisodeIds },
+        opts.kind ?? 'manual',
+    );
+    const plan = snapshot.plan;
+    if (!plan) return err('catchup-nothing-pending');
+    if (opts.previewHash !== undefined && opts.previewHash !== plan.planHash) return err('catchup-changed');
+    if (aborted(opts)) return cancelled();
 
-        const record = await writeScript(ports, snapshot, plan, opts);
-        if (!record.ok) return record;
-        return makeAudio(ports, record.value, resolved.tts, opts);
-    });
+    // Fail fast on a missing TTS setup: no point paying for a script that cannot be voiced.
+    const resolved = await ports.resolveTts();
+    if (!resolved.ok) return err(resolved.code);
+    if (aborted(opts)) return cancelled();
+
+    const record = await writeScript(ports, snapshot, plan, opts);
+    if (!record.ok) return record;
+    return makeAudio(ports, record.value, resolved.tts, opts);
 }
 
 /**

@@ -1805,7 +1805,11 @@ export interface Translations {
             includeSkipped: string;       // "Include them too"
             skippedOpen: string;          // "{dates} is left out until the day closes ..."
             includeAll: string;           // "Include all {n} days again"
+            includeAllOne: string;
+            datesMore: string;            // "and {n} more"
+            sizeUnknown: string;
             statusBarSkipped: string;     // "{n} days left out (already listened to)"
+            statusBarSkippedOne: string;
             evidenceDegraded: string;     // the listening history could not be read
             waitingTitleOne: string;      // "Waiting: your last episode is unheard, {pending}."
             waitingTitleMany: string;     // "Waiting: {count} episodes are unheard, {pending}."
@@ -1813,6 +1817,31 @@ export interface Translations {
             waitingEndsOne: string;
             waitingEndsMany: string;
             statusBarWaiting: string;     // "Waiting: last episode unheard · {pending}"
+            replaceOne: string;           // the Replace button
+            replaceMany: string;          // "... {count} ..."
+            replaceChecking: string;
+            replaceBlockedTitle: string;
+            replaceBlockedIntro: string;
+            replaceWhyPlaying: string;
+            replaceWhyProtected: string;
+            replaceWhyChecking: string;
+            replaceWhyInFlight: string;
+            replaceWhyAcked: string;
+            replaceWhyOther: string;
+            replaceWhyNothing: string;
+            replaceConfirmOne: string;
+            replaceConfirmMany: string;   // "{count}"
+            replaceTrashIntro: string;
+            replaceTrashItem: string;     // "{note} · {audio} ({size})"
+            replaceMakes: string;         // "{summary}", "{dates}"
+            replaceLost: string;          // "{n}", "{dates}"
+            replaceLinked: string;        // "{n}"
+            replaceLinkedOne: string;
+            replaceGo: string;
+            replaceRetired: string;
+            replaceRetiredMany: string;
+            replaceKept: string;          // "{why}"
+            replacePartial: string;       // "{files}"
             statusBarWaitingMany: string; // "Waiting: {count} episodes unheard · {pending}"
             noStored: string;             // "No newsletters stored for {dates}."
             unresolved: string;           // "Updates on {dates} could not be checked. Open the digest or fetch again."

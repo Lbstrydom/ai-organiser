@@ -60,6 +60,12 @@ export interface SelectionDeps {
      * supersedes the old by the normal max-merge.
      */
     forceDates?: readonly string[];
+    /**
+     * Replace preview: treat these episodes as if they did not exist for COVERAGE (their days become
+     * pending again), so the plan shows exactly what a replacement would make. Read-only; the episodes
+     * stay in `unheard`/`episodes`, nothing is touched.
+     */
+    excludeEpisodeIds?: readonly string[];
 }
 
 /** Everything the modal, the status bar and the generator need to know, from one read pass. */
@@ -233,7 +239,8 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
 
     const forced = new Set(deps.forceDates ?? []);
     const buckets = Object.fromEntries([...days].map(([d, f]) => [d, forced.has(d) ? { ...f.info, legacy: null } : f.info]));
-    const coverage = deriveCoverage(episodes);
+    const excluded = new Set(deps.excludeEpisodeIds ?? []);
+    const coverage = deriveCoverage(excluded.size === 0 ? episodes : episodes.filter((e) => !excluded.has(e.id)));
     for (const d of forced) delete coverage[d];
     const pending = computePending({
         window,
