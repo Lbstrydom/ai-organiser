@@ -101,6 +101,7 @@ export function buildCatchUpScriptPrompt(options: CatchUpPromptOptions): string 
 - For a story that ran over several days, say where it started and where it stands now, and skip the steps in between
 - Mention a day only when the date matters to the story ("by Thursday...")
 - Scale by selection, not length: the more days there are, the more minor single-day stories you drop. Never add airtime for extra days
+- When stories compete for airtime, favour the most recent developments. An older story that has been superseded gets only its outcome, and a story that has gone quiet is mentioned briefly
 - A block marked "Update to" holds new developments on a day the listener may already have heard: give them as developments and do not re-explain the background${regionRule}${memoryRule}
 - Remove all markdown formatting and source attributions; write for the ear, with contractions, short sentences and natural rhythm
 - Open with one sentence saying what period this covers and what the biggest development was; close with a single sentence, varied, not a generic thank-you
