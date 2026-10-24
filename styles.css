@@ -10235,12 +10235,18 @@
     .ai-organiser-embed-scan-kept-actions button,
     .ai-organiser-embed-scan-kept-entry button {
         min-height: 44px;
-        flex: 1 1 100%;
+        width: 100%;
+        flex: 0 0 auto;
     }
 
     .ai-organiser-embed-scan-kept-entry {
         flex-direction: column;
         align-items: stretch;
+    }
+
+    /* In a column the 220px basis would become a height. */
+    .ai-organiser-embed-scan-kept-text {
+        flex: 0 0 auto;
     }
 }
 
