@@ -53,6 +53,10 @@ const ACTIVITY_EVENTS = ['scroll', 'wheel', 'pointerdown', 'keydown', 'touchmove
 
 interface LiveSession {
     hash: string;
+    /** The bucket date the snapshot belongs to: part of the session identity, with the text hash. */
+    date: string;
+    /** The end of the brief is on screen RIGHT NOW (latest observation), whether or not the reader is attentive. */
+    endVisible: boolean;
     /** Committed or refused for this exact text: a tombstone, so the same text is never committed twice. */
     done: boolean;
     /** Torn down without finishing (unload, mode off, purge): a later render of the same text starts afresh. */
@@ -120,14 +124,14 @@ class BriefReadChild extends MarkdownRenderChild {
         const host = this.host;
         if (!host.enabled()) return;
         const view = findOwningView(host.app, this.el);
-        if (!view || view.getMode?.() !== 'preview') return;
+        if (!view || view.getMode?.() !== 'preview') { logger.debug('ReadSignal', `no preview view owns this section (view: ${view ? view.getMode?.() : 'none'})`); return; }
         const container = view.containerEl;
 
         let s = sessions.get(container);
         // A completed session is a tombstone only for the lifecycle it completed in: after a purge or a mode
         // change (a new generation) the same text may be read again.
         const staleTombstone = s?.done === true && s.generation !== host.generation();
-        if (s && (s.hash !== this.built.textHash || (s.dead && !s.done) || staleTombstone)) {
+        if (s && (s.hash !== this.built.textHash || s.date !== this.built.observation.date || (s.dead && !s.done) || staleTombstone)) {
             // Different text on screen means a new render, so a new session; a session that was torn
             // down without finishing (the last child unloaded, mode switched off) is replaced, not reused.
             disposeSession(s);
@@ -140,6 +144,7 @@ class BriefReadChild extends MarkdownRenderChild {
         if (s.done) return; // already committed (or refused) for this exact text
         s.children += 1;
         this.session = s;
+        logger.debug('ReadSignal', `bound section (coversEnd=${this.coversEnd}, children=${s.children}, date=${s.date})`);
         if (this.coversEnd) this.observeEnd(s);
     }
 
@@ -148,6 +153,8 @@ class BriefReadChild extends MarkdownRenderChild {
         const now = host.now ?? (() => performance.now());
         const s: LiveSession = {
             hash: this.built.textHash,
+            date: this.built.observation.date,
+            endVisible: false,
             done: false,
             dead: false,
             state: createReadSession(this.built.textHash, this.built.observation.displayed.length),
@@ -181,12 +188,19 @@ class BriefReadChild extends MarkdownRenderChild {
             if (s.done) { disposeSession(s); return; }
             if (!host.enabled() || host.generation() !== s.generation) { disposeSession(s); return; }
             s.state = tick(s.state, now(), surfaceSignals());
+            // Visibility seen while the pane was inactive counts the moment it becomes attentive.
+            if (s.endVisible && s.eligible()) s.state = markEndReached(s.state);
+            if (s.state.lastTickAt !== null && Math.round(s.state.dwellMs / 1000) % 10 === 0 && s.state.dwellMs > 0) {
+                logger.debug('ReadSignal', `dwell=${Math.round(s.state.dwellMs / 1000)}s bursts=${s.state.activityBursts} end=${s.state.endReached} visible=${s.endVisible} eligible=${s.eligible()}`);
+            }
             if (isReadThrough(s.state)) {
                 s.done = true;
                 disposeSession(s);
+                // done blocks a second concurrent commit while this one is pending; a FAILED save puts the
+                // session back to not-done so the next render of this text can try again.
                 void host.commit(s.observation, s.generation).then((res) => {
-                    if (!res.ok) logger.warn('Newsletter', `Read signal not saved: ${res.error}`);
-                }).catch((e) => logger.warn('Newsletter', 'Read signal commit threw', e));
+                    if (!res.ok) { s.done = false; logger.warn('Newsletter', `Read signal not saved: ${res.error}`); }
+                }).catch((e) => { s.done = false; logger.warn('Newsletter', 'Read signal commit threw', e); });
             }
         }, TICK_MS);
         return s;
@@ -203,7 +217,9 @@ class BriefReadChild extends MarkdownRenderChild {
         const Observer = this.el.ownerDocument.defaultView?.IntersectionObserver ?? window.IntersectionObserver;
         s.observer ??= new Observer((entries) => {
             // A background, unfocused or inactive view being scrolled past the end is not a reader at the end.
-            if (s.eligible() && entries.some((e) => e.isIntersecting && e.intersectionRatio >= END_VISIBLE_RATIO)) s.state = markEndReached(s.state);
+            // Record what is on screen; whether it COUNTS is decided by eligibility, now and at every tick.
+            if (entries.length > 0) s.endVisible = entries.some((e) => e.isIntersecting && e.intersectionRatio >= END_VISIBLE_RATIO);
+            if (s.endVisible && s.eligible()) s.state = markEndReached(s.state);
         }, { threshold: END_VISIBLE_RATIO });
         s.observer.observe(target);
     }
@@ -217,15 +233,15 @@ export function attachBriefReadObserver(el: HTMLElement, ctx: MarkdownPostProces
     try {
         if (!host.enabled()) return;
         const info = ctx.getSectionInfo(el);
-        if (!info) return;
+        if (!info) { logger.debug('ReadSignal', 'no section info for a rendered section'); return; }
         const date = host.digestDate(host.outputRoot(), ctx.sourcePath);
         if (!date) return;
         const loc = locateBrief(info.text);
-        if (!loc) return;
+        if (!loc) { logger.debug('ReadSignal', `section of ${ctx.sourcePath} has no brief block in its section text`); return; }
         // Only sections that lie inside the managed block.
         if (info.lineEnd <= loc.startLine || info.lineStart >= loc.endLine) return;
         const built = buildObservation(date, info.text);
-        if (!built) return;
+        if (!built) { logger.debug('ReadSignal', 'brief block did not parse into stories'); return; }
         const coversEnd = info.lineStart <= loc.lastStoryLine && info.lineEnd >= loc.lastStoryLine;
         const isList = el.querySelector('li') !== null;
         ctx.addChild(new BriefReadChild(el, host, built, coversEnd, isList));

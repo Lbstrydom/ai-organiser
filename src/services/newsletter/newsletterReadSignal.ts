@@ -45,18 +45,32 @@ const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
 export const MAX_CREDITED_PER_BUCKET = MAX_STORIES_PER_BUCKET;
 
 /**
- * THE retention policy for a bucket's credit. A ledger story has exactly one current gist, so only the
- * newest pair per story key can ever match: an older text of the same story is dropped, which also stops
- * historical gist versions accumulating. When still over the cap the OLDEST pairs go. Pure and idempotent.
+ * THE retention policy for a bucket's credit, applied by the writer AND the decoder. Distinct content
+ * identities are kept (another device's ledger may still hold an earlier gist of a story). Only when a
+ * bucket is over its cap does anything go: first versions that a newer pair of the same story supersedes
+ * (oldest first), then the oldest pairs overall. Exact duplicates collapse to their latest position.
+ * Pure and idempotent.
  */
 export function compactCredited(pairs: ReadonlyArray<readonly [string, string]>): Array<[string, string]> {
-    const latest = new Map<string, string>();
+    const seen = new Map<string, [string, string]>();
     for (const [k, g] of pairs) {
-        latest.delete(k); // re-insert so Map order tracks recency
-        latest.set(k, g);
+        const id = `${k}.${g}`;
+        seen.delete(id); // re-insert so Map order tracks recency
+        seen.set(id, [k, g]);
     }
-    const out: Array<[string, string]> = [...latest.entries()].map(([k, g]) => [k, g]);
-    return out.length > MAX_CREDITED_PER_BUCKET ? out.slice(out.length - MAX_CREDITED_PER_BUCKET) : out;
+    let out = [...seen.values()];
+    if (out.length <= MAX_CREDITED_PER_BUCKET) return out;
+
+    const newestIndexOfKey = new Map<string, number>();
+    out.forEach(([k], i) => newestIndexOfKey.set(k, i));
+    const superseded = new Set<number>();
+    out.forEach(([k], i) => { if (newestIndexOfKey.get(k) !== i) superseded.add(i); });
+    let excess = out.length - MAX_CREDITED_PER_BUCKET;
+    out = out.filter((_, i) => {
+        if (excess > 0 && superseded.has(i)) { excess--; return false; }
+        return true;
+    });
+    return excess > 0 ? out.slice(excess) : out;
 }
 const HASH_RE = /^[0-9a-f]{12}$/;
 

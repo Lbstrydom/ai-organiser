@@ -33,17 +33,28 @@ const DAY = '2026-10-20';
 const pair = (k: string, g: string): [string, string] => [hashPart(k), hashPart(g)];
 
 describe('compactCredited — one retention policy', () => {
-    it('keeps only the newest text per story and is idempotent', () => {
-        const out = compactCredited([pair('a', 'old'), pair('b', 'x'), pair('a', 'new')]);
-        expect(out).toEqual([pair('b', 'x'), pair('a', 'new')]);
+    it('keeps distinct content identities under the cap, collapses exact duplicates, and is idempotent', () => {
+        const out = compactCredited([pair('a', 'old'), pair('b', 'x'), pair('a', 'new'), pair('b', 'x')]);
+        expect(out).toEqual([pair('a', 'old'), pair('a', 'new'), pair('b', 'x')]);
         expect(compactCredited(out)).toEqual(out);
+    });
+
+    it('over the cap, superseded versions of a story go first, then the oldest', () => {
+        const base = Array.from({ length: MAX_CREDITED_PER_BUCKET - 1 }, (_, i) => pair(`story ${i}`, 'g'));
+        // one story with two versions pushes the bucket over the cap by one: the OLD version of that story goes, nothing else
+        const input = [pair('versioned', 'v1'), ...base, pair('versioned', 'v2')];
+        const out = compactCredited(input);
+        expect(out).toHaveLength(MAX_CREDITED_PER_BUCKET);
+        expect(out).not.toContainEqual(pair('versioned', 'v1'));
+        expect(out).toContainEqual(pair('versioned', 'v2'));
+        for (const x of base) expect(out).toContainEqual(x);
     });
 
     it('past the cap the OLDEST pairs go, and what the writer saves is exactly what the decoder reads', () => {
         const many = Array.from({ length: MAX_CREDITED_PER_BUCKET + 25 }, (_, i) => pair(`story ${i}`, 'g'));
         const compact = compactCredited(many);
         expect(compact).toHaveLength(MAX_CREDITED_PER_BUCKET);
-        expect(compact[0]).toEqual(many[25]);
+        expect(compact[0]).toEqual(many[25]); // no story is superseded here, so the oldest pairs go
         expect(compact.at(-1)).toEqual(many.at(-1));
         const decoded = coerceReadState({ version: 1, read: { [DAY]: { via: 'explicit', credited: many } } });
         expect(decoded.read[DAY].credited).toEqual(compact);

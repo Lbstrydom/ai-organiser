@@ -555,20 +555,29 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .onChange(async (value) => {
                     // One transition at a time: the control is inert until persistence and the purge have finished.
                     dd.setDisabled(true);
+                    const previous = getReadMode(settings);
                     const next: NewsletterReadMode = isReadMode(value) ? value : 'off';
-                    // Invalidate sessions that qualified under the old mode BEFORE anything is awaited.
-                    bumpReadGeneration();
-                    settings.newsletterReadMode = next;
-                    await this.plugin.saveSettings();
-                    if (next === 'off') {
-                        const res = await new NewsletterService(this.plugin).clearReadHistory();
-                        if (!res.ok) {
-                            // Collection is already off; nothing reads the old record while it is. Say so, and keep Forget available.
-                            logger.warn('Newsletter', `Failed to clear read history: ${res.error}`);
-                            new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
+                    try {
+                        // Invalidate sessions that qualified under the old mode BEFORE anything is awaited.
+                        bumpReadGeneration();
+                        settings.newsletterReadMode = next;
+                        await this.plugin.saveSettings();
+                        if (next === 'off') {
+                            const res = await new NewsletterService(this.plugin).clearReadHistory();
+                            if (!res.ok) {
+                                // Collection is already off; nothing reads the old record while it is. Say so, and keep Forget available.
+                                logger.warn('Newsletter', `Failed to clear read history: ${res.error}`);
+                                new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
+                            }
                         }
+                    } catch (e) {
+                        // The mode could not be saved: put the control back to what is really stored.
+                        logger.warn('Newsletter', 'Failed to save the read mode', e);
+                        settings.newsletterReadMode = previous;
+                        new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
+                    } finally {
+                        this.settingTab.display();
                     }
-                    this.settingTab.display();
                 }));
 
         {

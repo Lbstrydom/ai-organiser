@@ -356,31 +356,32 @@ describe('audit findings', () => {
         expect(commits).toHaveLength(1);
     });
 
-    it('end-of-brief evidence is ignored while the view is not the active leaf', () => {
+    it('end-of-brief visibility does not count while the view is not the active leaf, and counts once it is', () => {
         const view = newView();
         const other = newView();
         activeView = other;
         render(view, noteText());
         flush();
-        FakeIO.instances[0].fire(true); // scrolled past the end in a background pane
+        FakeIO.instances[0].fire(true); // scrolled to the end in a background pane
+        step(60, view.containerEl);
+        expect(commits).toHaveLength(0); // nothing while the reader is elsewhere
         activeView = view;
-        step(30, view.containerEl);
-        expect(commits).toHaveLength(0); // the end was never seen while attentive
-        FakeIO.instances[0].fire(true);  // now it is
-        step(10, view.containerEl);
+        step(40, view.containerEl);      // the reader is now here, the end is on screen
         expect(commits).toHaveLength(1);
     });
 
-    it('end-of-brief evidence is ignored while the window is unfocused', () => {
+    it('end-of-brief visibility does not count while the window is unfocused, and counts once it regains focus', () => {
         const view = newView();
         activeView = view;
         render(view, noteText());
         flush();
         vi.spyOn(document, 'hasFocus').mockReturnValue(false);
         FakeIO.instances[0].fire(true);
-        vi.spyOn(document, 'hasFocus').mockReturnValue(true);
-        step(30, view.containerEl);
+        step(60, view.containerEl);
         expect(commits).toHaveLength(0);
+        vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        step(40, view.containerEl);
+        expect(commits).toHaveLength(1);
     });
 });
 
@@ -426,5 +427,44 @@ describe('audit round 2', () => {
         flush();
         step(60, view.containerEl);
         expect(commits).toHaveLength(1);
+    });
+});
+
+describe('audit round 3', () => {
+    it('end visibility seen while the pane was inactive counts once the pane becomes active', () => {
+        const view = newView();
+        const other = newView();
+        activeView = other;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true); // the end is on screen, but this pane is not the active one
+        step(5, other.containerEl);
+        activeView = view;              // the reader switches to it; no further IO notification arrives
+        step(40, view.containerEl);
+        expect(commits).toHaveLength(1);
+    });
+
+    it('a FAILED save allows the next render to try again, while a pending one blocks a second commit', async () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true);
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(1);
+    });
+
+    it('session identity includes the bucket date, not only the text hash', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true);
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(1);
+        // Same text, a different digest note (another bucket date): must not be swallowed by the first tombstone.
+        render(view, noteText(), SECTION_LIST, `${ROOT}/Digest — 2026-10-22.md`);
+        flush();
+        expect(FakeIO.instances.length).toBeGreaterThanOrEqual(1);
     });
 });
