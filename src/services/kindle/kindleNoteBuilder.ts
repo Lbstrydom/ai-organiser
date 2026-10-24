@@ -279,7 +279,7 @@ function appendToNotesSection(content: string, block: string): string {
 }
 
 /** Opening fence at offset 0 (optional BOM), then either an empty block or body + closing fence. */
-const FRONTMATTER_BLOCK = /^(﻿?)(---[ \t]*\r?\n)(?:(---[ \t]*(?:\r?\n|$))|([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$)))/;
+const FRONTMATTER_BLOCK = /^(\uFEFF?)(---[ \t]*\r?\n)(?:(---[ \t]*(?:\r?\n|$))|([\s\S]*?)(\r?\n---[ \t]*(?:\r?\n|$)))/;
 
 function escapeRegExp(text: string): string {
     return text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
