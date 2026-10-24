@@ -30,7 +30,7 @@ import {
 import { createCatchUpPorts, previewCost } from '../../services/newsletter/catchUp/catchUpRuntime';
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
 import { availabilityOf, deriveModalView, type ModalView } from '../../services/newsletter/catchUp/catchUpModalState';
-import { datesBetween, formatDates, formatEpisodeDone, formatPendingSummary } from '../../services/newsletter/catchUp/catchUpFormat';
+import { datesBetween, formatDateList, formatDates, formatEpisodeDone, formatPendingSummary, isContiguous } from '../../services/newsletter/catchUp/catchUpFormat';
 import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
@@ -199,7 +199,26 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         const m = this.plugin.t.modals.newsletterCatchUp;
         if (view.noStoredDates.length > 0) this.note(m.noStored.replace('{dates}', formatDates(view.noStoredDates)));
         if (view.expiringDates.length > 0) this.note(m.expiring.replace('{dates}', formatDates(view.expiringDates)), 'is-warn');
+        if (view.evidenceDegraded) this.note(this.plugin.t.modals.newsletterCatchUp.evidenceDegraded, 'is-warn');
+        this.renderSkipped(view);
         if (opts.unheardWarning && view.unheard) this.renderUnheard(view.unheard.episode);
+    }
+
+    /** Days the plan leaves out on purpose, said plainly, with a way to bring the heard ones back. */
+    private renderSkipped(view: Exclude<ModalView, { kind: 'unavailable' }>): void {
+        const m = this.plugin.t.modals.newsletterCatchUp;
+        const heard = view.skipped.filter((s) => s.reason === 'heard-daily-audio').map((s) => s.date);
+        const open = view.skipped.filter((s) => s.reason === 'open-day').map((s) => s.date);
+        if (open.length > 0) this.note(m.skippedOpen.replace('{dates}', formatDateList(open)));
+        if (heard.length === 0) return;
+        const text = (heard.length === 1 ? m.skippedHeardOne : m.skippedHeard).replace('{n}', String(heard.length)).replace('{dates}', formatDateList(heard));
+        this.note(text);
+        const row = this.contentEl.createDiv({ cls: 'ai-organiser-catchup-actions' });
+        this.button(row, m.includeSkipped, () => {
+            this.includeAgainDates = [...new Set([...(this.includeAgainDates ?? []), ...heard])];
+            this.banner = null;
+            void this.refresh();
+        });
     }
 
     private renderUnheard(episode: EpisodeMeta): void {
@@ -217,7 +236,10 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         const m = this.plugin.t.modals.newsletterCatchUp;
         const summary = formatPendingSummary(this.plugin.t, view.days, view.newsletters);
         this.contentEl.createEl('p', { text: m.pendingLine.replace('{summary}', summary), cls: 'ai-organiser-catchup-summary' });
-        this.note(view.from === view.to ? m.coversOne.replace('{date}', view.from) : m.covers.replace('{from}', view.from).replace('{to}', view.to));
+        // A range only when it hides no gap: "A to B" over skipped days would claim days the episode does not include.
+        this.note(view.dates.length === 1
+            ? m.coversOne.replace('{date}', view.from)
+            : isContiguous(view.dates) ? m.covers.replace('{from}', view.from).replace('{to}', view.to) : m.coversList.replace('{dates}', formatDateList(view.dates)));
         if (view.unresolvedDates.length > 0) this.note(m.unresolved.replace('{dates}', formatDates(view.unresolvedDates)), 'is-warn');
         this.renderCommon(view, { unheardWarning: true });
 
@@ -268,31 +290,40 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         const m = this.plugin.t.modals.newsletterCatchUp;
         this.note(m.caughtUp.replace('{date}', view.through));
         this.renderCommon(view, { unheardWarning: true });
-        this.renderReplayRow(view.latestEpisode);
+        this.renderReplayRow(view.latestEpisode, view.windowDates);
     }
 
     private renderGap(view: Extract<ModalView, { kind: 'gap' }>): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
         this.note(m.gap.replace('{date}', view.lastEpisodeTo));
         this.renderCommon(view, { unheardWarning: true });
-        this.renderReplayRow(view.latestEpisode);
+        this.renderReplayRow(view.latestEpisode, view.windowDates);
     }
 
     private renderUnresolvedOnly(view: Extract<ModalView, { kind: 'unresolved-only' }>): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
         this.note(m.unresolvedOnly.replace('{dates}', formatDates(view.unresolvedDates)), 'is-warn');
         this.renderCommon(view, { unheardWarning: true });
-        this.renderReplayRow(view.latestEpisode);
+        this.renderReplayRow(view.latestEpisode, view.windowDates);
     }
 
     /** Nothing pending: Generate is absent, but replaying and remaking stay reachable. */
-    private renderReplayRow(latest: { notePath: string; from: string; to: string } | null): void {
+    private renderReplayRow(latest: { notePath: string; coverage: Record<string, unknown> } | null, windowDates: readonly string[] = []): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
         const footer = this.footer();
+        // Any day in the window can be brought back, not only the last episode's own range.
+        if (windowDates.length > 0) {
+            this.button(footer, m.includeAll.replace('{n}', String(windowDates.length)), () => {
+                this.includeAgainDates = [...windowDates];
+                this.banner = null;
+                void this.refresh();
+            });
+        }
         if (latest) {
             this.button(footer, m.replayLatest, () => { void this.app.workspace.openLinkText(latest.notePath, '', false); });
             this.button(footer, m.includeAgain, () => {
-                this.includeAgainDates = datesBetween(latest.from, latest.to);
+                // The episode's own days, exactly: a range could name days the episode never covered.
+                this.includeAgainDates = Object.keys(latest.coverage).sort();
                 this.banner = null;
                 void this.refresh();
             });

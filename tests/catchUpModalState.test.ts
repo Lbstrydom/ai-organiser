@@ -26,7 +26,7 @@ function snapshot(over: Partial<CatchUpSnapshot> = {}): CatchUpSnapshot {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
         state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null,
-        oldestStoredDate: null, expiringDates: [], ...over,
+        oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, ...over,
     };
 }
 
@@ -40,6 +40,15 @@ const input = (over: Partial<ModalInput> = {}): ModalInput => ({
 });
 
 describe('deriveModalView', () => {
+    it('carries the skipped days and the plan dates through, so the window cannot imply a range', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({
+            window: ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23'], plan: plan(['2026-10-20', '2026-10-23']), state: 'pending',
+            skipped: [{ date: '2026-10-22', reason: 'heard-daily-audio' }],
+            pending: { entries: [], unresolved: [], noStoredDates: ['2026-10-21'], coveredDates: [], openDates: [] },
+        }) }));
+        expect(v).toMatchObject({ kind: 'pending', dates: ['2026-10-20', '2026-10-23'], skipped: [{ date: '2026-10-22', reason: 'heard-daily-audio' }], windowDates: ['2026-10-20', '2026-10-22', '2026-10-23'] });
+    });
+
     it('unavailable states win over everything else', () => {
         expect(deriveModalView(input({ availability: 'audio-off', snapshot: snapshot({ plan: plan(['2026-10-22']) }) }))).toEqual({ kind: 'unavailable', reason: 'audio-off' });
         expect(deriveModalView(input({ availability: 'wrong-mode' }))).toEqual({ kind: 'unavailable', reason: 'wrong-mode' });
@@ -53,6 +62,14 @@ describe('deriveModalView', () => {
     it('four or more pending days are "big" (the 20 minute tier)', () => {
         const v = deriveModalView(input({ snapshot: snapshot({ plan: plan(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']) }) }));
         expect(v).toMatchObject({ kind: 'pending', days: 4, capMinutes: 20, big: true });
+    });
+
+    it('include-all never offers a still-open day (it would stay left out)', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({
+            window: ['2026-10-22', '2026-10-23'], state: 'caught-up',
+            skipped: [{ date: '2026-10-23', reason: 'open-day' }],
+        }) }));
+        expect(v).toMatchObject({ kind: 'caught-up', windowDates: ['2026-10-22'] });
     });
 
     it('an unfinished operation takes the window, whatever else is pending', () => {

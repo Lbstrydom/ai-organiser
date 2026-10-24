@@ -607,6 +607,13 @@ describe('smart daily', () => {
         expect(await autoRunDecision(p)).toEqual({ run: true });
     });
 
+    it('holds back (never spends) when the listening history cannot be read, and runs again once it can', async () => {
+        const spy = vi.spyOn(await import('../src/services/newsletter/newsletterConsumption'), 'loadConsumption').mockRejectedValueOnce(new Error('disk'));
+        expect(await autoRunDecision(ports({}, smart))).toEqual({ run: false, reason: 'evidence-unreadable' });
+        spy.mockRestore();
+        expect(await autoRunDecision(ports({}, smart))).toEqual({ run: true });
+    });
+
     it('works with story memory off (the ack map is independent of the watermark)', async () => {
         const off = { ...smart, newsletterStoryMemory: false };
         await runAutoCatchUp(ports({}, off));

@@ -118,6 +118,23 @@ export function parseCoverageMap(raw: unknown): CoverageMap {
     return out;
 }
 
+/**
+ * Does a legacy daily audio count as coverage? Only when there is EVIDENCE it was heard, and only
+ * as far as that evidence reaches. `consumedRev` is the reader's consumption watermark for the day
+ * (null when there is none). A daily audio that merely EXISTS proves nothing: a Daily install that
+ * switches mode would otherwise see every earlier day silently "covered" and offered no catch-up.
+ *
+ *  - story memory off, or no watermark  -> null (the day is offered)
+ *  - narrated revision r is known       -> revision(min(r, watermark)): stories the audio narrated
+ *                                          but the watermark does not reach stay a delta
+ *  - provenance gone                    -> revision(watermark): never wider than what was heard
+ */
+export function legacyHeard(legacy: Coverage | null, consumedRev: number | null, memoryOn: boolean): Coverage | null {
+    if (!legacy || !memoryOn) return null;
+    if (consumedRev === null || !Number.isInteger(consumedRev) || consumedRev < 1) return null;
+    return { kind: 'revision', rev: legacy.kind === 'revision' ? Math.min(legacy.rev, consumedRev) : consumedRev };
+}
+
 // ── Episodes ─────────────────────────────────────────────────────────────────
 
 /** Episode note names are `Catch-up <from>[ to <to>] <id>.md`; the window is readable without opening the file. */

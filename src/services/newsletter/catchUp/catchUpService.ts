@@ -587,7 +587,7 @@ export async function resumeCatchUp(ports: CatchUpPorts, opts: RunOptions): Prom
 
 // ── Smart daily ──────────────────────────────────────────────────────────────
 
-export type AutoSkipReason = 'wrong-mode' | 'busy' | 'unresolved' | 'unheard' | 'nothing-pending';
+export type AutoSkipReason = 'wrong-mode' | 'busy' | 'unresolved' | 'unheard' | 'nothing-pending' | 'evidence-unreadable';
 
 /**
  * Whether an AUTOMATIC run may start now. Admission is deliberately conservative: it keys on
@@ -601,6 +601,8 @@ export async function autoRunDecision(ports: CatchUpPorts): Promise<{ run: true 
     if (state.kind !== 'none' && state.kind !== 'committed' && state.kind !== 'expired') return { run: false, reason: 'unresolved' };
     const snapshot = await buildCatchUpSnapshot({ app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports) }, 'auto');
     if (snapshot.unheard.length > 0) return { run: false, reason: 'unheard' };
+    // An unattended run must not spend on a plan chosen without the listening history it relies on.
+    if (snapshot.evidenceDegraded) return { run: false, reason: 'evidence-unreadable' };
     if (!snapshot.plan) return { run: false, reason: 'nothing-pending' };
     return { run: true };
 }

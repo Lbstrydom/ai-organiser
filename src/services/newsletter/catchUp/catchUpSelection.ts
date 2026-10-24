@@ -11,6 +11,7 @@ import type { AIOrganiserSettings } from '../../../core/settings';
 import { getNewsletterOutputFullPath } from '../../../core/settings';
 import { logger } from '../../../utils/logger';
 import { loadLedger } from '../newsletterStoryLedger';
+import { consumedRevision, loadConsumption } from '../newsletterConsumption';
 import { isStoryMemoryEnabled } from '../newsletterMemoryPolicy';
 import {
     extractBriefFromDigest,
@@ -18,7 +19,7 @@ import {
     getDigestPath,
     isBucketClosed,
 } from '../newsletterService';
-import type { StoryLedger } from '../newsletterMemoryTypes';
+import type { ConsumptionState, StoryLedger } from '../newsletterMemoryTypes';
 import {
     computePending,
     coverageSignature,
@@ -26,6 +27,7 @@ import {
     deriveCoverage,
     effectiveLookbackDays,
     expiringPending,
+    legacyHeard,
     lengthPlan,
     unheardEpisodes,
     windowDates,
@@ -41,6 +43,7 @@ import type {
     EpisodeMeta,
     PendingResult,
     PendingRunKind,
+    SkippedDay,
 } from './catchUpTypes';
 
 /** A brief shorter than this is not worth narrating (same floor the daily audio uses). */
@@ -77,6 +80,13 @@ export interface CatchUpSnapshot {
     oldestStoredDate: string | null;
     /** Pending days whose digest retention will prune within two days. */
     expiringDates: string[];
+    /** Window days left out of the plan on purpose, with the reason, so the window can say so. */
+    skipped: SkippedDay[];
+    /**
+     * The listening record could not be read, so no daily audio counted as heard. The window says so
+     * and the automatic run holds back: a person may choose to generate anyway, an unattended run may not.
+     */
+    evidenceDegraded: boolean;
 }
 
 /** Story titles from a brief's bullet lines: `- **Title**: text`. */
@@ -132,6 +142,7 @@ async function readDay(
     outputRoot: string,
     date: string,
     ledger: StoryLedger | null,
+    consumption: ConsumptionState | null,
     closed: boolean,
 ): Promise<DayFacts> {
     const digest = app.vault.getAbstractFileByPath(getDigestPath(outputRoot, date));
@@ -153,7 +164,12 @@ async function readDay(
         closed,
         revision: bucket && bucket.revision >= 1 ? bucket.revision : null,
         parseFailed: bucket?.parseFailedAt !== undefined,
-        legacy: legacyCoverageFor(date, fileNamesIn(app, normalizePath(`${outputRoot}/${date}`)), bucket?.audio),
+        // A daily audio is coverage only where the reader HEARD it (their consumption watermark): existing is not heard.
+        legacy: legacyHeard(
+            legacyCoverageFor(date, fileNamesIn(app, normalizePath(`${outputRoot}/${date}`)), bucket?.audio),
+            consumption ? consumedRevision(consumption, date) : null,
+            consumption !== null,
+        ),
     };
     return { info, brief, newsletters };
 }
@@ -185,9 +201,16 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
     const window = windowDates(today, lookback);
 
     let ledger: StoryLedger | null = null;
+    let consumption: ConsumptionState | null = null;
+    let evidenceDegraded = false;
     if (memoryOn) {
         try { ledger = await loadLedger(plugin); } catch (e) {
             logger.warn('Newsletter', 'Catch-up could not read story memory — treating revisions as unknown', e);
+        }
+        // Without the listening record there is no evidence any daily audio was heard: those days are offered.
+        try { consumption = await loadConsumption(plugin); } catch (e) {
+            logger.warn('Newsletter', 'Catch-up could not read what you have listened to — daily audio will not count as heard', e);
+            evidenceDegraded = true;
         }
     }
 
@@ -200,7 +223,7 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
 
     const days = new Map<string, DayFacts>();
     for (const date of window) {
-        days.set(date, await readDay(app, outputRoot, date, ledger, isBucketClosed(date, hour, now, minute)));
+        days.set(date, await readDay(app, outputRoot, date, ledger, consumption, isBucketClosed(date, hour, now, minute)));
     }
 
     const forced = new Set(deps.forceDates ?? []);
@@ -215,6 +238,14 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         memoryOn: memoryOn && ledger !== null,
         kind,
     });
+
+    // Days left out on purpose, so the window can say so instead of silently shrinking.
+    const skipped: SkippedDay[] = [];
+    for (const d of pending.coveredDates) {
+        if (!coverage[d] && days.get(d)?.info.legacy) skipped.push({ date: d, reason: 'heard-daily-audio' });
+    }
+    for (const d of pending.openDates) skipped.push({ date: d, reason: 'open-day' });
+    skipped.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
     const oldestStoredDate = window.find((d) => days.get(d)?.info.hasBrief) ?? null;
 
@@ -261,5 +292,7 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         latestEpisode,
         oldestStoredDate,
         expiringDates: expiringPending(entries.map((e) => e.date), today, settings.newsletterRetentionDays ?? 30),
+        skipped,
+        evidenceDegraded,
     };
 }

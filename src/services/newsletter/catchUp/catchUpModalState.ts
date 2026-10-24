@@ -9,7 +9,7 @@
 import type { CatchUpSnapshot } from './catchUpSelection';
 import type { OperationState } from './catchUpService';
 import { getAudioMode, type AudioModeSettings } from '../newsletterAudioMode';
-import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from './catchUpTypes';
+import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta, type SkippedDay } from './catchUpTypes';
 
 export type Availability = 'ok' | 'audio-off' | 'wrong-mode';
 
@@ -30,6 +30,12 @@ interface Common {
     latestEpisode: EpisodeMeta | null;
     noStoredDates: string[];
     expiringDates: string[];
+    /** Window days left out of the plan on purpose (heard daily audio, still-open day), so the window can say so. */
+    skipped: SkippedDay[];
+    /** Every window day that has a stored brief: what "include all again" re-lists. */
+    windowDates: string[];
+    /** The listening history could not be read: daily audio you may have heard is offered again. */
+    evidenceDegraded: boolean;
 }
 
 export type ModalView =
@@ -47,6 +53,8 @@ export type ModalView =
         kind: 'pending';
         from: string;
         to: string;
+        /** The plan's actual dates: `from`/`to` alone would imply the skipped days between them are included. */
+        dates: string[];
         days: number;
         newsletters: number;
         capMinutes: number;
@@ -75,6 +83,10 @@ export function deriveModalView(input: ModalInput): ModalView {
         latestEpisode: snapshot.latestEpisode,
         noStoredDates: snapshot.pending.noStoredDates,
         expiringDates: snapshot.expiringDates,
+        skipped: snapshot.skipped,
+        // What "include all again" can actually re-list: days with a stored brief, minus still-open days (never offered while memory is off).
+        windowDates: snapshot.window.filter((d) => !snapshot.pending.noStoredDates.includes(d) && !snapshot.skipped.some((s) => s.date === d && s.reason === 'open-day')),
+        evidenceDegraded: snapshot.evidenceDegraded,
     };
 
     // An unfinished operation takes the window until the person resolves it: starting a second
@@ -100,6 +112,7 @@ export function deriveModalView(input: ModalInput): ModalView {
             kind: 'pending',
             from: plan.from,
             to: plan.to,
+            dates: plan.entries.map((e) => e.date),
             days: plan.entries.length,
             newsletters: plan.entries.reduce((n, e) => n + e.newsletters, 0),
             capMinutes: plan.length.capMinutes,

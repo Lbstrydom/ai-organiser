@@ -1798,6 +1798,14 @@ export interface Translations {
             pendingLine: string;          // "{summary} pending"
             covers: string;               // "Covers {from} to {to}"
             coversOne: string;            // "Covers {date}"
+            coversList: string;           // "Covers {dates}" for days that are not consecutive
+            skippedHeard: string;         // "{n} earlier days are left out ...: {dates}."
+            skippedHeardOne: string;
+            includeSkipped: string;       // "Include them too"
+            skippedOpen: string;          // "{dates} is left out until the day closes ..."
+            includeAll: string;           // "Include all {n} days again"
+            statusBarSkipped: string;     // "{n} days left out (already listened to)"
+            evidenceDegraded: string;     // the listening history could not be read
             noStored: string;             // "No newsletters stored for {dates}."
             unresolved: string;           // "Updates on {dates} could not be checked. Open the digest or fetch again."
             unresolvedOnly: string;

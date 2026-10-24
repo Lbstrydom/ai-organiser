@@ -143,6 +143,13 @@ export interface PendingResult {
 
 export type PendingRunKind = 'manual' | 'auto';
 
+/** A window day left out of the plan on purpose, and why (so the window can say so). */
+export interface SkippedDay {
+    date: string;
+    /** `heard-daily-audio`: the reader listened to that day's daily audio. `open-day`: story memory is off and the day has not closed. */
+    reason: 'heard-daily-audio' | 'open-day';
+}
+
 /** What "caught up" may honestly say. */
 export type CaughtUpState =
     | 'pending'            // something to narrate

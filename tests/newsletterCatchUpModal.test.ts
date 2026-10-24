@@ -113,13 +113,13 @@ const plan = (dates: string[]) => ({
     length: { capMinutes: dates.length >= 4 ? 20 : 15, wordBudget: 1950 }, from: dates[0], to: dates.at(-1), createdAt: 1, planHash: 'abcd1234',
 });
 const episode = (id: string, from: string, to: string) => ({
-    id, from, to, coverage: { [to]: { kind: 'whole' } }, audio: `catchup-${id}.mp3`, fingerprint: 'ab', minutes: 10, sources: 3, notePath: `Catch-up/${id}.md`,
+    id, from, to, coverage: Object.fromEntries(datesBetween(from, to).map((d) => [d, { kind: 'whole' }])), audio: `catchup-${id}.mp3`, fingerprint: 'ab', minutes: 10, sources: 3, notePath: `Catch-up/${id}.md`,
 });
 function snapshot(over: Record<string, unknown> = {}) {
     return {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
-        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], ...over,
+        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, ...over,
     };
 }
 
@@ -215,6 +215,44 @@ describe('the window', () => {
         expect(root.textContent).toContain('No newsletters stored for 2026-10-20, 2026-10-21.');
         expect(root.textContent).toContain('will be removed by your retention setting');
         expect(root.textContent).not.toMatch(/expired/i);
+    });
+
+    it('says which days were left out because their daily audio was heard, and can bring them back', async () => {
+        snapshotRef.value = snapshot({
+            plan: plan(['2026-10-23']), state: 'pending',
+            skipped: [{ date: '2026-10-21', reason: 'heard-daily-audio' }, { date: '2026-10-22', reason: 'heard-daily-audio' }],
+        });
+        const { root } = await open();
+        expect(root.textContent).toContain('2 earlier days are left out because you already listened to their daily audio: 2026-10-21, 2026-10-22.');
+        click(root, 'Include them too');
+        await flush();
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
+        expect(last.forceDates).toEqual(['2026-10-21', '2026-10-22']);
+    });
+
+    it('a still-open day is said to be left out when story memory is off', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22']), state: 'pending', skipped: [{ date: '2026-10-23', reason: 'open-day' }] });
+        const { root } = await open();
+        expect(root.textContent).toContain('2026-10-23 is left out until the day closes, because story memory is off.');
+    });
+
+    it('the Covers line never spans days that are not included', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-24']), state: 'pending' });
+        const { root } = await open();
+        expect(root.textContent).toContain('Covers 2026-10-21, 2026-10-24');
+        expect(root.textContent).not.toContain('Covers 2026-10-21 to 2026-10-24');
+    });
+
+    it('caught up: any day in the window can be included again, not only the last episode range', async () => {
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up' });
+        const { root } = await open();
+        expect(buttons(root)).toContain('Include all 3 days again');
+        click(root, 'Include all 3 days again');
+        await flush();
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
+        expect(last.forceDates).toEqual(['2026-10-21', '2026-10-22', '2026-10-23']);
     });
 
     it('an unheard episode shows a warning ABOVE Generate, with Mark listened', async () => {

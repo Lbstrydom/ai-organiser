@@ -30,9 +30,20 @@ export function lookbackClampNote(t: Translations, lookbackSetting: unknown, ret
     return effective < asked ? t.settings.newsletter.catchUp.lookbackClampNote.replaceAll('{n}', String(effective)) : null;
 }
 
-/** A comma list for a few dates, a range for many. */
+/** A comma list for a few dates, a range for many consecutive ones; many scattered dates stay a counted list (a range would claim the gaps). */
 export function formatDates(dates: readonly string[]): string {
-    return dates.length <= 4 ? dates.join(', ') : `${dates[0]} – ${dates[dates.length - 1]}`;
+    if (dates.length <= 4) return dates.join(', ');
+    return isContiguous(dates) ? `${dates[0]} – ${dates[dates.length - 1]}` : formatDateList(dates);
+}
+
+/** Every date for a handful of dates, the first few and a count beyond that (never a range that hides gaps). */
+export function formatDateList(dates: readonly string[], max = 6): string {
+    return dates.length <= max ? dates.join(', ') : `${dates.slice(0, max - 1).join(', ')} +${dates.length - (max - 1)} more`;
+}
+
+/** True when the dates are consecutive calendar days, so "A to B" does not hide a gap. */
+export function isContiguous(dates: readonly string[]): boolean {
+    return dates.length < 2 || datesBetween(dates[0], dates[dates.length - 1]).length === dates.length;
 }
 
 /** Every calendar date from `from` to `to`, inclusive. */

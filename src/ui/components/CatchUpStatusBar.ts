@@ -105,8 +105,11 @@ export class CatchUpStatusBar {
         const icon = el.createSpan({ cls: 'ai-organiser-catchup-status-icon' });
         setIcon(icon, 'headphones');
         el.createSpan({ text: ` ${label}` });
-        el.setAttribute('aria-label', label);
-        el.setAttribute('title', m.statusBarTooltip);
+        // The left-out count is in the accessible name too: a native tooltip is not reliably shown on keyboard focus.
+        const leftOut = snapshot.skipped.filter((s) => s.reason === 'heard-daily-audio').length;
+        const leftOutText = leftOut > 0 ? m.statusBarSkipped.replace('{n}', String(leftOut)) : '';
+        el.setAttribute('aria-label', leftOutText ? `${label}. ${leftOutText}` : label);
+        el.setAttribute('title', leftOutText ? `${m.statusBarTooltip}. ${leftOutText}` : m.statusBarTooltip);
         el.show();
     }
 

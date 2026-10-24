@@ -107,6 +107,16 @@ function baseLedger(extra: Record<string, ReturnType<typeof ledgerBucket>> = {})
     };
 }
 
+/** The listening record: the reader heard a day up to this revision. */
+function consumed(map: Record<string, number>): Record<string, unknown> {
+    return {
+        'newsletter-consumed-briefs': {
+            version: 1,
+            consumed: Object.fromEntries(Object.entries(map).map(([d, revision]) => [d, { firstAt: 1, lastAt: 1, firstVia: 'audio', lastVia: 'audio', revision }])),
+        },
+    };
+}
+
 const snap = (opts: { data?: Record<string, unknown>; s?: Record<string, unknown>; kind?: 'manual' | 'auto' } = {}) =>
     buildCatchUpSnapshot({ app: vault.app as never, plugin: makePlugin(opts.data ?? baseLedger()) as never, settings: settings(opts.s), now: NOW }, opts.kind ?? 'manual');
 
@@ -261,13 +271,13 @@ describe('coverage from episode notes', () => {
     });
 
     it('a provable gap says so instead of "caught up"', async () => {
-        // Every stored day is already narrated (legacy daily audio), so nothing is pending...
+        // Every stored day was narrated by a daily audio the reader HEARD, so nothing is pending...
         for (const d of ['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']) {
             vault.set(`${ROOT}/${d}/brief-${d}-abcd1234.mp3`, new ArrayBuffer(4));
         }
         // ...but the last catch-up ended on Oct 12, and Oct 13-19 are gone from the vault.
         addEpisode(vault, episodeInput({ from: '2026-10-10', to: '2026-10-12', coverage: { '2026-10-12': { kind: 'whole' } }, id: '20261012-100000-cccc', audio: 'catchup-z.mp3' }));
-        const s = await snap();
+        const s = await snap({ data: { ...baseLedger(), ...consumed({ '2026-10-20': 2, '2026-10-21': 2, '2026-10-22': 3, '2026-10-23': 1 }) } });
         expect(s.plan).toBeNull();
         expect(s.latestEpisode?.to).toBe('2026-10-12');
         expect(s.oldestStoredDate).toBe('2026-10-20');
@@ -276,11 +286,11 @@ describe('coverage from episode notes', () => {
 });
 
 describe('legacy daily audio is coverage only by provenance', () => {
-    it('a legacy audio file with a recorded older revision leaves a delta for the late additions', async () => {
+    it('a HEARD legacy audio file with a recorded older revision leaves a delta for the late additions', async () => {
         vault.set(`${ROOT}/2026-10-22/brief-2026-10-22-abcd1234.mp3`, new ArrayBuffer(4));
         const ledger = baseLedger();
         (ledger['newsletter-story-ledger'].buckets['2026-10-22'].audio as Record<string, number>)['brief-2026-10-22-abcd1234.mp3'] = 1;
-        const s = await snap({ data: ledger });
+        const s = await snap({ data: { ...ledger, ...consumed({ '2026-10-22': 1 }) } });
         const e = s.plan!.entries.find((x) => x.date === '2026-10-22')!;
         expect(e.kind).toBe('delta');
         expect(e.sinceRevision).toBe(1);
@@ -292,10 +302,72 @@ describe('legacy daily audio is coverage only by provenance', () => {
         expect(s.plan!.entries.find((x) => x.date === '2026-10-22')!.kind).toBe('full');
     });
 
-    it('a legacy audio file with expired provenance covers the day as whole', async () => {
+    it('a HEARD legacy audio file with expired provenance covers the day up to the heard revision', async () => {
         vault.set(`${ROOT}/2026-10-21/brief-2026-10-21-abcd1234.mp3`, new ArrayBuffer(4));
-        const s = await snap();
+        const s = await snap({ data: { ...baseLedger(), ...consumed({ '2026-10-21': 2 }) } });
         expect(s.plan!.entries.map((x) => x.date)).not.toContain('2026-10-21');
+        expect(s.skipped).toEqual([{ date: '2026-10-21', reason: 'heard-daily-audio' }]);
+    });
+
+    it('provenance-less audio heard at revision 1 while the day is at revision 2 leaves the late stories as a delta, not a covered day', async () => {
+        vault.set(`${ROOT}/2026-10-20/brief-2026-10-20-abcd1234.mp3`, new ArrayBuffer(4));
+        const s = await snap({ data: { ...baseLedger(), ...consumed({ '2026-10-20': 1 }) } });
+        const e = s.plan!.entries.find((x) => x.date === '2026-10-20')!;
+        expect(e.kind).toBe('delta');
+        expect(e.sinceRevision).toBe(1);
+    });
+
+    it('a daily audio the reader never heard does NOT cover its day (the reported older-days defect)', async () => {
+        for (const d of ['2026-10-20', '2026-10-21', '2026-10-22']) vault.set(`${ROOT}/${d}/brief-${d}-abcd1234.mp3`, new ArrayBuffer(4));
+        const s = await snap();
+        expect(s.plan!.entries.map((x) => x.date)).toEqual(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']);
+        expect(s.skipped).toEqual([]);
+    });
+
+    it('story memory off: no listening evidence exists, so daily audio never covers a day', async () => {
+        for (const d of ['2026-10-20', '2026-10-21']) vault.set(`${ROOT}/${d}/brief-${d}-abcd1234.mp3`, new ArrayBuffer(4));
+        const s = await snap({ s: { newsletterStoryMemory: false } });
+        expect(s.plan!.entries.map((x) => x.date)).toEqual(['2026-10-20', '2026-10-21', '2026-10-22']);
+    });
+
+    it('an unreadable listening record is treated as no evidence', async () => {
+        vault.set(`${ROOT}/2026-10-21/brief-2026-10-21-abcd1234.mp3`, new ArrayBuffer(4));
+        const s = await snap({ data: { ...baseLedger(), 'newsletter-consumed-briefs': 'garbage' } });
+        expect(s.plan!.entries.map((x) => x.date)).toContain('2026-10-21');
+    });
+
+    it('"Include again" on a heard day re-lists it in full', async () => {
+        vault.set(`${ROOT}/2026-10-21/brief-2026-10-21-abcd1234.mp3`, new ArrayBuffer(4));
+        const data = { ...baseLedger(), ...consumed({ '2026-10-21': 2 }) };
+        const s = await buildCatchUpSnapshot({ app: vault.app as never, plugin: makePlugin(data) as never, settings: settings(), now: NOW, forceDates: ['2026-10-21'] }, 'manual');
+        expect(s.plan!.entries.find((x) => x.date === '2026-10-21')!.kind).toBe('full');
+    });
+});
+
+describe('days the plan leaves out are never silent (pinned causes of "only today")', () => {
+    it('story memory off: the still-open day is reported as left out', async () => {
+        const s = await snap({ s: { newsletterStoryMemory: false } });
+        expect(s.skipped).toEqual([{ date: '2026-10-23', reason: 'open-day' }]);
+    });
+
+    it('a digest without a usable Daily Brief is reported as nothing stored, not as pending or skipped', async () => {
+        vault.set(`${ROOT}/Digest — 2026-10-21.md`, '# Newsletter Digest — 2026-10-21\n\nno brief block here\n');
+        vault.set(`${ROOT}/Digest — 2026-10-22.md`, digest('2026-10-22', 'too short'));
+        const s = await snap();
+        expect(s.pending.noStoredDates).toEqual(expect.arrayContaining(['2026-10-21', '2026-10-22']));
+        expect(s.plan!.entries.map((e) => e.date)).not.toContain('2026-10-21');
+    });
+
+    it('a late cutoff hour moves the window end to the previous calendar day (documented behaviour)', async () => {
+        const s = await snap({ s: { newsletterBriefCutoffHour: 20 } });
+        expect(s.today).toBe('2026-10-22');
+        expect(s.window.at(-1)).toBe('2026-10-22');
+        expect(s.plan!.entries.map((e) => e.date)).not.toContain('2026-10-23');
+    });
+
+    it('retention shorter than the lookback shortens the window', async () => {
+        const s = await snap({ s: { newsletterRetentionDays: 3 } });
+        expect(s.window).toHaveLength(3);
     });
 });
 
