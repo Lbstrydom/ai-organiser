@@ -56,6 +56,7 @@ const SECTION_OUTSIDE = { lineStart: 11, lineEnd: 11 };
 class FakeIO {
     static instances: FakeIO[] = [];
     targets: Element[] = [];
+    unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el); }
     constructor(public cb: (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void) { FakeIO.instances.push(this); }
     observe(el: Element) { this.targets.push(el); }
     disconnect() { this.targets = []; }
@@ -480,5 +481,18 @@ describe('audit round 4', () => {
         step(60, view.containerEl);
         expect(commits).toHaveLength(0);
         expect(r.children).toHaveLength(1);
+    });
+});
+
+describe('audit round 5', () => {
+    it('unloading the section that holds the end releases its observed target', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText(), SECTION_HEADING);
+        const end = render(view, noteText(), SECTION_LIST);
+        flush();
+        expect(FakeIO.instances[0].targets).toHaveLength(1);
+        end.children.forEach((c) => c.onunload());
+        expect(FakeIO.instances[0].targets).toHaveLength(0);
     });
 });

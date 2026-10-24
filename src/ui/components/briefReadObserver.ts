@@ -96,6 +96,8 @@ function findOwningView(app: App, el: HTMLElement): MarkdownView | null {
 class BriefReadChild extends MarkdownRenderChild {
     private session: LiveSession | null = null;
     private disposed = false;
+    /** The element this child asked the shared observer to watch, released when the child unloads. */
+    private endTarget: Element | null = null;
 
     constructor(
         private readonly el: HTMLElement,
@@ -118,6 +120,7 @@ class BriefReadChild extends MarkdownRenderChild {
         this.disposed = true;
         const s = this.session;
         if (!s) return;
+        this.releaseEndTarget(s);
         s.children -= 1;
         if (s.children <= 0) disposeSession(s);
     }
@@ -210,6 +213,16 @@ class BriefReadChild extends MarkdownRenderChild {
         return s;
     }
 
+    private releaseEndTarget(s: LiveSession): void {
+        const target = this.endTarget;
+        if (!target) return;
+        this.endTarget = null;
+        s.observer?.unobserve(target);
+        s.observed.delete(target);
+        // No watched end target left means there is nothing on screen to call the end of the brief.
+        if (s.observed.size === 0) s.endVisible = false;
+    }
+
     private observeEnd(s: LiveSession): void {
         if (typeof IntersectionObserver === 'undefined') return; // fail closed: no end evidence, no implicit read
         // A list section holds every bullet under one element: watch its LAST item, not its top.
@@ -217,6 +230,7 @@ class BriefReadChild extends MarkdownRenderChild {
         const target: Element = items && items.length > 0 ? items[items.length - 1] : this.el;
         if (s.observed.has(target)) return;
         s.observed.add(target);
+        this.endTarget = target;
         // The container's own window: correct for a popout, where the global observer would watch the wrong viewport.
         const Observer = this.el.ownerDocument.defaultView?.IntersectionObserver ?? window.IntersectionObserver;
         s.observer ??= new Observer((entries) => {
