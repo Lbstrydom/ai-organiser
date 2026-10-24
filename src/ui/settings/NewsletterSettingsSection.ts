@@ -7,9 +7,12 @@ import { NewsletterService, SEEN_DATA_KEY, LAST_FETCH_DATA_KEY } from '../../ser
 import { showNewsletterFetchResultNotice } from '../../commands/newsletterCommands';
 import { addFolderPicker } from './components/FolderSuggest';
 import { logger } from '../../utils/logger';
+import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { COMMON_LANGUAGES, getLanguageDisplayName } from '../../services/languages';
 import { updatePluginData } from '../../core/pluginDataStore';
 import { getAudioMode, isAudioMode } from '../../services/newsletter/newsletterAudioMode';
+import { getReadMode, isReadMode, type NewsletterReadMode } from '../../services/newsletter/newsletterReadMode';
+import { bumpReadGeneration } from '../../services/newsletter/newsletterReadSignal';
 import { lookbackClampNote } from '../../services/newsletter/catchUp/catchUpFormat';
 import { CATCHUP_BASE_CAP_MINS, CATCHUP_BIG_THRESHOLD_DAYS, CATCHUP_CLEANUP_MAX_DAYS, normaliseCleanupDays } from '../../services/newsletter/catchUp/catchUpTypes';
 
@@ -373,16 +376,17 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                         // otherwise strand a week of story text in plugin data —
                         // the opposite of what switching it off implies.
                         if (!value) {
-                            try {
-                                await new NewsletterService(this.plugin).clearStoryMemory();
-                            } catch (e) {
-                                logger.warn('Newsletter', 'Failed to clear story memory', e);
+                            const purged = await new NewsletterService(this.plugin).clearStoryMemory();
+                            if (!purged.ok) {
+                                logger.warn('Newsletter', `Failed to clear story memory: ${purged.error}`);
+                                new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
                             }
                         }
                         this.settingTab.display();
                     }));
 
             if (this.plugin.settings.newsletterStoryMemory !== false) {
+                this.renderReadSignal(nl);
                 new Setting(this.containerEl)
                     .setName(nl?.markCaughtUp || 'Mark all caught up')
                     .setDesc(nl?.markCaughtUpDesc || 'Tell the brief you are up to date, so earlier stories stop being repeated.')
@@ -536,6 +540,64 @@ export class NewsletterSettingsSection extends BaseSettingSection {
     }
 
     /** Catch-up controls, shown for the on-demand and smart-daily modes. */
+    /** Which briefs count as read, so the written brief stops retelling earlier days. Needs story memory. */
+    private renderReadSignal(nl: AIOrganiserPlugin['t']['settings']['newsletter'] | undefined): void {
+        const settings = this.plugin.settings;
+        const mode = getReadMode(settings);
+        new Setting(this.containerEl)
+            .setName(nl?.readMode || 'Briefs you have read')
+            .setDesc(nl?.readModeDesc || 'Stop retelling stories from earlier days that you have already read in the written brief.')
+            .addDropdown(dd => dd
+                .addOption('off', nl?.readModeOff || 'Off')
+                .addOption('explicit', nl?.readModeExplicit || 'Only when I mark a brief as read')
+                .addOption('read-through', nl?.readModeReadThrough || 'When I read it through, or mark it')
+                .setValue(mode)
+                .onChange(async (value) => {
+                    // One transition at a time: the control is inert until persistence and the purge have finished.
+                    dd.setDisabled(true);
+                    const previous = getReadMode(settings);
+                    const next: NewsletterReadMode = isReadMode(value) ? value : 'off';
+                    try {
+                        // Invalidate sessions that qualified under the old mode BEFORE anything is awaited.
+                        bumpReadGeneration();
+                        settings.newsletterReadMode = next;
+                        await this.plugin.saveSettings();
+                        if (next === 'off') {
+                            const res = await new NewsletterService(this.plugin).clearReadHistory();
+                            if (!res.ok) {
+                                // Collection is already off; nothing reads the old record while it is. Say so, and keep Forget available.
+                                logger.warn('Newsletter', `Failed to clear read history: ${res.error}`);
+                                new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
+                            }
+                        }
+                    } catch (e) {
+                        // The mode could not be saved: put the control back to what is really stored.
+                        logger.warn('Newsletter', 'Failed to save the read mode', e);
+                        settings.newsletterReadMode = previous;
+                        new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
+                    } finally {
+                        this.settingTab.display();
+                    }
+                }));
+
+        {
+            new Setting(this.containerEl)
+                .setName(nl?.forgetRead || 'Forget what I have read')
+                .setDesc(nl?.forgetReadDesc || 'Deletes the record of which briefs you read. Stories may be retold once.')
+                .addButton(btn => btn
+                    .setButtonText(nl?.forgetReadButton || 'Forget')
+                    .onClick(async () => {
+                        btn.setDisabled(true);
+                        try {
+                            const res = await new NewsletterService(this.plugin).clearReadHistory();
+                            new Notice(res.ok ? (nl?.forgetReadDone || 'Forgotten.') : formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 4000);
+                        } finally {
+                            btn.setDisabled(false);
+                        }
+                    }));
+        }
+    }
+
     private renderCatchUpSettings(): void {
         const cu = this.plugin.t.settings?.newsletter?.catchUp;
         const settings = this.plugin.settings;

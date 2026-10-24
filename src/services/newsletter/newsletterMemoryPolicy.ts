@@ -12,7 +12,21 @@
 
 import type { AIOrganiserSettings } from '../../core/settings';
 import { isFeatureEnabled } from '../featureService';
+import { getReadMode } from './newsletterReadMode';
 
 export function isStoryMemoryEnabled(settings: AIOrganiserSettings): boolean {
     return isFeatureEnabled(settings, 'newsletter') && settings.newsletterStoryMemory === true;
+}
+
+/**
+ * The read signal is available only with story memory on AND a non-`off` read mode. Every call
+ * site (command, detector, recall load, purge on switch-off) asks this one predicate.
+ */
+export function isReadSignalEnabled(settings: AIOrganiserSettings): boolean {
+    return isStoryMemoryEnabled(settings) && getReadMode(settings) !== 'off';
+}
+
+/** The Reading-view detector additionally needs the `read-through` mode. */
+export function isReadThroughEnabled(settings: AIOrganiserSettings): boolean {
+    return isStoryMemoryEnabled(settings) && getReadMode(settings) === 'read-through';
 }

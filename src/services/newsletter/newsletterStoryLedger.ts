@@ -101,7 +101,7 @@ function stem(token: string): string {
 }
 
 /** Normalise a gist for CHANGE DETECTION only (never for display). */
-function gistFingerprint(gist: string): string {
+export function gistFingerprint(gist: string): string {
     return gist.toLowerCase().replaceAll(/\s+/g, ' ').trim();
 }
 

@@ -1,0 +1,237 @@
+// @vitest-environment happy-dom
+/**
+ * Findings from the code audit, each pinned: one retention policy for writer and decoder, attentive
+ * time needing eligibility at both ends of an interval, an honest purge result, and a read-store
+ * failure that cannot take the heard inputs down with it.
+ */
+
+vi.mock('obsidian', () => ({
+    normalizePath: (p: string) => p.replace(/\\/g, '/'),
+    requestUrl: vi.fn(),
+    TFile: class TFile { path = ''; name = ''; basename = ''; parent: unknown = null; },
+}));
+const summarizeText = vi.hoisted(() => vi.fn());
+vi.mock('../src/services/llmFacade', () => ({ summarizeText, pluginContext: (p: unknown) => p }));
+
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { TFile } from 'obsidian';
+import { DEFAULT_SETTINGS, getNewsletterOutputFullPath } from '../src/core/settings';
+import { NewsletterService, getDigestPath } from '../src/services/newsletter/newsletterService';
+import {
+    MAX_CREDITED_PER_BUCKET,
+    READ_DATA_KEY,
+    coerceReadState,
+    commitReadObservation,
+    compactCredited,
+    currentReadGeneration,
+    hashPart,
+} from '../src/services/newsletter/newsletterReadSignal';
+import { createReadSession, noteActivity, tick } from '../src/services/newsletter/newsletterReadSession';
+import type { LedgerStory } from '../src/services/newsletter/newsletterMemoryTypes';
+
+const DAY = '2026-10-20';
+const pair = (k: string, g: string): [string, string] => [hashPart(k), hashPart(g)];
+
+describe('compactCredited — one retention policy', () => {
+    it('keeps distinct content identities under the cap, collapses exact duplicates, and is idempotent', () => {
+        const out = compactCredited([pair('a', 'old'), pair('b', 'x'), pair('a', 'new'), pair('b', 'x')]);
+        expect(out).toEqual([pair('a', 'old'), pair('a', 'new'), pair('b', 'x')]);
+        expect(compactCredited(out)).toEqual(out);
+    });
+
+    it('over the cap, superseded versions of a story go first, then the oldest', () => {
+        const base = Array.from({ length: MAX_CREDITED_PER_BUCKET - 1 }, (_, i) => pair(`story ${i}`, 'g'));
+        // one story with two versions pushes the bucket over the cap by one: the OLD version of that story goes, nothing else
+        const input = [pair('versioned', 'v1'), ...base, pair('versioned', 'v2')];
+        const out = compactCredited(input);
+        expect(out).toHaveLength(MAX_CREDITED_PER_BUCKET);
+        expect(out).not.toContainEqual(pair('versioned', 'v1'));
+        expect(out).toContainEqual(pair('versioned', 'v2'));
+        for (const x of base) expect(out).toContainEqual(x);
+    });
+
+    it('past the cap the OLDEST pairs go, and what the writer saves is exactly what the decoder reads', () => {
+        const many = Array.from({ length: MAX_CREDITED_PER_BUCKET + 25 }, (_, i) => pair(`story ${i}`, 'g'));
+        const compact = compactCredited(many);
+        expect(compact).toHaveLength(MAX_CREDITED_PER_BUCKET);
+        expect(compact[0]).toEqual(many[25]); // no story is superseded here, so the oldest pairs go
+        expect(compact.at(-1)).toEqual(many.at(-1));
+        const decoded = coerceReadState({ version: 1, read: { [DAY]: { via: 'explicit', credited: many } } });
+        expect(decoded.read[DAY].credited).toEqual(compact);
+    });
+
+    it('a commit beyond the cap persists a state the decoder returns unchanged', async () => {
+        const stories: LedgerStory[] = Array.from({ length: MAX_CREDITED_PER_BUCKET + 10 }, (_, i) => ({ key: `story-number-${i}`, title: `T${i}`, gist: `gist ${i}`, firstRevision: 1, contentRevision: 1 }));
+        const store: Record<string, unknown> = { 'newsletter-story-ledger': { version: 1, buckets: { [DAY]: { revision: 1, updatedAt: 1, audio: {}, stories } } } };
+        const plugin = { loadData: async () => structuredClone(store), saveData: async (d: Record<string, unknown>) => { Object.assign(store, structuredClone(d)); } } as never;
+        const res = await commitReadObservation(plugin, { date: DAY, displayed: stories.map((s) => ({ key: s.key, title: s.title, gist: s.gist })) }, 'explicit',
+            { eligible: () => true, generation: 0, currentGeneration: () => 0 }, DAY);
+        expect(res.ok).toBe(true);
+        const saved = store[READ_DATA_KEY];
+        expect(coerceReadState(saved)).toEqual(saved);
+    });
+});
+
+describe('attentive time needs eligibility at both ends of the interval', () => {
+    const ON = { visible: true, focused: true, activeLeaf: true };
+    it('an interval ending in a visible tick but starting hidden earns nothing', () => {
+        let s = noteActivity(tick(createReadSession('h', 4), 0, ON), 0);
+        s = tick(s, 1000, { ...ON, visible: false });
+        s = noteActivity(s, 2000);
+        s = tick(s, 2000, ON); // hidden → visible: the interval before this tick started ineligible
+        expect(s.dwellMs).toBe(0);
+        s = tick(s, 3000, ON); // eligible at both ends now
+        expect(s.dwellMs).toBe(1000);
+    });
+
+    it('time before the first activity is not credited retroactively', () => {
+        let s = tick(createReadSession('h', 4), 0, ON);
+        s = tick(s, 1000, ON);
+        s = tick(s, 2000, ON);
+        expect(s.dwellMs).toBe(0);
+        s = noteActivity(s, 2500);
+        s = tick(s, 3000, ON); // first tick that sees the activity: previous tick was not attentive
+        expect(s.dwellMs).toBe(0);
+        s = tick(s, 4000, ON);
+        expect(s.dwellMs).toBe(1000);
+    });
+});
+
+// ── service-level ────────────────────────────────────────────────────────────
+
+function makeVault() {
+    const files = new Map<string, { content: string; tfile: TFile }>();
+    const put = (path: string, content: string) => {
+        const t = new TFile();
+        t.path = path; t.name = path.split('/').pop() ?? path; t.basename = t.name.replace(/\.md$/, '');
+        t.parent = { path: path.slice(0, path.lastIndexOf('/')) } as never;
+        files.set(path, { content, tfile: t });
+    };
+    return { files, put, getAbstractFileByPath: (p: string) => files.get(p)?.tfile ?? null, cachedRead: async (f: { path: string }) => files.get(f.path)?.content ?? '', read: async (f: { path: string }) => files.get(f.path)?.content ?? '', modify: async (f: { path: string }, c: string) => { put(f.path, c); }, create: async (p: string, c: string) => { put(p, c); return files.get(p)!.tfile; } };
+}
+
+function pluginFor(opts: { failRead?: boolean; failSave?: boolean }) {
+    const vault = makeVault();
+    const settings = { ...DEFAULT_SETTINGS, featureFlags: { newsletter: true }, newsletterStoryMemory: true, newsletterReadMode: 'explicit' };
+    const root = getNewsletterOutputFullPath(settings as never);
+    const today = '2026-10-21';
+    const items = ['Alpha', 'Beta'].map((n) => `${root}/${today}/${n}.md`);
+    vault.put(getDigestPath(root, today), `# Digest — ${today}\n\n${items.map((p) => `- [[${today}/${p.split('/').pop()!.replace(/\.md$/, '')}|x]]`).join('\n')}\n`);
+    const story = { key: 'port-strike-harbour', title: 'Port strike', gist: 'Walked out', firstRevision: 1, contentRevision: 1 };
+    const data: Record<string, unknown> = {
+        'newsletter-story-ledger': { version: 1, buckets: { [DAY]: { revision: 1, updatedAt: 1, audio: {}, stories: [story] } } },
+        'newsletter-consumed-briefs': { version: 1, consumed: {} },
+        [READ_DATA_KEY]: { version: 1, read: {} },
+    };
+    let loads = 0;
+    const loadData = vi.fn(async () => {
+        loads++;
+        return structuredClone(data);
+    });
+    const saveData = vi.fn(async (d: Record<string, unknown>) => {
+        if (opts.failSave) throw new Error('disk full');
+        for (const k of Object.keys(data)) delete data[k];
+        Object.assign(data, structuredClone(d));
+    });
+    void loads;
+    const plugin = { app: { vault, workspace: {}, metadataCache: { getFileCache: () => null } }, settings, loadData, saveData } as never;
+    const batch = items.map((p, i) => ({ id: `m${i}`, from: 'x', subject: `s${i}`, date: today, senderName: i === 0 ? 'Alpha' : 'Beta', markdown: '', triage: `Triage text ${i} about the harbour port strike continuing across several areas of the region today.`, llmFailed: false, keyLinks: [], _resolvedPath: p }));
+    return { plugin, batch, data, today };
+}
+
+beforeEach(() => {
+    summarizeText.mockReset();
+    summarizeText.mockResolvedValue({ success: true, content: '### News\n- **Something new**: A development. (Sources: Alpha, Beta)' });
+});
+
+describe('clearStoryMemory reports a failed read purge', () => {
+    it('rejects like the other two clears, so the caller reports it', async () => {
+        const { plugin } = pluginFor({ failSave: true });
+        // The ledger purge itself fails first on a failing disk; use a store where only the read key exists.
+        const service = new NewsletterService(plugin);
+        const before = currentReadGeneration();
+        const purged = await service.clearStoryMemory();
+        expect(purged.ok).toBe(false);
+        expect(currentReadGeneration()).toBeGreaterThanOrEqual(before);
+    });
+
+    it('clearReadHistory itself returns the failure as a Result and still invalidates in-flight sessions', async () => {
+        const { plugin } = pluginFor({ failSave: true });
+        const before = currentReadGeneration();
+        const res = await new NewsletterService(plugin).clearReadHistory();
+        expect(res.ok).toBe(false);
+        expect(currentReadGeneration()).toBe(before + 1);
+    });
+});
+
+describe('a failing read store cannot take the heard inputs down', () => {
+    it('the brief still gets its memory block when only the read state fails to load', async () => {
+        const { plugin, batch, today } = pluginFor({});
+        const real = (plugin as never as { loadData: () => Promise<Record<string, unknown>> }).loadData;
+        let calls = 0;
+        // Make the read-state load (the third loadPluginData call in the recall Promise.all) reject.
+        const p = plugin as never as { loadData: () => Promise<Record<string, unknown>> };
+        p.loadData = async () => {
+            calls++;
+            const d = await real();
+            if (calls === 3) { Object.defineProperty(d, READ_DATA_KEY, { get() { throw new Error('boom'); }, enumerable: true }); }
+            return d;
+        };
+        const service = new NewsletterService(plugin);
+        await (service as unknown as { generateAndInjectBrief(d: string, b: unknown[]): Promise<void> }).generateAndInjectBrief(today, batch);
+        const prompt = summarizeText.mock.calls[0][1] as string;
+        expect(prompt).toContain('<story_memory>');
+        expect(prompt).toContain('[THEY_MISSED_THESE_ENTIRELY]');
+    });
+});
+
+describe('audit round 2', () => {
+    it('an observation older than the retention window is not stored', async () => {
+        const OLD = '2026-09-01';
+        const story = { key: 'old-story-here', title: 'T', gist: 'g', firstRevision: 1, contentRevision: 1 };
+        const store: Record<string, unknown> = { 'newsletter-story-ledger': { version: 1, buckets: { [OLD]: { revision: 1, updatedAt: 1, audio: {}, stories: [story] } } } };
+        const plugin = { loadData: async () => structuredClone(store), saveData: vi.fn(async (d: Record<string, unknown>) => { Object.assign(store, structuredClone(d)); }) } as never;
+        const res = await commitReadObservation(plugin, { date: OLD, displayed: [{ key: story.key, title: 'T', gist: 'g' }] }, 'explicit',
+            { eligible: () => true, generation: 0, currentGeneration: () => 0 }, '2026-10-21');
+        expect(res).toEqual({ ok: true, value: { kind: 'noop' } });
+        expect(READ_DATA_KEY in store).toBe(false);
+    });
+
+    it('clearStoryMemory still purges the other stores when one purge fails, and reports it', async () => {
+        const { plugin, data } = pluginFor({});
+        data[READ_DATA_KEY] = { version: 1, read: { [DAY]: { via: 'explicit', credited: [pair('a', 'b')] } } };
+        const p = plugin as never as { saveData: (d: Record<string, unknown>) => Promise<void> };
+        const real = p.saveData;
+        let calls = 0;
+        p.saveData = async (d) => { calls++; if (calls === 1) throw new Error('first purge fails'); return real(d); };
+        const purged = await new NewsletterService(plugin).clearStoryMemory();
+        expect(purged.ok).toBe(false);
+        expect(purged.ok ? '' : purged.error).toContain('story ledger: first purge fails');
+        expect(calls).toBe(3); // every independent purge was attempted
+        expect(data[READ_DATA_KEY]).toBeUndefined();
+        expect(data['newsletter-consumed-briefs']).toBeUndefined();
+    });
+});
+
+describe('audit round 4', () => {
+    it('expired buckets are persisted away even when the observation credits nothing new', async () => {
+        const OLD = '2026-09-01';
+        const story = { key: 'port-strike-harbour', title: 'T', gist: 'g', firstRevision: 1, contentRevision: 1 };
+        const store: Record<string, unknown> = {
+            'newsletter-story-ledger': { version: 1, buckets: { [DAY]: { revision: 1, updatedAt: 1, audio: {}, stories: [story] } } },
+            [READ_DATA_KEY]: { version: 1, read: { [OLD]: { via: 'explicit', credited: [pair('x', 'y')] }, [DAY]: { via: 'explicit', credited: [[hashPart(story.key), hashPart('g')]] } } },
+        };
+        const plugin = { loadData: async () => structuredClone(store), saveData: async (d: Record<string, unknown>) => { for (const k of Object.keys(store)) delete store[k]; Object.assign(store, structuredClone(d)); } } as never;
+        const res = await commitReadObservation(plugin, { date: DAY, displayed: [{ key: story.key, title: 'T', gist: 'g' }] }, 'explicit',
+            { eligible: () => true, generation: 0, currentGeneration: () => 0 }, '2026-10-21');
+        expect(res).toEqual({ ok: true, value: { kind: 'noop' } });
+        expect(Object.keys((store[READ_DATA_KEY] as { read: object }).read)).toEqual([DAY]);
+    });
+
+    it('the decoder and the writer share one duplicate policy (latest position wins)', () => {
+        const dup = [pair('a', 'x'), pair('b', 'y'), pair('a', 'x')];
+        const decoded = coerceReadState({ version: 1, read: { [DAY]: { via: 'explicit', credited: dup } } });
+        expect(decoded.read[DAY].credited).toEqual(compactCredited(dup));
+        expect(decoded.read[DAY].credited).toEqual([pair('b', 'y'), pair('a', 'x')]);
+    });
+});

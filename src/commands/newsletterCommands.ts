@@ -11,7 +11,11 @@ import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
-import { NewsletterService, getBriefDateStr, extractDigestDate } from '../services/newsletter/newsletterService';
+import { NewsletterService, getBriefDateStr, extractDigestDate, digestBucketForPath } from '../services/newsletter/newsletterService';
+import { isReadSignalEnabled } from '../services/newsletter/newsletterMemoryPolicy';
+import { buildObservation, currentReadGeneration } from '../services/newsletter/newsletterReadSignal';
+import type { ReadRefusal } from '../services/newsletter/newsletterMemoryTypes';
+import { getNewsletterOutputFullPath } from '../core/settings';
 import { withProgress } from '../services/progress';
 import { getAudioMode, isCatchUpEnabled } from '../services/newsletter/newsletterAudioMode';
 import { readEpisode } from '../services/newsletter/catchUp/catchUpEpisode';
@@ -233,6 +237,58 @@ export async function runMarkCatchUpListened(plugin: AIOrganiserPlugin): Promise
     new Notice(m.markedListened, 4000);
 }
 
+const READ_REFUSAL_GUIDANCE: Record<ReadRefusal, Parameters<typeof describeError>[1]> = {
+    'not-a-digest-note': 'read-not-digest',
+    'memory-off': 'read-signal-off',
+    'mode-off': 'read-signal-off',
+    'unparsable-brief': 'read-unparsable',
+    'no-matching-stories': 'read-no-match',
+    'invalidated': 'read-save-failed',
+};
+
+/**
+ * Explicit read signal: the reader asserts they read the brief in the active digest note. What is
+ * credited is what the note DISPLAYS (parsed from its own text) matched to the ledger by content —
+ * never "whatever the ledger says now".
+ */
+export async function runMarkBriefRead(plugin: AIOrganiserPlugin): Promise<void> {
+    if (!isFeatureEnabled(plugin.settings, 'newsletter')) return;
+    const fail = (code: Parameters<typeof describeError>[1]) => new Notice(formatGuidance(describeError(plugin.t, code)), 6000);
+    if (!isReadSignalEnabled(plugin.settings)) { fail('read-signal-off'); return; }
+
+    // Captured BEFORE any await: a purge or mode change while the note is being read invalidates this mark.
+    const generation = currentReadGeneration();
+    const file = plugin.app.workspace.getActiveFile();
+    const date = file instanceof TFile ? digestBucketForPath(getNewsletterOutputFullPath(plugin.settings), file.path) : null;
+    if (!(file instanceof TFile) || !date) { fail('read-not-digest'); return; }
+
+    let text: string;
+    try {
+        text = await plugin.app.vault.cachedRead(file);
+    } catch (e) {
+        logger.warn('Newsletter', `Mark brief read could not read the note: ${e instanceof Error ? e.message : String(e)}`);
+        fail('read-unparsable');
+        return;
+    }
+    const built = buildObservation(date, text);
+    if (!built) { fail('read-unparsable'); return; }
+
+    const res = await new NewsletterService(plugin).markBriefRead(built.observation, 'explicit', generation);
+    if (!res.ok) {
+        logger.warn('Newsletter', `Mark brief read failed: ${res.error}`);
+        fail('read-save-failed');
+        return;
+    }
+    const nl = plugin.t.settings.newsletter;
+    const out = res.value;
+    if (out.kind === 'refused') { fail(READ_REFUSAL_GUIDANCE[out.code]); return; }
+    if (out.kind === 'credited' && out.newly > 0) {
+        new Notice(nl.briefMarkedRead.replace('{n}', String(out.newly)), 4000);
+    } else {
+        new Notice(nl.briefAlreadyRead, 4000);
+    }
+}
+
 /**
  * Smart daily: after a fetch, make one catch-up episode if — and only if — admission allows
  * (nothing unheard, nothing unresolved, a closed day is pending). Never throws into the fetch.
@@ -325,6 +381,13 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         name: t.commands.newsletterMarkCaughtUp || 'Mark newsletters caught up',
         icon: 'check-check',
         callback: () => { void runMarkCaughtUp(plugin); },
+    });
+
+    plugin.addCommand({
+        id: 'newsletter-mark-brief-read',
+        name: t.commands.newsletterMarkBriefRead || 'Mark newsletter brief as read',
+        icon: 'book-open-check',
+        callback: () => { void runMarkBriefRead(plugin).catch((e) => logger.warn('Newsletter', 'Mark brief read failed', e)); },
     });
 
     plugin.addCommand({

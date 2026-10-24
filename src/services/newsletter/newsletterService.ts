@@ -15,7 +15,7 @@ import { truncateAtBoundary, getMaxContentCharsForModel } from '../tokenLimits';
 import { buildTriagePrompt, insertContentIntoTriagePrompt } from '../prompts/triagePrompts';
 import { buildDailyBriefPrompt, insertBriefContent, type BriefSource } from '../prompts/newsletterPrompts';
 import { updatePluginData } from '../../core/pluginDataStore';
-import { isStoryMemoryEnabled } from './newsletterMemoryPolicy';
+import { isReadSignalEnabled, isStoryMemoryEnabled } from './newsletterMemoryPolicy';
 import { isRegionRelevant } from './homeRegionAliases';
 import {
     loadLedger,
@@ -30,11 +30,18 @@ import {
     markAllConsumedThrough,
     clearConsumption,
 } from './newsletterConsumption';
-import { selectRecall } from './newsletterRecall';
+import { selectGenerationRecalls } from './newsletterRecall';
+import {
+    bumpReadGeneration,
+    clearReadState,
+    commitReadObservation,
+    currentReadGeneration,
+    loadReadState,
+} from './newsletterReadSignal';
 import { ok, err, type Result } from '../../core/result';
 import { resolveBriefAudioBucket } from './briefAudioResolver';
 import { postProcessBrief } from './briefPostProcess';
-import type { RecallSelection, CaughtUpOutcome } from './newsletterMemoryTypes';
+import type { RecallSelection, CaughtUpOutcome, ReadCommitOutcome, ReadObservation, ReadSignal } from './newsletterMemoryTypes';
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
@@ -692,13 +699,21 @@ export class NewsletterService {
         // memory failure must never block the brief.
         const memoryOn = isStoryMemoryEnabled(settings);
         let recall: RecallSelection | undefined;
+        // What the podcast script sees. Heard-only by design: reading never suppresses audio.
+        let audioRecall: RecallSelection | undefined;
         if (memoryOn) {
             try {
-                const [ledger, consumption] = await Promise.all([
+                // The read channel is loaded ONLY when the read signal is on, so the off path reads nothing new.
+                const [ledger, consumption, read] = await Promise.all([
                     loadLedger(this.plugin),
                     loadConsumption(this.plugin),
+                    isReadSignalEnabled(settings)
+                        ? loadReadState(this.plugin).catch((e) => { logger.warn('Newsletter', 'Read history unavailable — the brief uses heard memory only', e); return undefined; })
+                        : Promise.resolve(undefined),
                 ]);
-                recall = selectRecall(ledger, consumption, dateStr);
+                const recalls = selectGenerationRecalls(ledger, consumption, dateStr, read);
+                recall = recalls.briefRecall;
+                audioRecall = recalls.audioRecall;
             } catch (e) {
                 logger.warn('Newsletter', 'Story memory unavailable — brief falls back to no-memory behaviour', e);
             }
@@ -774,7 +789,7 @@ export class NewsletterService {
             const cutoff = this.plugin.settings.newsletterBriefCutoffHour ?? 6;
             const cutoffMinute = this.plugin.settings.newsletterBriefCutoffMinute ?? 0;
             if (isBucketClosed(dateStr, cutoff, new Date(), cutoffMinute)) {
-                await this.generateAudioForBrief(brief, outputRoot, dateStr, recall);
+                await this.generateAudioForBrief(brief, outputRoot, dateStr, audioRecall);
             } else {
                 logger.debug('Newsletter', `Audio podcast deferred for bucket ${dateStr} — bucket is still live (cutoff ${cutoff}:${String(cutoffMinute).padStart(2, '0')} next day not yet reached)`);
             }
@@ -1179,11 +1194,59 @@ export class NewsletterService {
         }
     }
 
+    /**
+     * Record that the reader read a brief (the read signal; see `newsletterReadSignal.ts`).
+     *
+     * `generation` is REQUIRED: the collection generation the observation was captured under, read
+     * by the caller before any asynchronous work. Defaulting it here would let work started before a
+     * purge become eligible to commit after it. The commit refuses it if the mode was switched, the
+     * history purged or the plugin unloaded since.
+     */
+    async markBriefRead(
+        observation: ReadObservation,
+        via: ReadSignal,
+        generation: number,
+    ): Promise<Result<ReadCommitOutcome>> {
+        try {
+            const settings = this.plugin.settings;
+            if (!isStoryMemoryEnabled(settings)) return ok({ kind: 'refused', code: 'memory-off' });
+            if (!isReadSignalEnabled(settings)) return ok({ kind: 'refused', code: 'mode-off' });
+            const today = getBucketDateStr(new Date(), settings.newsletterBriefCutoffHour ?? 6, settings.newsletterBriefCutoffMinute ?? 0);
+            return await commitReadObservation(
+                this.plugin,
+                observation,
+                via,
+                { eligible: () => isReadSignalEnabled(this.plugin.settings), generation, currentGeneration: currentReadGeneration },
+                today,
+            );
+        } catch (e) {
+            return err(e instanceof Error ? e.message : String(e));
+        }
+    }
+
+    /**
+     * Forget what the reader has read. Dedicated on purpose: it never touches the story ledger or the
+     * heard watermark. The generation is bumped FIRST so a session that already qualified cannot
+     * commit into the gap, then the store is deleted (a failure leaves nothing recorded and can be retried).
+     */
+    async clearReadHistory(): Promise<Result<boolean>> {
+        bumpReadGeneration();
+        return clearReadState(this.plugin);
+    }
+
     /** Purge all story memory. Called when the feature is switched off, so a
      *  disabled feature does not strand a window of story text in plugin data. */
-    async clearStoryMemory(): Promise<void> {
-        await clearStoryLedger(this.plugin);
-        await clearConsumption(this.plugin);
+    async clearStoryMemory(): Promise<Result<void>> {
+        // Three independent stores: attempt every purge even when one fails, then report the failures together.
+        const names = ['story ledger', 'heard history', 'read history'];
+        const results = await Promise.allSettled([
+            clearStoryLedger(this.plugin),
+            clearConsumption(this.plugin),
+            this.clearReadHistory().then((r) => { if (!r.ok) throw new Error(r.error); }),
+        ]);
+        const failures = results.flatMap((r, i) =>
+            r.status === 'rejected' ? [`${names[i]}: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`] : []);
+        return failures.length > 0 ? err(`Story memory purge incomplete (${failures.join('; ')})`) : ok(undefined);
     }
 
     /**
@@ -1402,6 +1465,17 @@ export function getDigestPath(outputRoot: string, dateStr: string): string {
 export function extractDigestDate(fileName: string): string | null {
     const m = /^Digest — (\d{4}-\d{2}-\d{2})\.md$/.exec(fileName);
     return m ? m[1] : null;
+}
+
+/**
+ * The bucket date of a digest note, or null. The authority check mirrors `resolveBriefAudioBucket`:
+ * the path must BE the digest path for that date under the newsletter output root, not merely look like one.
+ */
+export function digestBucketForPath(outputRoot: string, path: string): string | null {
+    const normalised = normalizePath(path);
+    const date = extractDigestDate(normalised.split('/').pop() ?? '');
+    if (!date) return null;
+    return getDigestPath(outputRoot, date) === normalised ? date : null;
 }
 
 /** Format a Date as YYYY-MM-DD using LOCAL time parts. Mirrors the

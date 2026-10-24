@@ -247,6 +247,7 @@ Repo-wide rules that bind *every* subsystem are in
 | Kindle sync | Clippings import + Amazon cloud sync over `requestUrl` | Changing highlight import or auth |
 | Newsletter digest | Apps Script fetch -> triage -> daily brief + optional podcast | Changing fetch, brief generation, or the scheduler |
 | Newsletter story memory | Consumption-aware cross-day recall + local-news fairness, so a running story compresses instead of repeating | Changing recall, the story ledger, the brief prompt, or listen tracking |
+| Newsletter read signal | Opt-in second consumption channel (explicit command, Reading-view read-through): the written brief stops retelling prior-day stories the reader read; credit by content hash, brief prompt untouched, audio and catch-up read-blind | Touching read credit, the recall join, the detector, or anything that could let reading suppress audio |
 | Newsletter catch-up audio | Elective audio: one synthesised episode since the last audio (modes `on-demand` default / `smart-daily` / `daily` = the original pipeline, byte-identical); the episode note IS the coverage record, "heard" is a durable ack not the 7-day watermark | Touching newsletter audio, coverage, the episode note, the operation record, or the Newsletters picker group |
 
 ### [Chat, Attachments & Semantic Retrieval](docs/features/chat-and-rag.md)
