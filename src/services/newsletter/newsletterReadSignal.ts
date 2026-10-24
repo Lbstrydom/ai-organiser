@@ -288,6 +288,23 @@ export async function commitReadObservation(
     }
 }
 
+// ── Collection generation ────────────────────────────────────────────────────
+//
+// In-memory only. Bumped on a mode change, a purge, story memory switching off and unload. A
+// session captures it when it starts; the commit re-checks it inside the serialized write, so a
+// session that qualified before the bump can neither commit after mode-off/unload nor undo a purge.
+
+let collectionGeneration = 0;
+
+export function currentReadGeneration(): number {
+    return collectionGeneration;
+}
+
+export function bumpReadGeneration(): number {
+    collectionGeneration += 1;
+    return collectionGeneration;
+}
+
 /** Remove all read data. Used by "Forget what I've read" and when the read mode is switched off. */
 export async function clearReadState(plugin: Plugin): Promise<Result<boolean>> {
     try {

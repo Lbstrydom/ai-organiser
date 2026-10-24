@@ -16,12 +16,12 @@ const capture = (cats: CommandCategory[]) => cats.find((c) => c.id === 'capture'
 const group = (cats: CommandCategory[]) => capture(cats).commands.find((c) => c.id === 'capture-newsletter');
 
 describe('the Newsletters group in Capture', () => {
-    it('exists, is labelled, and holds the four newsletter commands in order', () => {
+    it('exists, is labelled, and holds the five newsletter commands in order', () => {
         const g = group(categories)!;
         expect(g.name).toBe('Newsletters');
         expect(g.icon).toBe('mail');
         expect(g.subCommands!.map((c) => c.id)).toEqual([
-            'newsletter-fetch', 'newsletter-audio', 'newsletter-mark-caught-up', 'newsletter-mark-catchup-listened',
+            'newsletter-fetch', 'newsletter-audio', 'newsletter-mark-caught-up', 'newsletter-mark-brief-read', 'newsletter-mark-catchup-listened',
         ]);
     });
 
@@ -59,9 +59,9 @@ describe('feature gating', () => {
         expect(capture(out).commands.length).toBeGreaterThan(0);
     });
 
-    it('with it on, all four commands are reachable', () => {
+    it('with it on, all five commands are reachable', () => {
         const out = filterCategoriesByFeature(categories, () => true);
-        expect(group(out)!.subCommands).toHaveLength(4);
+        expect(group(out)!.subCommands).toHaveLength(5);
     });
 
     it('every command in the group belongs to the newsletter feature and the capture stage', () => {

@@ -238,6 +238,7 @@ describe('registration', () => {
         expect(Object.keys(byId).sort()).toEqual([
             'newsletter-audio',
             'newsletter-fetch',
+            'newsletter-mark-brief-read',
             'newsletter-mark-catchup-listened',
             'newsletter-mark-caught-up',
             'newsletter-regenerate-audio',

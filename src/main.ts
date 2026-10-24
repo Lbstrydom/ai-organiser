@@ -83,6 +83,7 @@ import { noticeWithSettingsLink } from './utils/noticeUtils';
 import { showNewsletterFetchResultNotice, openCatchUpWindow, runSmartDailyAfterFetch } from './commands/newsletterCommands';
 import { CatchUpStatusBar } from './ui/components/CatchUpStatusBar';
 import { markCatchUpAudioPlayed } from './services/newsletter/catchUp/catchUpListen';
+import { bumpReadGeneration } from './services/newsletter/newsletterReadSignal';
 import { getAudioMode, isCatchUpEnabled } from './services/newsletter/newsletterAudioMode';
 import { LongRunningOpController } from './services/longRunningOp/progressController';
 import { computeSmartTagBudget } from './services/smartTagBudgets';
@@ -1638,6 +1639,8 @@ export default class AIOrganiserPlugin extends Plugin {
     // ─────────────────────────────────────────────────────────────────────────
 
     public onunload(): void {
+        // Invalidate any read-signal session that already qualified, so it cannot commit after unload.
+        bumpReadGeneration();
         this.catchUpStatusBar?.dispose();
         this.catchUpStatusBar = null;
         this.catchUpCleanupCancelled = true;

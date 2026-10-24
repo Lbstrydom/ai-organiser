@@ -127,7 +127,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
         it('the Newsletters group holds fetch, audio and both mark commands, all Capture leaves of the newsletter feature', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const group = cats.find(c => c.id === 'capture')!.commands.find(c => c.id === 'capture-newsletter')!;
-            expect(group.subCommands!.map(c => c.id)).toEqual(['newsletter-fetch', 'newsletter-audio', 'newsletter-mark-caught-up', 'newsletter-mark-catchup-listened']);
+            expect(group.subCommands!.map(c => c.id)).toEqual(['newsletter-fetch', 'newsletter-audio', 'newsletter-mark-caught-up', 'newsletter-mark-brief-read', 'newsletter-mark-catchup-listened']);
             for (const leaf of group.subCommands!) {
                 expect(leaf.feature).toBe('newsletter');
                 expect(leaf.stage).toBe('capture');
@@ -269,18 +269,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 67 (64 unique + 3 cross-listings)', () => {
+        it('total picker rows = 68 (65 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(67);
+            expect(leafCount).toBe(68);
         });
-        it('unique command IDs = 64', () => {
+        it('unique command IDs = 65', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(64);
+            expect(uniqueIds.size).toBe(65);
         });
-        it('alphabetised ai-organiser:* callbacks (64 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (65 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -324,6 +324,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:new-sketch',
                 'ai-organiser:newsletter-audio',
                 'ai-organiser:newsletter-fetch',
+                'ai-organiser:newsletter-mark-brief-read',
                 'ai-organiser:newsletter-mark-catchup-listened',
                 'ai-organiser:newsletter-mark-caught-up',
                 'ai-organiser:notebooklm-export',
@@ -357,7 +358,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(64);
+            expect(unique.size).toBe(65);
         });
     });
 });
