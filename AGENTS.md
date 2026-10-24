@@ -270,6 +270,7 @@ Repo-wide rules that bind *every* subsystem are in
 | Attachment helper | Canvas-aware scan, large-file and duplicate views, suggest-a-home, safe trash (extends Find embeds) | Changing trash eligibility or the results modal |
 | Setup kit | Guided setup modal, status row, folder list editor, friendly errors, shared by every opt-in feature | Adding a feature that needs first-run setup |
 | Agent index | Deterministic, privacy-scoped JSONL note index for AI coding tools (no LLM, no network), signed recoverable publication, pasteable agent instructions | Changing the index projection, scope rules or publication |
+| Excalidraw drawings | `toModelText` (`src/utils/excalidrawContent.ts`) keeps a drawing note's words and drops its compressed blob wherever note text feeds a model or index; never applied to text that is written back; no integration with the plugin (decision recorded) | Adding a reader of note text for a model or index, or touching drawing files |
 
 ### [Drive Folder Inventory](docs/features/cloud-inventory.md)
 

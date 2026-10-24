@@ -9,6 +9,7 @@
  */
 
 import { type App, normalizePath, TFile } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import { ensureFolderExists } from '../../utils/minutesUtils';
@@ -124,7 +125,7 @@ export async function prepareNarration(
     // Read note
     let raw: string;
     try {
-        raw = await plugin.app.vault.read(file);
+        raw = toModelText(await plugin.app.vault.read(file), file.path);
     } catch (e) {
         return errFrom<PreparedNarration>(makeError('TRANSFORM_FAILED', `Could not read note: ${describeError(e)}`, e));
     }
@@ -344,7 +345,7 @@ export async function executeNarration(
             } else {
                 let rawForLlm: string;
                 try {
-                    rawForLlm = await plugin.app.vault.read(prepared.file);
+                    rawForLlm = toModelText(await plugin.app.vault.read(prepared.file), prepared.file.path);
                 } catch (e) {
                     warnings.push({ code: 'llm-enhancement-failed', detail: describeError(e) });
                     rawForLlm = '';

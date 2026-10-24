@@ -4,6 +4,7 @@
  */
 
 import { App, TFile, requestUrl } from 'obsidian';
+import { toModelText } from '../utils/excalidrawContent';
 import { DetectedContent } from '../utils/embeddedContentDetector';
 import { fetchArticle } from './webContentService';
 import { PdfService, PdfServiceResult } from './pdfService';
@@ -711,7 +712,12 @@ export class ContentExtractionService {
                 };
             }
 
-            const content = await this.app.vault.read(file);
+            const raw = await this.app.vault.read(file);
+            const content = toModelText(raw, file.path);
+            // A recognised drawing with no words has nothing to extract; an ordinary empty note keeps today's output.
+            if (content !== raw && !content.trim()) {
+                return { source: item, content: '', success: false, error: 'Note has no readable text' };
+            }
 
             return {
                 source: item,

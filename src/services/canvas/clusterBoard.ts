@@ -1,4 +1,5 @@
 import { App, TFile } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import { LLMFacadeContext, summarizeText } from '../llmFacade';
 import { buildClusterPrompt } from '../prompts/canvasPrompts';
 import { tryExtractJson } from '../../utils/responseParser';
@@ -51,7 +52,7 @@ export async function buildClusterBoard(
         const notes = await Promise.all(
             options.files.map(async file => ({
                 title: file.basename,
-                snippet: (await app.vault.read(file)).slice(0, SNIPPET_CHARS)
+                snippet: toModelText(await app.vault.read(file), file.path).slice(0, SNIPPET_CHARS)
             }))
         );
 

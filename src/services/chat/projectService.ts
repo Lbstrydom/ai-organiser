@@ -1,4 +1,5 @@
 import { App, TFile } from 'obsidian';
+import { toModelText } from '../../utils/excalidrawContent';
 import type { AIOrganiserSettings } from '../../core/settings';
 import { getChatRootFullPath } from '../../core/settings';
 import { ensureFolderExists } from '../../utils/minutesUtils';
@@ -226,7 +227,10 @@ export class ProjectService {
             if (remaining <= 0) break;
             const file = this.app.metadataCache.getFirstLinkpathDest(linkPath, '');
             if (!file) continue;
-            const content = await this.app.vault.read(file);
+            // A drawing contributes its words only; one with none is skipped (no empty header).
+            const raw = await this.app.vault.read(file);
+            const content = toModelText(raw, file.path);
+            if (content !== raw && !content.trim()) continue;
             const chunk = content.slice(0, remaining);
             parts.push(`--- ${linkPath} ---\n${chunk}`);
             remaining -= chunk.length;
