@@ -75,7 +75,7 @@ import { NarrationJobRegistry } from './services/audioNarration/narrationJobRegi
 import { findAllMermaidBlocks } from './utils/mermaidUtils';
 import { mermaidStalenessGutterExtension } from './ui/editor/mermaidStalenessGutter';
 import { enhanceAudioPlayersIn } from './ui/components/audioPlayerEnhancer';
-import { NewsletterService, LAST_FETCH_DATA_KEY, getBucketDateStr } from './services/newsletter/newsletterService';
+import { NewsletterService, LAST_FETCH_DATA_KEY, getBucketDateStr, digestBucketForPath } from './services/newsletter/newsletterService';
 import { normaliseCleanupDays } from './services/newsletter/catchUp/catchUpTypes';
 import { saveSettingsData, stripDataOnlyKeys } from './core/pluginDataStore';
 import { isStoryMemoryEnabled } from './services/newsletter/newsletterMemoryPolicy';
@@ -83,7 +83,9 @@ import { noticeWithSettingsLink } from './utils/noticeUtils';
 import { showNewsletterFetchResultNotice, openCatchUpWindow, runSmartDailyAfterFetch } from './commands/newsletterCommands';
 import { CatchUpStatusBar } from './ui/components/CatchUpStatusBar';
 import { markCatchUpAudioPlayed } from './services/newsletter/catchUp/catchUpListen';
-import { bumpReadGeneration } from './services/newsletter/newsletterReadSignal';
+import { bumpReadGeneration, currentReadGeneration } from './services/newsletter/newsletterReadSignal';
+import { attachBriefReadObserver } from './ui/components/briefReadObserver';
+import { isReadThroughEnabled } from './services/newsletter/newsletterMemoryPolicy';
 import { getAudioMode, isCatchUpEnabled } from './services/newsletter/newsletterAudioMode';
 import { LongRunningOpController } from './services/longRunningOp/progressController';
 import { computeSmartTagBudget } from './services/smartTagBudgets';
@@ -1193,6 +1195,17 @@ export default class AIOrganiserPlugin extends Plugin {
                 : undefined;
             const dispose = enhanceAudioPlayersIn(el, { onListened, defaultSpeed: this.settings.audioDefaultPlaybackSpeed });
             this.register(dispose);
+            // The Reading-view read detector: one gated call, mode read at every render, render-scoped teardown.
+            if (isReadThroughEnabled(this.settings)) {
+                attachBriefReadObserver(el, ctx, {
+                    app: this.app,
+                    enabled: () => isReadThroughEnabled(this.settings),
+                    outputRoot: () => getNewsletterOutputFullPath(this.settings),
+                    digestDate: digestBucketForPath,
+                    commit: (observation, generation) => new NewsletterService(this).markBriefRead(observation, 'read-through', generation),
+                    generation: currentReadGeneration,
+                });
+            }
         });
 
         // Register tag network view + related notes view. Obsidian throws

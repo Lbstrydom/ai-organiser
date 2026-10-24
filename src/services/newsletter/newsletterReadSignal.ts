@@ -318,3 +318,33 @@ export async function clearReadState(plugin: Plugin): Promise<Result<boolean>> {
         return err(e instanceof Error ? e.message : String(e));
     }
 }
+
+// ── Where the brief sits in the note (for the Reading-view detector) ─────────
+
+export interface BriefLocation {
+    /** 0-based line of the start marker. */
+    startLine: number;
+    /** 0-based line of the end marker. */
+    endLine: number;
+    /** 0-based line of the last story bullet inside the block. */
+    lastStoryLine: number;
+}
+
+const STORY_LINE_RE = /^\s*[-*]\s+\*\*.+?\*\*/;
+
+/** Locate the Daily Brief block and its last story line in the whole-note text, or null. */
+export function locateBrief(noteText: string): BriefLocation | null {
+    const lines = noteText.split('\n');
+    const startLine = lines.findIndex((l) => l.includes(BRIEF_START_MARKER));
+    if (startLine < 0) return null;
+    let endLine = -1;
+    for (let i = startLine + 1; i < lines.length; i++) {
+        if (lines[i].includes(BRIEF_END_MARKER)) { endLine = i; break; }
+    }
+    if (endLine < 0) return null;
+    let lastStoryLine = -1;
+    for (let i = startLine + 1; i < endLine; i++) {
+        if (STORY_LINE_RE.test(lines[i])) lastStoryLine = i;
+    }
+    return lastStoryLine < 0 ? null : { startLine, endLine, lastStoryLine };
+}
