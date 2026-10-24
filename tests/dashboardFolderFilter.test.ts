@@ -189,6 +189,39 @@ describe('validateBaseContent', () => {
         bad('views:\n  - not-a-mapping\n');
     });
 
+    it('validates filters recursively, at the root and inside every view', () => {
+        bad('name: T\ncolumns:\n  - a\nfilters:\n  typo: []\n');
+        bad('name: T\ncolumns:\n  - a\nfilters:\n  and: 5\n');
+        bad('name: T\ncolumns:\n  - a\nfilters:\n  and:\n    - or: nope\n');
+        bad('name: T\ncolumns:\n  - a\nfilters: ""\n');
+        bad('views:\n  - type: table\n    filters: 5\n');
+        bad('views:\n  - type: table\n    filters:\n      and:\n        - unknownop: []\n');
+        ok('views:\n  - type: table\n    filters:\n      and:\n        - \'a\'\n        - or:\n            - \'b\'\n            - not:\n                - \'c\'\n');
+        ok('name: T\ncolumns:\n  - a\nfilters:\n  and:\n    - \'a\'\n    - or:\n        - \'b\'\n');
+    });
+
+    it('rejects cyclic aliases and absurd nesting instead of overflowing the stack', () => {
+        bad('name: T\ncolumns:\n  - a\nfilters: &loop\n  and: [*loop]\n');
+        bad('views:\n  - type: table\nfilters: &loop\n  and: [*loop]\n');
+        bad('name: T\ncolumns:\n  - a\nfilters: &a\n  or:\n    - and: [*a]\n');
+        let nested = "'x'";
+        for (let i = 0; i < 200; i++) nested = `{and: [${nested}]}`;
+        bad(`name: T\ncolumns:\n  - a\nfilters: ${nested}\n`);
+    });
+
+    it('accepts shared (non-cyclic) aliases without exponential work', () => {
+        // each level references the previous one twice: 2^24 paths if visited naively
+        const items = ["- &n0 {and: ['a']}"];
+        for (let i = 1; i < 25; i++) items.push(`- &n${i} {and: [*n${i - 1}, *n${i - 1}]}`);
+        ok(`name: T\ncolumns:\n  - a\nfilters:\n  and:\n    ${items.join('\n    ')}\n`);
+    });
+
+    it('requires every view to be a mapping with a type', () => {
+        bad('views:\n  - {}\n');
+        bad('views:\n  - name: Table\n');
+        bad('views:\n  - type: ""\n');
+    });
+
     it('rejects a non-mapping filters value', () => {
         bad('name: T\ncolumns:\n  - a\nfilters:\n  - x\n');
         bad('name: T\ncolumns:\n  - a\nfilters: 5\n');

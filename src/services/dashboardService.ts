@@ -39,17 +39,46 @@ export function validateBaseContent(content: string): string | null {
     } catch (error) {
         return error instanceof Error ? error.message : String(error);
     }
-    const hasViews = Array.isArray(root.views) && root.views.length > 0 && root.views.every(isMapping);
+    const hasViews = Array.isArray(root.views) && root.views.length > 0
+        && root.views.every(v => isMapping(v) && typeof v.type === 'string' && v.type.trim() !== '');
     const hasTemplateShape = typeof root.name === 'string' && root.name.trim() !== ''
         && Array.isArray(root.columns) && root.columns.length > 0;
     if (!hasViews && !hasTemplateShape) {
-        return 'it needs a views list, or a name and a columns list';
+        return 'it needs a views list (each view with a type), or a name and a columns list';
     }
-    if (root.filters !== undefined && root.filters !== null && typeof root.filters !== 'string' && !isMapping(root.filters)) {
-        return 'filters must be text or an and/or/not group';
+    const filtered = [root, ...(Array.isArray(root.views) ? root.views : [])];
+    for (const holder of filtered) {
+        if (isMapping(holder) && holder.filters !== undefined && holder.filters !== null && !isFilterNode(holder.filters)) {
+            return 'filters must be text or an and/or/not group of filters';
+        }
     }
     return null;
 }
+
+/** A Bases filter: an expression string, or a group whose keys are and / or / not holding filter lists. */
+function isFilterNode(
+    node: unknown,
+    path: Set<object> = new Set(),
+    valid: WeakSet<object> = new WeakSet(),
+): boolean {
+    if (typeof node === 'string') return node.trim() !== '';
+    if (!isMapping(node)) return false;
+    if (valid.has(node)) return true;
+    // YAML aliases can make the value a graph: reject cycles and absurd nesting.
+    if (path.has(node) || path.size >= MAX_FILTER_DEPTH) return false;
+    const keys = Object.keys(node);
+    path.add(node);
+    const ok = keys.length > 0 && keys.every(key => {
+        const group = node[key];
+        return (key === 'and' || key === 'or' || key === 'not')
+            && Array.isArray(group) && group.every(child => isFilterNode(child, path, valid));
+    });
+    path.delete(node);
+    if (ok) valid.add(node);
+    return ok;
+}
+
+const MAX_FILTER_DEPTH = 32;
 
 export interface DashboardCreationOptions {
     /** Template to use */

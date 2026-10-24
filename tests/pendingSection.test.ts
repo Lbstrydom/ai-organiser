@@ -71,6 +71,11 @@ describe('addUrlsToPendingSection', () => {
         expect(out).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
     });
 
+    it('a BOM before the opening frontmatter fence does not expose a heading-like line inside it', () => {
+        const doc = String.fromCharCode(0xFEFF) + '---\nnote: |\n  ## Pending\n---\nbody';
+        expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
+    });
+
     it('no heading: byte-identical to the previous append', () => {
         expect(addUrlsToPendingSection('body', URLS)).toBe('body\n\n## Pending\n' + LIST + '\n');
     });

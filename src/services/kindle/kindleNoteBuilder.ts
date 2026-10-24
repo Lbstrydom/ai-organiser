@@ -223,8 +223,51 @@ function formatNote(highlight: KindleHighlight): string {
     return `${header}\n> ${highlight.note}`;
 }
 
-/** A "## Notes" heading line: the exact title, not "## Notes on chapter 3". */
-const NOTES_HEADING_LINE = /\n## Notes[ \t]*(?:\r?\n|$)/;
+interface NoteLine {
+    /** Offset of the first character of the line. */
+    start: number;
+    /** Offset just past the line's break (or the end of the content). */
+    end: number;
+    text: string;
+    /** On a code-fence delimiter line or inside a fenced block. */
+    fenced: boolean;
+}
+
+/** Split content into lines, flagging fenced code so headings inside it are not mistaken for sections. */
+function scanNoteLines(content: string): NoteLine[] {
+    const lines: NoteLine[] = [];
+    let fence: { char: string; len: number } | null = null;
+    let offset = 0;
+    // The leading frontmatter is YAML, not Markdown: nothing in it is a fence or a heading.
+    const frontmatterEnd = FRONTMATTER_BLOCK.exec(content)?.[0].length ?? 0;
+    while (offset <= content.length) {
+        const nl = content.indexOf('\n', offset);
+        const lineEnd = nl === -1 ? content.length : nl;
+        const text = content.slice(offset, lineEnd).replace(/\r$/, '');
+        let fenced = fence !== null;
+        if (offset < frontmatterEnd) {
+            fenced = true;
+        } else if (fence) {
+            const close = new RegExp(`^ {0,3}${fence.char}{${fence.len},}[ \\t]*$`);
+            if (close.test(text)) fence = null;
+        } else {
+            const open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(text);
+            if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
+                fence = { char: open[1][0], len: open[1].length };
+                fenced = true;
+            }
+        }
+        lines.push({ start: offset, end: nl === -1 ? content.length : nl + 1, text, fenced });
+        if (nl === -1) break;
+        offset = nl + 1;
+    }
+    return lines;
+}
+
+/** The "## Notes" heading line (the exact title, outside code fences, never the first line). */
+function findNotesHeading(content: string): NoteLine | undefined {
+    return scanNoteLines(content).find(l => !l.fenced && l.start > 0 && /^## Notes[ \t]*$/.test(l.text));
+}
 
 /**
  * Append new highlights to an existing note's content.
@@ -253,10 +296,11 @@ export function appendHighlightsToExisting(
     let result = existingContent;
 
     if (newContent) {
-        const notesIndex = result.search(NOTES_HEADING_LINE);
-        result = notesIndex === -1
+        const notes = findNotesHeading(result);
+        // Insert at the line break that precedes the heading, as before.
+        result = notes === undefined
             ? result.trimEnd() + '\n\n' + newContent + '\n'
-            : result.slice(0, notesIndex) + '\n\n' + newContent + result.slice(notesIndex);
+            : result.slice(0, notes.start - 1) + '\n\n' + newContent + result.slice(notes.start - 1);
     }
 
     return noteBlock ? appendToNotesSection(result, noteBlock) : result;
@@ -264,15 +308,15 @@ export function appendHighlightsToExisting(
 
 /** Insert `block` at the end of the "## Notes" section (before the next level 1-2 heading). */
 function appendToNotesSection(content: string, block: string): string {
-    const match = NOTES_HEADING_LINE.exec(content);
-    if (!match) return content.trimEnd() + '\n\n## Notes\n\n' + block + '\n';
+    const lines = scanNoteLines(content);
+    const heading = lines.find(l => !l.fenced && l.start > 0 && /^## Notes[ \t]*$/.test(l.text));
+    if (!heading) return content.trimEnd() + '\n\n## Notes\n\n' + block + '\n';
 
-    let head = content.slice(0, match.index + match[0].length);
+    let head = content.slice(0, heading.end);
     if (!head.endsWith('\n')) head += '\n';
-    const rest = content.slice(match.index + match[0].length);
-    const next = rest.search(/^#{1,2}[ \t]/m);
-    const body = next === -1 ? rest : rest.slice(0, next);
-    const tail = next === -1 ? '' : rest.slice(next);
+    const nextHeading = lines.find(l => l.start >= heading.end && !l.fenced && /^#{1,2}[ \t]/.test(l.text));
+    const body = content.slice(heading.end, nextHeading ? nextHeading.start : content.length);
+    const tail = nextHeading ? content.slice(nextHeading.start) : '';
 
     const grown = body.trim() === '' ? '\n' + block + '\n' : body.trimEnd() + '\n\n' + block + '\n';
     return head + grown + (tail ? '\n' + tail : '');

@@ -28,7 +28,9 @@ function scan(doc: string): Scan {
     while (offset <= doc.length) {
         const nl = doc.indexOf('\n', offset);
         const end = nl === -1 ? doc.length : nl;
-        const line = doc.slice(offset, end).replace(/\r$/, '');
+        let line = doc.slice(offset, end).replace(/\r$/, '');
+        // A byte-order mark in front of the opening fence must not hide the frontmatter.
+        if (lineNo === 0 && line.charCodeAt(0) === 0xFEFF) line = line.slice(1);
         const next = nl === -1 ? doc.length : nl + 1;
 
         if (lineNo === 0 && line.trimEnd() === '---') {

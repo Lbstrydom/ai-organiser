@@ -164,6 +164,8 @@ describe('updateFrontmatterInContent delimiters', () => {
     });
 });
 
+const noteOnlyHighlight = () => hl({ id: 'kh-n', text: '', note: 'my thought' });
+
 describe('appendHighlightsToExisting note-only highlights', () => {
     const noteOnly = hl({ id: 'kh-n', text: '', note: 'my thought' });
 
@@ -198,6 +200,34 @@ describe('appendHighlightsToExisting note-only highlights', () => {
         const existing = '# B\n\n## Notes on chapter 3\n\nmine\n';
         const out = appendHighlightsToExisting(existing, [hl({ text: 'fresh' })], 'bullet');
         expect(out).toBe(existing.trimEnd() + '\n\n- fresh — *Page 3, Location 10-11*\n');
+    });
+
+    it('a "## Notes" line inside a fenced code block is not the Notes section', () => {
+        const existing = '---\ntitle: T\n---\n# B\n\n```md\n## Notes\n\n# not a heading\n```\n';
+        const textOnly = appendHighlightsToExisting(existing, [hl({ text: 'fresh' })], 'bullet');
+        expect(textOnly).toBe(existing.trimEnd() + '\n\n- fresh — *Page 3, Location 10-11*\n');
+        const noteOnly = appendHighlightsToExisting(existing, [noteOnlyHighlight()], 'bullet');
+        expect(noteOnly).toBe(existing.trimEnd() + '\n\n## Notes\n\n> [!note] Page 3, Location 10-11\n> my thought\n');
+    });
+
+    it('a heading-looking line inside a fence in the real Notes section does not end it', () => {
+        const existing = '---\ntitle: T\n---\n# B\n\n## Notes\n\n```\n# fenced\n```\n\n## After\n\nmine\n';
+        const out = appendHighlightsToExisting(existing, [noteOnlyHighlight()], 'bullet');
+        expect(out.indexOf('my thought')).toBeLessThan(out.indexOf('## After'));
+        expect(out.indexOf('my thought')).toBeGreaterThan(out.indexOf('# fenced'));
+        expect(out.endsWith('## After\n\nmine\n')).toBe(true);
+    });
+
+    it('backticks inside a YAML block scalar are not a Markdown fence', () => {
+        for (const eol of ['\n', '\r\n']) {
+            const existing = ['---', 'description: |', '  ```', '---', '# Book', '## Notes', 'old', '## Summary', 'keep', ''].join(eol);
+            const out = appendHighlightsToExisting(existing, [noteOnlyHighlight()], 'bullet');
+            expect(out.match(/## Notes/g)).toHaveLength(1);
+            expect(out.indexOf('my thought')).toBeGreaterThan(out.indexOf('old'));
+            expect(out.indexOf('my thought')).toBeLessThan(out.indexOf('## Summary'));
+            const text = appendHighlightsToExisting(existing, [hl({ text: 'fresh' })], 'bullet');
+            expect(text.indexOf('- fresh')).toBeLessThan(text.indexOf('## Notes'));
+        }
     });
 
     it('text-only input is byte-identical to the previous behaviour', () => {
