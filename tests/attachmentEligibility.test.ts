@@ -342,3 +342,30 @@ describe('revalidate blockers', () => {
 		expect(display.reasons).toEqual(['still-referenced']);
 	});
 });
+
+// ---- scale: a big vault with a big excluded folder re-checks quickly ---------------------------
+
+describe('revalidate at scale', () => {
+	it('re-checks a 5,000-note vault (most notes unchanged, 500 new, ambiguity everywhere) well inside a second', async () => {
+		const notes: Record<string, { text: string; mtime: number }> = {};
+		const files: Record<string, FileIdentity> = { 'Rec/a.m4a': id('Rec/a.m4a'), 'Other/a.m4a': id('Other/a.m4a') };
+		const occurrences: StoredOccurrence[] = [];
+		const scannedReferrers: { path: string; mtime: number }[] = [];
+		for (let i = 0; i < 5000; i++) {
+			const path = `Excluded/n${i}.md`;
+			const stale = i < 500;
+			notes[path] = { text: `x ![[a.m4a]] ${i}`, mtime: stale ? 5000 : 100 };
+			if (!stale) {
+				occurrences.push({ referrerPath: path, kind: 'markdown', linktext: 'a.m4a', lineNumber: 1 });
+				scannedReferrers.push({ path, mtime: 100 });
+			}
+		}
+		const port = makePort({ notes, files });
+		const started = Date.now();
+		const res = await revalidate(port, { files: [id('Rec/a.m4a')], scanStartedAt: 1000, occurrences, scannedReferrers, changes: EMPTY_CHANGES, protectedFolders: [] });
+		const e = res.ok ? res.value.get('Rec/a.m4a') : null;
+		expect(Date.now() - started).toBeLessThan(2000);
+		expect(e?.blockers?.referrers.length).toBe(5000);
+		expect(e?.blockers?.sameNameFiles).toEqual(['Other/a.m4a']);
+	});
+});

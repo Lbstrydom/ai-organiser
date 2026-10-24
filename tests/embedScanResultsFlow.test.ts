@@ -25,10 +25,10 @@ vi.mock('../src/services/attachmentEligibility', async (orig) => ({
 	createAppVaultPort: vi.fn(() => ({})),
 }));
 
-const previews: Array<{ fileName: string; plans: unknown[]; onApply: () => void }> = [];
+const previews: Array<{ fileName: string; plans: unknown[]; onApply: () => void; onCancel: () => void }> = [];
 vi.mock('../src/ui/modals/RemoveLinkPreviewModal', () => ({
 	RemoveLinkPreviewModal: class {
-		constructor(_app: unknown, _t: unknown, fileName: string, plans: unknown[], onApply: () => void) { previews.push({ fileName, plans, onApply }); }
+		constructor(_app: unknown, _t: unknown, fileName: string, plans: unknown[], onApply: () => void, onCancel: () => void) { previews.push({ fileName, plans, onApply, onCancel }); }
 		open() { /* captured */ }
 	},
 }));
@@ -178,6 +178,24 @@ describe('not-ready index', () => {
 	});
 });
 
+describe('a batch trash re-checks each later file', () => {
+	it('keeps a later file that became referenced while the first one was being trashed', async () => {
+		const h = setup();
+		const second = createTFile('Rec/second.m4a');
+		second.stat = { mtime: 1, ctime: 1, size: 110 * MB };
+		const app = (h.modal as unknown as { app: { vault: { getAbstractFileByPath: (p: string) => unknown } } }).app;
+		const orig = app.vault.getAbstractFileByPath;
+		app.vault.getAbstractFileByPath = (p: string) => (p === second.path ? second : orig(p));
+		const first = app.vault.getAbstractFileByPath(REC);
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, safe()], [second.path, safe()]]) });
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[second.path, kept()]]) });
+		await (h.modal as unknown as { executeDelete(files: unknown[]): Promise<void> }).executeDelete([first, second]);
+		expect(h.app.fileManager.trashFile).toHaveBeenCalledTimes(1);
+		expect(h.app.fileManager.trashFile.mock.calls[0][0]).toBe(first);
+		expect(reval).toHaveBeenCalledTimes(2);
+	});
+});
+
 describe('deletion uses a current verdict (after the confirm click)', () => {
 	const exec = (h: Harness) => (h.modal as unknown as { executeDelete(files: unknown[]): Promise<void> }).executeDelete([h.app.vault.read && (h.modal as unknown as { app: { vault: { getAbstractFileByPath(p: string): unknown } } }).app.vault.getAbstractFileByPath(REC)]);
 
@@ -205,6 +223,42 @@ describe('deletion uses a current verdict (after the confirm click)', () => {
 });
 
 describe('Remove the link and delete', () => {
+	it('holds the workflow lock while the preview is open, and Cancel releases it', async () => {
+		const h = setup();
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		const remove = () => Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Remove the link and delete') as HTMLButtonElement;
+		remove().click();
+		await flush();
+		expect(previews).toHaveLength(1);
+		expect(Array.from(keptPanel(h)!.querySelectorAll('button')).every((b) => b.disabled)).toBe(true);
+		previews[0].onCancel();
+		expect(Array.from(keptPanel(h)!.querySelectorAll('button')).every((b) => !b.disabled)).toBe(true);
+	});
+
+	it('ignores a second click while the first is planning', async () => {
+		const h = setup();
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		const btn = Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Remove the link and delete') as HTMLButtonElement;
+		btn.click();
+		btn.click();
+		await flush();
+		expect(previews).toHaveLength(1);
+	});
+
+	it('reports a note that cannot be read instead of failing silently', async () => {
+		const h = setup();
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		h.app.vault.read.mockRejectedValue(new Error('gone'));
+		Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Remove the link and delete')!.click();
+		await flush();
+		expect(previews).toHaveLength(0);
+		expect(mockNotices.some((n) => n.includes('The link could not be removed'))).toBe(true);
+		expect(Array.from(keptPanel(h)!.querySelectorAll('button')).every((b) => !b.disabled)).toBe(true);
+	});
+
 	async function toPreview(h: Harness) {
 		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
 		await selectAndDelete(h);
@@ -224,7 +278,7 @@ describe('Remove the link and delete', () => {
 	it('applies, re-checks, and only then reaches the delete confirmation', async () => {
 		const h = setup();
 		await toPreview(h);
-		unlink.mockResolvedValue({ ok: true, value: [{ notePath: NOTE, status: 'written' }] });
+		unlink.mockResolvedValue({ ok: true, value: { items: [{ notePath: NOTE, status: 'written' }], errors: [], warnings: [], isPartial: false } });
 		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, safe()]]) });
 		previews[0].onApply();
 		await flush();
@@ -238,7 +292,7 @@ describe('Remove the link and delete', () => {
 	it('keeps the file and shows what remains when a second reference exists after the edit', async () => {
 		const h = setup();
 		await toPreview(h);
-		unlink.mockResolvedValue({ ok: true, value: [{ notePath: NOTE, status: 'written' }] });
+		unlink.mockResolvedValue({ ok: true, value: { items: [{ notePath: NOTE, status: 'written' }], errors: [], warnings: [], isPartial: false } });
 		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept({ blockers: { referrers: [{ path: 'Other.md', extension: 'md', lineNumber: 1, linktext: 'x' }], sameNameFiles: [], unreadable: [] } })]]) });
 		previews[0].onApply();
 		await flush();
@@ -249,7 +303,7 @@ describe('Remove the link and delete', () => {
 	it('shows a fresh preview, not a write, when a note changed after the first one', async () => {
 		const h = setup();
 		await toPreview(h);
-		unlink.mockResolvedValue({ ok: true, value: [{ notePath: NOTE, status: 'stale' }] });
+		unlink.mockResolvedValue({ ok: true, value: { items: [], errors: [{ source: NOTE, error: 'stale' }], warnings: [], isPartial: false } });
 		previews[0].onApply();
 		await flush();
 		expect(previews).toHaveLength(2);
@@ -259,16 +313,16 @@ describe('Remove the link and delete', () => {
 	it('disables the card actions while the job runs and keeps announcing after the window closes', async () => {
 		const h = setup();
 		await toPreview(h);
-		let release!: (v: { ok: true; value: Array<{ notePath: string; status: 'written' }> }) => void;
+		let release!: (v: unknown) => void;
 		let shouldContinue: (() => boolean) | undefined;
-		unlink.mockImplementation((_p, _f, _plans, opts) => { shouldContinue = opts?.shouldContinue; return new Promise((r) => { release = r as typeof release; }); });
+		unlink.mockImplementation((_p, _f, _plans, opts) => { shouldContinue = opts?.shouldContinue; return new Promise((r) => { release = r as typeof release; }) as never; });
 		previews[0].onApply();
 		await flush();
 		expect(Array.from(keptPanel(h)!.querySelectorAll('button')).every((b) => b.disabled)).toBe(true);
 		expect(shouldContinue?.()).toBe(true);
 		h.modal.close();
 		expect(shouldContinue?.()).toBe(false);
-		release({ ok: true, value: [{ notePath: NOTE, status: 'written' }] });
+		release({ ok: true, value: { items: [{ notePath: NOTE, status: 'written' }], errors: [], warnings: [], isPartial: false } });
 		await flush();
 		expect(mockNotices.some((n) => n.includes('Removed the links in 1 note'))).toBe(true);
 		expect(reval).toHaveBeenCalledTimes(1); // no re-check on a closed window

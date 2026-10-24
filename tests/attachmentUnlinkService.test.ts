@@ -66,6 +66,22 @@ describe('planLinkRemoval', () => {
 		expect(planLinkRemoval('write `![[meeting.m4a]]` to embed', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
 	});
 
+	it('does not treat an escaped backtick as the start of a code span', () => {
+		// \` is a literal backtick: the embed after it is a real link, and the later backtick closes nothing.
+		expect(planOf('cost \\` then ![[meeting.m4a]] and `code`').nextText).toBe('cost \\` then  and `code`');
+		// A properly opened span still protects its content.
+		expect(planOf('![[meeting.m4a]] `a ![[meeting.m4a]] b`').nextText).toBe(' `a ![[meeting.m4a]] b`');
+	});
+
+	it('lists the extra blank line it drops, so the approved plan covers every edit', () => {
+		const plan = planOf('para\n\n![[meeting.m4a]]\n\nnext');
+		expect(plan.nextText).toBe('para\n\nnext');
+		expect(plan.changes).toEqual([
+			{ line: 3, before: '![[meeting.m4a]]', after: null },
+			{ line: 4, before: '', after: null },
+		]);
+	});
+
 	it('measures list structure inside a blockquote like outside one', () => {
 		expect(planOf('> - ![[meeting.m4a]]\n>   - child\n> - three').nextText).toBe('> - \n>   - child\n> - three');
 		expect(planOf('> - one\n> - ![[meeting.m4a]]\n> - three').nextText).toBe('> - one\n> - three');
@@ -114,6 +130,15 @@ describe('planLinkRemoval', () => {
 
 const apply = vi.mocked(applyNoteEdit);
 
+type Batch = Awaited<ReturnType<typeof removeLinks>>;
+/** The written notes and the others, as "path:status" in the order the plans were given. */
+function flat(res: Batch, order: string[]): string[] {
+	if (!res.ok) return ['error:' + res.error];
+	const written = new Set(res.value.items.map((i) => i.notePath));
+	const failed = new Map(res.value.errors.map((e) => [e.source, e.error]));
+	return order.map((p) => p + ':' + (written.has(p) ? 'written' : failed.get(p) ?? 'missing'));
+}
+
 function plugin(over: { allow?: boolean; feature?: boolean } = {}) {
 	return {
 		settings: {
@@ -149,7 +174,7 @@ describe('removeLinks', () => {
 		const live = { 'Notes/a.md': 'x\n![[meeting.m4a]]\ny' };
 		fakeStore(live);
 		const res = await removeLinks(plugin(), FILE, [planFor('Notes/a.md', live['Notes/a.md'])]);
-		expect(res).toEqual({ ok: true, value: [{ notePath: 'Notes/a.md', status: 'written' }] });
+		expect(res).toEqual({ ok: true, value: { items: [{ notePath: 'Notes/a.md', status: 'written' }], errors: [], warnings: [], isPartial: false } });
 		expect(live['Notes/a.md']).toBe('x\ny');
 		expect(apply.mock.calls[0][2]).toEqual({ review: false });
 	});
@@ -166,7 +191,7 @@ describe('removeLinks', () => {
 		const live = { 'Notes/a.md': '![[meeting.m4a]]\ntext\nlater ![[meeting.m4a]]' };
 		fakeStore(live);
 		const res = await removeLinks(plugin(), FILE, [planFor('Notes/a.md', approved)]);
-		expect(res.ok && res.value[0].status).toBe('stale');
+		expect(flat(res, ['Notes/a.md'])).toEqual(['Notes/a.md:stale']);
 		expect(live['Notes/a.md']).toContain('later ![[meeting.m4a]]');
 	});
 
@@ -175,7 +200,7 @@ describe('removeLinks', () => {
 		const live = { 'Notes/a.md': '![[meeting.m4a]]\na' };
 		fakeStore(live);
 		const res = await removeLinks(plugin(), FILE, [planFor('Notes/a.md', approved)]);
-		expect(res.ok && res.value[0].status).toBe('stale');
+		expect(flat(res, ['Notes/a.md'])).toEqual(['Notes/a.md:stale']);
 		expect(live['Notes/a.md']).toBe('![[meeting.m4a]]\na');
 	});
 
@@ -183,7 +208,7 @@ describe('removeLinks', () => {
 		const live = { 'Notes/a.md': 'nothing here' };
 		fakeStore(live);
 		const res = await removeLinks(plugin(), FILE, [planFor('Notes/a.md', '![[meeting.m4a]]')]);
-		expect(res.ok && res.value[0].status).toBe('stale');
+		expect(flat(res, ['Notes/a.md'])).toEqual(['Notes/a.md:stale']);
 	});
 
 	it('handles several notes, and stops at the first one that is not written without rolling back', async () => {
@@ -191,11 +216,8 @@ describe('removeLinks', () => {
 		fakeStore(live, ['B.md']);
 		const plans = ['A.md', 'B.md', 'C.md'].map((p) => planFor(p, live[p as keyof typeof live]));
 		const res = await removeLinks(plugin(), FILE, plans);
-		expect(res.ok && res.value).toEqual([
-			{ notePath: 'A.md', status: 'written' },
-			{ notePath: 'B.md', status: 'refused-protected' },
-			{ notePath: 'C.md', status: 'skipped' },
-		]);
+		expect(flat(res, ['A.md', 'B.md', 'C.md'])).toEqual(['A.md:written', 'B.md:refused-protected', 'C.md:skipped']);
+		expect(res.ok && res.value.isPartial).toBe(true);
 		expect(live['A.md']).toBe('');
 		expect(live['C.md']).toBe('![[meeting.m4a]]');
 	});
@@ -207,7 +229,7 @@ describe('removeLinks', () => {
 		const res = await removeLinks(plugin(), FILE, ['A.md', 'B.md'].map((p) => planFor(p, live[p as keyof typeof live])), {
 			shouldContinue: () => calls++ === 0,
 		});
-		expect(res.ok && res.value.map((o) => o.status)).toEqual(['written', 'skipped']);
+		expect(flat(res, ['A.md', 'B.md'])).toEqual(['A.md:written', 'B.md:skipped']);
 		expect(live['B.md']).toBe('![[meeting.m4a]]');
 	});
 
@@ -224,7 +246,7 @@ describe('removeLinks', () => {
 			return ok(undefined);
 		});
 		const res = await removeLinks(p as never, FILE, ['A.md', 'B.md'].map((n) => planFor(n, live[n as keyof typeof live])));
-		expect(res.ok && res.value.map((o) => o.status)).toEqual(['written', 'skipped']);
+		expect(flat(res, ['A.md', 'B.md'])).toEqual(['A.md:written', 'B.md:skipped']);
 		expect(live['B.md']).toBe('![[meeting.m4a]]');
 	});
 
@@ -232,14 +254,14 @@ describe('removeLinks', () => {
 		const live = { 'A.md': '![[meeting.m4a]]' };
 		fakeStore(live);
 		const res = await removeLinks(plugin(), FILE, [planFor('A.md', live['A.md'])], { shouldContinue: () => { throw new Error('boom'); } });
-		expect(res).toEqual({ ok: true, value: [{ notePath: 'A.md', status: 'skipped' }] });
+		expect(flat(res, ['A.md'])).toEqual(['A.md:skipped']);
 		expect(live['A.md']).toBe('![[meeting.m4a]]');
 	});
 
 	it('maps a thrown write to failed instead of rejecting', async () => {
 		apply.mockRejectedValue(new Error('disk'));
 		const res = await removeLinks(plugin(), FILE, [planFor('A.md', '![[meeting.m4a]]')]);
-		expect(res.ok && res.value[0].status).toBe('failed');
+		expect(flat(res, ['A.md'])).toEqual(['A.md:failed']);
 	});
 });
 

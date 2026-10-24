@@ -16,7 +16,7 @@
  *    is checked again before any write.
  */
 import type AIOrganiserPlugin from '../main';
-import { Result, ok, err } from '../core/result';
+import { Result, ok, err, type BatchResult } from '../core/result';
 import { nonBodyLines } from '../utils/markdownRegions';
 import { isFeatureEnabled } from './featureService';
 import { applyNoteEdit, type CompositeTarget } from './noteEdit/applyNoteEdit';
@@ -88,15 +88,27 @@ function indentOf(line: string): number {
     return m ? m[0].replaceAll('\t', '    ').length : 0;
 }
 
-/** Character ranges of inline code spans on a line (a run of backticks closes at the next run of the same length). */
+/**
+ * Character ranges of inline code spans on a line. A run of backticks closes at the next run of the same
+ * length; an OPENING run preceded by an odd number of backslashes loses its first backtick to the escape.
+ */
 function inlineCodeRanges(line: string): Array<[number, number]> {
-    const runs = [...line.matchAll(/`+/g)].map((m) => ({ start: m.index ?? 0, len: m[0].length }));
     const ranges: Array<[number, number]> = [];
-    for (let i = 0; i < runs.length; i++) {
-        const close = runs.findIndex((r, j) => j > i && r.len === runs[i].len);
-        if (close < 0) continue;
-        ranges.push([runs[i].start, runs[close].start + runs[close].len]);
-        i = close;
+    let open: { start: number; len: number } | null = null;
+    for (const m of line.matchAll(/`+/g)) {
+        const start = m.index ?? 0;
+        const len = m[0].length;
+        if (open) {
+            if (len === open.len) {
+                ranges.push([open.start, start + len]);
+                open = null;
+            }
+            continue;
+        }
+        let slashes = 0;
+        for (let k = start - 1; k >= 0 && line[k] === '\\'; k--) slashes++;
+        const escaped = slashes % 2 === 1;
+        if (len - (escaped ? 1 : 0) > 0) open = { start: escaped ? start + 1 : start, len: len - (escaped ? 1 : 0) };
     }
     return ranges;
 }
@@ -147,18 +159,23 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
 
     if (changes.length === 0) return { status: outsideBody && !inBody ? 'not-removable' : 'nothing' };
 
-    // Dropping a blank-only line must not leave two blank lines in a row.
+    // Dropping a line must not leave two blank lines in a row. The extra blank line that goes with it is a
+    // change like any other: it is listed, so the preview shows it and the approved plan covers it.
     const out: string[] = [];
     for (let i = 0; i < next.length; i++) {
         const cur = next[i];
         if (cur === null) {
             const prevBlank = out.length > 0 && out[out.length - 1].trim() === '';
             const following = next[i + 1];
-            if (prevBlank && following !== undefined && following !== null && following.trim() === '') i++;
+            if (prevBlank && typeof following === 'string' && following.trim() === '') {
+                changes.push({ line: i + 2, before: lines[i + 1].replace(/\r$/, ''), after: null });
+                i++;
+            }
             continue;
         }
         out.push(cur);
     }
+    changes.sort((x, y) => x.line - y.line);
     const nextText = out.join('\n');
     return { status: 'ok', plan: { notePath, baseline: text, changes, nextText } };
 }
@@ -174,15 +191,16 @@ export interface RemoveLinksOptions {
 
 /**
  * Apply the approved plans, one note at a time. Never throws. `err('link-removal-off')` when the
- * capability is off (nothing is written); otherwise the typed outcome of each note, stopping at the
- * first one that was not written.
+ * capability is off (nothing is written). Otherwise a `BatchResult`: `items` are the notes written,
+ * `errors` the others (`source` = note path, `error` = the `UnlinkStatus`), `isPartial` when some were
+ * written and some not. Stops at the first note that was not written.
  */
 export async function removeLinks(
     plugin: AIOrganiserPlugin,
     filePath: string,
     plans: readonly NotePlan[],
     opts: RemoveLinksOptions = {},
-): Promise<Result<UnlinkOutcome[]>> {
+): Promise<Result<BatchResult<UnlinkOutcome>>> {
     if (!isLinkRemovalEnabled(plugin.settings)) return err('link-removal-off');
     const resolveFrom = (linktext: string, sourcePath: string): string | null =>
         plugin.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
@@ -224,5 +242,7 @@ export async function removeLinks(
         outcomes.push({ notePath: plan.notePath, status });
         if (status !== 'written') stopped = true;
     }
-    return ok(outcomes);
+    const items = outcomes.filter((o) => o.status === 'written');
+    const errors = outcomes.filter((o) => o.status !== 'written').map((o) => ({ source: o.notePath, error: o.status }));
+    return ok({ items, errors, warnings: [], isPartial: items.length > 0 && errors.length > 0 });
 }

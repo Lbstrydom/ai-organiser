@@ -235,7 +235,7 @@ async function buildEligibility(
     const counts = new Map<string, number>();
     const refsByTarget = new Map<string, BlockerRef[]>();
     const ambiguous = new Set<string>();
-    const sameName = new Map<string, Set<string>>();
+    const sameName = new Map<string, string[][]>();
     const ambiguityDone = new Set<string>();
     for (const occ of occurrences) {
         const target =
@@ -258,11 +258,12 @@ async function buildEligibility(
             ambiguityDone.add(occ.linktext);
             const candidates = port.candidatesFor(occ.linktext);
             if (candidates.length > 1) {
+                // One shared group per distinct link text; each file's "other files" are derived from it on demand.
                 for (const c of candidates) {
                     ambiguous.add(c);
-                    const others = sameName.get(c) ?? new Set<string>();
-                    for (const other of candidates) if (other !== c) others.add(other);
-                    sameName.set(c, others);
+                    const groups = sameName.get(c) ?? [];
+                    groups.push(candidates);
+                    sameName.set(c, groups);
                 }
             }
         }
@@ -284,7 +285,7 @@ async function buildEligibility(
                 protectedFolders: input.protectedFolders,
                 blockers: {
                     referrers: refsByTarget.get(scanned.path) ?? [],
-                    sameNameFiles: [...(sameName.get(scanned.path) ?? [])],
+                    sameNameFiles: [...new Set((sameName.get(scanned.path) ?? []).flat())].filter((p) => p !== scanned.path),
                     unreadable,
                 },
             }),

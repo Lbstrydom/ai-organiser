@@ -52,7 +52,7 @@ import {
     type NotePlan,
     type UnlinkOutcome,
 } from '../../services/attachmentUnlinkService';
-import type { Result } from '../../core/result';
+import type { BatchResult, Result } from '../../core/result';
 import { isFeatureEnabled } from '../../services/featureService';
 import { renderKeptPanel } from './EmbedScanKeptPanel';
 import { RemoveLinkPreviewModal } from './RemoveLinkPreviewModal';
@@ -1063,10 +1063,17 @@ export class EmbedScanResultsModal extends Modal {
      * and only then ask for confirmation. Fails closed if the link index is not ready.
      */
     private async revalidateAndConfirm(selected: TFile[]): Promise<void> {
+        if (this.busy) return;
         const es = this.t.embedScan;
+        this.busy = true;
         const checking = new Notice(es.revalidating, 0);
-        const checked = await this.checkSafe(selected);
-        checking.hide();
+        let checked: SafetyCheck;
+        try {
+            checked = await this.checkSafe(selected);
+        } finally {
+            checking.hide();
+            this.busy = false;
+        }
         if (this.closed) return;
         if (!this.recordCheck(selected, checked)) return;
         const { safe } = checked;
@@ -1183,29 +1190,49 @@ export class EmbedScanResultsModal extends Modal {
             new Notice(formatGuidance(describeError(this.t, 'link-removal-off')), 8000);
             return;
         }
-        const resolve = (linktext: string, sourcePath: string): string | null =>
-            this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
-        const plans: NotePlan[] = [];
-        for (const notePath of new Set((entry.eligibility.blockers?.referrers ?? []).map((r) => r.path))) {
-            const note = this.app.vault.getAbstractFileByPath(notePath);
-            if (!(note instanceof TFile) || !assertWritable(plugin.settings, 'modify', notePath).ok) {
-                new Notice(formatGuidance(describeError(this.t, 'protected-path')), 8000);
+        this.busy = true;
+        this.applyFiltersAndRender();
+        let handedOff = false;
+        let alreadyGone = false;
+        try {
+            const resolve = (linktext: string, sourcePath: string): string | null =>
+                this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
+            const plans: NotePlan[] = [];
+            for (const notePath of new Set((entry.eligibility.blockers?.referrers ?? []).map((r) => r.path))) {
+                const note = this.app.vault.getAbstractFileByPath(notePath);
+                if (!(note instanceof TFile) || !assertWritable(plugin.settings, 'modify', notePath).ok) {
+                    new Notice(formatGuidance(describeError(this.t, 'protected-path')), 8000);
+                    return;
+                }
+                const planned = planLinkRemoval(await this.app.vault.read(note), filePath, notePath, resolve);
+                if (planned.status === 'not-removable') {
+                    new Notice(`${formatGuidance(describeError(this.t, 'link-not-removable'))} ${notePath}`, 10000);
+                    return;
+                }
+                if (planned.status === 'ok') plans.push(planned.plan);
+            }
+            if (this.closed) return;
+            if (plans.length === 0) {
+                // The links are already gone: just check the file again (after the lock is released).
+                alreadyGone = true;
                 return;
             }
-            const planned = planLinkRemoval(await this.app.vault.read(note), filePath, notePath, resolve);
-            if (planned.status === 'not-removable') {
-                new Notice(`${formatGuidance(describeError(this.t, 'link-not-removable'))} ${notePath}`, 10000);
-                return;
+            // The lock stays on while the preview is open; Apply hands it to the job, closing it releases it.
+            new RemoveLinkPreviewModal(
+                this.app, this.t, file.name, plans,
+                () => { void this.runUnlink(file, plans); },
+                () => { this.busy = false; this.applyFiltersAndRender(); },
+            ).open();
+            handedOff = true;
+        } catch {
+            new Notice(formatGuidance(describeError(this.t, 'unlink-failed')), 8000);
+        } finally {
+            if (!handedOff) {
+                this.busy = false;
+                this.applyFiltersAndRender();
+                if (alreadyGone && !this.closed) void this.revalidateAndConfirm([file]);
             }
-            if (planned.status === 'ok') plans.push(planned.plan);
         }
-        if (this.closed) return;
-        if (plans.length === 0) {
-            // The links are already gone: just check the file again.
-            void this.revalidateAndConfirm([file]);
-            return;
-        }
-        new RemoveLinkPreviewModal(this.app, this.t, file.name, plans, () => { void this.runUnlink(file, plans); }).open();
     }
 
     /**
@@ -1215,13 +1242,14 @@ export class EmbedScanResultsModal extends Modal {
     private async runUnlink(file: TFile, plans: NotePlan[]): Promise<void> {
         const plugin = this.ctx?.plugin;
         if (!plugin) return;
+        // The lock was taken when the flow started and is still held (the preview kept it).
         this.busy = true;
         this.applyFiltersAndRender();
         const res = await removeLinks(plugin, file.path, plans, { shouldContinue: () => !this.closed });
         announceUnlink(this.t, res, plans.length);
         if (this.closed) return;
         this.busy = false;
-        if (res.ok && res.value.some((o) => o.status === 'stale')) {
+        if (res.ok && res.value.errors.some((e) => e.error === 'stale')) {
             // A note changed after the preview: nothing in it was written. Show the updated plan for a fresh Apply.
             this.applyFiltersAndRender();
             void this.startUnlinkFlow(file.path);
@@ -1251,21 +1279,36 @@ export class EmbedScanResultsModal extends Modal {
         if (!this.recordCheck(candidates, checked)) return;
         const files = checked.safe;
 
-        for (const file of files) {
-            try {
-                if (!assertWritable(this.ctx?.plugin.settings, 'delete', file.path).ok) {
-                    new Notice(formatGuidance(describeError(this.t, 'protected-path')), 6000);
-                    continue;
+        this.busy = true;
+        try {
+            let first = true;
+            for (const file of files) {
+                // Moving large files takes a while; the first verdict is not used for the later files.
+                if (!first) {
+                    const fresh = await this.checkSafe([file]);
+                    if (this.closed) return;
+                    const decided = this.recordCheck([file], fresh);
+                    if (!decided) break; // not ready or failed: stop, nothing else is trashed on an old verdict
+                    if (fresh.safe.length === 0) continue; // kept now, with its card
                 }
-                await this.app.fileManager.trashFile(file);
-                deletedCount++;
-                // Remove from scan result
-                this.removeFromScanResult(file.path);
-                this.selectedPaths.delete(file.path);
-                this.keptCards.delete(file.path);
-            } catch {
-                new Notice(embedScan.deleteError.replace('{file}', file.name));
+                first = false;
+                try {
+                    if (!assertWritable(this.ctx?.plugin.settings, 'delete', file.path).ok) {
+                        new Notice(formatGuidance(describeError(this.t, 'protected-path')), 6000);
+                        continue;
+                    }
+                    await this.app.fileManager.trashFile(file);
+                    deletedCount++;
+                    // Remove from scan result
+                    this.removeFromScanResult(file.path);
+                    this.selectedPaths.delete(file.path);
+                    this.keptCards.delete(file.path);
+                } catch {
+                    new Notice(embedScan.deleteError.replace('{file}', file.name));
+                }
             }
+        } finally {
+            this.busy = false;
         }
 
         if (deletedCount > 0) {
@@ -1580,19 +1623,19 @@ export class EmbedScanResultsModal extends Modal {
 // ─── Remove-the-link outcome ────────────────────────────────────────────────
 
 /** Tell the user what happened. Touches nothing of the results window, so it is safe after the window closed. */
-function announceUnlink(t: Translations, res: Result<UnlinkOutcome[]>, total: number): void {
+function announceUnlink(t: Translations, res: Result<BatchResult<UnlinkOutcome>>, total: number): void {
     const es = t.embedScan;
     if (!res.ok) {
         new Notice(formatGuidance(describeError(t, res.error === 'link-removal-off' ? 'link-removal-off' : 'unlink-failed')), 8000);
         return;
     }
-    const written = res.value.filter((o) => o.status === 'written').length;
+    const written = res.value.items.length;
     if (written === total) {
         new Notice(plural(es.unlinkDone, written), 5000);
         return;
     }
-    const blocked = res.value.find((o) => o.status !== 'written' && o.status !== 'skipped');
-    const code = blocked?.status === 'stale' ? 'link-changed' : blocked?.status === 'refused-protected' ? 'protected-path' : 'unlink-failed';
+    const blocked = res.value.errors.find((x) => x.error !== 'skipped');
+    const code = blocked?.error === 'stale' ? 'link-changed' : blocked?.error === 'refused-protected' ? 'protected-path' : 'unlink-failed';
     new Notice(`${es.unlinkPartial.replace('{done}', String(written)).replace('{total}', String(total))} ${formatGuidance(describeError(t, code))}`, 10000);
 }
 

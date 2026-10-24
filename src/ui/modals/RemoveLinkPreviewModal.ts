@@ -20,6 +20,8 @@ export class RemoveLinkPreviewModal extends Modal {
         private readonly fileName: string,
         private readonly plans: readonly NotePlan[],
         private readonly onApply: () => void,
+        /** Called when the window closes without Apply (Cancel, Escape, the close button). */
+        private readonly onCancel: () => void = () => {},
     ) {
         super(app);
     }
@@ -69,5 +71,6 @@ export class RemoveLinkPreviewModal extends Modal {
         for (const dispose of this.cleanups) dispose();
         this.cleanups = [];
         this.contentEl.empty();
+        if (!this.decided) this.onCancel();
     }
 }
