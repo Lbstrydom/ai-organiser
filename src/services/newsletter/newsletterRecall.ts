@@ -14,11 +14,13 @@
 import {
     MEMORY_WINDOW_DAYS,
     type ConsumptionState,
+    type ReadState,
     type RecallSelection,
     type RecallStory,
     type StoryLedger,
 } from './newsletterMemoryTypes';
 import { consumedRevision } from './newsletterConsumption';
+import { creditPair, readAppliesToBucket, readProjectionsForBucket } from './newsletterReadSignal';
 import { shiftDateStr } from './newsletterStoryLedger';
 import { keyTokens, findSimilarKey } from './newsletterStoryIdentity';
 
@@ -76,6 +78,8 @@ export function selectRecall(
     consumption: ConsumptionState,
     currentBucketStr: string,
     opts: RecallOptions = {},
+    /** The read channel. Omitted ⇒ heard-only, exactly as before the read signal existed. */
+    read?: ReadState,
 ): RecallSelection {
     const windowDays = opts.windowDays ?? MEMORY_WINDOW_DAYS;
     const maxStories = opts.maxStories ?? DEFAULT_MAX_STORIES;
@@ -102,6 +106,8 @@ export function selectRecall(
         if (bucket.parseFailedAt !== undefined) continue;
 
         const consumedRev = consumedRevision(consumption, date);
+        // Read credit, per bucket and only where the scope seam allows (prior days).
+        const readProj = read && readAppliesToBucket(date, currentBucketStr) ? readProjectionsForBucket(read, date) : undefined;
 
         for (const story of bucket.stories) {
             // Two INDEPENDENT questions, which is why the ledger keeps two
@@ -110,8 +116,13 @@ export function selectRecall(
             // Using contentRevision for both would make a story that existed at
             // revision 1 and changed at revision 2 look brand-new, so the reader
             // would get the whole thing re-explained instead of just the delta.
-            const existedWhenHeard = consumedRev !== null && story.firstRevision <= consumedRev;
-            const contentHeard = consumedRev !== null && story.contentRevision <= consumedRev;
+            let existedWhenHeard = consumedRev !== null && story.firstRevision <= consumedRev;
+            let contentHeard = consumedRev !== null && story.contentRevision <= consumedRev;
+            if (readProj) {
+                const [k, g] = creditPair(story);
+                if (readProj.keys.has(k)) existedWhenHeard = true;
+                if (readProj.texts.has(`${k}.${g}`)) contentHeard = true;
+            }
 
             const tokens = keyTokens(story.key);
             const matchKey = acc.has(story.key)
@@ -197,4 +208,29 @@ const fullCost = (s: RecallStory) => s.title.length + s.gist.length + 14;
 /** True when there is nothing worth putting in the prompt. */
 export function isRecallEmpty(sel: RecallSelection): boolean {
     return sel.heard.length === 0 && sel.continuing.length === 0 && sel.unheard.length === 0;
+}
+
+/**
+ * SEAM 2 — what audio sees. The recall for the WRITTEN brief may include reads; the recall for the
+ * podcast script and for catch-up episodes stays heard-only, so reading never suppresses audio the
+ * reader has not heard. Flip `READ_AFFECTS_AUDIO_RECALL` to let audio see reads too (catch-up
+ * builds its own recall in catchUpRuntime and would need the same read state passed there).
+ */
+export const READ_AFFECTS_AUDIO_RECALL = false;
+
+export interface GenerationRecalls {
+    briefRecall: RecallSelection;
+    audioRecall: RecallSelection;
+}
+
+export function selectGenerationRecalls(
+    ledger: StoryLedger,
+    consumption: ConsumptionState,
+    currentBucketStr: string,
+    read?: ReadState,
+): GenerationRecalls {
+    const heardOnly = selectRecall(ledger, consumption, currentBucketStr);
+    if (!read) return { briefRecall: heardOnly, audioRecall: heardOnly };
+    const withRead = selectRecall(ledger, consumption, currentBucketStr, {}, read);
+    return { briefRecall: withRead, audioRecall: READ_AFFECTS_AUDIO_RECALL ? withRead : heardOnly };
 }
