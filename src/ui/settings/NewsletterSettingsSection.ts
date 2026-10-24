@@ -554,18 +554,22 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .setValue(mode)
                 .onChange(async (value) => {
                     const next: NewsletterReadMode = isReadMode(value) ? value : 'off';
+                    // Invalidate sessions that qualified under the old mode BEFORE anything is awaited.
+                    bumpReadGeneration();
                     settings.newsletterReadMode = next;
                     await this.plugin.saveSettings();
-                    // Any change invalidates sessions that qualified under the old mode; switching off also forgets.
-                    bumpReadGeneration();
                     if (next === 'off') {
                         const res = await new NewsletterService(this.plugin).clearReadHistory();
-                        if (!res.ok) logger.warn('Newsletter', `Failed to clear read history: ${res.error}`);
+                        if (!res.ok) {
+                            // Collection is already off; nothing reads the old record while it is. Say so, and keep Forget available.
+                            logger.warn('Newsletter', `Failed to clear read history: ${res.error}`);
+                            new Notice(formatGuidance(describeError(this.plugin.t, 'read-save-failed')), 6000);
+                        }
                     }
                     this.settingTab.display();
                 }));
 
-        if (mode !== 'off') {
+        {
             new Setting(this.containerEl)
                 .setName(nl?.forgetRead || 'Forget what I have read')
                 .setDesc(nl?.forgetReadDesc || 'Deletes the record of which briefs you read. Stories may be retold once.')

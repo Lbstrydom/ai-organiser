@@ -17,7 +17,7 @@ import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { createCatchUpPorts } from '../src/services/newsletter/catchUp/catchUpRuntime';
 import type { CatchUpPlan } from '../src/services/newsletter/catchUp/catchUpTypes';
 import { NewsletterService } from '../src/services/newsletter/newsletterService';
-import { BRIEF_END_MARKER, BRIEF_START_MARKER, creditPair } from '../src/services/newsletter/newsletterReadSignal';
+import { creditPair, currentReadGeneration } from '../src/services/newsletter/newsletterReadSignal';
 
 const READ_DAY = '2026-10-17';
 const HEARD_DAY = '2026-10-18';
@@ -101,8 +101,6 @@ describe('marking a brief read moves nothing else', () => {
         data['newsletter-catchup-draft'] = { version: 1, marker: 'draft' };
         data['newsletter-catchup-acks'] = { version: 1, marker: 'acks' };
         const before = structuredClone(data);
-        const note = `# Digest\n\n${BRIEF_START_MARKER}\n## Daily Brief\n\n- **Read only tale**: Seen in the written brief\n\n${BRIEF_END_MARKER}\n`;
-        void note;
         const p = {
             app: {},
             settings: { ...DEFAULT_SETTINGS, featureFlags: { newsletter: true }, newsletterStoryMemory: true, newsletterReadMode: 'explicit' },
@@ -112,6 +110,7 @@ describe('marking a brief read moves nothing else', () => {
         const res = await new NewsletterService(p).markBriefRead(
             { date: READ_DAY, displayed: [{ key: readStory.key, title: readStory.title, gist: readStory.gist }] },
             'explicit',
+            currentReadGeneration(),
         );
         expect(res).toEqual({ ok: true, value: { kind: 'credited', stories: 1, newly: 1 } });
         for (const key of Object.keys(before)) expect(data[key]).toEqual(before[key]);

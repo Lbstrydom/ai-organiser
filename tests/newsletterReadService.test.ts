@@ -33,7 +33,7 @@ function makeVault() {
     const mk = (path: string): TFile => {
         const t = new TFile();
         t.path = path; t.name = path.split('/').pop() ?? path; t.basename = t.name.replace(/\.md$/, '');
-        t.parent = { path: path.slice(0, path.lastIndexOf('/')) };
+        t.parent = { path: path.slice(0, path.lastIndexOf('/')) } as never;
         return t;
     };
     const put = (path: string, content: string) => files.set(path, { content, tfile: mk(path) });
@@ -121,16 +121,16 @@ describe('markBriefRead / clearReadHistory', () => {
 
     it('refuses with a code when memory or the mode is off, and writes nothing', async () => {
         const a = setup({ newsletterReadMode: 'off' }, false);
-        expect(await new NewsletterService(a.plugin).markBriefRead(obs, 'explicit')).toEqual({ ok: true, value: { kind: 'refused', code: 'mode-off' } });
+        expect(await new NewsletterService(a.plugin).markBriefRead(obs, 'explicit', currentReadGeneration())).toEqual({ ok: true, value: { kind: 'refused', code: 'mode-off' } });
         const b = setup({ newsletterReadMode: 'explicit', newsletterStoryMemory: false }, false);
-        expect(await new NewsletterService(b.plugin).markBriefRead(obs, 'explicit')).toEqual({ ok: true, value: { kind: 'refused', code: 'memory-off' } });
+        expect(await new NewsletterService(b.plugin).markBriefRead(obs, 'explicit', currentReadGeneration())).toEqual({ ok: true, value: { kind: 'refused', code: 'memory-off' } });
         expect(a.saveData).not.toHaveBeenCalled();
         expect(b.saveData).not.toHaveBeenCalled();
     });
 
     it('a rejected save is a Result.err and records nothing', async () => {
         const s = setup({ newsletterReadMode: 'explicit' }, false, { failSave: true });
-        const res = await new NewsletterService(s.plugin).markBriefRead(obs, 'explicit');
+        const res = await new NewsletterService(s.plugin).markBriefRead(obs, 'explicit', currentReadGeneration());
         expect(res.ok).toBe(false);
         expect(s.data['newsletter-read-briefs']).toBeUndefined();
     });

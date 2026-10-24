@@ -707,7 +707,9 @@ export class NewsletterService {
                 const [ledger, consumption, read] = await Promise.all([
                     loadLedger(this.plugin),
                     loadConsumption(this.plugin),
-                    isReadSignalEnabled(settings) ? loadReadState(this.plugin) : Promise.resolve(undefined),
+                    isReadSignalEnabled(settings)
+                        ? loadReadState(this.plugin).catch((e) => { logger.warn('Newsletter', 'Read history unavailable — the brief uses heard memory only', e); return undefined; })
+                        : Promise.resolve(undefined),
                 ]);
                 const recalls = selectGenerationRecalls(ledger, consumption, dateStr, read);
                 recall = recalls.briefRecall;
@@ -1195,13 +1197,15 @@ export class NewsletterService {
     /**
      * Record that the reader read a brief (the read signal; see `newsletterReadSignal.ts`).
      *
-     * `generation` is the collection generation the observation was captured under; the commit
-     * refuses it if the mode was switched, the history purged or the plugin unloaded since.
+     * `generation` is REQUIRED: the collection generation the observation was captured under, read
+     * by the caller before any asynchronous work. Defaulting it here would let work started before a
+     * purge become eligible to commit after it. The commit refuses it if the mode was switched, the
+     * history purged or the plugin unloaded since.
      */
     async markBriefRead(
         observation: ReadObservation,
         via: ReadSignal,
-        generation: number = currentReadGeneration(),
+        generation: number,
     ): Promise<Result<ReadCommitOutcome>> {
         try {
             const settings = this.plugin.settings;
@@ -1235,7 +1239,9 @@ export class NewsletterService {
     async clearStoryMemory(): Promise<void> {
         await clearStoryLedger(this.plugin);
         await clearConsumption(this.plugin);
-        await this.clearReadHistory();
+        // Same contract as the two clears above: a failed delete rejects, so the caller's handler reports it.
+        const read = await this.clearReadHistory();
+        if (!read.ok) throw new Error(read.error);
     }
 
     /**

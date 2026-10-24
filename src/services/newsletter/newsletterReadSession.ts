@@ -35,6 +35,8 @@ export interface ReadSessionState {
     readonly lastTickAt: number | null;
     readonly lastActivityAt: number | null;
     readonly activityBursts: number;
+    /** Was the surface attentive at the previous tick? An interval counts only if it was attentive at both ends. */
+    readonly lastAttentive: boolean;
     readonly endReached: boolean;
 }
 
@@ -49,7 +51,7 @@ export interface SurfaceSignals {
 }
 
 export function createReadSession(briefTextHash: string, storyCount: number): ReadSessionState {
-    return { briefTextHash, storyCount, dwellMs: 0, lastTickAt: null, lastActivityAt: null, activityBursts: 0, endReached: false };
+    return { briefTextHash, storyCount, dwellMs: 0, lastTickAt: null, lastActivityAt: null, activityBursts: 0, lastAttentive: false, endReached: false };
 }
 
 /** An event on THIS surface (scroll, pointer or key inside the view's own container). */
@@ -62,7 +64,7 @@ export function markEndReached(state: ReadSessionState): ReadSessionState {
     return state.endReached ? state : { ...state, endReached: true };
 }
 
-/** Advance the clock. Accrues the elapsed time only while the surface is attentive. */
+/** Advance the clock. Accrues the elapsed time only if the surface was attentive at both ends of the interval. */
 export function tick(state: ReadSessionState, now: number, signals: SurfaceSignals): ReadSessionState {
     const prev = state.lastTickAt;
     if (prev === null) return { ...state, lastTickAt: now };
@@ -70,7 +72,10 @@ export function tick(state: ReadSessionState, now: number, signals: SurfaceSigna
     const attentive =
         signals.visible && signals.focused && signals.activeLeaf &&
         state.lastActivityAt !== null && now - state.lastActivityAt <= READ_IDLE_CUTOFF_MS;
-    return { ...state, lastTickAt: now, dwellMs: attentive ? state.dwellMs + elapsed : state.dwellMs };
+    // Applying the CURRENT signals to the whole interval would credit time spent hidden or before the
+    // first activity; requiring eligibility at both ends of the interval does not.
+    const counts = attentive && state.lastAttentive;
+    return { ...state, lastTickAt: now, lastAttentive: attentive, dwellMs: counts ? state.dwellMs + elapsed : state.dwellMs };
 }
 
 /** Enough attentive time, real interaction, AND the end of the brief has been on screen. */

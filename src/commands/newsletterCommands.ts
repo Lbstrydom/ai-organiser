@@ -13,7 +13,7 @@ import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
 import { NewsletterService, getBriefDateStr, extractDigestDate, digestBucketForPath } from '../services/newsletter/newsletterService';
 import { isReadSignalEnabled } from '../services/newsletter/newsletterMemoryPolicy';
-import { buildObservation } from '../services/newsletter/newsletterReadSignal';
+import { buildObservation, currentReadGeneration } from '../services/newsletter/newsletterReadSignal';
 import type { ReadRefusal } from '../services/newsletter/newsletterMemoryTypes';
 import { getNewsletterOutputFullPath } from '../core/settings';
 import { withProgress } from '../services/progress';
@@ -256,14 +256,24 @@ export async function runMarkBriefRead(plugin: AIOrganiserPlugin): Promise<void>
     const fail = (code: Parameters<typeof describeError>[1]) => new Notice(formatGuidance(describeError(plugin.t, code)), 6000);
     if (!isReadSignalEnabled(plugin.settings)) { fail('read-signal-off'); return; }
 
+    // Captured BEFORE any await: a purge or mode change while the note is being read invalidates this mark.
+    const generation = currentReadGeneration();
     const file = plugin.app.workspace.getActiveFile();
     const date = file instanceof TFile ? digestBucketForPath(getNewsletterOutputFullPath(plugin.settings), file.path) : null;
     if (!(file instanceof TFile) || !date) { fail('read-not-digest'); return; }
 
-    const built = buildObservation(date, await plugin.app.vault.cachedRead(file));
+    let text: string;
+    try {
+        text = await plugin.app.vault.cachedRead(file);
+    } catch (e) {
+        logger.warn('Newsletter', `Mark brief read could not read the note: ${e instanceof Error ? e.message : String(e)}`);
+        fail('read-unparsable');
+        return;
+    }
+    const built = buildObservation(date, text);
     if (!built) { fail('read-unparsable'); return; }
 
-    const res = await new NewsletterService(plugin).markBriefRead(built.observation, 'explicit');
+    const res = await new NewsletterService(plugin).markBriefRead(built.observation, 'explicit', generation);
     if (!res.ok) {
         logger.warn('Newsletter', `Mark brief read failed: ${res.error}`);
         fail('read-save-failed');
@@ -377,7 +387,7 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
         id: 'newsletter-mark-brief-read',
         name: t.commands.newsletterMarkBriefRead || 'Mark newsletter brief as read',
         icon: 'book-open-check',
-        callback: () => { void runMarkBriefRead(plugin); },
+        callback: () => { void runMarkBriefRead(plugin).catch((e) => logger.warn('Newsletter', 'Mark brief read failed', e)); },
     });
 
     plugin.addCommand({

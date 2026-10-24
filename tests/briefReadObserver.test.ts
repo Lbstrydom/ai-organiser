@@ -254,6 +254,7 @@ describe('sessions are per rendered instance', () => {
         step(30, a.containerEl);
         expect(commits).toHaveLength(1); // only the active pane read
         activeView = b;
+        FakeIO.instances[1].fire(true); // b's end is only evidence once b is the attentive pane
         step(30, b.containerEl);
         expect(commits).toHaveLength(2);
     });
@@ -319,6 +320,66 @@ describe('lifecycle', () => {
         step(10, view.containerEl);
         gen += 1;
         step(120, view.containerEl);
+        expect(commits).toHaveLength(0);
+    });
+});
+
+describe('audit findings', () => {
+    it('after the last child unloads, the same text in the same container starts a FRESH session', () => {
+        const view = newView();
+        activeView = view;
+        const first = render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true);
+        step(5, view.containerEl);
+        first.children.forEach((c) => c.onunload());
+        const second = render(view, noteText());
+        flush();
+        expect(second.children).toHaveLength(1);
+        FakeIO.instances.at(-1)!.fire(true);
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(1);
+    });
+
+    it('a session stopped by the mode switch is replaced when the mode comes back and the note re-renders', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        enabled = false;
+        step(3, view.containerEl);
+        enabled = true;
+        render(view, noteText());
+        flush();
+        FakeIO.instances.at(-1)!.fire(true);
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(1);
+    });
+
+    it('end-of-brief evidence is ignored while the view is not the active leaf', () => {
+        const view = newView();
+        const other = newView();
+        activeView = other;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true); // scrolled past the end in a background pane
+        activeView = view;
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(0); // the end was never seen while attentive
+        FakeIO.instances[0].fire(true);  // now it is
+        step(10, view.containerEl);
+        expect(commits).toHaveLength(1);
+    });
+
+    it('end-of-brief evidence is ignored while the window is unfocused', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+        FakeIO.instances[0].fire(true);
+        vi.spyOn(document, 'hasFocus').mockReturnValue(true);
+        step(30, view.containerEl);
         expect(commits).toHaveLength(0);
     });
 });

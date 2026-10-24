@@ -51,7 +51,10 @@ const ACTIVITY_EVENTS = ['scroll', 'wheel', 'pointerdown', 'keydown', 'touchmove
 
 interface LiveSession {
     hash: string;
+    /** Committed or refused for this exact text: a tombstone, so the same text is never committed twice. */
     done: boolean;
+    /** Torn down without finishing (unload, mode off, purge): a later render of the same text starts afresh. */
+    dead: boolean;
     state: ReadSessionState;
     observation: ReadObservation;
     generation: number;
@@ -60,12 +63,15 @@ interface LiveSession {
     observer: IntersectionObserver | null;
     timer: number | null;
     cleanup: Array<() => void>;
+    /** Is the surface attentive right now? End evidence is gated exactly like dwell. */
+    eligible: () => boolean;
 }
 
 /** One session per rendered view container. A WeakMap, so a closed view releases its session. */
 const sessions = new WeakMap<Element, LiveSession>();
 
 function disposeSession(s: LiveSession): void {
+    s.dead = true;
     if (s.timer !== null) { window.clearInterval(s.timer); s.timer = null; }
     s.observer?.disconnect();
     s.observer = null;
@@ -116,8 +122,9 @@ class BriefReadChild extends MarkdownRenderChild {
         const container = view.containerEl;
 
         let s = sessions.get(container);
-        if (s && s.hash !== this.built.textHash) {
-            // Different text on screen means a new render, so a new session. The old one is discarded.
+        if (s && (s.hash !== this.built.textHash || (s.dead && !s.done))) {
+            // Different text on screen means a new render, so a new session; a session that was torn
+            // down without finishing (the last child unloaded, mode switched off) is replaced, not reused.
             disposeSession(s);
             s = undefined;
         }
@@ -137,6 +144,7 @@ class BriefReadChild extends MarkdownRenderChild {
         const s: LiveSession = {
             hash: this.built.textHash,
             done: false,
+            dead: false,
             state: createReadSession(this.built.textHash, this.built.observation.displayed.length),
             observation: this.built.observation,
             generation: host.generation(),
@@ -145,8 +153,17 @@ class BriefReadChild extends MarkdownRenderChild {
             observer: null,
             timer: null,
             cleanup: [],
+            eligible: () => false,
         };
         s.state = tick(s.state, now(), { visible: true, focused: true, activeLeaf: true });
+
+        // The view's own document: correct in a popout window too.
+        const surfaceSignals = () => ({
+            visible: container.ownerDocument.visibilityState === 'visible',
+            focused: container.ownerDocument.hasFocus(),
+            activeLeaf: host.app.workspace.getActiveViewOfType(MarkdownView) === view,
+        });
+        s.eligible = () => { const sig = surfaceSignals(); return sig.visible && sig.focused && sig.activeLeaf; };
 
         const onActivity = () => { s.state = noteActivity(s.state, now()); };
         for (const ev of ACTIVITY_EVENTS) {
@@ -157,14 +174,8 @@ class BriefReadChild extends MarkdownRenderChild {
 
         s.timer = window.setInterval(() => {
             if (s.done) { disposeSession(s); return; }
-            if (!host.enabled() || host.generation() !== s.generation) { s.done = true; disposeSession(s); return; }
-            const active = host.app.workspace.getActiveViewOfType(MarkdownView) === view;
-            s.state = tick(s.state, now(), {
-                // The view's own document: correct in a popout window too.
-                visible: container.ownerDocument.visibilityState === 'visible',
-                focused: container.ownerDocument.hasFocus(),
-                activeLeaf: active,
-            });
+            if (!host.enabled() || host.generation() !== s.generation) { disposeSession(s); return; }
+            s.state = tick(s.state, now(), surfaceSignals());
             if (isReadThrough(s.state)) {
                 s.done = true;
                 disposeSession(s);
@@ -184,7 +195,8 @@ class BriefReadChild extends MarkdownRenderChild {
         if (s.observed.has(target)) return;
         s.observed.add(target);
         s.observer ??= new IntersectionObserver((entries) => {
-            if (entries.some((e) => e.isIntersecting)) s.state = markEndReached(s.state);
+            // A background, unfocused or inactive view being scrolled past the end is not a reader at the end.
+            if (s.eligible() && entries.some((e) => e.isIntersecting)) s.state = markEndReached(s.state);
         }, { threshold: 0.6 });
         s.observer.observe(target);
     }

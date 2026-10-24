@@ -40,6 +40,24 @@ import { CONSUMED_DATA_KEY, coerceConsumption, consumedRevision } from './newsle
 export const READ_DATA_KEY = 'newsletter-read-briefs';
 
 const DATE_KEY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** The most credit pairs one bucket keeps. The writer and the decoder both apply it, so what is saved is what is read. */
+export const MAX_CREDITED_PER_BUCKET = MAX_STORIES_PER_BUCKET;
+
+/**
+ * THE retention policy for a bucket's credit. A ledger story has exactly one current gist, so only the
+ * newest pair per story key can ever match: an older text of the same story is dropped, which also stops
+ * historical gist versions accumulating. When still over the cap the OLDEST pairs go. Pure and idempotent.
+ */
+export function compactCredited(pairs: ReadonlyArray<readonly [string, string]>): Array<[string, string]> {
+    const latest = new Map<string, string>();
+    for (const [k, g] of pairs) {
+        latest.delete(k); // re-insert so Map order tracks recency
+        latest.set(k, g);
+    }
+    const out: Array<[string, string]> = [...latest.entries()].map(([k, g]) => [k, g]);
+    return out.length > MAX_CREDITED_PER_BUCKET ? out.slice(out.length - MAX_CREDITED_PER_BUCKET) : out;
+}
 const HASH_RE = /^[0-9a-f]{12}$/;
 
 /** Markers of the managed block `mergeOrPrependBrief` writes into the digest note. */
@@ -115,7 +133,7 @@ export function coerceReadState(raw: unknown): ReadState {
             }
         }
         if (credited.length === 0) continue;
-        read[date] = { via: isReadSignal(r.via) ? r.via : 'explicit', credited: credited.slice(0, MAX_STORIES_PER_BUCKET * 2) };
+        read[date] = { via: isReadSignal(r.via) ? r.via : 'explicit', credited: compactCredited(credited) };
     }
     return { version: MEMORY_SCHEMA_VERSION, read };
 }
@@ -266,17 +284,10 @@ export async function commitReadObservation(
             const heard = consumedRevision(coerceConsumption(data[CONSUMED_DATA_KEY]), observation.date);
             const newly = countNewlyRead(existing, credited, heard);
 
-            const have = new Set((existing?.credited ?? []).map(([k, g]) => `${k}.${g}`));
-            const merged: Array<[string, string]> = [...(existing?.credited ?? [])];
-            let added = 0;
-            for (const c of credited) {
-                const id = `${c.pair[0]}.${c.pair[1]}`;
-                if (have.has(id)) continue;
-                have.add(id);
-                merged.push(c.pair);
-                added++;
-            }
-            if (added === 0) return { changed: false, value: { kind: 'noop' } };
+            const before = existing?.credited ?? [];
+            const merged = compactCredited([...before, ...credited.map((c) => c.pair)]);
+            const same = merged.length === before.length && merged.every(([k, g], i) => before[i][0] === k && before[i][1] === g);
+            if (same) return { changed: false, value: { kind: 'noop' } };
 
             state.read[observation.date] = { via: existing?.via ?? via, credited: merged };
             data[READ_DATA_KEY] = state;

@@ -81,7 +81,7 @@ function makeVault() {
         t.path = path;
         t.name = path.split('/').pop() ?? path;
         t.basename = t.name.replace(/\.md$/, '');
-        t.parent = { path: path.slice(0, path.lastIndexOf('/')) };
+        t.parent = { path: path.slice(0, path.lastIndexOf('/')) } as never;
         return t;
     };
     const put = (path: string, content: string) => files.set(path, { content, tfile: mk(path) });
