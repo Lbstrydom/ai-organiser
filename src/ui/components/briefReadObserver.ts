@@ -47,6 +47,8 @@ export interface BriefReadHost {
 }
 
 const TICK_MS = 1_000;
+/** Fraction of the last item that must be on screen. ONE value: it configures the observer and validates each entry. */
+const END_VISIBLE_RATIO = 0.6;
 const ACTIVITY_EVENTS = ['scroll', 'wheel', 'pointerdown', 'keydown', 'touchmove'] as const;
 
 interface LiveSession {
@@ -122,7 +124,10 @@ class BriefReadChild extends MarkdownRenderChild {
         const container = view.containerEl;
 
         let s = sessions.get(container);
-        if (s && (s.hash !== this.built.textHash || (s.dead && !s.done))) {
+        // A completed session is a tombstone only for the lifecycle it completed in: after a purge or a mode
+        // change (a new generation) the same text may be read again.
+        const staleTombstone = s?.done === true && s.generation !== host.generation();
+        if (s && (s.hash !== this.built.textHash || (s.dead && !s.done) || staleTombstone)) {
             // Different text on screen means a new render, so a new session; a session that was torn
             // down without finishing (the last child unloaded, mode switched off) is replaced, not reused.
             disposeSession(s);
@@ -194,10 +199,13 @@ class BriefReadChild extends MarkdownRenderChild {
         const target: Element = items && items.length > 0 ? items[items.length - 1] : this.el;
         if (s.observed.has(target)) return;
         s.observed.add(target);
-        s.observer ??= new IntersectionObserver((entries) => {
+        // The container's own window: correct for a popout, where the global observer would watch the wrong viewport.
+        const win = this.el.ownerDocument.defaultView as (Window & typeof globalThis) | null;
+        const Observer = win?.IntersectionObserver ?? IntersectionObserver;
+        s.observer ??= new Observer((entries) => {
             // A background, unfocused or inactive view being scrolled past the end is not a reader at the end.
-            if (s.eligible() && entries.some((e) => e.isIntersecting)) s.state = markEndReached(s.state);
-        }, { threshold: 0.6 });
+            if (s.eligible() && entries.some((e) => e.isIntersecting && e.intersectionRatio >= END_VISIBLE_RATIO)) s.state = markEndReached(s.state);
+        }, { threshold: END_VISIBLE_RATIO });
         s.observer.observe(target);
     }
 }

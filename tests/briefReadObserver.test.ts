@@ -56,10 +56,10 @@ const SECTION_OUTSIDE = { lineStart: 11, lineEnd: 11 };
 class FakeIO {
     static instances: FakeIO[] = [];
     targets: Element[] = [];
-    constructor(public cb: (entries: Array<{ isIntersecting: boolean }>) => void) { FakeIO.instances.push(this); }
+    constructor(public cb: (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void) { FakeIO.instances.push(this); }
     observe(el: Element) { this.targets.push(el); }
     disconnect() { this.targets = []; }
-    fire(isIntersecting = true) { this.cb([{ isIntersecting }]); }
+    fire(isIntersecting = true, intersectionRatio = 1) { this.cb([{ isIntersecting, intersectionRatio }]); }
 }
 
 let clock = 0;
@@ -381,5 +381,50 @@ describe('audit findings', () => {
         vi.spyOn(document, 'hasFocus').mockReturnValue(true);
         step(30, view.containerEl);
         expect(commits).toHaveLength(0);
+    });
+});
+
+describe('audit round 2', () => {
+    it('an initial notification below the visibility ratio is not the end of the brief', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true, 0.2);
+        step(40, view.containerEl);
+        expect(commits).toHaveLength(0);
+        FakeIO.instances[0].fire(true, 0.8);
+        step(10, view.containerEl);
+        expect(commits).toHaveLength(1);
+    });
+
+    it('after a purge (new generation) the same text in the same view can be read again', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true);
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(1);
+        gen += 1; // Forget what I have read
+        render(view, noteText());
+        flush();
+        FakeIO.instances.at(-1)!.fire(true);
+        step(30, view.containerEl);
+        expect(commits).toHaveLength(2);
+        expect(commits[1].generation).toBe(1);
+    });
+
+    it('without a purge the completed session stays a tombstone (no double commit)', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());
+        flush();
+        FakeIO.instances[0].fire(true);
+        step(30, view.containerEl);
+        render(view, noteText());
+        flush();
+        step(60, view.containerEl);
+        expect(commits).toHaveLength(1);
     });
 });

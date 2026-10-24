@@ -290,7 +290,10 @@ export async function commitReadObservation(
             if (same) return { changed: false, value: { kind: 'noop' } };
 
             state.read[observation.date] = { via: existing?.via ?? via, credited: merged };
-            data[READ_DATA_KEY] = state;
+            // The incoming observation obeys the same retention window as stored state.
+            const retained = pruneReadState(state, todayStr);
+            if (!(observation.date in retained.read)) return { changed: false, value: { kind: 'noop' } };
+            data[READ_DATA_KEY] = retained;
             return { changed: true, value: { kind: 'credited', stories: credited.length, newly } };
         });
         return ok(outcome ?? { kind: 'noop' });

@@ -553,6 +553,8 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 .addOption('read-through', nl?.readModeReadThrough || 'When I read it through, or mark it')
                 .setValue(mode)
                 .onChange(async (value) => {
+                    // One transition at a time: the control is inert until persistence and the purge have finished.
+                    dd.setDisabled(true);
                     const next: NewsletterReadMode = isReadMode(value) ? value : 'off';
                     // Invalidate sessions that qualified under the old mode BEFORE anything is awaited.
                     bumpReadGeneration();

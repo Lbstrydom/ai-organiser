@@ -1197,14 +1197,19 @@ export default class AIOrganiserPlugin extends Plugin {
             // The Reading-view read detector: one gated call, mode read at every render, render-scoped teardown.
             // Loaded on demand: it is only needed in this one mode, and nothing is imported when the mode is off.
             if (isReadThroughEnabled(this.settings)) {
-                void import('./ui/components/briefReadObserver').then(({ attachBriefReadObserver }) => attachBriefReadObserver(el, ctx, {
+                const generationAtRender = currentReadGeneration();
+                void import('./ui/components/briefReadObserver').then(({ attachBriefReadObserver }) => {
+                    // Unload, a mode change or a purge happened while the module was loading: do not install.
+                    if (currentReadGeneration() !== generationAtRender) return;
+                    attachBriefReadObserver(el, ctx, {
                     app: this.app,
                     enabled: () => isReadThroughEnabled(this.settings),
                     outputRoot: () => getNewsletterOutputFullPath(this.settings),
                     digestDate: digestBucketForPath,
                     commit: (observation, generation) => new NewsletterService(this).markBriefRead(observation, 'read-through', generation),
                     generation: currentReadGeneration,
-                })).catch((e) => logger.warn('Newsletter', 'Brief read observer unavailable', e));
+                    });
+                }).catch((e) => logger.warn('Newsletter', 'Brief read observer unavailable', e));
             }
         });
 

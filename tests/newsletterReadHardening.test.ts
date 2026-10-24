@@ -172,3 +172,29 @@ describe('a failing read store cannot take the heard inputs down', () => {
         expect(prompt).toContain('[THEY_MISSED_THESE_ENTIRELY]');
     });
 });
+
+describe('audit round 2', () => {
+    it('an observation older than the retention window is not stored', async () => {
+        const OLD = '2026-09-01';
+        const story = { key: 'old-story-here', title: 'T', gist: 'g', firstRevision: 1, contentRevision: 1 };
+        const store: Record<string, unknown> = { 'newsletter-story-ledger': { version: 1, buckets: { [OLD]: { revision: 1, updatedAt: 1, audio: {}, stories: [story] } } } };
+        const plugin = { loadData: async () => structuredClone(store), saveData: vi.fn(async (d: Record<string, unknown>) => { Object.assign(store, structuredClone(d)); }) } as never;
+        const res = await commitReadObservation(plugin, { date: OLD, displayed: [{ key: story.key, title: 'T', gist: 'g' }] }, 'explicit',
+            { eligible: () => true, generation: 0, currentGeneration: () => 0 }, '2026-10-21');
+        expect(res).toEqual({ ok: true, value: { kind: 'noop' } });
+        expect(READ_DATA_KEY in store).toBe(false);
+    });
+
+    it('clearStoryMemory still purges the other stores when one purge fails, and reports it', async () => {
+        const { plugin, data } = pluginFor({});
+        data[READ_DATA_KEY] = { version: 1, read: { [DAY]: { via: 'explicit', credited: [pair('a', 'b')] } } };
+        const p = plugin as never as { saveData: (d: Record<string, unknown>) => Promise<void> };
+        const real = p.saveData;
+        let calls = 0;
+        p.saveData = async (d) => { calls++; if (calls === 1) throw new Error('first purge fails'); return real(d); };
+        await expect(new NewsletterService(plugin).clearStoryMemory()).rejects.toThrow(/purge incomplete: first purge fails/);
+        expect(calls).toBe(3); // every independent purge was attempted
+        expect(data[READ_DATA_KEY]).toBeUndefined();
+        expect(data['newsletter-consumed-briefs']).toBeUndefined();
+    });
+});
