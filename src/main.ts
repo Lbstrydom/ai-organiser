@@ -83,6 +83,7 @@ import { isStoryMemoryEnabled } from './services/newsletter/newsletterMemoryPoli
 import { noticeWithSettingsLink } from './utils/noticeUtils';
 import { showNewsletterFetchResultNotice, openCatchUpWindow, runSmartDailyAfterFetch } from './commands/newsletterCommands';
 import { CatchUpStatusBar } from './ui/components/CatchUpStatusBar';
+import { CatchUpPlaybackTracker } from './services/newsletter/catchUp/catchUpPlayback';
 import { markCatchUpAudioPlayed } from './services/newsletter/catchUp/catchUpListen';
 import { bumpReadGeneration, currentReadGeneration } from './services/newsletter/newsletterReadSignal';
 import { isReadThroughEnabled } from './services/newsletter/newsletterMemoryPolicy';
@@ -178,6 +179,8 @@ export default class AIOrganiserPlugin extends Plugin {
     private newsletterFetching = false;
     public newsletterLastFetchTime = 0;
     private catchUpStatusBar: CatchUpStatusBar | null = null;
+    /** Playback memory for automatic replacement; touches no storage unless that setting is on. */
+    public catchUpPlayback: CatchUpPlaybackTracker | null = null;
     /** Audio cleanup scheduling: the after-run debounce, the load timer, and what the last sweep learned. */
     private catchUpCleanupTimer: number | null = null;
     private catchUpCleanupLoadTimer: number | null = null;
@@ -324,6 +327,8 @@ export default class AIOrganiserPlugin extends Plugin {
 
         await saveSettingsData(this, this.settings);
         await this.initializeLLMService();
+        // Turning automatic replacement on starts a fresh observation; turning it off clears the memory.
+        void this.catchUpPlayback?.onSettingsChanged();
 
         if (embeddingSettingsChanged) {
             await this.initializeEmbeddingService();
@@ -1193,7 +1198,12 @@ export default class AIOrganiserPlugin extends Plugin {
                     }
                 }
                 : undefined;
-            const dispose = enhanceAudioPlayersIn(el, { onListened, defaultSpeed: this.settings.audioDefaultPlaybackSpeed });
+            // Bound whenever catch-up exists; the tracker decides per event whether anything is stored, so with the
+            // default setting it returns before touching storage and a player rendered earlier needs no re-binding.
+            const onPlayback = catchUpOn
+                ? (audioSrc: string, state: 'playing' | 'paused' | 'ended') => { this.catchUpPlayback?.record({ sourcePath: ctx.sourcePath, audioSrc }, state); }
+                : undefined;
+            const dispose = enhanceAudioPlayersIn(el, { onListened, onPlayback, defaultSpeed: this.settings.audioDefaultPlaybackSpeed });
             this.register(dispose);
             // The Reading-view read detector: one gated call, mode read at every render, render-scoped teardown.
             // Loaded on demand: it is only needed in this one mode, and nothing is imported when the mode is off.
@@ -1502,7 +1512,27 @@ export default class AIOrganiserPlugin extends Plugin {
      * on-demand. Every trigger is cheap: refreshes coalesce into one read pass, and the item
      * stays hidden unless catch-up is enabled.
      */
+    /** A stable id for THIS device, kept in local storage (never synced with the vault). A fresh id is merely stricter. */
+    private catchUpDeviceId(): string {
+        const key = 'ai-organiser-catchup-device';
+        try {
+            const existing: unknown = this.app.loadLocalStorage(key);
+            if (typeof existing === 'string' && existing !== '') return existing;
+            const made = `device-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+            this.app.saveLocalStorage(key, made);
+            return made;
+        } catch {
+            return this.catchUpSessionDevice;
+        }
+    }
+    private readonly catchUpSessionDevice = `session-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+
     private setUpCatchUp(): void {
+        this.catchUpPlayback = new CatchUpPlaybackTracker({ plugin: this, settings: () => this.settings, outputRoot: () => getNewsletterOutputFullPath(this.settings), deviceId: () => this.catchUpDeviceId() });
+        // Enabled mid-session (the workspace is already running): playback in the gap went unseen, so observation restarts.
+        void this.catchUpPlayback.start(this.app.workspace.layoutReady);
+        // A clean quit is what lets the next start keep its observation window.
+        this.registerEvent(this.app.workspace.on('quit', (tasks) => { tasks.add(async () => { await this.catchUpPlayback?.shutdown(); }); }));
         this.catchUpStatusBar = new CatchUpStatusBar(this);
         this.catchUpStatusBar.mount();
         this.refreshCatchUpStatus();
@@ -1662,6 +1692,8 @@ export default class AIOrganiserPlugin extends Plugin {
         bumpReadGeneration();
         this.catchUpStatusBar?.dispose();
         this.catchUpStatusBar = null;
+        void this.catchUpPlayback?.shutdown();
+        this.catchUpPlayback = null;
         this.catchUpCleanupCancelled = true;
         if (this.catchUpCleanupTimer !== null) window.clearTimeout(this.catchUpCleanupTimer);
         if (this.catchUpCleanupLoadTimer !== null) window.clearTimeout(this.catchUpCleanupLoadTimer);

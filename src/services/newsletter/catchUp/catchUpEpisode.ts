@@ -79,12 +79,20 @@ export interface EpisodeNoteInput {
     minutes: number;
     sources: number;
     titles: string[];
+    /**
+     * Titles by day. Present for every episode made now, and its presence selects the newer note template
+     * (dated covered list, property rows hidden). Absent => the original template, byte for byte.
+     */
+    dayTitles?: Array<{ date: string; titles: string[] }>;
     script: string;
     /** Localised labels, so the note reads in the user's interface language. */
     labels?: { listen: string; covered: string; transcript: string };
 }
 
 const DEFAULT_LABELS = { listen: 'Listen', covered: 'Covered stories', transcript: 'Transcript' };
+
+/** The note's CSS class; `styles.css` hides the `catchup_*` property rows inside notes that carry it. */
+export const EPISODE_NOTE_CLASS = 'ai-organiser-catchup-episode';
 
 /** Frontmatter object in a stable key order. */
 export function buildEpisodeFrontmatter(input: EpisodeNoteInput): Record<string, unknown> {
@@ -100,6 +108,8 @@ export function buildEpisodeFrontmatter(input: EpisodeNoteInput): Record<string,
         [EPISODE_FM.fingerprint]: input.fingerprint,
         [EPISODE_FM.minutes]: Math.round(input.minutes * 10) / 10,
         [EPISODE_FM.sources]: input.sources,
+        // Newer template only: lets the stylesheet hide the internal property rows in this note.
+        ...(input.dayTitles ? { cssclasses: [EPISODE_NOTE_CLASS] } : {}),
     };
 }
 
@@ -108,12 +118,22 @@ function oneLine(text: string): string {
     return text.replaceAll(/[\r\n]+/g, ' ').replaceAll(/\s+/g, ' ').trim();
 }
 
+/** The covered stories under one sub-heading per day (newer template). Days with no title are left out. */
+function datedCovered(dayTitles: ReadonlyArray<{ date: string; titles: readonly string[] }>, heading: string): string {
+    const sections = [...dayTitles]
+        .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0))
+        .map((d) => ({ date: d.date, titles: d.titles.map(oneLine).filter((t) => t !== '') }))
+        .filter((d) => d.titles.length > 0)
+        .map((d) => `### ${d.date}\n\n${d.titles.map((t) => `- ${t}`).join('\n')}\n`);
+    return sections.length > 0 ? `\n## ${heading}\n\n${sections.join('\n')}` : '';
+}
+
 export function buildEpisodeNote(input: EpisodeNoteInput): string {
     const labels = input.labels ?? DEFAULT_LABELS;
     const fm = yaml.dump(buildEpisodeFrontmatter(input), { lineWidth: -1 }).trimEnd();
     const heading = input.from === input.to ? input.from : `${input.from} → ${input.to}`;
     const titles = input.titles.map(oneLine).filter((t) => t !== '');
-    const covered = titles.length > 0
+    const covered = input.dayTitles ? datedCovered(input.dayTitles, labels.covered) : titles.length > 0
         ? `\n## ${labels.covered}\n\n${titles.map((t) => `- ${t}`).join('\n')}\n`
         : '';
     // The transcript is quoted as a collapsed callout; every line must carry the quote marker.

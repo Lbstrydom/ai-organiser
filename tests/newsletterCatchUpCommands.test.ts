@@ -99,7 +99,9 @@ describe('Regenerate audio for today (the daily pipeline)', () => {
     it.each(['on-demand', 'smart-daily'])('in %s mode it explains instead of making a daily recording', async (mode) => {
         await runRegenerateAudio(plugin({ newsletterAudioMode: mode }));
         expect(service.regenerateAudioForToday).not.toHaveBeenCalled();
-        expect(notices.join(' ')).toContain('set to make a new audio every day');
+        expect(notices.join(' ')).toContain('only applies to daily audio');
+        expect(notices.join(' ')).toContain('Open newsletter audio');
+        expect(notices.join(' ')).not.toContain('Switch audio delivery');
     });
 
     it('audio off keeps its original message, in every mode', async () => {
@@ -246,6 +248,15 @@ describe('registration', () => {
         expect(byId['newsletter-audio'].name).toBe('Newsletter audio');
         expect(byId['newsletter-audio'].icon).toBe('headphones');
         expect(byId['newsletter-mark-catchup-listened'].icon).toBe('check-circle-2');
+    });
+
+    it('the three mark-as commands keep their ids (hotkeys survive) and say plainly what changes', () => {
+        const p = plugin();
+        registerNewsletterCommands(p);
+        const byId = Object.fromEntries(p.commands.map((c) => [c.id, c]));
+        expect(byId['newsletter-mark-caught-up'].name).toBe('Mark all newsletter stories as already known');
+        expect(byId['newsletter-mark-catchup-listened'].name).toBe('Mark this catch-up episode as listened');
+        expect(byId['newsletter-mark-brief-read'].name).toBe('Mark newsletter brief as read');
     });
 
     it('the Newsletter audio command opens the window', async () => {
