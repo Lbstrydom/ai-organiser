@@ -216,6 +216,16 @@ describe('validateBaseContent', () => {
         ok(`name: T\ncolumns:\n  - a\nfilters:\n  and:\n    ${items.join('\n    ')}\n`);
     });
 
+    it('applies the depth limit through shared aliases too', () => {
+        const chain = (links: number) => {
+            const items = ["- &f1 {and: ['true']}"];
+            for (let i = 2; i <= links; i++) items.push(`- &f${i} {and: [*f${i - 1}]}`);
+            return `name: T\ncolumns:\n  - a\nfilters:\n  and:\n    ${items.join('\n    ')}\n`;
+        };
+        ok(chain(10));
+        bad(chain(33));
+    });
+
     it('requires every view to be a mapping with a type', () => {
         bad('views:\n  - {}\n');
         bad('views:\n  - name: Table\n');

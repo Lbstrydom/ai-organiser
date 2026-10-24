@@ -56,29 +56,48 @@ export function validateBaseContent(content: string): string | null {
 }
 
 /** A Bases filter: an expression string, or a group whose keys are and / or / not holding filter lists. */
-function isFilterNode(
-    node: unknown,
-    path: Set<object> = new Set(),
-    valid: WeakSet<object> = new WeakSet(),
-): boolean {
-    if (typeof node === 'string') return node.trim() !== '';
-    if (!isMapping(node)) return false;
-    if (valid.has(node)) return true;
-    // YAML aliases can make the value a graph: reject cycles and absurd nesting.
-    if (path.has(node) || path.size >= MAX_FILTER_DEPTH) return false;
-    const keys = Object.keys(node);
-    path.add(node);
-    const ok = keys.length > 0 && keys.every(key => {
-        const group = node[key];
-        return (key === 'and' || key === 'or' || key === 'not')
-            && Array.isArray(group) && group.every(child => isFilterNode(child, path, valid));
-    });
-    path.delete(node);
-    if (ok) valid.add(node);
-    return ok;
+function isFilterNode(node: unknown): boolean {
+    return filterHeight(node, new Set(), new Map()) >= 0;
 }
 
 const MAX_FILTER_DEPTH = 32;
+
+/**
+ * Height of a valid filter subtree (0 for a string, 1 + deepest child for a group), or -1
+ * when it is invalid. YAML aliases can turn the value into a graph, so cycles on the active
+ * path and nesting beyond MAX_FILTER_DEPTH are rejected, and each shared node is measured
+ * once (its height is memoised, so the depth limit still applies through every alias).
+ */
+function filterHeight(node: unknown, path: Set<object>, heights: Map<object, number>): number {
+    if (typeof node === 'string') return node.trim() !== '' ? 0 : -1;
+    if (!isMapping(node)) return -1;
+    const known = heights.get(node);
+    if (known !== undefined) return path.size + known > MAX_FILTER_DEPTH ? -1 : known;
+    if (path.has(node) || path.size >= MAX_FILTER_DEPTH) return -1;
+    const keys = Object.keys(node);
+    if (keys.length === 0) return -1;
+    path.add(node);
+    let height = 1;
+    for (const key of keys) {
+        const group = node[key];
+        if (!(key === 'and' || key === 'or' || key === 'not') || !Array.isArray(group)) {
+            height = -1;
+            break;
+        }
+        for (const child of group) {
+            const childHeight = filterHeight(child, path, heights);
+            if (childHeight < 0) {
+                height = -1;
+                break;
+            }
+            height = Math.max(height, childHeight + 1);
+        }
+        if (height < 0) break;
+    }
+    path.delete(node);
+    if (height >= 0) heights.set(node, height);
+    return height;
+}
 
 export interface DashboardCreationOptions {
     /** Template to use */
