@@ -1,8 +1,43 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 208,
+  "olderSyncsDropped": 209,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-10-24T12:59:50.484Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "d5307b08f8b5e262a8fa4c774b5557e3949cc531",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 1,
+        "updated": 6,
+        "unchanged": 970,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/patch-equivalence.mjs"
+      ],
+      "updated": [
+        "scripts/.claude-skills/lib/commit-trailers.mjs",
+        "scripts/.claude-skills/lib/fleet/lease-cmd.mjs",
+        "scripts/.claude-skills/lib/fleet/lease-run.mjs",
+        "scripts/.claude-skills/lib/fleet/lease-spawn.mjs",
+        "scripts/.claude-skills/lib/fleet/lease.mjs",
+        "scripts/.claude-skills/ship-commit.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-10-24T00:08:52.540Z",
       "source": {
@@ -495,51 +530,6 @@
         "scripts/.claude-skills/tiered-shadow-report.mjs",
         "scripts/.claude-skills/ux-lock-run.mjs",
         "scripts/.claude-skills/workflow-cadence-doctor.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-12T19:26:38.397Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "f39918442d0c7ed4f78efa02cd2a12dcdd3d2701",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 3,
-        "updated": 14,
-        "unchanged": 913,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [
-        ".claude/skills/ship/references/train-mode.md",
-        "scripts/.claude-skills/lib/fleet/hooks-path-guard.mjs",
-        "scripts/.claude-skills/lib/store/finding-disposition.mjs"
-      ],
-      "updated": [
-        ".claude/skills/fleet/SKILL.md",
-        ".claude/skills/fleet/references/coordination.md",
-        ".claude/skills/fleet/references/participant-rules.md",
-        ".claude/skills/ship/SKILL.md",
-        ".claude/skills/ship/references/pre-ship-gate-queries.md",
-        ".claude/skills/ship/references/status-md-format.md",
-        "scripts/.claude-skills/cross-skill.mjs",
-        "scripts/.claude-skills/learning/replay.mjs",
-        "scripts/.claude-skills/lib/cli-io.mjs",
-        "scripts/.claude-skills/lib/cross-skill/commands/ship.mjs",
-        "scripts/.claude-skills/lib/cross-skill/registry.mjs",
-        "scripts/.claude-skills/lib/cross-skill/store-port.mjs",
-        "scripts/.claude-skills/lib/fleet/archive.mjs",
-        "scripts/.claude-skills/lib/fleet/prune.mjs"
       ],
       "gcDeleted": [],
       "overridesHeld": [],
