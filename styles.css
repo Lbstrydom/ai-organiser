@@ -10030,6 +10030,20 @@
     margin-top: var(--size-4-3);
 }
 
+.ai-organiser-catchup-actions button {
+    /* A long action ("Replace my unheard episode with one fresh catch-up covering everything") wraps instead of overflowing. */
+    white-space: normal;
+    height: auto;
+    max-width: 100%;
+    text-align: center;
+}
+
+.ai-organiser-catchup-tidy label {
+    display: flex;
+    gap: var(--size-4-2);
+    align-items: flex-start;
+}
+
 .ai-organiser-catchup-progress {
     margin: var(--size-4-3) 0;
 }

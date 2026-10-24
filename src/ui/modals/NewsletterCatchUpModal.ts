@@ -253,7 +253,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             const range = episode.from === episode.to ? episode.to : `${episode.from} → ${episode.to}`;
             box.createEl('p', { text: range, cls: 'ai-organiser-catchup-waiting-episode' });
             const row = box.createDiv({ cls: 'ai-organiser-catchup-actions' });
-            this.button(row, m.openEpisode, () => { this.openToListen(episode.notePath); });
+            this.openButton(row, m.openEpisode, episode.notePath);
             this.button(row, m.markListened, () => { void this.markListened(episode); });
         }
         this.renderReplaceButton(box, waiting.episodes.length);
@@ -267,7 +267,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         const range = episode.from === episode.to ? episode.to : `${episode.from} → ${episode.to}`;
         box.createEl('p', { text: m.unheardBody.replace('{range}', range) });
         const row = box.createDiv({ cls: 'ai-organiser-catchup-actions' });
-        this.button(row, m.openEpisode, () => { this.openToListen(episode.notePath); });
+        this.openButton(row, m.openEpisode, episode.notePath);
         this.button(row, m.markListened, () => { void this.markListened(episode); });
         this.renderReplaceButton(box, this.view && 'unheard' in this.view && this.view.unheard ? this.view.unheard.count : 1);
         box.createEl('p', { text: m.markMapHint, cls: 'ai-organiser-catchup-note is-muted' });
@@ -490,7 +490,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             });
         }
         if (latest) {
-            this.button(footer, m.replayLatest, () => { this.openToListen(latest.notePath); });
+            // One way to open an episode per screen: the unheard box already offers it for the episode it names.
+            if (!this.hasOpenButton(latest.notePath)) this.openButton(footer, m.replayLatest, latest.notePath);
             this.button(footer, m.includeAgain, () => {
                 // The episode's own days, exactly: a range could name days the episode never covered.
                 this.includeAgainDates = Object.keys(latest.coverage).sort();
@@ -548,6 +549,17 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     }
 
     // ── Actions ──────────────────────────────────────────────────────────────
+
+    /** The one "Open to listen" button, remembering which note it opens so a screen never offers it twice for one episode. */
+    private openButton(parent: HTMLElement, text: string, notePath: string, emphasis = false): HTMLButtonElement {
+        const btn = this.button(parent, text, () => { this.openToListen(notePath); }, emphasis);
+        btn.dataset.openNote = notePath;
+        return btn;
+    }
+
+    private hasOpenButton(notePath: string): boolean {
+        return Array.from(this.contentEl.querySelectorAll<HTMLButtonElement>('button')).some((b) => b.dataset.openNote === notePath);
+    }
 
     /** Open the episode note and get the window out of the way, so the player is what the person sees. */
     private openToListen(notePath: string): void {
@@ -737,7 +749,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         const m = this.plugin.t.modals.newsletterCatchUp;
         const row = this.contentEl.querySelector('.ai-organiser-catchup-actions');
         if (!row) return;
-        this.button(row as HTMLElement, m.openNote, () => { this.openToListen(notePath); }, true);
+        if (this.hasOpenButton(notePath)) return;
+        this.openButton(row as HTMLElement, m.openNote, notePath, true);
     }
 }
 

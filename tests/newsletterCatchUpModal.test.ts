@@ -483,6 +483,17 @@ describe('honest labels', () => {
         expect(buttons(root).some((b) => /Open (latest )?episode/.test(b ?? ''))).toBe(false);
     });
 
+    it('a screen never offers Open to listen twice for the same episode', async () => {
+        const ep = episode('e1', '2026-10-20', '2026-10-22');
+        snapshotRef.value = snapshot({ state: 'caught-up', unheard: [ep], latestEpisode: ep });
+        const { root } = await open();
+        expect(buttons(root).filter((b) => b === 'Open to listen')).toHaveLength(1);
+        // A different latest episode is a different note, so it keeps its own button.
+        snapshotRef.value = snapshot({ state: 'caught-up', unheard: [ep], latestEpisode: episode('e2', '2026-10-23', '2026-10-23') });
+        const second = await open();
+        expect(buttons(second.root).filter((b) => b === 'Open to listen')).toHaveLength(2);
+    });
+
     it('says in one line that marking listened concerns only this episode', async () => {
         snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')] });
         const { root } = await open();
