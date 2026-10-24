@@ -20,6 +20,7 @@ import { App, TFile } from 'obsidian';
 import { Result, ok, err } from '../core/result';
 import { isProtectedPath, type ProtectedSource } from '../core/protectedPaths';
 import { getMetadataIndexState, waitForMetadataIndex } from '../utils/metadataIndexState';
+import { listAllReferrerFiles } from './referrerSet';
 import {
     buildCandidateIndex,
     collectOccurrences,
@@ -42,11 +43,38 @@ export interface FileIdentity {
     mtime: number;
 }
 
+/** How many same-named files a verdict names (the rest are a count away, not a list). */
+const MAX_SAME_NAME_EVIDENCE = 10;
+
+/** One note or canvas that references the file. */
+export interface BlockerRef {
+    path: string;
+    extension: 'md' | 'canvas';
+    /** 1-based line in a note; 0 for a canvas */
+    lineNumber: number;
+    /** The link text as written (normalised) */
+    linktext: string;
+}
+
+/**
+ * What stands in the way, so a kept file can say WHICH note, canvas or file to deal with. Evidence only:
+ * it never changes the verdict, which `reasons` alone decide.
+ */
+export interface Blockers {
+    referrers: BlockerRef[];
+    /** Other vault files a link to this one could equally have meant */
+    sameNameFiles: string[];
+    /** Notes and canvases that could not be read (they may hide a reference) */
+    unreadable: CoverageFailure[];
+}
+
 export interface Eligibility {
     eligible: boolean;
     reasons: IneligibleReason[];
     /** How many references resolve to the file */
     referenceCount: number;
+    /** Present only on a delete-time re-check */
+    blockers?: Blockers;
 }
 
 export interface EligibilityInput {
@@ -58,6 +86,7 @@ export interface EligibilityInput {
     ambiguous: boolean;
     coverageFailures: readonly CoverageFailure[];
     protectedFolders: ProtectedSource;
+    blockers?: Blockers;
 }
 
 /** Pure eligibility decision. */
@@ -73,7 +102,9 @@ export function computeEligibility(input: EligibilityInput): Eligibility {
     if (input.ambiguous) reasons.push('ambiguous-reference');
     if (input.coverageFailures.some((f) => f.kind === 'canvas-unreadable')) reasons.push('canvas-unreadable');
     if (input.coverageFailures.some((f) => f.kind === 'markdown-unreadable')) reasons.push('scan-incomplete');
-    return { eligible: reasons.length === 0, reasons, referenceCount: input.referenceCount };
+    const verdict: Eligibility = { eligible: reasons.length === 0, reasons, referenceCount: input.referenceCount };
+    if (input.blockers) verdict.blockers = input.blockers;
+    return verdict;
 }
 
 // ─── Revalidation at confirmation ────────────────────────────────────────────
@@ -205,18 +236,44 @@ async function buildEligibility(
     }
     // Re-resolve every occurrence against its referrer's CURRENT path.
     const counts = new Map<string, number>();
+    const refsByTarget = new Map<string, BlockerRef[]>();
     const ambiguous = new Set<string>();
+    const sameName = new Map<string, string[][]>();
+    const ambiguityDone = new Set<string>();
     for (const occ of occurrences) {
         const target =
             occ.kind === 'canvas'
                 ? (port.identity(occ.linktext)?.path ?? port.resolveLink(occ.linktext, occ.referrerPath))
                 : port.resolveLink(occ.linktext, occ.referrerPath);
-        if (target) counts.set(target, (counts.get(target) ?? 0) + 1);
-        if (occ.kind === 'markdown') {
+        if (target) {
+            counts.set(target, (counts.get(target) ?? 0) + 1);
+            const list = refsByTarget.get(target) ?? [];
+            list.push({
+                path: occ.referrerPath,
+                extension: live.get(occ.referrerPath)?.extension ?? (occ.kind === 'canvas' ? 'canvas' : 'md'),
+                lineNumber: occ.lineNumber,
+                linktext: occ.linktext,
+            });
+            refsByTarget.set(target, list);
+        }
+        // Which files a link text could mean depends on the text alone, so work it out once per distinct text.
+        if (occ.kind === 'markdown' && !ambiguityDone.has(occ.linktext)) {
+            ambiguityDone.add(occ.linktext);
             const candidates = port.candidatesFor(occ.linktext);
-            if (candidates.length > 1) for (const c of candidates) ambiguous.add(c);
+            if (candidates.length > 1) {
+                // One shared group per distinct link text; each file's "other files" are derived from it on demand.
+                for (const c of candidates) {
+                    ambiguous.add(c);
+                    const groups = sameName.get(c) ?? [];
+                    groups.push(candidates);
+                    sameName.set(c, groups);
+                }
+            }
         }
     }
+
+    // Unreadable referrers are listed once each; they may hide a reference to ANY file.
+    const unreadable = [...new Map(failures.map((f) => [f.path, f])).values()];
 
     const result = new Map<string, Eligibility>();
     for (const scanned of input.files) {
@@ -229,6 +286,11 @@ async function buildEligibility(
                 ambiguous: ambiguous.has(scanned.path),
                 coverageFailures: failures,
                 protectedFolders: input.protectedFolders,
+                blockers: {
+                    referrers: refsByTarget.get(scanned.path) ?? [],
+                    sameNameFiles: [...new Set((sameName.get(scanned.path) ?? []).flat())].filter((p) => p !== scanned.path).slice(0, MAX_SAME_NAME_EVIDENCE),
+                    unreadable,
+                },
             }),
         );
     }
@@ -254,13 +316,13 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
         // and `namespaceSignature` below lets the barrier notice a changed vault.
         isResolved: () => getMetadataIndexState(app) === 'ready',
         waitResolved: async (timeoutMs) => (await waitForMetadataIndex(app, { timeoutMs })).outcome === 'ready',
-        listReferrers: () => [
-            ...app.vault.getMarkdownFiles().map((f) => ({ path: f.path, extension: 'md' as const, mtime: f.stat.mtime })),
-            ...app.vault
-                .getFiles()
-                .filter((f) => f.extension === 'canvas')
-                .map((f) => ({ path: f.path, extension: 'canvas' as const, mtime: f.stat.mtime })),
-        ],
+        // The same enumeration the scan uses (services/referrerSet), so the two cannot disagree.
+        listReferrers: () =>
+            listAllReferrerFiles(app).map((f) => ({
+                path: f.path,
+                extension: f.extension === 'canvas' ? ('canvas' as const) : ('md' as const),
+                mtime: f.stat.mtime,
+            })),
         readText: async (path) => {
             const file = app.vault.getAbstractFileByPath(path);
             if (!(file instanceof TFile)) return null;

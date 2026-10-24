@@ -181,30 +181,44 @@ export interface RawReference {
     originalText: string;
 }
 
+/** A reference together with where it sits in the line (`start` inclusive, `end` exclusive). */
+export interface RawReferenceSpan extends RawReference {
+    start: number;
+    end: number;
+}
+
+/**
+ * Extract all embed/link references from a single line of markdown, with their positions.
+ * Does NOT deduplicate — returns every occurrence.
+ */
+export function extractReferenceSpansFromLine(line: string, lineNumber: number): RawReferenceSpan[] {
+    const refs: RawReferenceSpan[] = [];
+    const add = (match: RegExpMatchArray, path: string, isEmbedded: boolean): void => {
+        const start = match.index ?? 0;
+        refs.push({ path, lineNumber, isEmbedded, originalText: match[0], start, end: start + match[0].length });
+    };
+
+    for (const match of line.matchAll(MARKDOWN_EMBED_RE)) add(match, match[2], true);
+    for (const match of line.matchAll(WIKI_EMBED_RE)) add(match, match[1], true);
+    for (const match of line.matchAll(MARKDOWN_LINK_RE)) {
+        // Exclude if preceded by `!` (already captured as embed)
+        if (match.index !== undefined && match.index > 0 && line[match.index - 1] === '!') continue;
+        add(match, match[2], false);
+    }
+    for (const match of line.matchAll(WIKI_LINK_RE)) {
+        if (match.index !== undefined && match.index > 0 && line[match.index - 1] === '!') continue;
+        add(match, match[1], false);
+    }
+
+    return refs;
+}
+
 /**
  * Extract all embed/link references from a single line of markdown.
  * Does NOT deduplicate — returns every occurrence.
  */
 export function extractReferencesFromLine(line: string, lineNumber: number): RawReference[] {
-    const refs: RawReference[] = [];
-
-    for (const match of line.matchAll(MARKDOWN_EMBED_RE)) {
-        refs.push({ path: match[2], lineNumber, isEmbedded: true, originalText: match[0] });
-    }
-    for (const match of line.matchAll(WIKI_EMBED_RE)) {
-        refs.push({ path: match[1], lineNumber, isEmbedded: true, originalText: match[0] });
-    }
-    for (const match of line.matchAll(MARKDOWN_LINK_RE)) {
-        // Exclude if preceded by `!` (already captured as embed)
-        if (match.index !== undefined && match.index > 0 && line[match.index - 1] === '!') continue;
-        refs.push({ path: match[2], lineNumber, isEmbedded: false, originalText: match[0] });
-    }
-    for (const match of line.matchAll(WIKI_LINK_RE)) {
-        if (match.index !== undefined && match.index > 0 && line[match.index - 1] === '!') continue;
-        refs.push({ path: match[1], lineNumber, isEmbedded: false, originalText: match[0] });
-    }
-
-    return refs;
+    return extractReferenceSpansFromLine(line, lineNumber).map(({ start: _start, end: _end, ...ref }) => ref);
 }
 
 /**
