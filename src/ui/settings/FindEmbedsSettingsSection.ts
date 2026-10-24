@@ -5,6 +5,9 @@ import { BaseSettingSection } from './BaseSettingSection';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { logger } from '../../utils/logger';
 
+/** Saves run one at a time, so a failed save can only restore the value that was current when it started. */
+let saveQueue: Promise<void> = Promise.resolve();
+
 /**
  * Find embeds settings: one switch. "Allow removing links" lets the results window remove the links to a
  * kept file from the notes that hold them (always previewed, protected folders never edited) so the file can
@@ -23,7 +26,12 @@ export class FindEmbedsSettingsSection extends BaseSettingSection {
             .setDesc(es.allowLinkRemovalDesc)
             .addToggle((toggle) => toggle
                 .setValue(this.plugin.settings.attachmentAllowLinkRemoval === true)
-                .onChange((value) => { void this.save(value); }));
+                .onChange((value) => { void this.enqueueSave(value); }));
+    }
+
+    private enqueueSave(value: boolean): Promise<void> {
+        saveQueue = saveQueue.then(() => this.save(value));
+        return saveQueue;
     }
 
     private async save(value: boolean): Promise<void> {

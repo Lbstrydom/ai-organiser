@@ -113,6 +113,23 @@ function inlineCodeRanges(line: string): Array<[number, number]> {
     return ranges;
 }
 
+/**
+ * Is the span [start, end) of line `i` inside an inline code span? A code span may cross line breaks within a
+ * paragraph, so the paragraph (the run of non-blank lines around the line) is scanned as one text.
+ */
+function inInlineCode(lines: readonly string[], i: number, start: number, end: number): boolean {
+    const blank = (l: string): boolean => l.trim() === '';
+    let from = i;
+    while (from > 0 && !blank(lines[from - 1])) from--;
+    let to = i;
+    while (to < lines.length - 1 && !blank(lines[to + 1])) to++;
+    const clean = (l: string): string => l.replace(/\r$/, '');
+    let offset = 0;
+    for (let k = from; k < i; k++) offset += clean(lines[k]).length + 1;
+    const paragraph = lines.slice(from, to + 1).map(clean).join('\n');
+    return inlineCodeRanges(paragraph).some(([a, b]) => offset + start >= a && offset + end <= b);
+}
+
 /** Plan the removal of every reference to `filePath` in one note. Pure. */
 export function planLinkRemoval(text: string, filePath: string, notePath: string, resolve: Resolve): PlanResult {
     const lines = text.split('\n');
@@ -134,8 +151,7 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         if (hits.length === 0) continue;
         if (mask[i]) { outsideBody = true; continue; }
         // A reference written inside inline code is literal text, not a link: leave it alone.
-        const code = inlineCodeRanges(line);
-        const live = hits.filter((h) => !code.some(([from, to]) => h.start >= from && h.end <= to));
+        const live = hits.filter((h) => !inInlineCode(lines, i, h.start, h.end));
         if (live.length === 0) { outsideBody = true; continue; }
         inBody = true;
         // Rewrite by position (last first), so identical text elsewhere on the line is never touched.

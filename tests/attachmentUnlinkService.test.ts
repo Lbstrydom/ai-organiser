@@ -73,6 +73,12 @@ describe('planLinkRemoval', () => {
 		expect(planOf('![[meeting.m4a]] `a ![[meeting.m4a]] b`').nextText).toBe(' `a ![[meeting.m4a]] b`');
 	});
 
+	it('treats a code span that crosses a line break as code', () => {
+		expect(planLinkRemoval('see `start\n![[meeting.m4a]] end` after', FILE, 'Notes/a.md', resolve).status).toBe('not-removable');
+		// A blank line ends the paragraph, so an unclosed backtick does not reach the next one.
+		expect(planOf('open `tick\n\n![[meeting.m4a]]').nextText).toBe('open `tick\n');
+	});
+
 	it('lists the extra blank line it drops, so the approved plan covers every edit', () => {
 		const plan = planOf('para\n\n![[meeting.m4a]]\n\nnext');
 		expect(plan.nextText).toBe('para\n\nnext');
