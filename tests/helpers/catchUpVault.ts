@@ -6,6 +6,7 @@
 import { vi } from 'vitest';
 import * as yaml from 'js-yaml';
 import { createTFile, TFile } from '../mocks/obsidian';
+import { observeMetadataIndex, type IndexObserver } from '../../src/utils/metadataIndexState';
 
 export interface CatchUpVault {
     app: {
@@ -21,7 +22,7 @@ export interface CatchUpVault {
             offref: ReturnType<typeof vi.fn>;
         };
         fileManager: { trashFile: ReturnType<typeof vi.fn> };
-        metadataCache: { getFileCache: ReturnType<typeof vi.fn>; resolved?: boolean; resolvedLinks: Record<string, Record<string, number>>; on: ReturnType<typeof vi.fn>; offref: ReturnType<typeof vi.fn> };
+        metadataCache: { getFileCache: ReturnType<typeof vi.fn>; resolved?: boolean; initialized?: boolean; resolvedLinks: Record<string, Record<string, number>>; on: ReturnType<typeof vi.fn>; offref: ReturnType<typeof vi.fn> };
     };
     files: Map<string, string | ArrayBuffer>;
     set(path: string, content: string | ArrayBuffer): void;
@@ -30,6 +31,8 @@ export interface CatchUpVault {
     text(path: string): string;
     /** Serve frontmatter from the metadata cache (default) or force a cold cache. */
     cache: { enabled: boolean };
+    /** Drive the plugin's index tracker: `changed()` starts indexing, `resolved()` completes it. */
+    index: IndexObserver;
     /** Fire a vault event (create/modify/delete/rename) or a metadataCache event (changed/deleted) at the registered listeners. */
     emit(source: 'vault' | 'cache', name: string, ...args: unknown[]): void;
     /** Number of listeners still registered. */
@@ -114,7 +117,8 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
             trashFile: vi.fn(async (f: { path: string }) => { files.delete(f.path); tfiles.delete(f.path); }),
         },
         metadataCache: {
-            // A fully indexed vault by default; tests for the still-indexing case flip or delete it.
+            // A fully indexed vault by default: the legacy `resolved` hint plus an observed `resolved`
+            // event (see below). Tests for the still-indexing case flip or delete the hint, or drive `index`.
             resolved: true,
             resolvedLinks: {} as Record<string, Record<string, number>>,
             on: register('cache'),
@@ -127,10 +131,15 @@ export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> =
         },
     };
 
+    // The plugin's index tracker, already past a completed resolution: a fully indexed vault.
+    const index = observeMetadataIndex(app.metadataCache, 0);
+    index.resolved();
+
     return {
         app,
         files,
         cache,
+        index,
         set: (p, c) => { files.set(p, c); },
         remove: (p) => { files.delete(p); tfiles.delete(p); },
         exists: (p) => files.has(p),

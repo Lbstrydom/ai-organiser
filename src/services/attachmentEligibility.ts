@@ -19,6 +19,7 @@
 import { App, TFile } from 'obsidian';
 import { Result, ok, err } from '../core/result';
 import { isProtectedPath, type ProtectedSource } from '../core/protectedPaths';
+import { getMetadataIndexState, waitForMetadataIndex } from '../utils/metadataIndexState';
 import {
     buildCandidateIndex,
     collectOccurrences,
@@ -247,25 +248,10 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
     return {
         beginAttempt: () => { index = null; },
         namespaceSignature: () => app.vault.getFiles().map((f) => f.path).sort().join('\u0001'),
-        isResolved: () => (app.metadataCache as unknown as { resolved?: boolean }).resolved !== false,
-        waitResolved: (timeoutMs) =>
-            new Promise<boolean>((resolve) => {
-                const mc = app.metadataCache as unknown as {
-                    resolved?: boolean;
-                    on: (name: string, cb: () => void) => unknown;
-                    offref: (ref: unknown) => void;
-                };
-                if (mc.resolved !== false) return resolve(true);
-                const timer = window.setTimeout(() => {
-                    mc.offref(ref);
-                    resolve(false);
-                }, timeoutMs);
-                const ref = mc.on('resolved', () => {
-                    window.clearTimeout(timer);
-                    mc.offref(ref);
-                    resolve(true);
-                });
-            }),
+        // Strict: this gate feeds the Drive offload (a trash after link rewrites), so an index that is
+        // building OR whose state cannot be established is not "resolved" (see utils/metadataIndexState).
+        isResolved: () => getMetadataIndexState(app, 'strict') === 'ready',
+        waitResolved: async (timeoutMs) => (await waitForMetadataIndex(app, { policy: 'strict', timeoutMs })).outcome === 'ready',
         listReferrers: () => [
             ...app.vault.getMarkdownFiles().map((f) => ({ path: f.path, extension: 'md' as const, mtime: f.stat.mtime })),
             ...app.vault

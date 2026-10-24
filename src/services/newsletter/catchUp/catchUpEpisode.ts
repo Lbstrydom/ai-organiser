@@ -11,6 +11,7 @@ import { App, normalizePath, TFile } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ensureFolderExists } from '../../../utils/minutesUtils';
 import { logger } from '../../../utils/logger';
+import { getMetadataIndexState } from '../../../utils/metadataIndexState';
 import { err, ok, type Result } from '../../../core/result';
 import {
     buildEpisodeName,
@@ -353,14 +354,12 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
 /**
  * Has Obsidian finished indexing links? While it has not, the link table is incomplete and a "no
  * reference" drawn from it is a guess. Readiness must be positively established: an absent flag
- * is not proof.
- *
- * `resolved` is a runtime boolean on Obsidian's MetadataCache (the property community plugins read
- * to decide whether to wait for the `resolved` event). It is not in the public typings, hence the
- * structural cast. If a future Obsidian dropped it this returns false: callers fail closed.
+ * is not proof. The decision lives in `utils/metadataIndexState` (strict policy): runtime flags
+ * differ by Obsidian version (`resolved` on older builds, `initialized` on newer) and are only
+ * hints beside the documented `changed` / `resolved` events. Neither signal => not ready.
  */
 export function isMetadataIndexReady(app: App): boolean {
-    return (app.metadataCache as { resolved?: boolean } | undefined)?.resolved === true;
+    return getMetadataIndexState(app, 'strict') === 'ready';
 }
 
 export type AudioReference = 'yes' | 'no' | 'unknown';
@@ -375,7 +374,7 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
 
     // Anything in the vault that already LINKS to the file counts, wherever the note lives or
     // whatever it is called (a renamed or moved episode is still a reference).
-    const cache = app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>>; resolved?: boolean } | undefined;
+    const cache = app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>> } | undefined;
     const resolved = cache?.resolvedLinks;
     // While the vault index is still being built the link table is incomplete: a "no" drawn from
     // it would be a guess. Readiness must be positively established: an absent flag is not proof.

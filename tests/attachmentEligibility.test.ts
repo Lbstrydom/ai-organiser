@@ -9,7 +9,9 @@ import {
 	type FileIdentity,
 	type ReferrerInfo,
 	type EligibilityInput,
+	createAppVaultPort,
 } from '../src/services/attachmentEligibility';
+import { observeMetadataIndex } from '../src/utils/metadataIndexState';
 import { buildCandidateIndex, type StoredOccurrence } from '../src/services/embedScanService';
 
 const id = (path: string, size = 100, mtime = 500): FileIdentity => ({ path, size, mtime });
@@ -255,5 +257,33 @@ describe('ChangeLog', () => {
 		expect([...snap.renamed]).toEqual(['b.md']);
 		expect([...snap.deleted].sort()).toEqual(['a.md', 'e.md']);
 		expect(log.isEmpty).toBe(false);
+	});
+});
+
+// ---- the Obsidian-backed port: readiness is strict (it gates a destructive trash) ------------
+
+describe('createAppVaultPort readiness', () => {
+	const portFor = (cache: Record<string, unknown>) => createAppVaultPort({ metadataCache: cache, vault: {} } as never);
+
+	it('is resolved only when completion was observed and the flags do not say building', () => {
+		const ready = { initialized: true };
+		observeMetadataIndex(ready, 0).resolved();
+		expect(portFor(ready).isResolved()).toBe(true);
+
+		const building = { initialized: false };
+		observeMetadataIndex(building, 0).resolved();
+		expect(portFor(building).isResolved()).toBe(false);
+
+		// Old Obsidian shape.
+		const oldShape = { resolved: true };
+		observeMetadataIndex(oldShape, 0).resolved();
+		expect(portFor(oldShape).isResolved()).toBe(true);
+	});
+
+	it('an absent signal is no longer "resolved" (it used to be): unknown fails closed', () => {
+		const none = {};
+		observeMetadataIndex(none, Date.now());
+		expect(portFor(none).isResolved()).toBe(false);
+		expect(portFor({}).isResolved()).toBe(false); // no tracker attached at all
 	});
 });
