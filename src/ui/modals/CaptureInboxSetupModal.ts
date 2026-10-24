@@ -38,7 +38,7 @@ export function openCaptureInboxSetup(plugin: AIOrganiserPlugin, onDone?: () => 
         digitise: s.captureDigitiseImages,
         onOpen: s.captureOnOpen,
     };
-    const problems = () => validateCaptureSetup(draft.inbox, draft.destination, s.protectedFolders, captureOutputRoots(s));
+    const problems = () => validateCaptureSetup(draft.inbox, draft.destination, s.protectedFolders, captureOutputRoots(s), draft.excludedFolders);
     const intIn = (text: string, fallback: number, min: number, max: number): number => {
         const n = Math.floor(Number(text));
         return Number.isFinite(n) ? Math.min(max, Math.max(min, n)) : fallback;

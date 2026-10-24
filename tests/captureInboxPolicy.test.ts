@@ -47,6 +47,13 @@ describe('destination check', () => {
     expect(checkDestination('Areas/Home', 'Areas', ctx())).toEqual({ ok: true, folder: 'Areas/Home' });
   });
 
+  it('refuses a folder the user keeps out, and a setup whose destination is kept out', () => {
+    expect(checkDestination('Areas/Clients', 'Areas', { ...ctx(), keptOut: (f) => f.startsWith('Areas/Clients') })).toEqual({ ok: false, reason: 'kept-out' });
+    expect(checkDestination('Areas/Home', 'Areas', { ...ctx(), keptOut: (f) => f.startsWith('Areas/Clients') })).toEqual({ ok: true, folder: 'Areas/Home' });
+    expect(validateCaptureSetup(['Inbox'], 'Areas/Clients', [], [], ['Areas/Clients']).map((p) => p.code)).toContain('destination-kept-out');
+    expect(validateCaptureSetup(['Inbox'], 'Areas', [], [], ['Areas/Clients']).map((p) => p.code)).not.toContain('destination-kept-out');
+  });
+
   it('names the first failing rule', () => {
     expect(checkDestination('Areas/Home', '', ctx())).toEqual({ ok: false, reason: 'no-root' });
     expect(checkDestination('Other', 'Areas', ctx())).toEqual({ ok: false, reason: 'outside-root' });

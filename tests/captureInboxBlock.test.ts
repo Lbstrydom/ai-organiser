@@ -160,6 +160,17 @@ describe('machine text cannot open structure inside the block', () => {
   });
 });
 
+describe('machine text cannot pull in links or embeds', () => {
+  it('defuses [[links]] and ![[embeds]] and keeps the block findable', () => {
+    const w = applyAccept('A note\n', ID, { ...content, machineText: 'see [[Secret plan]] and ![[Diary.md]] ok' });
+    expect(w.ok).toBe(true);
+    if (!w.ok) return;
+    expect(w.value.text).not.toMatch(/(^|[^\\])\[\[/);
+    expect(w.value.text).toContain('Secret plan');
+    expect(findCaptureBlock(w.value.text).ok).toBe(true);
+  });
+});
+
 describe('capture id in the note', () => {
   it('reads back what it wrote, including a quoted or single-quoted id', () => {
     for (const id of ['plain-uuid-1234', 'Inbox/odd: name #1.md', '- leading dash']) {

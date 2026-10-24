@@ -7,9 +7,9 @@ import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { sweepPolicy, sweepRunPolicy } from '../src/services/inboxSweep/sweepCommit';
 import { sweepBlocker } from '../src/commands/inboxSweepCommands';
 import { exclusionReason } from '../src/services/inboxSweep/sweepGuard';
-import { clearHeldMirror, freezeHeldMirror, heldMirrorPaths, isHeldMirrorLoaded, setHeldMirror, unfreezeHeldMirror } from '../src/services/captureInbox/heldMirror';
+import { clearHeldMirror, freezeHeldMirror, heldMirrorPaths, isHeldMirrorLoaded, setCaptureActive, setHeldMirror, unfreezeHeldMirror } from '../src/services/captureInbox/heldMirror';
 
-const plugin = (captureOn: boolean) => ({
+const plugin = (captureOn: boolean) => (setCaptureActive(captureOn), {
   settings: {
     ...structuredClone(DEFAULT_SETTINGS),
     sweepInboxFolders: ['Inbox'], sweepExcludedTerms: ['acme'],
@@ -18,7 +18,7 @@ const plugin = (captureOn: boolean) => ({
   llmService: {},
 });
 
-beforeEach(() => { unfreezeHeldMirror(); clearHeldMirror(); });
+beforeEach(() => { unfreezeHeldMirror(); clearHeldMirror(); setCaptureActive(false); });
 
 describe('sweep and capture inbox interplay', () => {
   it('the sweep does not read a held capture, but reads its neighbours', () => {
@@ -52,6 +52,13 @@ describe('sweep and capture inbox interplay', () => {
     expect(exclusionReason('Inbox/anything.md', 'text', policy)).toBe('folder');
     setHeldMirror([]);
     expect(sweepBlocker(p as never)).not.toBe('sweep-capture-loading');
+  });
+
+  it('a feature flag switched on after load (no registrar, no journal) does not make the sweep wait', () => {
+    const p = plugin(false);
+    p.settings.featureFlags['capture-inbox'] = true;
+    expect(sweepBlocker(p as never)).not.toBe('sweep-capture-loading');
+    expect(sweepRunPolicy(p as never)).toEqual(sweepPolicy(p as never));
   });
 
   it('with the capture feature off, the sweep neither waits nor holds anything out', () => {

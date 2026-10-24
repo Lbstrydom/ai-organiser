@@ -42,7 +42,8 @@ function defuseMachineText(text: string): string {
             line
                 .replace(/^(\s*)(`{3,}|~{3,})/, '$1\\$2')
                 .replace(/^(\s*(?:[-*+]|\d+[.)])\s+)\[([^\]]?)\]/, '$1\\[$2\\]')
-                .replace(/(^|\s)#(?=[\p{L}\p{N}_])/gu, '$1\\#'),
+                .replace(/(^|\s)#(?=[\p{L}\p{N}_])/gu, '$1\\#')
+                .replaceAll('[[', '\\[['),
         )
         .join('\n');
 }
@@ -54,7 +55,7 @@ export interface BlockContent {
     source: CaptureSource;
 }
 
-/** Plain lines only: no checkboxes, no `#tags`, no links, so nothing is indexed or swept twice. */
+/** Plain lines only: no checkboxes, no `#tags`, no `[[links]]` or embeds, so nothing is indexed, swept or pulled in twice. */
 export function renderCaptureBlock(content: BlockContent): string {
     const parts: string[] = [CAPTURE_BLOCK_START, `Capture inbox: ${SOURCE_LABEL[content.source]}.`];
     const text = content.machineText.trim();

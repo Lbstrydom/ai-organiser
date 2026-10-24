@@ -180,6 +180,7 @@ export const CAPTURE_ERROR_CODES = [
     'capture-busy',
     'capture-inbox-invalid',
     'capture-no-provider',
+    'capture-source-excluded',
 ] as const;
 export type CaptureErrorCode = (typeof CAPTURE_ERROR_CODES)[number];
 

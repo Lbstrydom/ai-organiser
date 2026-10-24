@@ -11,6 +11,7 @@
 import type { LanguageCode } from '../types';
 import type { PromptParts } from '../prompts/promptParts';
 import { Result } from '../../core/result';
+import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { rankByTitleOverlap } from '../attachmentHomeService';
 import { exclusionReason, policyRevisionOf, type SweepPolicy } from '../inboxSweep/sweepGuard';
 import { buildCaptureClassifyPrompt, buildCaptureFolderContext, parseProposal, type RawProposal } from './captureClassify';
@@ -209,6 +210,20 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
         }
     }
 
+    // A held capture that no scan offers any more (its note was deleted, or moved out of the inbox) must not keep its
+    // text in data.json, hold the sweep off, or count towards the review backlog.
+    const seen = new Set([...scan.captures.map((c) => c.id), ...scan.skipped.map((x) => x.id)]);
+    const inbox = config.inboxFolders.map(normalisePath).filter(Boolean);
+    for (const entry of Object.values(snapshot.entries)) {
+        if (!['new', 'waiting_for_stable', 'ready', 'awaiting_review', 'failed'].includes(entry.state) || seen.has(entry.id)) continue;
+        if ((await deps.port.stat(entry.id)) !== null && inbox.some((f) => isInsideOrEqual(entry.id, f))) continue;
+        hard.push((j) => {
+            const live = getEntry(j, entry.id);
+            if (!live || !['new', 'waiting_for_stable', 'ready', 'awaiting_review', 'failed'].includes(live.state)) return j;
+            return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'nothing-to-process'), entry.id, 'skipped', now, revision);
+        });
+    }
+
     if (hard.length > 0) await deps.journal.mutate((j) => hard.concat(lazy).reduce((acc, op) => op(acc), j));
     else if (lazy.length > 0) deps.journal.mutateLazy((j) => lazy.reduce((acc, op) => op(acc), j));
 }
@@ -266,6 +281,8 @@ async function stillAllowed(deps: CaptureDeps, cap: ScannedCapture, extra?: stri
     const policy = deps.policy();
     if (!deps.isEnabled()) throw new Cancelled();
     for (const path of [cap.id, ...cap.attachments.map((a) => a.path)]) if (pathExclusion(path, policy)) return 'excluded';
+    // A note that embeds this media may have arrived since the scan: the media is then that note's, not a bare capture.
+    if (cap.notePath === null && deps.vault.referrersOf(cap.id).length > 0) throw new Cancelled();
     if (cap.notePath !== null) {
         const fresh = await deps.vault.readText(cap.id);
         if (fresh !== cap.text) throw new Cancelled();

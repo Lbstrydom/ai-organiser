@@ -18,7 +18,7 @@ const config: CaptureConfig = {
 };
 const policy: SweepPolicy = { excludedFolders: [], excludedTags: [], excludedProperties: [], excludedTerms: [], protectedFolders: [], maxNoteChars: 20000 };
 
-function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed?: () => boolean } = {}) {
+function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed?: () => boolean; blocker?: () => string | null } = {}) {
   let journal: CaptureJournal = emptyJournal();
   let clock = 50_000_000;
   const files = new Map<string, { size: number; text?: string }>();
@@ -46,7 +46,7 @@ function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed
     digitisationEnabled: () => true, transcribe, digitise: async () => ok('x'), classify,
     taxonomyPrompt: () => 'T', language: () => 'default', maxTags: () => 3, formatTags: (t) => t.map(String),
     listFolders: () => ['Areas'], folderAllowed: () => true,
-    writer, isVisible: over.visible ?? (() => true), autoRunAllowed: over.allowed ?? (() => true),
+    writer, isVisible: over.visible ?? (() => true), autoRunAllowed: over.allowed ?? (() => true), blocker: over.blocker ?? (() => null),
   };
   files.set('Inbox/a.md', { size: 20, text: '![[a.mp3]]' });
   files.set('Inbox/a.mp3', { size: 100 });
@@ -181,6 +181,14 @@ describe('recovery after a crash', () => {
 });
 
 describe('audit regressions (runtime)', () => {
+  it('neither a manual nor an automatic run starts while the run precondition fails (keep-out emptied after the first run)', async () => {
+    const s = setup({ blocker: () => 'capture-keepout-required' });
+    const rt = new CaptureRuntime(s.deps);
+    expect(await rt.runOnce({ trigger: 'auto' })).toBeNull();
+    expect(await rt.runOnce({ trigger: 'manual' })).toBeNull();
+    expect(s.transcribe).not.toHaveBeenCalled();
+  });
+
   it('an automatic run never widens its scope to existing notes, whatever the caller asks', async () => {
     const s = setup();
     const seen: Array<boolean | undefined> = [];

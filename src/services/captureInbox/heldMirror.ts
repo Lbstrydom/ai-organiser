@@ -18,6 +18,19 @@ interface Mirror {
 }
 
 let current: Mirror = { loaded: false, held: [] };
+let active = false;
+
+/**
+ * True while the capture registrar is installed. The feature flag alone is not enough: features register only at
+ * load, so a flag switched on later has no journal and must not make the sweep wait for one.
+ */
+export function setCaptureActive(value: boolean): void {
+    active = value;
+}
+
+export function isCaptureActive(): boolean {
+    return active;
+}
 let frozen = false;
 let pending: Mirror | null = null;
 

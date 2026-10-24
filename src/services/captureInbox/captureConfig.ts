@@ -60,7 +60,7 @@ export function captureBlocker(s: BlockerSettings, hasProvider: boolean): string
     const anyExclusion = s.sweepExcludedFolders.length + s.sweepExcludedTags.length + s.sweepExcludedProperties.length + s.sweepExcludedTerms.length > 0;
     if (!anyExclusion && !s.sweepNothingToExclude) return 'capture-keepout-required';
     if (!propertiesAreReadable(s.sweepExcludedProperties)) return 'sweep-property-invalid';
-    const problems = validateCaptureSetup(s.sweepInboxFolders, s.captureDestinationRoot, s.protectedFolders, captureOutputRoots(s));
+    const problems = validateCaptureSetup(s.sweepInboxFolders, s.captureDestinationRoot, s.protectedFolders, captureOutputRoots(s), s.sweepExcludedFolders);
     if (problems.some((p) => p.code === 'inbox-protected' || p.code === 'inbox-output-root')) return 'capture-inbox-invalid';
     if (problems.some((p) => p.code.startsWith('destination-'))) return 'capture-destination-refused';
     if (!hasProvider) return 'capture-no-provider';

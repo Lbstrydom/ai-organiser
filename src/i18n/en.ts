@@ -3959,6 +3959,7 @@ export const en: Translations = {
         "capture-destination-refused": { message: "That folder cannot be used for an organised note.", nextStep: "Choose an existing folder inside your destination folder that is not protected." },
         "capture-busy": { message: "This capture is already being saved.", nextStep: "Wait a moment. It will show as accepted when it is done." },
         "capture-inbox-invalid": { message: "An inbox folder is protected or is used by the plugin for its own output.", nextStep: "Choose inbox folders that are not protected and not an output folder, in the capture inbox setup." },
+        "capture-source-excluded": { message: "This note is now kept out by your rules, so nothing was created from it.", nextStep: "Check your keep-out rules, or open the note and change what matches them." },
         "capture-no-provider": { message: "No AI provider is set up.", nextStep: "Choose a provider in the AI provider settings, then process the captures again." },
         "sweep-no-folders": { message: "No inbox folders are chosen.", nextStep: "Pick the folders to sweep. You can do this in the sweep setup." },
         "sweep-report-invalid": { message: "The sweep report note is not usable.", nextStep: "Choose a Markdown note inside your vault and outside any protected folder." },

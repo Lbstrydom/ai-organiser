@@ -75,6 +75,7 @@ export const GUIDANCE_CODES = [
     'capture-busy',
     'capture-inbox-invalid',
     'capture-no-provider',
+    'capture-source-excluded',
     'tasks-no-list',
     'tasks-not-ready',
     'script-tasks-off',

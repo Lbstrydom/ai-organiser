@@ -17,7 +17,8 @@ export type SetupProblemCode =
     | 'inbox-output-root'
     | 'destination-protected'
     | 'destination-output-root'
-    | 'destination-in-inbox';
+    | 'destination-in-inbox'
+    | 'destination-kept-out';
 
 export interface SetupProblem {
     code: SetupProblemCode;
@@ -34,6 +35,7 @@ export function validateCaptureSetup(
     destinationRoot: string,
     protectedFolders: ProtectedSource,
     outputRoots: readonly string[],
+    keptOutFolders: readonly string[] = [],
 ): SetupProblem[] {
     const problems: SetupProblem[] = [];
     const inboxes = inboxFolders.map(normalisePath).filter((p) => p !== '');
@@ -50,17 +52,18 @@ export function validateCaptureSetup(
         if (protectedList.some((p) => overlaps(dest, p))) problems.push({ code: 'destination-protected', path: dest });
         if (roots.some((r) => overlaps(dest, r))) problems.push({ code: 'destination-output-root', path: dest });
         if (inboxes.some((i) => isInsideOrEqual(dest, i))) problems.push({ code: 'destination-in-inbox', path: dest });
+        if (keptOutFolders.map(normalisePath).some((k) => k !== '' && isInsideOrEqual(dest, k))) problems.push({ code: 'destination-kept-out', path: dest });
     }
     return problems;
 }
 
-export type DestinationDecision = { ok: true; folder: string } | { ok: false; reason: 'outside-root' | 'protected' | 'output-root' | 'in-inbox' | 'missing' | 'no-root' };
+export type DestinationDecision = { ok: true; folder: string } | { ok: false; reason: 'outside-root' | 'protected' | 'output-root' | 'in-inbox' | 'kept-out' | 'missing' | 'no-root' };
 
 /** May an organised note be created in `folder`? Every rule is checked; the first failure names itself. */
 export function checkDestination(
     folder: string,
     destinationRoot: string,
-    ctx: { protectedFolders: ProtectedSource; outputRoots: readonly string[]; inboxFolders: readonly string[]; exists: (folder: string) => boolean },
+    ctx: { protectedFolders: ProtectedSource; outputRoots: readonly string[]; inboxFolders: readonly string[]; exists: (folder: string) => boolean; /** The folder is kept out by the user's rules */ keptOut?: (folder: string) => boolean },
 ): DestinationDecision {
     const root = normalisePath(destinationRoot);
     const f = normalisePath(folder);
@@ -69,6 +72,7 @@ export function checkDestination(
     if (resolveProtectedFolders(ctx.protectedFolders).some((p) => isInsideOrEqual(f, p))) return { ok: false, reason: 'protected' };
     if (ctx.outputRoots.some((r) => normalisePath(r) !== '' && isInsideOrEqual(f, r))) return { ok: false, reason: 'output-root' };
     if (ctx.inboxFolders.some((i) => normalisePath(i) !== '' && isInsideOrEqual(f, i))) return { ok: false, reason: 'in-inbox' };
+    if (ctx.keptOut?.(f)) return { ok: false, reason: 'kept-out' };
     if (!ctx.exists(f)) return { ok: false, reason: 'missing' };
     return { ok: true, folder: f };
 }

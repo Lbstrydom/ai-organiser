@@ -46,9 +46,10 @@ export function buildQueue(journal: CaptureJournal, now: number): QueueRow[] {
             failedStage: e.failedStage,
             attempts: e.attempts,
             needsConfirm: !!e.needsConfirm,
-            reviewable: e.state === 'awaiting_review' || e.state === 'accepted',
+            // A capture edited while it was being reviewed waits for "Process again", which lives in the review window.
+            reviewable: e.state === 'awaiting_review' || e.state === 'accepted' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
             retriable: e.state === 'failed',
-            skippable: e.state === 'awaiting_review' || e.state === 'failed',
+            skippable: e.state === 'awaiting_review' || e.state === 'failed' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
         }))
         .sort((a, b) => (ORDER[a.state] ?? 9) - (ORDER[b.state] ?? 9) || a.ageMs - b.ageMs);
 }

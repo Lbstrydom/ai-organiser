@@ -2,7 +2,7 @@
  * Capture inbox: default off and byte-identical when off. No command, event, timer, status-bar item or
  * stored key; inert defaults a migration leaves alone; the inbox sweep behaves exactly as before.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { FEATURE_BY_ID } from '../src/core/features';
 import { isFeatureEnabled } from '../src/services/featureService';
 import { DEFAULT_SETTINGS, migrateOldSettings } from '../src/core/settings';
@@ -10,10 +10,12 @@ import { REGISTER_BY_FEATURE, registerCommands } from '../src/commands/index';
 import { registerCaptureInboxCommands } from '../src/commands/captureInboxCommands';
 import { sweepBlocker } from '../src/commands/inboxSweepCommands';
 import { sweepPolicy, sweepRunPolicy } from '../src/services/inboxSweep/sweepCommit';
-import { clearHeldMirror, setHeldMirror } from '../src/services/captureInbox/heldMirror';
+import { clearHeldMirror, setCaptureActive, setHeldMirror } from '../src/services/captureInbox/heldMirror';
 import { evaluateSetup } from '../src/core/setupState';
 import { DATA_ONLY_KEYS } from '../src/core/pluginDataStore';
 import { en } from '../src/i18n/en';
+
+afterEach(() => { setCaptureActive(false); clearHeldMirror(); });
 
 const CAPTURE_KEYS = Object.keys(DEFAULT_SETTINGS).filter((k) => k.startsWith('capture'));
 
@@ -48,7 +50,7 @@ describe('capture inbox off path', () => {
   it('registers its three commands when on', () => {
     const ids: string[] = [];
     const plugin = {
-      addCommand: (c: { id: string }) => ids.push(c.id), t: en,
+      addCommand: (c: { id: string }) => ids.push(c.id), t: en, register: vi.fn(),
       loadData: async () => { throw new Error('stub'); }, // the runtime start-up fails quietly here; the commands are already registered
       settings: structuredClone(DEFAULT_SETTINGS),
     };

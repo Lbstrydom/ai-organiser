@@ -56,7 +56,9 @@ export class CaptureJournalStore {
      */
     async mutate(fn: (journal: CaptureJournal) => CaptureJournal, opts: { durable?: boolean } = {}): Promise<CaptureJournal> {
         this.requireLoaded();
-        this.journal = fn(this.journal);
+        const next = fn(this.journal);
+        if (next === this.journal && !opts.durable) return this.journal;
+        this.journal = next;
         this.dirty = false;
         this.clearTimer();
         this.emit();

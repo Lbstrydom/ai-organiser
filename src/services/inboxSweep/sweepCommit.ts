@@ -33,7 +33,7 @@ import {
 } from './sweepLedger';
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
 import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
-import { heldMirrorPaths, isHeldMirrorLoaded } from '../captureInbox/heldMirror';
+import { heldMirrorPaths, isCaptureActive, isHeldMirrorLoaded } from '../captureInbox/heldMirror';
 import { withHeldPaths } from '../captureInbox/capturePolicy';
 
 /**
@@ -67,7 +67,7 @@ export function sweepPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
  */
 export function sweepRunPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
     const base = sweepPolicy(plugin);
-    if (!isFeatureEnabled(plugin.settings, 'capture-inbox')) return base;
+    if (!isCaptureActive()) return base;
     if (!isHeldMirrorLoaded()) return { ...base, excludedFolders: [...base.excludedFolders, ...plugin.settings.sweepInboxFolders] };
     return withHeldPaths(base, heldMirrorPaths());
 }

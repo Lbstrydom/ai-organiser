@@ -51,8 +51,8 @@ export class CaptureInboxSettingsSection extends BaseSettingSection {
         const ctl = getCaptureController(this.plugin);
         new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.setupButton).setCta().onClick(() => openCaptureInboxSetup(this.plugin, () => this.settingTab.display())))
-            .addButton((b) => b.setButtonText(c.runNow).onClick(() => { void ctl?.processNow(); }))
-            .addButton((b) => b.setButtonText(c.reviewButton).onClick(() => ctl?.openQueue()));
+            .addButton((b) => b.setButtonText(c.runNow).onClick(() => { if (ctl) void ctl.processNow(); else new Notice(c.queueChecking, 3000); }))
+            .addButton((b) => b.setButtonText(c.reviewButton).onClick(() => { if (ctl) ctl.openQueue(); else new Notice(c.queueChecking, 3000); }));
 
         const details = this.containerEl.createEl('details', { cls: 'ai-organiser-advanced-group' });
         details.createEl('summary', { text: c.advancedTitle });

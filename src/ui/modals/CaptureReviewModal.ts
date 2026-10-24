@@ -108,7 +108,8 @@ export class CaptureReviewModal extends Modal {
         if (accepted) acceptBtn.setDisabled(true);
 
         // 2. Organise
-        const needsAccept = hasMachineText && !accepted;
+        // Both later consequences wait for Accept: nothing is written to your note as a side effect of another button.
+        const needsAccept = !accepted;
         contentEl.createEl('h3', { text: t.reviewHeadingOrganise });
         const titleInput = this.field(contentEl, t.titleLabel, 'ai-organiser-capture-title', this.edits.title ?? entry.proposal?.title ?? '', (v) => { this.edits.title = v; });
         void titleInput;
@@ -118,17 +119,13 @@ export class CaptureReviewModal extends Modal {
         contentEl.createEl('label', { text: t.folderLabel, attr: { for: 'ai-organiser-capture-folder' } });
         const select = contentEl.createEl('select', { attr: { id: 'ai-organiser-capture-folder' } });
         select.createEl('option', { text: t.noFolder, attr: { value: '' } });
-        for (const folder of new Set([...(currentFolder ? [currentFolder] : []), ...folders])) {
+        // Only folders that are allowed NOW are offered (a stored proposal that has since been kept out is dropped).
+        for (const folder of new Set(folders)) {
             const option = select.createEl('option', { text: folder, attr: { value: folder } });
             if (folder === currentFolder) option.selected = true;
         }
         this.cleanups.push(listen(select, 'change', () => { this.edits.folder = select.value === '' ? null : select.value; }));
         const createBtn = this.button(contentEl, t.createNote.replace('{folder}', currentFolder ?? '…'), () => this.run(async () => {
-            if (!accepted) {
-                // Typed or dictated text is accepted implicitly: the write still happens, once.
-                const ok = await this.ctl.accept(this.id, { proposal: this.proposal(entry) });
-                if (!ok) return;
-            }
             const path = await this.ctl.organise(this.id, { title: this.edits.title ?? undefined, tags: this.edits.tags === null ? undefined : parseTags(this.edits.tags), folder: this.edits.folder });
             if (path) new Notice(t.organisedNotice.replace('{path}', path), 5000);
         }));

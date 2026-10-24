@@ -79,6 +79,16 @@ describe('CaptureJournalStore', () => {
     } finally { vi.useRealTimers(); }
   });
 
+  it('a transform that changes nothing is not a write', async () => {
+    const f = fakePlugin();
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    await store.mutate((j) => upsertEntry(j, entry('a.md')));
+    const before = f.saves.length;
+    await store.mutate((j) => j);
+    expect(f.saves.length).toBe(before);
+  });
+
   it('refuses to write before the stored journal was read (it would replace it with an empty one)', async () => {
     const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: { version: 1, entries: { 'x.md': entry('x.md') }, tombstones: {}, aliases: {}, counters: {} } });
     const store = new CaptureJournalStore(f.plugin);

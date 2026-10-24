@@ -27,7 +27,7 @@ import {
     stripCaptureInsertions,
     type BlockContent,
 } from './enrichmentBlock';
-import { checkDestination, machineTextExclusion } from './capturePolicy';
+import { checkDestination, machineTextExclusion, pathExclusion } from './capturePolicy';
 import { sanitiseTitle, uniquePath } from './titleSanitiser';
 import { readCaptureId } from './frontmatterKey';
 import type { CaptureConfig, CaptureEntry, CaptureJournal, CaptureProposal, InsertedSpans } from './captureTypes';
@@ -284,6 +284,14 @@ async function organiseLocked(deps: WriterDeps, id: string, edits: OrganiseEdits
         return ok(existing);
     }
 
+    // The note may have been tagged, moved or reworded since Accept: judge it as it is now before its text is copied anywhere.
+    const sourcePath = entry.companionPath ?? entry.id;
+    const sourceText = await deps.port.readNote(sourcePath);
+    const policy = deps.policy();
+    if (sourceText === null || machineTextExclusion(sourcePath, sourceText, policy) !== null || machineTextExclusion(sourcePath, entry.text ?? '', policy) !== null) {
+        return err('capture-source-excluded');
+    }
+
     const folder = edits.folder !== undefined ? edits.folder : entry.proposal?.folder ?? null;
     if (!folder) return err('capture-destination-refused');
     const decision = checkDestination(folder, deps.config().destinationRoot, {
@@ -291,6 +299,7 @@ async function organiseLocked(deps: WriterDeps, id: string, edits: OrganiseEdits
         outputRoots: deps.outputRoots(),
         inboxFolders: deps.config().inboxFolders,
         exists: (f) => deps.port.folderExists(f),
+        keptOut: (f) => pathExclusion(f, deps.policy()) !== null,
     });
     if (!decision.ok) return err('capture-destination-refused');
 
@@ -332,7 +341,8 @@ export async function skipCapture(deps: WriterDeps, id: string): Promise<Result<
 async function skipLocked(deps: WriterDeps, id: string): Promise<Result<void>> {
     const entry = getEntry(deps.journal.get(), id);
     if (!entry) return err('capture-changed');
-    if (entry.state !== 'awaiting_review' && entry.state !== 'failed') return err('capture-changed');
+    const waitingForConfirm = entry.state === 'waiting_for_stable' && !!entry.needsConfirm;
+    if (entry.state !== 'awaiting_review' && entry.state !== 'failed' && !waitingForConfirm) return err('capture-changed');
     await deps.journal.mutate((j) => finish(bump(j, 'rejected'), entry.id, 'skipped_by_user', deps.now()));
     return ok(undefined);
 }

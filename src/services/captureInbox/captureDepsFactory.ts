@@ -15,7 +15,7 @@ import { sweepPolicy } from '../inboxSweep/sweepCommit';
 import { isSwept } from '../inboxSweep/sweepLedger';
 import { VisionService } from '../visionService';
 import { TagUtils } from '../../utils/tagUtils';
-import { captureOutputRoots, readCaptureConfig } from './captureConfig';
+import { captureBlocker, captureOutputRoots, readCaptureConfig } from './captureConfig';
 import type { CaptureJournalStore } from './captureJournalStore';
 import { pathExclusion } from './capturePolicy';
 import type { RuntimeDeps } from './captureRuntime';
@@ -90,6 +90,7 @@ export function buildRuntimeDeps(plugin: AIOrganiserPlugin, store: CaptureJourna
             pathExclusion(path, policy()) === null && !outputRoots().some((root) => isInsideOrEqual(normalisePath(path), root)),
         writer,
         isVisible: () => activeDocument.visibilityState === 'visible',
+        blocker: () => captureBlocker(plugin.settings, !!plugin.llmService),
         autoRunAllowed: () => plugin.settings.captureConfirmedAt !== '',
     };
 }

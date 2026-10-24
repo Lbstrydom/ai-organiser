@@ -52,6 +52,13 @@ describe('queue rows', () => {
     expect(by['Inbox/p.md']).toMatchObject({ reviewable: false, skippable: false, retriable: false });
   });
 
+  it('a capture edited while it was reviewed is reachable: it can be reviewed (Process again) or skipped', () => {
+    const j = upsertEntry(emptyJournal(), mk('Inbox/e.md', 'waiting_for_stable', { needsConfirm: true }));
+    expect(buildQueue(j, 2000)[0]).toMatchObject({ reviewable: true, skippable: true, needsConfirm: true });
+    const plain = upsertEntry(emptyJournal(), mk('Inbox/w.md', 'waiting_for_stable'));
+    expect(buildQueue(plain, 2000)[0]).toMatchObject({ reviewable: false, skippable: false });
+  });
+
   it('titles a row by its note name, or its companion note for a bare capture', () => {
     expect(rowTitle(mk('Inbox/Voice note 2026-10-24.md', 'ready'))).toBe('Voice note 2026-10-24');
     expect(rowTitle(mk('Inbox/memo.m4a', 'accepted', { companionPath: 'Inbox/memo (capture).md' }))).toBe('memo (capture)');

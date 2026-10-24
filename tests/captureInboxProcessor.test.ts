@@ -291,9 +291,12 @@ describe('one at a time, cancel, failure and backpressure', () => {
 
   it('stops spending money while the review backlog is full', async () => {
     const w = world();
+    // real notes, already processed and waiting for review (their fingerprints match what the scan sees)
+    for (let i = 0; i < MAX_AWAITING_REVIEW; i++) w.addNote(`Inbox/old${i}.md`, `Old typed capture number ${i} waits`, []);
+    const first = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     let j = w.journal();
-    for (let i = 0; i < MAX_AWAITING_REVIEW; i++) {
-      j = upsertEntry(j, { id: `Inbox/old${i}.md`, state: 'awaiting_review', fingerprint: 'f', processingVersion: 1, attempts: 0, createdAt: 1, updatedAt: 1 });
+    for (const c of first.captures) {
+      j = upsertEntry(j, { id: c.id, state: 'awaiting_review', fingerprint: c.fingerprint, processingVersion: 1, attempts: 0, createdAt: 1, updatedAt: 1 });
     }
     await w.deps.journal.mutate(() => j);
     w.addNote('Inbox/new.md', 'A brand new typed capture here', []);
@@ -381,6 +384,36 @@ describe('audit regressions', () => {
     w.addNote('Inbox/a.md', 'Some typed words about the garden', []);
     await w.go();
     expect(getEntry(w.journal(), 'Inbox/a.md')!.uid).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});
+
+describe('final-gate regressions (processor)', () => {
+  it('a held capture whose note was deleted or moved out of the inbox loses its text and stops holding the sweep', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'Quarterly numbers for Globex today', []);
+    w.addNote('Inbox/b.md', 'Another typed note about gardening', []);
+    await w.go();
+    expect(getEntry(w.journal(), 'Inbox/a.md')!.noteText).toContain('Globex');
+    w.files.delete('Inbox/a.md');
+    const moved = w.files.get('Inbox/b.md')!;
+    w.files.delete('Inbox/b.md');
+    w.files.set('Elsewhere/b.md', { ...moved, info: { ...moved.info, path: 'Elsewhere/b.md' } });
+    await w.go({ passes: 1 });
+    expect(getEntry(w.journal(), 'Inbox/a.md')).toBeUndefined();
+    expect(getEntry(w.journal(), 'Inbox/b.md')).toBeUndefined();
+    expect(JSON.stringify(w.journal())).not.toContain('Globex');
+  });
+
+  it('audio that gains an embedding note during the stability wait is not uploaded as a bare capture', async () => {
+    const w = world();
+    w.addMedia('Inbox/m.mp3', MP3);
+    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    await syncEntries(w.deps, scan);
+    expect(scan.captures[0].notePath).toBeNull();
+    // a kept-out note that embeds the file arrives after the scan
+    w.deps.vault.referrersOf = () => ['Private/note.md'];
+    await runJobs(w.deps, scan, { cancelled: () => false }, 10);
+    expect(w.calls.transcribe).toEqual([]);
   });
 });
 

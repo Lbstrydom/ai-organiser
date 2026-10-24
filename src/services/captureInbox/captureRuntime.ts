@@ -27,7 +27,9 @@ export interface RuntimeDeps extends CaptureDeps {
     writer: WriterDeps;
     /** Obsidian is in the foreground (mobile runs only while visible) */
     isVisible(): boolean;
-    /** The user confirmed a manual run once; automatic runs never start before that */
+    /** The run precondition (an inbox, a keep-out rule, a provider...): null when a run may start */
+    blocker(): string | null;
+    /** The user confirmed a manual run once; automatic runs never start before it */
     autoRunAllowed(): boolean;
 }
 
@@ -115,6 +117,9 @@ export class CaptureRuntime {
     async runOnce(opts: RunOptions): Promise<RunResult | null> {
         const { deps } = this;
         if (!this.usable() || this.running || !deps.isVisible()) return null;
+        // Every start, manual or automatic, needs the same precondition: emptying the keep-out rules after the first
+        // confirmed run must not let a later automatic run upload.
+        if (deps.blocker() !== null) return null;
         const config = deps.config();
         if (opts.trigger === 'auto') {
             if (!deps.autoRunAllowed() || !config.onOpen) return null;

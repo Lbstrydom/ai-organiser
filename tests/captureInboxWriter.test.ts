@@ -368,6 +368,45 @@ describe('createOrganisedNote', () => {
   });
 });
 
+describe('final-gate regressions (writer)', () => {
+  async function accepted(s: ReturnType<typeof setup>) {
+    const { id } = await seedNote(s);
+    await acceptCapture(s.deps, id);
+    return id;
+  }
+
+  it('refuses to create a note in a folder the user keeps out now', async () => {
+    const s = setup();
+    const id = await accepted(s);
+    s.port.folders.add('Areas/Clients');
+    s.deps.policy = () => ({ ...policy, excludedFolders: ['Areas/Clients'] });
+    expect(await createOrganisedNote(s.deps, id, { folder: 'Areas/Clients' })).toEqual({ ok: false, error: 'capture-destination-refused' });
+    expect(s.port.creates.filter((p) => p.startsWith('Areas/'))).toEqual([]);
+  });
+
+  it('refuses to copy the text when the source note is kept out now (tagged or reworded after Accept)', async () => {
+    const s = setup();
+    const id = await accepted(s);
+    s.deps.policy = () => ({ ...policy, excludedTerms: ['milk'] });
+    expect(await createOrganisedNote(s.deps, id)).toEqual({ ok: false, error: 'capture-source-excluded' });
+    expect(s.port.creates.filter((p) => p.startsWith('Areas/'))).toEqual([]);
+  });
+
+  it('refuses when the source note is gone', async () => {
+    const s = setup();
+    const id = await accepted(s);
+    s.port.files.delete(id);
+    expect(await createOrganisedNote(s.deps, id)).toEqual({ ok: false, error: 'capture-source-excluded' });
+  });
+
+  it('a capture waiting for confirmation after an edit can be skipped', async () => {
+    const s = setup();
+    const { id } = await seedNote(s, { state: 'waiting_for_stable', needsConfirm: true });
+    expect((await skipCapture(s.deps, id)).ok).toBe(true);
+    expect(s.journal.tombstones[id].state).toBe('skipped_by_user');
+  });
+});
+
 describe('skipCapture', () => {
   it('writes nothing and remembers the decision', async () => {
     const s = setup();

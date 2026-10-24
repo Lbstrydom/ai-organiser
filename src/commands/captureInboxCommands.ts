@@ -26,13 +26,14 @@ import { CaptureJournalStore } from '../services/captureInbox/captureJournalStor
 import { processAgain, retryCapture } from '../services/captureInbox/captureProcessor';
 import { CaptureRuntime } from '../services/captureInbox/captureRuntime';
 import { acceptCapture, createOrganisedNote, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
-import { clearHeldMirror, setHeldMirror } from '../services/captureInbox/heldMirror';
+import { clearHeldMirror, setCaptureActive, setHeldMirror } from '../services/captureInbox/heldMirror';
 import { estimateCost, formatEstimate } from '../services/captureInbox/costEstimate';
 import { CaptureInboxStatusBar } from '../ui/components/CaptureInboxStatusBar';
 import { CaptureInboxQueueModal } from '../ui/modals/CaptureInboxQueueModal';
 import { CaptureReviewModal } from '../ui/modals/CaptureReviewModal';
 import { CaptureRunConfirmModal, type RunConfirmResult } from '../ui/modals/CaptureRunConfirmModal';
 import { openCaptureInboxSetup } from '../ui/modals/CaptureInboxSetupModal';
+import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { runInboxSweep, sweepBlocker } from './inboxSweepCommands';
 
 const controllers = new WeakMap<Plugin, CaptureController>();
@@ -52,6 +53,25 @@ function inboxFolders(plugin: AIOrganiserPlugin): string[] {
 
 const inInbox = (plugin: AIOrganiserPlugin, path: string): boolean => inboxFolders(plugin).some((f) => isInsideOrEqual(normalisePath(path), f));
 
+function confirmText(plugin: AIOrganiserPlugin, title: string, body: string): Promise<boolean> {
+    return new Promise<boolean>((resolve) => {
+        let answered = false;
+        const modal = new ConfirmationModal(plugin.app, title, body, () => { answered = true; resolve(true); }, plugin);
+        const close = modal.onClose.bind(modal);
+        modal.onClose = () => { close(); if (!answered) resolve(false); };
+        modal.open();
+    });
+}
+
+/** A Notice with a Cancel button; hide it when the work ends. */
+function cancellableNotice(text: string, label: string, onCancel: () => void): Notice {
+    const notice = new Notice('', 0);
+    notice.messageEl.empty();
+    notice.messageEl.createSpan({ text });
+    notice.messageEl.createEl('button', { text: label }).addEventListener('click', onCancel);
+    return notice;
+}
+
 function confirmRun(plugin: AIOrganiserPlugin, info: ConstructorParameters<typeof CaptureRunConfirmModal>[2]): Promise<RunConfirmResult> {
     return new Promise((resolve) => new CaptureRunConfirmModal(plugin.app, plugin, info, resolve).open());
 }
@@ -69,7 +89,7 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             if (runtime.isRunning()) { new Notice(t.alreadyRunning, 5000); return; }
             if (!deps.isVisible()) { new Notice(t.notVisible, 6000); return; }
             const scan = await runtime.refresh();
-            if (!scan) { new Notice(t.alreadyRunning, 5000); return; }
+            if (!scan) { if (runtime.isRunning()) new Notice(t.alreadyRunning, 5000); return; }
             const journal = store.get();
             const open = scan.captures.filter((c) => {
                 const e = getEntry(journal, c.id);
@@ -78,8 +98,10 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             if (open.length === 0 && scan.olderIgnored === 0) { new Notice(t.nothingToProcess, 6000); return; }
             const audioBytes = open.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'audio').reduce((m, a) => m + a.size, 0), 0);
             const images = open.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'image').length, 0);
-            const provider = plugin.settings.serviceType === 'local' ? 'local' : isAzureMode(plugin.settings) ? 'azure' : 'cloud';
             const audioMB = audioBytes / (1024 * 1024);
+            // Audio and images go to the transcription and vision providers, which are not the local text model.
+            const sendsMedia = audioBytes > 0 || images > 0;
+            const provider = isAzureMode(plugin.settings) ? 'azure' : plugin.settings.serviceType === 'local' && !sendsMedia ? 'local' : 'cloud';
             const answer = await confirmRun(plugin, {
                 captures: open.length,
                 audioMB,
@@ -92,7 +114,7 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
                 plugin.settings.captureConfirmedAt = new Date().toISOString();
                 void plugin.saveSettings();
             }
-            const working = new Notice(t.working, 0);
+            const working = cancellableNotice(t.working, plugin.t.modals.cancel, () => { runtime.cancel(); new Notice(t.cancelledNotice, 6000); });
             try {
                 const result = await runtime.runOnce({ trigger: 'manual', includeExisting: answer.includeExisting });
                 if (!result) { new Notice(t.alreadyRunning, 5000); return; }
@@ -125,10 +147,14 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
         },
 
         async retry(id) { await retryCapture(deps, id); },
-        async processAgain(id) { await processAgain(deps, id); },
+        async processAgain(id) {
+            if (!(await confirmText(plugin, t.processAgain, t.processAgainConfirm))) return;
+            await processAgain(deps, id);
+        },
 
         async transcribeAnyway(id) {
-            // The held results are dropped and the capture goes back to the start; nothing is sent until you run it.
+            // Ask first: this drops the reviewed text and uses the provider. Cancelling leaves everything as it was.
+            if (!(await confirmText(plugin, t.transcribeAnyway, t.processAgainConfirm))) return;
             await store.mutate((j) => {
                 const e = getEntry(j, id);
                 if (!e || e.state !== 'awaiting_review') return j;
@@ -175,7 +201,12 @@ function trackRenames(plugin: AIOrganiserPlugin, store: CaptureJournalStore): vo
             s.captureDestinationRoot = patch.captureDestinationRoot;
             void plugin.saveSettings().catch((e: unknown) => logger.error('CaptureInbox', 'Could not save a renamed folder setting', e));
         }
-        if (store.isLoaded()) void store.mutate((j) => rekeyTree(j, normalisePath(oldPath), normalisePath(file.path)));
+        if (store.isLoaded()) {
+            const from = normalisePath(oldPath);
+            const to = normalisePath(file.path);
+            // Most renames touch nothing the journal knows: no write then.
+            if (rekeyTree(store.get(), from, to) !== store.get()) void store.mutate((j) => rekeyTree(j, from, to));
+        }
     }));
 }
 
@@ -225,8 +256,19 @@ async function start(plugin: AIOrganiserPlugin): Promise<void> {
 
 export function registerCaptureInboxCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'process-capture-inbox', name: t.commands.processCaptureInbox, icon: 'inbox', callback: () => { void getCaptureController(plugin)?.processNow(); } });
-    plugin.addCommand({ id: 'review-captures', name: t.commands.reviewCaptures, icon: 'list-checks', callback: () => getCaptureController(plugin)?.openQueue() });
+    // While this registrar is installed the sweep waits for the capture journal; if start-up fails it must not wait forever.
+    setCaptureActive(true);
+    plugin.register(() => setCaptureActive(false));
+    const withController = (run: (c: CaptureController) => void): void => {
+        const c = getCaptureController(plugin);
+        if (c) run(c);
+        else new Notice(t.captureInbox.queueChecking, 3000);
+    };
+    plugin.addCommand({ id: 'process-capture-inbox', name: t.commands.processCaptureInbox, icon: 'inbox', callback: () => withController((c) => { void c.processNow(); }) });
+    plugin.addCommand({ id: 'review-captures', name: t.commands.reviewCaptures, icon: 'list-checks', callback: () => withController((c) => c.openQueue()) });
     plugin.addCommand({ id: 'setup-capture-inbox', name: t.commands.setupCaptureInbox, icon: 'sparkles', callback: () => openCaptureInboxSetup(plugin) });
-    start(plugin).catch((e: unknown) => logger.error('CaptureInbox', 'Could not start the capture inbox', e));
+    start(plugin).catch((e: unknown) => {
+        setCaptureActive(false);
+        logger.error('CaptureInbox', 'Could not start the capture inbox', e);
+    });
 }
