@@ -840,6 +840,20 @@ describe('a protected output folder (persona test N2)', () => {
         expect(await loadOperation(plugin as never)).toBeNull();
     });
 
+    it('protection added while the script is being written: no file operation at all, the script record is kept', async () => {
+        const p = ports();
+        p.generateScript.mockImplementation(async () => {
+            (p.settings as unknown as { protectedFolders: string[] }).protectedFolders = [FOLDER];
+            return ok(SHORT_SCRIPT);
+        });
+        const res = await runCatchUp(p, opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-output-protected' });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+        expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
+        expect(vault.app.vault.createBinary).not.toHaveBeenCalled();
+        expect((await loadOperation(plugin as never))?.script).toBe(SHORT_SCRIPT);
+    });
+
     it('a kept script resumed into a now-protected folder: refused before any TTS call', async () => {
         engine.synthesizeChunk.mockRejectedValue(new Error('tts down'));
         await runCatchUp(ports(), opts()); // leaves a scripted/audio-writing record

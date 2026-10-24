@@ -55,15 +55,23 @@ function asQueueObject(queue: unknown): (QueueShape & { items: unknown[]; runnab
         : null;
 }
 
-/** Work in flight, from any shape the queue has. An error or an unknown shape says nothing. */
-function queueBusy(queue: unknown): boolean {
+type QueueState = 'busy' | 'idle' | 'unknown';
+
+/**
+ * What the queue says. `idle` only when it positively reports no pending items and a runnable that
+ * is not running; a probe that throws or answers with a non-boolean is `unknown`, never idle.
+ */
+function queueStateOf(queue: unknown): QueueState {
     try {
-        if (Array.isArray(queue)) return queue.length > 0;
-        if (queue instanceof Set) return queue.size > 0;
+        if (Array.isArray(queue)) return queue.length > 0 ? 'busy' : 'unknown';
+        if (queue instanceof Set) return queue.size > 0 ? 'busy' : 'unknown';
         const q = asQueueObject(queue);
-        return q !== null && (q.items.length > 0 || q.runnable.isRunning() === true);
+        if (q === null) return 'unknown';
+        if (q.items.length > 0) return 'busy';
+        const running = q.runnable.isRunning();
+        return typeof running === 'boolean' ? (running ? 'busy' : 'idle') : 'unknown';
     } catch {
-        return false;
+        return 'unknown';
     }
 }
 
@@ -75,12 +83,10 @@ function probeOf(cache: CacheFields): Probe {
         // fall through to the fields
     }
     const tasks = typeof cache.inProgressTaskCount === 'number' ? cache.inProgressTaskCount : null;
-    if ((tasks !== null && tasks > 0) || queueBusy(cache.linkResolverQueue)) return 'busy';
-    try {
-        return tasks === 0 && asQueueObject(cache.linkResolverQueue) !== null ? 'clean' : 'none';
-    } catch {
-        return 'none';
-    }
+    const queue = queueStateOf(cache.linkResolverQueue);
+    if ((tasks !== null && tasks > 0) || queue === 'busy') return 'busy';
+    // Clean only when BOTH facts are positively known; an unreadable queue proves nothing.
+    return tasks === 0 && queue === 'idle' ? 'clean' : 'none';
 }
 
 /** The state of the link index. Needs `trackMetadataIndex` to have run (otherwise `unknown`). */

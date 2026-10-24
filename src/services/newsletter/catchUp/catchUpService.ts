@@ -460,15 +460,15 @@ async function makeAudio(
 
     if (!reusable) {
         if (aborted(opts)) return cancelled();
+        // Protection can change between the start of the run and the first write; trashing a staged
+        // file in a protected folder is a write too, so this comes before ANY file operation here.
+        const writable = assertEpisodeOutputWritable(ports.settings, outputRoot);
+        if (!writable.ok) return err(OUTPUT_PROTECTED);
         // Any file this operation owns is a partial or superseded attempt.
         if (record.audio) await trashStagedAudio(ports, record);
         if (isInsideOutputRoot(outputRoot, audioPath) && ports.app.vault.getAbstractFileByPath(audioPath)) {
             await trashOwnedFile(ports.app, outputRoot, audioPath);
         }
-
-        // Protection can change between the start of the run and the first write.
-        const writable = assertEpisodeOutputWritable(ports.settings, outputRoot);
-        if (!writable.ok) return err(OUTPUT_PROTECTED);
 
         // Write-ahead: the record names the file BEFORE the file exists. If that cannot be made
         // durable no audio is written: an unowned file is worse than a failed attempt.

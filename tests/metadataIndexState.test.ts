@@ -137,10 +137,26 @@ describe('work in flight is building, even after a proof', () => {
         expect(getMetadataIndexState(app)).toBe('building');
     });
 
-    it('a queue whose probe throws says nothing (falls back to the other evidence)', () => {
+    it('a queue whose probe throws or answers oddly is NOT clean: it proves nothing', () => {
+        const throwing = { items: [], runnable: { isRunning: () => { throw new Error('x'); } } };
+        const odd = { items: [], runnable: { isRunning: () => 'no' } };
+        for (const linkResolverQueue of [throwing, odd]) {
+            const { app } = fresh({ initialized: true, inProgressTaskCount: 0, linkResolverQueue });
+            expect(getMetadataIndexState(app)).toBe('building'); // initialized alone is not a proof
+        }
+    });
+
+    it('an unreadable queue does not block a real proof (an observed resolved event)', () => {
         const { app, observer } = fresh({ initialized: true, linkResolverQueue: { items: [], runnable: { isRunning: () => { throw new Error('x'); } } } });
         observer.resolved();
         expect(getMetadataIndexState(app)).toBe('ready');
+    });
+
+    it('an empty array or Set queue is not evidence of idleness either', () => {
+        for (const linkResolverQueue of [[], new Set()]) {
+            const { app } = fresh({ initialized: true, inProgressTaskCount: 0, linkResolverQueue });
+            expect(getMetadataIndexState(app)).toBe('building');
+        }
     });
 });
 
