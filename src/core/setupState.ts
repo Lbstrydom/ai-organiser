@@ -20,6 +20,7 @@ export type SetupId =
     | 'cloud-inventory'
     | 'cloud-offload'
     | 'inbox-sweep'
+    | 'capture-inbox'
     | 'google-tasks'
     | 'vault-upkeep';
 
@@ -138,6 +139,13 @@ export const SETUP_SPECS: Readonly<Partial<Record<SetupId, SetupSpec>>> = {
     },
     'inbox-sweep': {
         required: ['sweepInboxFolders', 'sweepReportPath'],
+        folderKeys: ['sweepInboxFolders', 'sweepExcludedFolders'],
+        needsCompletionMarker: true,
+        needsConnection: false,
+    },
+    // The keep-out rule (any list, or the explicit "nothing to keep out") cannot be expressed here: `captureBlocker` enforces it.
+    'capture-inbox': {
+        required: ['sweepInboxFolders'],
         folderKeys: ['sweepInboxFolders', 'sweepExcludedFolders'],
         needsCompletionMarker: true,
         needsConnection: false,

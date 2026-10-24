@@ -268,7 +268,7 @@ describe('one at a time, cancel, failure and backpressure', () => {
     w.addMedia('Inbox/x.mp3', MP3);
     await w.go({ passes: 1 });
     let e = getEntry(w.journal(), 'Inbox/a.md')!;
-    expect(e).toMatchObject({ state: 'failed', failedStage: 'transcribe', attempts: 1, retriable: true });
+    expect(e).toMatchObject({ state: 'failed', failedStage: 'transcribe', attempts: 1, retriable: true, errorText: 'provider down' });
     await w.go({ passes: 4 });
     e = getEntry(w.journal(), 'Inbox/a.md')!;
     expect(e).toMatchObject({ state: 'failed', attempts: 3, retriable: false });

@@ -33,6 +33,7 @@ vi.mock('../src/ui/settings/ProtectedFoldersSettingsSection', () => ({ Protected
 vi.mock('../src/ui/settings/AgentIndexSettingsSection', () => ({ AgentIndexSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/CloudInventorySettingsSection', () => ({ CloudInventorySettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/InboxSweepSettingsSection', () => ({ InboxSweepSettingsSection: class { display() {} } }));
+vi.mock('../src/ui/settings/CaptureInboxSettingsSection', () => ({ CaptureInboxSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/GoogleTasksSettingsSection', () => ({ GoogleTasksSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/VaultUpkeepSettingsSection', () => ({ VaultUpkeepSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/AgentConnectorsSettingsSection', () => ({ AgentConnectorsSettingsSection: class { display() {} } }));

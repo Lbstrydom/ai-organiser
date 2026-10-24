@@ -71,6 +71,22 @@ export function rekey(journal: CaptureJournal, oldId: string, newId: string): Ca
     return aliasChanged ? { ...next, aliases } : next;
 }
 
+/**
+ * Re-key everything at or under `oldPath` after a rename or a folder move. Every id that is `oldPath` or
+ * inside it follows to the new location; a no-op when nothing matches.
+ */
+export function rekeyTree(journal: CaptureJournal, oldPath: string, newPath: string): CaptureJournal {
+    const prefix = oldPath.replace(/\/+$/, '');
+    const move = (id: string): string | null => (id === prefix ? newPath : id.startsWith(prefix + '/') ? newPath + id.slice(prefix.length) : null);
+    let next = journal;
+    const ids = new Set([...Object.keys(journal.entries), ...Object.keys(journal.tombstones), ...Object.keys(journal.aliases), ...Object.values(journal.aliases)]);
+    for (const id of ids) {
+        const to = move(id);
+        if (to !== null && to !== id) next = rekey(next, id, to);
+    }
+    return next;
+}
+
 /** Entries waiting for the user (review or an Accept write in flight). */
 export function awaitingCount(journal: CaptureJournal): number {
     return Object.values(journal.entries).filter((e) => e.state === 'awaiting_review' || e.state === 'accept_pending_write').length;

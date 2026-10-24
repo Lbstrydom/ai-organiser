@@ -80,6 +80,8 @@ export interface CaptureEntry {
     retriable?: boolean;
     skipReason?: SkipReason;
     failedStage?: CaptureStage;
+    /** A short, one-line reason for a failure (never the capture's content) */
+    errorText?: string;
     source?: CaptureSource;
     /** Held machine text (transcript / digitised), until the user accepts (at most MAX_HELD_CHARS) */
     text?: string;
@@ -95,6 +97,8 @@ export interface CaptureEntry {
     companionPath?: string;
     /** The user edited the machine text or the proposal in the review */
     edited?: boolean;
+    /** "Transcribe the audio anyway": transcribe even though the note already has text */
+    forceTranscribe?: boolean;
     /** Edited while it was awaiting review: it waits for an explicit "Process again" (it spends money) */
     needsConfirm?: boolean;
     /** Last-seen observations of the note and its attachments, keyed by path */
@@ -173,6 +177,9 @@ export const CAPTURE_ERROR_CODES = [
     'capture-no-folders',
     'capture-keepout-required',
     'capture-destination-refused',
+    'capture-busy',
+    'capture-inbox-invalid',
+    'capture-no-provider',
 ] as const;
 export type CaptureErrorCode = (typeof CAPTURE_ERROR_CODES)[number];
 

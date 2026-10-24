@@ -2,6 +2,8 @@
 
 Reads the notes in the folders you choose and proposes next actions, waiting-for items, projects and someday items. You review every item first; only what you approve is added to one sweep report note, and your source notes are never changed. Optional: send the approved tasks to one Google Tasks list through your own Apps Script. Both are default off (`inbox-sweep`, stage Refine, requires a provider; `google-tasks-export`, external-account boundary, requires `inbox-sweep`) and byte-identical when off.
 
+> **Capture inbox.** The [capture inbox](capture-inbox.md) is the Clarify step before this sweep. It reads the same inbox folders and keep-out rules (one inbox, one privacy policy), keeps captures it still holds out of the sweep (`sweepRunPolicy`), and leaves tasks to this sweep. Its keep-out and inbox-folder wizard steps are shared code (`ui/setup/inboxScopeSteps.ts`).
+
 ## What the user does
 
 `Set up inbox sweep` (three steps: inbox folders and the report note; **what to keep out**, which is required; a preview that counts notes without contacting any AI provider). Then `Sweep inbox`: a confirmation with the number of notes and characters (plus a once-per-session notice when the provider is a cloud service), a review window where every item starts unchecked, and **Add N to sweep report**. `Set up Google Tasks` is three steps too: connect a setup script, pick a list, then lock the script to that list.

@@ -57,7 +57,7 @@ export interface CaptureDeps {
     transcribe(bytes: Uint8Array, fileName: string, extension: string): Promise<Result<string>>;
     digitise(path: string): Promise<Result<string>>;
     classify(parts: PromptParts): Promise<Result<RawProposal>>;
-    taxonomyPrompt(): string;
+    taxonomyPrompt(): string | Promise<string>;
     language(): LanguageCode | 'default';
     maxTags(): number;
     formatTags(tags: unknown[]): string[];
@@ -300,6 +300,7 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
             digitiseImagesWithText: config.digitiseImages,
             digitisationEnabled: deps.digitisationEnabled(),
             maxImages: config.maxImagesPerCapture,
+            forceTranscribe: getEntry(deps.journal.get(), id)?.forceTranscribe,
         });
         if (plan.skip || !plan.source) throw new Skip(plan.skip ?? 'nothing-to-process');
 
@@ -378,7 +379,7 @@ async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, co
     // Last-resort destination without a model: the folder whose name shares words with the text.
     const lexical = (): string | null => rankByTitleOverlap('', text.slice(0, 600), allowed)[0]?.path ?? null;
     try {
-        const parts = buildCaptureClassifyPrompt({ text, taxonomyPrompt: deps.taxonomyPrompt(), maxTags: deps.maxTags(), language: deps.language(), maxChars: config.maxTextChars, folderContext: ctx });
+        const parts = buildCaptureClassifyPrompt({ text, taxonomyPrompt: await deps.taxonomyPrompt(), maxTags: deps.maxTags(), language: deps.language(), maxChars: config.maxTextChars, folderContext: ctx });
         const res = await deps.classify(parts);
         if (res.ok) raw = res.value;
     } catch {
@@ -415,7 +416,8 @@ async function handleFailure(deps: CaptureDeps, id: string, error: unknown): Pro
         if (!e) return j;
         const attempts = retriable ? e.attempts + 1 : e.attempts;
         const stage = e.stage ?? 'read';
-        return bumpBucket(upsertEntry(j, { ...e, state: 'failed', failedStage: stage, attempts, retriable: retriable && attempts < MAX_ATTEMPTS, stage: undefined, updatedAt: now }), 'failed', stage);
+        const errorText = (error instanceof Error ? error.message : String(error)).replace(/\s+/g, ' ').slice(0, 160);
+        return bumpBucket(upsertEntry(j, { ...e, state: 'failed', failedStage: stage, errorText, attempts, retriable: retriable && attempts < MAX_ATTEMPTS, stage: undefined, updatedAt: now }), 'failed', stage);
     });
     return 'failed';
 }
@@ -424,7 +426,7 @@ async function handleFailure(deps: CaptureDeps, id: string, error: unknown): Pro
 export async function retryCapture(deps: CaptureDeps, id: string): Promise<boolean> {
     const e = getEntry(deps.journal.get(), id);
     if (!e || e.state !== 'failed') return false;
-    await deps.journal.mutate((j) => upsertEntry(j, { ...e, state: 'ready', attempts: 0, retriable: undefined, failedStage: undefined, updatedAt: deps.now() }));
+    await deps.journal.mutate((j) => upsertEntry(j, { ...e, state: 'ready', attempts: 0, retriable: undefined, failedStage: undefined, errorText: undefined, updatedAt: deps.now() }));
     return true;
 }
 

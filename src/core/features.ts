@@ -53,6 +53,7 @@ export type FeatureId =
     | 'cloud-inventory'
     | 'cloud-offload'
     | 'inbox-sweep'
+    | 'capture-inbox'
     | 'google-tasks-export'
     | 'vault-upkeep'
     | 'agent-connectors';
@@ -155,6 +156,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     // Drive offload moves a large vault file into the user's Drive for desktop folder and rewrites its references; it needs the inventory's pairs and script.
     // Inbox sweep sends note text to the user's AI provider after an exclusion guard; every item is reviewed before anything is written.
     { id: 'inbox-sweep', labelKey: 'features.inbox-sweep.label', descKey: 'features.inbox-sweep.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
+    // Capture inbox: the clarify step before the sweep. Makes raw captures readable (text first), proposes a title, tags and folder; the original is touched only after you accept.
+    { id: 'capture-inbox', labelKey: 'features.capture-inbox.label', descKey: 'features.capture-inbox.desc', stage: 'refine', requires: ['provider'], defaultOn: false },
     // One-way export of approved sweep tasks to the user's own Google Tasks list through their own Apps Script.
     { id: 'google-tasks-export', labelKey: 'features.google-tasks-export.label', descKey: 'features.google-tasks-export.desc', stage: 'refine', boundary: ['external-account'], requires: ['inbox-sweep'], defaultOn: false },
     // Vault upkeep: an optional scheduler that PROPOSES (index, Drive inventories, attachments) and never changes your notes.
@@ -200,6 +203,7 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-agent-index': 'agent-index',
     'sub-cloud-inventory': 'cloud-inventory',
     'sub-inbox-sweep': 'inbox-sweep',
+    'sub-capture-inbox': 'capture-inbox',
     'sub-google-tasks': 'google-tasks-export',
     'sub-vault-upkeep': 'vault-upkeep',
     'sub-agent-connectors': 'agent-connectors',

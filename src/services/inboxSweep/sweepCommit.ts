@@ -33,6 +33,8 @@ import {
 } from './sweepLedger';
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
 import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
+import { heldMirrorPaths, isHeldMirrorLoaded } from '../captureInbox/heldMirror';
+import { withHeldPaths } from '../captureInbox/capturePolicy';
 
 /**
  * Approval mutations run one at a time. A rollback after a failed save restores a snapshot, which is
@@ -55,6 +57,19 @@ export function sweepPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
         protectedFolders: s.protectedFolders,
         maxNoteChars: Math.max(s.sweepMaxChars, 20_000),
     };
+}
+
+/**
+ * The policy the SWEEP runs under: the base policy, plus every note the capture inbox still holds (not yet
+ * accepted), so the sweep waits for Accept instead of reading a raw note whose text is about to change.
+ * Fails closed: if the capture feature is on but its journal has not loaded, the whole inbox is held out.
+ * With the capture feature off this is exactly `sweepPolicy`.
+ */
+export function sweepRunPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
+    const base = sweepPolicy(plugin);
+    if (!isFeatureEnabled(plugin.settings, 'capture-inbox')) return base;
+    if (!isHeldMirrorLoaded()) return { ...base, excludedFolders: [...base.excludedFolders, ...plugin.settings.sweepInboxFolders] };
+    return withHeldPaths(base, heldMirrorPaths());
 }
 
 export function newRunId(): string {

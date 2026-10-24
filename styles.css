@@ -10086,3 +10086,115 @@
         background-color: CanvasText;
     }
 }
+
+/* ── Capture inbox ─────────────────────────────────────────────────────────────────── */
+.ai-organiser-capture-status {
+    cursor: pointer;
+}
+
+.ai-organiser-capture-status:hover {
+    color: var(--text-normal);
+}
+
+.ai-organiser-capture-review,
+.ai-organiser-capture-queue {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+.ai-organiser-capture-review label {
+    display: block;
+    margin-top: var(--size-4-2);
+    font-weight: var(--font-semibold);
+}
+
+.ai-organiser-capture-review input[type='text'],
+.ai-organiser-capture-review select,
+.ai-organiser-capture-text {
+    width: 100%;
+    box-sizing: border-box;
+}
+
+.ai-organiser-capture-text {
+    min-height: 6em;
+    resize: vertical;
+    font-family: var(--font-text);
+}
+
+.ai-organiser-capture-warning {
+    color: var(--text-warning);
+}
+
+.ai-organiser-capture-reason,
+.ai-organiser-capture-source,
+.ai-organiser-capture-row-meta,
+.ai-organiser-capture-empty {
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
+.ai-organiser-capture-actions,
+.ai-organiser-capture-row-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-2);
+    margin-top: var(--size-4-2);
+}
+
+.ai-organiser-capture-checkrow {
+    display: flex;
+    align-items: center;
+    gap: var(--size-4-2);
+}
+
+.ai-organiser-capture-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.ai-organiser-capture-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--size-4-2);
+    padding: var(--size-4-2) 0;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.ai-organiser-capture-row-text {
+    flex: 1 1 12em;
+    min-width: 0;
+}
+
+.ai-organiser-capture-row-title {
+    font-weight: var(--font-semibold);
+}
+
+.is-mobile .ai-organiser-capture-review button,
+.is-mobile .ai-organiser-capture-queue button {
+    min-height: 36px;
+}
+
+.ai-organiser-capture-review .ai-organiser-modal-buttons,
+.ai-organiser-capture-queue .ai-organiser-modal-buttons,
+.ai-organiser-capture-confirm .ai-organiser-modal-buttons {
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--size-4-2);
+}
+
+.ai-organiser-capture-review,
+.ai-organiser-capture-queue,
+.ai-organiser-capture-confirm {
+    overflow-x: hidden;
+    padding: var(--size-4-4);
+    text-align: start;
+}
+
+.ai-organiser-capture-review .ai-organiser-modal-buttons,
+.ai-organiser-capture-queue .ai-organiser-modal-buttons,
+.ai-organiser-capture-confirm .ai-organiser-modal-buttons {
+    margin-top: var(--size-4-4);
+}
