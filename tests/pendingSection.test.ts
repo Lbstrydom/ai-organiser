@@ -58,9 +58,26 @@ describe('addUrlsToPendingSection', () => {
     it('fences opened inside list items hide a heading-looking line in them', () => {
         for (const opener of ['- ```', '1. ```', '* ~~~', '  - ```']) {
             const fence = opener.includes('~') ? '~~~' : '```';
-            const doc = `a\n${opener}\n  ## Pending\n  ${fence}\ntail`;
+            const pad = ' '.repeat(opener.search(/[`~]/));
+            const doc = `a\n${opener}\n${pad}## Pending\n${pad}${fence}\ntail`;
             expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
         }
+    });
+
+    it('a list-item fence ends with its list item: an outdented fence line is a new top-level fence', () => {
+        const doc = '- ```text\n  example\n```\n## Pending\n```\n';
+        // the unindented line closes the list container and opens a new fence that holds the heading
+        expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
+    });
+
+    it('a delimiter indented 4+ spaces does not close a top-level fence', () => {
+        const doc = '```\n    ```\n## Pending\n```\n';
+        expect(addUrlsToPendingSection(doc, URLS)).toBe(`${doc}\n\n## Pending\n${LIST}\n`);
+    });
+
+    it('a line indented 4+ spaces is indented code, not a fence opener', () => {
+        const doc = '    ```\n\n## Pending\nz';
+        expect(addUrlsToPendingSection(doc, URLS)).toBe(`    \`\`\`\n\n## Pending\n${LIST}\nz`);
     });
 
     it('tilde fences', () => {

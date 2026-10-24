@@ -6,6 +6,7 @@
  */
 
 import * as yaml from 'js-yaml';
+import { FenceTracker } from '../../utils/markdownFences';
 import { KindleBook, KindleHighlight, KindleHighlightColor } from './kindleTypes';
 
 export type KindleHighlightStyle = 'blockquote' | 'callout' | 'bullet';
@@ -236,7 +237,7 @@ interface NoteLine {
 /** Split content into lines, flagging fenced code so headings inside it are not mistaken for sections. */
 function scanNoteLines(content: string): NoteLine[] {
     const lines: NoteLine[] = [];
-    let fence: { char: string; len: number } | null = null;
+    const fences = new FenceTracker();
     let offset = 0;
     // The leading frontmatter is YAML, not Markdown: nothing in it is a fence or a heading.
     const frontmatterEnd = FRONTMATTER_BLOCK.exec(content)?.[0].length ?? 0;
@@ -244,20 +245,7 @@ function scanNoteLines(content: string): NoteLine[] {
         const nl = content.indexOf('\n', offset);
         const lineEnd = nl === -1 ? content.length : nl;
         const text = content.slice(offset, lineEnd).replace(/\r$/, '');
-        let fenced = fence !== null;
-        if (offset < frontmatterEnd) {
-            fenced = true;
-        } else if (fence) {
-            const close = new RegExp(`^[ \\t]*${fence.char}{${fence.len},}[ \\t]*$`);
-            if (close.test(text)) fence = null;
-        } else {
-            // A fence may open at any indentation and inside list items ("- ```", "1. ```").
-            const open = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})(.*)$/.exec(text);
-            if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
-                fence = { char: open[1][0], len: open[1].length };
-                fenced = true;
-            }
-        }
+        const fenced = offset < frontmatterEnd ? true : fences.next(text);
         lines.push({ start: offset, end: nl === -1 ? content.length : nl + 1, text, fenced });
         if (nl === -1) break;
         offset = nl + 1;

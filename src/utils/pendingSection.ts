@@ -6,9 +6,9 @@
  * need preceding whitespace) outside fenced code and outside leading frontmatter.
  */
 
+import { FenceTracker } from './markdownFences';
+
 const PENDING_HEADING = /^ {0,3}##[ \t]+Pending(?:[ \t]+#+)?[ \t]*$/i;
-// A fence may open at any indentation and inside list items ("- ```", "1. ```").
-const FENCE_OPEN = /^[ \t]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]+)*(`{3,}|~{3,})(.*)$/;
 
 interface Scan {
     /** Offset just past the first real Pending heading line (incl. its line break), or -1. */
@@ -23,7 +23,8 @@ function scan(doc: string): Scan {
     const result: Scan = { afterHeading: -1, headingAtEof: false, unclosedFenceStart: -1 };
     let offset = 0;
     let lineNo = 0;
-    let fence: { char: string; len: number; start: number } | null = null;
+    const fences = new FenceTracker();
+    let fenceStart = -1;
     let inFrontmatter = false;
 
     while (offset <= doc.length) {
@@ -38,15 +39,10 @@ function scan(doc: string): Scan {
             inFrontmatter = doc.slice(next).split(/\r?\n/).some(l => /^(---|\.\.\.)\s*$/.test(l));
         } else if (inFrontmatter) {
             if (/^(---|\.\.\.)\s*$/.test(line)) inFrontmatter = false;
-        } else if (fence) {
-            const close = new RegExp(`^[ \\t]*${fence.char === '`' ? '`' : '~'}{${fence.len},}[ \\t]*$`);
-            if (close.test(line)) fence = null;
         } else {
-            const open = FENCE_OPEN.exec(line);
-            // A backtick fence's info string may not contain a backtick (CommonMark).
-            if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
-                fence = { char: open[1][0], len: open[1].length, start: offset };
-            } else if (result.afterHeading === -1 && PENDING_HEADING.test(line)) {
+            const fenced = fences.next(line);
+            if (fences.justOpened) fenceStart = offset;
+            if (!fenced && result.afterHeading === -1 && PENDING_HEADING.test(line)) {
                 result.afterHeading = next;
                 result.headingAtEof = nl === -1;
             }
@@ -57,7 +53,7 @@ function scan(doc: string): Scan {
         lineNo++;
     }
 
-    if (fence) result.unclosedFenceStart = fence.start;
+    if (fences.isOpen) result.unclosedFenceStart = fenceStart;
     return result;
 }
 

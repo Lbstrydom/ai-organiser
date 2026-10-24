@@ -224,6 +224,22 @@ describe('appendHighlightsToExisting note-only highlights', () => {
         expect(out).toBe(existing.trimEnd() + '\n\n## Notes\n\n> [!note] Page 3, Location 10-11\n> my thought\n');
     });
 
+    it('fence containers: outdented line ends a list fence; 4-space delimiter does not close; 4-space opener is code', () => {
+        const mk = (body: string) => '---\ntitle: T\n---\n# B\n\n' + body;
+        const asNotes = (existing: string) => existing.trimEnd() + '\n\n## Notes\n\n> [!note] Page 3, Location 10-11\n> my thought\n';
+        const cases = [
+            mk('- ```text\n  example\n```\n## Notes\n```\n'),
+            mk('```\n    ```\n## Notes\n```\n'),
+        ];
+        for (const existing of cases) {
+            expect(appendHighlightsToExisting(existing, [noteOnlyHighlight()], 'bullet')).toBe(asNotes(existing));
+        }
+        const indentedCode = mk('    ```\n\n## Notes\nold\n');
+        const out = appendHighlightsToExisting(indentedCode, [noteOnlyHighlight()], 'bullet');
+        expect(out.match(/## Notes/g)).toHaveLength(1);
+        expect(out.indexOf('my thought')).toBeGreaterThan(out.indexOf('old'));
+    });
+
     it('backticks inside a YAML block scalar are not a Markdown fence', () => {
         for (const eol of ['\n', '\r\n']) {
             const existing = ['---', 'description: |', '  ```', '---', '# Book', '## Notes', 'old', '## Summary', 'keep', ''].join(eol);
