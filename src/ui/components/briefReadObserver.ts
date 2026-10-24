@@ -200,8 +200,7 @@ class BriefReadChild extends MarkdownRenderChild {
         if (s.observed.has(target)) return;
         s.observed.add(target);
         // The container's own window: correct for a popout, where the global observer would watch the wrong viewport.
-        const win = this.el.ownerDocument.defaultView as (Window & typeof globalThis) | null;
-        const Observer = win?.IntersectionObserver ?? IntersectionObserver;
+        const Observer = this.el.ownerDocument.defaultView?.IntersectionObserver ?? window.IntersectionObserver;
         s.observer ??= new Observer((entries) => {
             // A background, unfocused or inactive view being scrolled past the end is not a reader at the end.
             if (s.eligible() && entries.some((e) => e.isIntersecting && e.intersectionRatio >= END_VISIBLE_RATIO)) s.state = markEndReached(s.state);
