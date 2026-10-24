@@ -55,7 +55,9 @@ interface LiveSession {
     hash: string;
     /** The bucket date the snapshot belongs to: part of the session identity, with the text hash. */
     date: string;
-    /** The end of the brief is on screen RIGHT NOW (latest observation), whether or not the reader is attentive. */
+    /** Visibility of each watched end target, from the latest notification about THAT target. */
+    targetVisible: Map<Element, boolean>;
+    /** The end of the brief is on screen RIGHT NOW (any watched target visible), attentive or not. */
     endVisible: boolean;
     /** Committed or refused for this exact text: a tombstone, so the same text is never committed twice. */
     done: boolean;
@@ -82,6 +84,7 @@ function disposeSession(s: LiveSession): void {
     s.observer?.disconnect();
     s.observer = null;
     s.observed.clear();
+    s.targetVisible.clear();
     for (const fn of s.cleanup.splice(0)) fn();
 }
 
@@ -135,10 +138,9 @@ class BriefReadChild extends MarkdownRenderChild {
         const container = view.containerEl;
 
         let s = sessions.get(container);
-        // A completed session is a tombstone only for the lifecycle it completed in: after a purge or a mode
-        // change (a new generation) the same text may be read again.
-        const staleTombstone = s?.done === true && s.generation !== host.generation();
-        if (s && (s.hash !== this.built.textHash || s.date !== this.built.observation.date || (s.dead && !s.done) || staleTombstone)) {
+        // Identity of a session: text hash, bucket date AND generation. A session from an earlier generation
+        // (finished or not) is never joined: after a purge or a mode change the same text starts afresh.
+        if (s && (s.hash !== this.built.textHash || s.date !== this.built.observation.date || s.generation !== this.generation || (s.dead && !s.done))) {
             // Different text on screen means a new render, so a new session; a session that was torn
             // down without finishing (the last child unloaded, mode switched off) is replaced, not reused.
             disposeSession(s);
@@ -161,6 +163,7 @@ class BriefReadChild extends MarkdownRenderChild {
         const s: LiveSession = {
             hash: this.built.textHash,
             date: this.built.observation.date,
+            targetVisible: new Map(),
             endVisible: false,
             done: false,
             dead: false,
@@ -219,8 +222,8 @@ class BriefReadChild extends MarkdownRenderChild {
         this.endTarget = null;
         s.observer?.unobserve(target);
         s.observed.delete(target);
-        // No watched end target left means there is nothing on screen to call the end of the brief.
-        if (s.observed.size === 0) s.endVisible = false;
+        s.targetVisible.delete(target);
+        s.endVisible = [...s.targetVisible.values()].some(Boolean);
     }
 
     private observeEnd(s: LiveSession): void {
@@ -236,7 +239,11 @@ class BriefReadChild extends MarkdownRenderChild {
         s.observer ??= new Observer((entries) => {
             // A background, unfocused or inactive view being scrolled past the end is not a reader at the end.
             // Record what is on screen; whether it COUNTS is decided by eligibility, now and at every tick.
-            if (entries.length > 0) s.endVisible = entries.some((e) => e.isIntersecting && e.intersectionRatio >= END_VISIBLE_RATIO);
+            // An entry describes ONE target: update only those, then derive the whole from the tracked state.
+            for (const e of entries) {
+                if (s.observed.has(e.target)) s.targetVisible.set(e.target, e.isIntersecting && e.intersectionRatio >= END_VISIBLE_RATIO);
+            }
+            s.endVisible = [...s.targetVisible.values()].some(Boolean);
             if (s.endVisible && s.eligible()) s.state = markEndReached(s.state);
         }, { threshold: END_VISIBLE_RATIO });
         s.observer.observe(target);

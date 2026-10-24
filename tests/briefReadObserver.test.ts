@@ -57,10 +57,10 @@ class FakeIO {
     static instances: FakeIO[] = [];
     targets: Element[] = [];
     unobserve(el: Element) { this.targets = this.targets.filter((t) => t !== el); }
-    constructor(public cb: (entries: Array<{ isIntersecting: boolean; intersectionRatio: number }>) => void) { FakeIO.instances.push(this); }
+    constructor(public cb: (entries: Array<{ isIntersecting: boolean; intersectionRatio: number; target: Element }>) => void) { FakeIO.instances.push(this); }
     observe(el: Element) { this.targets.push(el); }
     disconnect() { this.targets = []; }
-    fire(isIntersecting = true, intersectionRatio = 1) { this.cb([{ isIntersecting, intersectionRatio }]); }
+    fire(isIntersecting = true, intersectionRatio = 1, target?: Element) { this.cb([{ isIntersecting, intersectionRatio, target: target ?? this.targets[0] }]); }
 }
 
 let clock = 0;
@@ -494,5 +494,36 @@ describe('audit round 5', () => {
         expect(FakeIO.instances[0].targets).toHaveLength(1);
         end.children.forEach((c) => c.onunload());
         expect(FakeIO.instances[0].targets).toHaveLength(0);
+    });
+});
+
+describe('audit round 6', () => {
+    it('a session from an earlier generation is never joined by a new-generation render', () => {
+        const view = newView();
+        activeView = view;
+        render(view, noteText());        // generation 0: session starts, not finished
+        flush();
+        gen += 1;                        // purge before the 1s timer notices
+        render(view, noteText());        // a new-generation render of the same text
+        flush();
+        FakeIO.instances.at(-1)!.fire(true);
+        step(40, view.containerEl);
+        expect(commits).toEqual([{ displayed: 2, generation: 1 }]);
+    });
+
+    it('visibility is tracked per target: one target hiding does not erase another that is visible', () => {
+        const view = newView();
+        activeView = view;
+        const first = render(view, noteText(), SECTION_LIST);
+        const second = render(view, noteText(), SECTION_LIST);
+        flush();
+        const io = FakeIO.instances[0];
+        expect(io.targets).toHaveLength(2);
+        io.fire(true, 1, io.targets[0]);   // first target visible
+        io.fire(false, 0, io.targets[1]);  // second target hidden: must not erase the first
+        step(40, view.containerEl);
+        expect(commits).toHaveLength(1);
+        expect(first.el).toBeTruthy();
+        expect(second.el).toBeTruthy();
     });
 });
