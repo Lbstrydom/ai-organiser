@@ -791,3 +791,100 @@ describe('persistence failures are outcomes, not log lines', () => {
         expect(await loadOperation(plugin as never)).toBeNull();
     });
 });
+
+describe('a protected output folder (persona test N2)', () => {
+    it.each([['the newsletter output root', ROOT], ['the Catch-up folder', FOLDER], ['a folder above the output root', 'AI-Organiser']])(
+        '%s protected: refused with its own code BEFORE any spend, nothing written, no record',
+        async (_label, protectedPath) => {
+            const p = ports({}, { protectedFolders: [protectedPath] });
+            const res = await runCatchUp(p, opts());
+            expect(res).toEqual({ ok: false, error: 'catchup-output-protected' });
+            expect(p.resolveTts).not.toHaveBeenCalled();
+            expect(p.generateScript).not.toHaveBeenCalled();
+            expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+            expect(vault.app.vault.create).not.toHaveBeenCalled();
+            expect(vault.app.vault.createBinary).not.toHaveBeenCalled();
+            expect(await loadOperation(plugin as never)).toBeNull();
+        },
+    );
+
+    it('a protected folder elsewhere does not block the run', async () => {
+        const res = await runCatchUp(ports({}, { protectedFolders: ['Course/Week 1'] }), opts());
+        expect(res.ok).toBe(true);
+    });
+
+    it('protection added mid-run (after the audio exists): the note is refused, the record is kept and resumes once unprotected', async () => {
+        const p = ports();
+        engine.synthesizeChunk.mockImplementation(async () => {
+            (p.settings as unknown as { protectedFolders: string[] }).protectedFolders = [ROOT];
+            return tone();
+        });
+        const res = await runCatchUp(p, opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-output-protected' });
+        expect(vault.app.vault.create).not.toHaveBeenCalled(); // no episode note
+        const rec = await loadOperation(plugin as never);
+        expect(rec?.phase).toBe('audio-ready');
+        expect(rec?.script).toBe(SHORT_SCRIPT); // the paid-for script is kept
+        expect(vault.exists(rec!.audio!.path)).toBe(true); // the staged audio is still owned by the record, not trashed
+        expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
+        expect([...vault.files.keys()].filter((k) => k.endsWith('.md') && k.includes('Catch-up/'))).toEqual([]); // no episode note exists
+
+        // Still protected: resume is refused up front and re-voices nothing.
+        const calls = engine.synthesizeChunk.mock.calls.length;
+        const blocked = await resumeCatchUp(ports({}, { protectedFolders: [ROOT] }), opts());
+        expect(blocked).toEqual({ ok: false, error: 'catchup-output-protected' });
+        expect(engine.synthesizeChunk.mock.calls.length).toBe(calls);
+        expect(await loadOperation(plugin as never)).not.toBeNull();
+
+        // Protection removed: the same record finishes.
+        engine.synthesizeChunk.mockImplementation(async () => tone());
+        const done = await resumeCatchUp(ports(), opts());
+        expect(done.ok).toBe(true);
+        expect(await loadOperation(plugin as never)).toBeNull();
+    });
+
+    it('protection added while the script is being written: no file operation at all, the script record is kept', async () => {
+        const p = ports();
+        p.generateScript.mockImplementation(async () => {
+            (p.settings as unknown as { protectedFolders: string[] }).protectedFolders = [FOLDER];
+            return ok(SHORT_SCRIPT);
+        });
+        const res = await runCatchUp(p, opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-output-protected' });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+        expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
+        expect(vault.app.vault.createBinary).not.toHaveBeenCalled();
+        expect((await loadOperation(plugin as never))?.script).toBe(SHORT_SCRIPT);
+    });
+
+    it('protection that appears while the folder is being made refuses the note write itself', async () => {
+        const { writeEpisodeNote } = await import('../src/services/newsletter/catchUp/catchUpEpisode');
+        const protectedFolders: string[] = [];
+        const { ensureFolderExists } = await import('../src/utils/minutesUtils');
+        (ensureFolderExists as unknown as { mockImplementationOnce?: (f: () => Promise<void>) => void }).mockImplementationOnce?.(async () => { protectedFolders.push(ROOT); });
+        const input = { id: 'op1', from: '2026-10-21', to: '2026-10-23', coverage: {}, audio: 'catchup-op1-12345678.mp3', fingerprint: '12345678', minutes: 1, sources: 1, titles: [], script: 'x' };
+        await expect(writeEpisodeNote(vault.app as never, ROOT, input as never, protectedFolders)).rejects.toThrow('catchup-output-protected');
+        expect(vault.app.vault.create).not.toHaveBeenCalled();
+    });
+
+    it('a kept script resumed into a now-protected folder: refused before any TTS call', async () => {
+        engine.synthesizeChunk.mockRejectedValue(new Error('tts down'));
+        await runCatchUp(ports(), opts()); // leaves a scripted/audio-writing record
+        engine.synthesizeChunk.mockClear();
+        engine.synthesizeChunk.mockImplementation(async () => tone());
+        const p = ports({}, { protectedFolders: [FOLDER] });
+        const res = await resumeCatchUp(p, opts());
+        expect(res).toEqual({ ok: false, error: 'catchup-output-protected' });
+        expect(engine.synthesizeChunk).not.toHaveBeenCalled();
+        expect(p.resolveTts).not.toHaveBeenCalled();
+    });
+
+    it('the guidance names the next step: a different output folder, or stop protecting', async () => {
+        const { describeError, formatGuidance } = await import('../src/core/friendlyErrors');
+        const { en } = await import('../src/i18n/en');
+        const text = formatGuidance(describeError(en as never, 'catchup-output-protected'));
+        expect(text).toMatch(/different output folder/i);
+        expect(text).toMatch(/stop protecting/i);
+        expect(text).not.toMatch(/AI provider/i);
+    });
+});

@@ -156,7 +156,7 @@ describe('helpers', () => {
     });
 
     it('formats singular and plural summaries', () => {
-        expect(formatPendingSummary(t, 1, 1)).toBe('One day · One newsletter');
+        expect(formatPendingSummary(t, 1, 1)).toBe('1 day · 1 newsletter');
         expect(formatPendingSummary(t, 3, 12)).toBe('3 days · 12 newsletters');
     });
 
@@ -314,14 +314,60 @@ describe('an unfinished operation', () => {
         expect(runCatchUp).not.toHaveBeenCalled();
     });
 
-    it('Discard removes it and says so', async () => {
+    it('Discard asks first, because the written script was paid for', async () => {
+        discardOperation.mockClear();
+        opRef.value = { kind: 'scripted', record: record('scripted') };
+        const { root } = await open();
+        click(root, 'Discard');
+        expect(discardOperation).not.toHaveBeenCalled();
+        expect(root.textContent).toContain('Discard this unfinished episode?');
+        expect(buttons(root)).toEqual(['Keep it', 'Discard']);
+    });
+
+    it('"Keep it" returns to the choices and discards nothing', async () => {
+        discardOperation.mockClear();
+        opRef.value = { kind: 'scripted', record: record('scripted') };
+        const { root } = await open();
+        click(root, 'Discard');
+        click(root, 'Keep it');
+        expect(discardOperation).not.toHaveBeenCalled();
+        expect(buttons(root)).toEqual(['Resume', 'Start over', 'Discard']);
+    });
+
+    it('confirming Discard removes it and says so', async () => {
         opRef.value = { kind: 'scripted', record: record('scripted') };
         const { root } = await open();
         opRef.value = { kind: 'none' };
         click(root, 'Discard');
+        click(root, 'Discard');
         await vi.waitFor(() => expect(discardOperation).toHaveBeenCalled());
         await flush(); await flush();
         expect(root.textContent).toContain('The unfinished episode was discarded.');
+    });
+
+    // Persona test N6: Start over on an episode made through "Include again" ended at "caught up".
+    it('Start over remakes the SAME days even when they are no longer pending', async () => {
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        opRef.value = { kind: 'scripted', record: record('scripted') };
+        const { root } = await open();
+        opRef.value = { kind: 'none' };
+        click(root, 'Start over');
+        await vi.waitFor(() => expect(discardOperation).toHaveBeenCalled());
+        await flush(); await flush();
+        const lastCall = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
+        expect(lastCall.forceDates).toEqual(['2026-10-21', '2026-10-22']);
+    });
+
+    it('a plain Discard does not keep the days for another run', async () => {
+        const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
+        opRef.value = { kind: 'scripted', record: record('scripted') };
+        const { root } = await open();
+        opRef.value = { kind: 'none' };
+        click(root, 'Discard');
+        click(root, 'Discard');
+        await flush(); await flush();
+        const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
+        expect(last.forceDates).toBeUndefined();
     });
 });
 
@@ -334,8 +380,16 @@ describe('generating', () => {
         click(root, 'Generate');
         await vi.waitFor(() => expect(runCatchUp).toHaveBeenCalledTimes(1));
         expect(runCatchUp.mock.calls[0][1]).toMatchObject({ previewHash: 'abcd1234', interactive: true });
-        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready — about 14.2 min covering 3 days · 6 newsletters.'));
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready — about 14 min covering 3 days · 6 newsletters.'));
         expect(buttons(root)).toContain('Open episode note');
+    });
+
+    it('a sub-minute episode never reads "about 0 min"', async () => {
+        runCatchUp.mockResolvedValue({ ...done, value: { ...done.value, minutes: 0 } });
+        const { root } = await open();
+        click(root, 'Generate');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready — under a minute covering'));
+        expect(root.textContent).not.toContain('about 0 min');
     });
 
     it('shows the progress region as a polite live region while running', async () => {
@@ -418,6 +472,7 @@ describe('failures and lifecycle', () => {
         discardOperation.mockResolvedValueOnce({ ok: false, error: 'EBUSY' } as never);
         const { root } = await open();
         click(root, 'Discard');
+        click(root, 'Discard'); // confirm
         await vi.waitFor(() => expect(root.textContent).toContain('could not be discarded'));
         expect(root.textContent).not.toContain('The unfinished episode was discarded.');
         expect(root.textContent).not.toContain('EBUSY');

@@ -13,6 +13,8 @@ import {
     audioNamesIn,
     MAX_AUDIO_NAME_LENGTH,
     decideEpisode,
+    createIndexRetryGate,
+    isIndexSkip,
     normaliseCleanupDays,
     type CleanupDeps,
     type CleanupOutcome,
@@ -21,6 +23,7 @@ import { buildEpisodeNote, loadEpisodes, markAudioRemovedText, type EpisodeNoteI
 import { buildEpisodeName } from '../src/services/newsletter/catchUp/catchUpCoverage';
 import { ACKS_DATA_KEY, DRAFT_DATA_KEY, RECORD_SCHEMA_VERSION } from '../src/services/newsletter/catchUp/catchUpDraft';
 import { runExclusive, __resetCatchUpLockForTests } from '../src/services/newsletter/catchUp/catchUpService';
+import { getMetadataIndexState, observeMetadataIndex } from '../src/utils/metadataIndexState';
 import { makeCatchUpVault } from './helpers/catchUpVault';
 
 const ROOT = 'AI-Organiser/Newsletter Inbox';
@@ -87,6 +90,11 @@ function deps(over: Partial<CleanupDeps> = {}): CleanupDeps {
         writeNote,
         removedLine: (d) => `Audio removed on ${d}`,
         now: () => DAY1,
+        // No timers in unit tests: evaluate the real strict state once, as the real wait does first.
+        waitForIndex: async () => {
+            const state = getMetadataIndexState(vault.app as never);
+            return { outcome: over.shouldStop?.() ? 'aborted' : state === 'ready' ? 'ready' : 'timeout', state };
+        },
         ...over,
     };
 }
@@ -433,14 +441,106 @@ describe('safety gates', () => {
         expect(writes).toEqual([]);
     });
 
-    it('index not ready: nothing is read', async () => {
+    it('index not ready (old `resolved: false` shape): nothing is read', async () => {
         addEpisode();
         vault.app.metadataCache.resolved = false;
         expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
         expect(plugin.loadData).not.toHaveBeenCalled();
         expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
+    });
+
+    it('index not ready (new `initialized: false` shape): nothing is read', async () => {
+        addEpisode();
         delete (vault.app.metadataCache as { resolved?: boolean }).resolved;
+        vault.app.metadataCache.initialized = false;
         expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
+        expect(plugin.loadData).not.toHaveBeenCalled();
+    });
+
+    it('neither flag and no resolved event seen: fail closed as index-unavailable, nothing is read', async () => {
+        addEpisode();
+        delete (vault.app.metadataCache as { resolved?: boolean }).resolved;
+        observeMetadataIndex(vault.app.metadataCache); // a fresh tracker: no completed resolution observed yet
+        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-unavailable' });
+        expect(plugin.loadData).not.toHaveBeenCalled();
+        expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
+    });
+
+    it('neither flag but a resolved event was observed: the sweep runs', async () => {
+        addEpisode();
+        delete (vault.app.metadataCache as { resolved?: boolean }).resolved;
+        const report = completed(await sweep());
+        expect(report.marked).toBe(1);
+    });
+
+    // REGRESSION (persona test 2026-10-24): Obsidian 1.14.5 has no `resolved` property, only
+    // `initialized`. The old check (`resolved === true`) made every sweep end as index-not-ready.
+    // Isolated from any event: a fresh tracker, so only the cache's own cleanliness can prove completion.
+    it('Obsidian 1.14/1.15 shape (`initialized: true`, no `resolved`, idle queue) marks the eligible episode', async () => {
+        addEpisode();
+        const cache = vault.app.metadataCache as unknown as Record<string, unknown>;
+        delete cache.resolved;
+        cache.initialized = true;
+        cache.inProgressTaskCount = 0;
+        cache.linkResolverQueue = { items: [], runnable: { isRunning: () => false } };
+        observeMetadataIndex(vault.app.metadataCache); // no resolved event seen by the plugin
+        expect(vault.app.metadataCache).not.toHaveProperty('resolved');
+        const report = completed(await sweep());
+        expect(report).toMatchObject({ marked: 1 });
+        expect(vault.text(notePath(episode()))).toContain("catchup_audio_removed: '2026-11-30'");
+    });
+
+    it('`initialized: true` alone is not proof of a complete index: wait, do not read', async () => {
+        addEpisode();
+        const cache = vault.app.metadataCache as unknown as Record<string, unknown>;
+        delete cache.resolved;
+        cache.initialized = true;
+        const observer = observeMetadataIndex(vault.app.metadataCache);
+        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
+        expect(plugin.loadData).not.toHaveBeenCalled();
+        observer.resolved(); // the documented event arrives
+        expect(completed(await sweep()).marked).toBe(1);
+    });
+
+    it('an index that starts rebuilding after being ready stops the sweep (changed without resolved)', async () => {
+        addEpisode();
+        vault.emit('cache', 'changed');
+        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
+        vault.emit('cache', 'resolved');
+        expect(completed(await sweep()).marked).toBe(1);
+    });
+
+    it('two eligible episodes: the first marker re-indexes, and the second waits for that to settle then proceeds', async () => {
+        addEpisode();
+        const second = episode({ id: '20261023-081500-c3d4', from: '2026-10-22', to: '2026-10-22', audio: 'catchup-20261023-081500-c3d4-44444444.mp3', coverage: { '2026-10-22': { kind: 'whole' } } });
+        addEpisode(second);
+        plugin.state.stored[ACKS_DATA_KEY] = acksFor(ID, second.id);
+        // Obsidian re-indexes a written note: changed, then (a moment later) resolved.
+        const realWrite = writeNote;
+        writeNote = async (p, b, n) => { const r = await realWrite(p, b, n); vault.index.changed(); return r; };
+        const out = await sweep({
+            waitForIndex: async () => {
+                if (getMetadataIndexState(vault.app as never) === 'building') vault.index.resolved();
+                const state = getMetadataIndexState(vault.app as never);
+                return { outcome: state === 'ready' ? 'ready' : 'timeout', state };
+            },
+        });
+        expect(completed(out).marked).toBe(2);
+    });
+
+    it('two eligible episodes: if the first marker never settles, the second is not touched and the sweep stops as index-not-ready', async () => {
+        addEpisode();
+        const second = episode({ id: '20261023-081500-c3d4', from: '2026-10-22', to: '2026-10-22', audio: 'catchup-20261023-081500-c3d4-44444444.mp3', coverage: { '2026-10-22': { kind: 'whole' } } });
+        addEpisode(second);
+        plugin.state.stored[ACKS_DATA_KEY] = acksFor(ID, second.id);
+        const realWrite = writeNote;
+        writeNote = async (p, b, n) => { const r = await realWrite(p, b, n); vault.index.changed(); return r; }; // resolved never arrives
+        const out = await sweep();
+        expect(out).toMatchObject({ kind: 'skipped', reason: 'index-not-ready' });
+        if (out.kind !== 'skipped') return;
+        expect(out.report?.marked).toBe(1);
+        expect(writes).toHaveLength(1);
+        expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
     });
 
     it('another episode-folder note that mentions the file keeps the audio', async () => {
@@ -490,6 +590,7 @@ describe('vault changes during the sweep', () => {
             const r = await writeNote(path, baseline, next);
             vault.emit('vault', 'modify', { path });
             vault.emit('cache', 'changed', { path });
+            vault.emit('cache', 'resolved'); // Obsidian follows a re-index with a resolved event
             return r;
         };
         const report = completed(await sweep({ writeNote: emitting }));
@@ -590,7 +691,7 @@ describe('the snapshot stays valid from before discovery to the destructive step
     it('an absent reverse-link table is unknown, not "no links"', async () => {
         addEpisode();
         delete (vault.app.metadataCache as { resolvedLinks?: unknown }).resolvedLinks;
-        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-not-ready' });
+        expect(await sweep()).toEqual({ kind: 'skipped', reason: 'index-unavailable' });
         expect(writes).toEqual([]);
         expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
     });
@@ -690,5 +791,31 @@ describe('single flight and cost', () => {
         completed(await sweep());
         expect(vault.app.vault.cachedRead).not.toHaveBeenCalled();
         expect(vault.listeners()).toBe(0); // watching is always torn down
+    });
+});
+
+describe('index retry gate (a sweep held up by the link index recovers on the next resolved)', () => {
+    it('skip arms; the first resolved fires once and disarms; later resolved events do nothing', () => {
+        const gate = createIndexRetryGate();
+        expect(gate.onResolved()).toBe(false);
+        gate.arm();
+        expect(gate.isArmed()).toBe(true);
+        expect(gate.onResolved()).toBe(true);
+        expect(gate.onResolved()).toBe(false);
+    });
+
+    it('a completed sweep disarms; a later skip re-arms', () => {
+        const gate = createIndexRetryGate();
+        gate.arm();
+        gate.disarm();
+        expect(gate.onResolved()).toBe(false);
+        gate.arm();
+        expect(gate.onResolved()).toBe(true);
+    });
+
+    it('only index skips are index skips', () => {
+        expect(isIndexSkip('index-not-ready')).toBe(true);
+        expect(isIndexSkip('index-unavailable')).toBe(true);
+        for (const r of ['off', 'busy', 'record-unknown', 'changed-during-sweep', 'cancelled'] as const) expect(isIndexSkip(r)).toBe(false);
     });
 });

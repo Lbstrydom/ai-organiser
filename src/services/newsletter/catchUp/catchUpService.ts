@@ -30,6 +30,8 @@ import {
 import { getAudioMode } from '../newsletterAudioMode';
 import { buildCatchUpSnapshot, type CatchUpSnapshot } from './catchUpSelection';
 import {
+    OUTPUT_PROTECTED,
+    assertEpisodeOutputWritable,
     audioFileName,
     episodeFolderPath,
     findEpisodeByOpId,
@@ -296,6 +298,9 @@ export async function runCatchUp(ports: CatchUpPorts, opts: RunOptions): Promise
         opts.onPhase?.({ key: 'freezing' });
         const state = await reconcileOperation(ports);
         if (state.kind !== 'none' && state.kind !== 'committed') return err('catchup-unresolved');
+        // Before any spend: a protected episode folder would refuse the very last step.
+        const writable = assertEpisodeOutputWritable(ports.settings, getNewsletterOutputFullPath(ports.settings));
+        if (!writable.ok) return err(OUTPUT_PROTECTED);
 
         const snapshot = await buildCatchUpSnapshot(
             { app: ports.app, plugin: ports.plugin, settings: ports.settings, now: now(ports), forceDates: opts.includeAgainDates },
@@ -455,6 +460,10 @@ async function makeAudio(
 
     if (!reusable) {
         if (aborted(opts)) return cancelled();
+        // Protection can change between the start of the run and the first write; trashing a staged
+        // file in a protected folder is a write too, so this comes before ANY file operation here.
+        const writable = assertEpisodeOutputWritable(ports.settings, outputRoot);
+        if (!writable.ok) return err(OUTPUT_PROTECTED);
         // Any file this operation owns is a partial or superseded attempt.
         if (record.audio) await trashStagedAudio(ports, record);
         if (isInsideOutputRoot(outputRoot, audioPath) && ports.app.vault.getAbstractFileByPath(audioPath)) {
@@ -529,7 +538,7 @@ async function commitEpisode(
             sources: record.frozen.sources,
             titles: record.frozen.titles,
             script: record.script,
-        });
+        }, ports.settings);
         await clearOperation(ports.plugin, record.opId);
         ports.onChanged?.();
         return ok({
@@ -545,7 +554,8 @@ async function commitEpisode(
         });
     } catch (e) {
         logger.warn('Newsletter', 'Catch-up note could not be saved', e);
-        return err('catchup-save-failed');
+        // Staged audio stays owned by the record (reconciled on Discard / Start over, reused on Resume).
+        return err(e instanceof Error && e.message === OUTPUT_PROTECTED ? OUTPUT_PROTECTED : 'catchup-save-failed');
     }
 }
 
@@ -558,6 +568,9 @@ export async function resumeCatchUp(ports: CatchUpPorts, opts: RunOptions): Prom
         const state = await reconcileOperation(ports);
         if (state.kind === 'none' || state.kind === 'committed' || state.kind === 'expired') return err('catchup-nothing-pending');
         if (aborted(opts)) return cancelled();
+        // The kept record stays resumable; protection may have been added since the run began.
+        const writable = assertEpisodeOutputWritable(ports.settings, state.record.outputRoot);
+        if (!writable.ok) return err(OUTPUT_PROTECTED);
 
         if (state.kind === 'audio-ready') {
             return commitEpisode(ports, state.record, opts, fingerprintFromAudioPath(state.record.audio?.path ?? ''));

@@ -23,6 +23,8 @@ import { registerCommands } from './commands/index';
 import { assertWritable, setActiveProtection, splitByProtection } from './core/protectedPaths';
 import { plural } from './utils/plural';
 import { referrersProtectedActive } from './utils/protectedGuard';
+import { trackMetadataIndex } from './utils/metadataIndexState';
+import { createIndexRetryGate, isIndexSkip } from './services/newsletter/catchUp/catchUpCleanup';
 import { registerProtectedFolders, unregisterProtectedFolders, enforceOutputDisjointness } from './commands/protectedFolderCommands';
 import { isFeatureEnabled } from './services/featureService';
 import { FEATURE_REGISTRY, type FeatureId } from './core/features';
@@ -181,8 +183,10 @@ export default class AIOrganiserPlugin extends Plugin {
     private catchUpCleanupCancelled = false;
     private catchUpCleanupRunning = false;
     private catchUpCleanupRerun = false;
-    /** Marked episodes held up by something that may pass within the day; `unknown` until a sweep completes, kept on a skipped sweep. */
+    /** Marked episodes held up by something that may pass within the day; `unknown` until a sweep completes. A skipped sweep keeps it, except one held up by the link index, which sets `unknown` so the 30-minute tick retries. */
     private catchUpRetryPending: number | 'unknown' = 'unknown';
+    /** Armed when a sweep was held up by the link index; the next `resolved` event schedules one retry. */
+    private readonly catchUpIndexGate = createIndexRetryGate();
     public newsletterSeenIds: string[] = [];
     /** First-time-per-session Deepgram diarization disclosure shown? Reset on plugin reload. */
     public diarizationDisclosureShownThisSession = false;
@@ -1013,6 +1017,9 @@ export default class AIOrganiserPlugin extends Plugin {
         await this.loadSettings();
         // Protected folders apply from the first moment settings exist, before any service starts.
         setActiveProtection(() => this.settings);
+        // Watch the link index from the first moment: destructive and protection-sensitive checks
+        // (audio cleanup, Drive offload, protected-referrer guard) only trust an index they have seen complete.
+        trackMetadataIndex(this);
         await this.initializeLLMService();
 
         // Initialize configuration service with full path (pluginFolder/configFolderPath)
@@ -1490,6 +1497,10 @@ export default class AIOrganiserPlugin extends Plugin {
         this.registerEvent(this.app.vault.on('delete', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
         this.registerEvent(this.app.vault.on('modify', (f) => { if (touchesNewsletters(f.path)) this.refreshCatchUpStatus(); }));
         this.registerEvent(this.app.vault.on('rename', (f, old) => { if (touchesNewsletters(f.path) || touchesNewsletters(old)) this.refreshCatchUpStatus(); }));
+        // A sweep that was held up by the link index recovers as soon as indexing completes.
+        this.registerEvent(this.app.metadataCache.on('resolved', () => {
+            if (this.catchUpIndexGate.onResolved()) this.scheduleCatchUpCleanup();
+        }));
         this.app.workspace.onLayoutReady(() => {
             void this.offerAudioModeSwitch();
             // Deferred and non-blocking: an overdue cleanup never slows start-up. Off costs nothing.
@@ -1591,10 +1602,15 @@ export default class AIOrganiserPlugin extends Plugin {
             if (outcome.kind === 'completed') {
                 this.catchUpRetryPending = outcome.report.retryPending;
                 this.catchUpCleanupLastDate = this.catchUpToday();
+                this.catchUpIndexGate.disarm();
+            } else if (outcome.kind === 'skipped' && isIndexSkip(outcome.reason)) {
+                // Not a verdict: retry on the next `resolved` event and on the 30-minute tick, not tomorrow.
+                this.catchUpIndexGate.arm();
+                this.catchUpRetryPending = 'unknown';
             }
             if (report && report.removed > 0) {
                 logger.debug('Newsletter', `Catch-up audio cleanup removed ${report.removed} audio file(s)`);
-                new Notice(m.cleanupNotice.replace('{count}', String(report.removed)), 6000);
+                new Notice((report.removed === 1 ? m.cleanupNoticeOne : m.cleanupNotice).replace('{count}', String(report.removed)), 6000);
             }
             if (outcome.kind === 'skipped' && outcome.reason !== 'off') logger.debug('Newsletter', `Catch-up audio cleanup skipped: ${outcome.reason}`);
         } catch (e) {

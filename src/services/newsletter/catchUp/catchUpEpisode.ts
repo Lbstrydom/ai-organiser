@@ -1,8 +1,10 @@
 /**
  * Catch-up episode notes — build, parse and the vault IO around them.
  *
- * The episode note IS the coverage record: written ONCE, AFTER its audio exists, and never
- * edited. Everything here is confined to the newsletter output root (the existing
+ * The episode note IS the coverage record: written ONCE, AFTER its audio exists. Its coverage is
+ * never edited; the only later change is the opt-in audio cleanup (`catchUpCleanup`), which marks
+ * the note `catchup_audio_removed` and rewrites its listen line, leaving coverage untouched.
+ * Everything here is confined to the newsletter output root (the existing
  * `output-root` write class used by every digest and newsletter-note write); a containment
  * assertion runs immediately before each mutation.
  */
@@ -11,7 +13,9 @@ import { App, normalizePath, TFile } from 'obsidian';
 import * as yaml from 'js-yaml';
 import { ensureFolderExists } from '../../../utils/minutesUtils';
 import { logger } from '../../../utils/logger';
+import { getMetadataIndexState } from '../../../utils/metadataIndexState';
 import { err, ok, type Result } from '../../../core/result';
+import { assertWritable, type ProtectedSource } from '../../../core/protectedPaths';
 import {
     buildEpisodeName,
     coverageToFrontmatter,
@@ -353,14 +357,12 @@ export async function findEpisodeByOpId(app: App, outputRoot: string, opId: stri
 /**
  * Has Obsidian finished indexing links? While it has not, the link table is incomplete and a "no
  * reference" drawn from it is a guess. Readiness must be positively established: an absent flag
- * is not proof.
- *
- * `resolved` is a runtime boolean on Obsidian's MetadataCache (the property community plugins read
- * to decide whether to wait for the `resolved` event). It is not in the public typings, hence the
- * structural cast. If a future Obsidian dropped it this returns false: callers fail closed.
+ * is not proof. The decision lives in `utils/metadataIndexState`: runtime flags differ by Obsidian
+ * version (`resolved` on older builds, `initialized` on newer) and can say "not yet" but not "done";
+ * completion is proven by Obsidian's own cleanliness check or the documented `resolved` event.
  */
 export function isMetadataIndexReady(app: App): boolean {
-    return (app.metadataCache as { resolved?: boolean } | undefined)?.resolved === true;
+    return getMetadataIndexState(app) === 'ready';
 }
 
 export type AudioReference = 'yes' | 'no' | 'unknown';
@@ -375,7 +377,7 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
 
     // Anything in the vault that already LINKS to the file counts, wherever the note lives or
     // whatever it is called (a renamed or moved episode is still a reference).
-    const cache = app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>>; resolved?: boolean } | undefined;
+    const cache = app.metadataCache as { resolvedLinks?: Record<string, Record<string, number>> } | undefined;
     const resolved = cache?.resolvedLinks;
     // While the vault index is still being built the link table is incomplete: a "no" drawn from
     // it would be a guess. Readiness must be positively established: an absent flag is not proof.
@@ -401,19 +403,42 @@ export async function isAudioReferenced(app: App, outputRoot: string, audioName:
     return unknown || indexIncomplete ? 'unknown' : 'no';
 }
 
+/** The stable code for "the folder episodes are saved in is protected" (see `GUIDANCE_CODES`). */
+export const OUTPUT_PROTECTED = 'catchup-output-protected';
+
+/**
+ * May this run write into the episode folder at all? Protection is folder-based, so the folder
+ * itself (inside or equal to a protected folder) answers it for every file the run will create.
+ * Checked before any spend, and again at each write: protection can change mid-run or between a
+ * run and its resume.
+ */
+export function assertEpisodeOutputWritable(source: ProtectedSource, outputRoot: string): Result<void> {
+    return assertWritable(source, 'create', episodeFolderPath(outputRoot)).ok ? ok(undefined) : err(OUTPUT_PROTECTED);
+}
+
 /**
  * Create the episode note — THE commit point. Idempotent by operation id: a note already
- * carrying this id is success, not a collision.
+ * carrying this id is success, not a collision. A protected episode folder refuses the write
+ * (throws `catchup-output-protected`), after the idempotency check so an already-saved episode
+ * still reports as saved.
  */
-export async function writeEpisodeNote(app: App, outputRoot: string, input: EpisodeNoteInput): Promise<{ path: string; created: boolean }> {
+export async function writeEpisodeNote(
+    app: App,
+    outputRoot: string,
+    input: EpisodeNoteInput,
+    protectedSource?: ProtectedSource,
+): Promise<{ path: string; created: boolean }> {
     const existing = await findEpisodeByOpId(app, outputRoot, input.id);
     if (existing) return { path: existing.notePath, created: false };
 
     const folder = episodeFolderPath(outputRoot);
     const path = normalizePath(`${folder}/${buildEpisodeName(input.from, input.to, input.id)}`);
+    if (protectedSource !== undefined && !assertWritable(protectedSource, 'create', path).ok) throw new Error(OUTPUT_PROTECTED);
     assertInside(outputRoot, folder);
     assertInside(outputRoot, path);
     await ensureFolderExists(app.vault, folder);
+    // Protection can change while the folder is being made: ask again immediately before the write.
+    if (protectedSource !== undefined && !assertWritable(protectedSource, 'create', path).ok) throw new Error(OUTPUT_PROTECTED);
     await app.vault.create(path, buildEpisodeNote(input));
     return { path, created: true };
 }

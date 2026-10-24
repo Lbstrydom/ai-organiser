@@ -11,6 +11,7 @@
  */
 import { Notice, type App, type Editor } from 'obsidian';
 import { assertWritableActive, hasActiveProtection, isProtectedActive } from '../core/protectedPaths';
+import { getMetadataIndexState } from './metadataIndexState';
 
 let activePathProvider: (() => string | null) | null = null;
 let editorPathProvider: ((editor: Editor) => string | null) | null = null;
@@ -57,8 +58,9 @@ export function referrersProtectedActive(app: App, filePath: string): boolean {
     const resolved = (app.metadataCache as unknown as { resolvedLinks?: Record<string, Record<string, number>> }).resolvedLinks;
     // No link data means the footprint cannot be established: refuse while anything is protected.
     if (!resolved) return hasActiveProtection();
-    // A link index that is still being built is not a complete footprint either.
-    if ((app.metadataCache as unknown as { resolved?: boolean }).resolved === false) return hasActiveProtection();
+    // A link index that is still being built, or whose completeness cannot be established, is not a
+    // complete footprint either.
+    if (getMetadataIndexState(app) !== 'ready') return hasActiveProtection();
     for (const [referrer, targets] of Object.entries(resolved)) {
         if (targets && targets[filePath] && isProtectedActive(referrer)) return true;
     }

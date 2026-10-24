@@ -20,6 +20,7 @@ import { assertWritable, type ProtectedSource } from '../../../core/protectedPat
 import { loadPluginData } from '../../../core/pluginDataStore';
 import { getNewsletterOutputFullPath, type AIOrganiserSettings } from '../../../core/settings';
 import { logger } from '../../../utils/logger';
+import { waitForMetadataIndex, type WaitResult } from '../../../utils/metadataIndexState';
 import { isCatchUpEnabled } from '../newsletterAudioMode';
 import { getBucketDateStr } from '../newsletterService';
 import { newestCoveredDate, parseEpisodeName, shiftDate } from './catchUpCoverage';
@@ -35,7 +36,6 @@ import {
     childrenOf,
     episodeFolderPath,
     isInsideOutputRoot,
-    isMetadataIndexReady,
     markAudioRemovedText,
     ownNoteIsReferenceFree,
     parseEpisodeContent,
@@ -52,7 +52,10 @@ export { normaliseCleanupDays };
 export type CleanupSkipReason =
     | 'off'
     | 'busy'
+    /** The link index is still being built (or being updated by the sweep's own write): retry soon. */
     | 'index-not-ready'
+    /** Nothing establishes whether the link index is complete (neither flag nor a `resolved` event yet): fail closed, retry on the next `resolved`. */
+    | 'index-unavailable'
     | 'record-unknown'
     | 'changed-during-sweep'
     | 'cancelled';
@@ -94,7 +97,13 @@ export interface CleanupDeps {
     now?: () => Date;
     /** Polled before every destructive step: true ends the sweep as `cancelled` (the plugin was unloaded). */
     shouldStop?: () => boolean;
+    /** Test seam: wait for the link index to be ready. Defaults to the real, cancellable wait. */
+    waitForIndex?: (timeoutMs: number) => Promise<WaitResult>;
 }
+
+/** How long the sweep waits for the link index at the start, and before each destructive step. */
+const INDEX_WAIT_MS = 20_000;
+const INDEX_RECHECK_MS = 5_000;
 
 // ── Scheduling (pure) ────────────────────────────────────────────────────────
 
@@ -108,6 +117,35 @@ export interface CleanupDeps {
 export function shouldSweepOnTick(i: { days: number; today: string; lastCompletedDate: string | null; retryPending: number | 'unknown' }): boolean {
     if (!(i.days > 0)) return false;
     return i.lastCompletedDate !== i.today || i.retryPending !== 0;
+}
+
+/**
+ * One-shot "a sweep was held up by the link index" latch. A skipped sweep arms it; the first
+ * `resolved` event after that fires it exactly once (and disarms), so the cleanup recovers as soon as
+ * indexing completes instead of waiting for tomorrow. Ordinary later `resolved` events do nothing.
+ */
+export interface IndexRetryGate {
+    arm(): void;
+    /** Call on every `resolved`: true exactly when a retry should now be scheduled. */
+    onResolved(): boolean;
+    /** A sweep completed: nothing is waiting any more. */
+    disarm(): void;
+    isArmed(): boolean;
+}
+
+export function createIndexRetryGate(): IndexRetryGate {
+    let armed = false;
+    return {
+        arm: () => { armed = true; },
+        onResolved: () => { const was = armed; armed = false; return was; },
+        disarm: () => { armed = false; },
+        isArmed: () => armed,
+    };
+}
+
+/** Skips caused by the link index, which a later `resolved` can cure. */
+export function isIndexSkip(reason: CleanupSkipReason): boolean {
+    return reason === 'index-not-ready' || reason === 'index-unavailable';
 }
 
 // ── Pure decision ────────────────────────────────────────────────────────────
@@ -332,7 +370,17 @@ const TRANSIENT_FOR_MARKED = new Set(['audio-reference-unknown', 'note-unreadabl
 
 async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
     const { app } = deps;
-    if (!isMetadataIndexReady(app) || !hasLinkTable(app)) return ok({ kind: 'skipped', reason: 'index-not-ready' });
+    const awaitIndex = (timeoutMs: number): Promise<WaitResult> => (deps.waitForIndex
+        ? deps.waitForIndex(timeoutMs)
+        : waitForMetadataIndex(app, { timeoutMs, shouldStop: deps.shouldStop }));
+    // Nothing is read until the link index is complete: a "no reference" drawn from a partial one is a guess.
+    const first = await awaitIndex(INDEX_WAIT_MS);
+    if (first.outcome === 'aborted') return ok({ kind: 'skipped', reason: 'cancelled' });
+    if (first.outcome !== 'ready') {
+        if (first.state === 'unknown') logger.warn('Newsletter', 'Catch-up audio cleanup is waiting: Obsidian has not reported that its link index is complete');
+        return ok({ kind: 'skipped', reason: first.state === 'unknown' ? 'index-unavailable' : 'index-not-ready' });
+    }
+    if (!hasLinkTable(app)) return ok({ kind: 'skipped', reason: 'index-unavailable' });
 
     const data = await loadPluginData(deps.plugin);
     const recordStatus = storedRecordStatus(data[DRAFT_DATA_KEY]);
@@ -437,6 +485,15 @@ async function sweep(deps: CleanupDeps): Promise<Result<CleanupOutcome>> {
                 const reason = referenced === 'unknown' ? 'audio-reference-unknown' : 'audio-referenced-elsewhere';
                 skip(id, reason, isStage2 && TRANSIENT_FOR_MARKED.has(reason) ? 'retry' : undefined);
                 continue;
+            }
+
+            // The sweep's own marker write re-indexes the note (`changed`, then `resolved`): wait for
+            // that before the next decision, and never act on an index that has not settled.
+            const settled = await awaitIndex(INDEX_RECHECK_MS);
+            if (settled.outcome === 'aborted') return ok({ kind: 'skipped', reason: 'cancelled', report: report() });
+            if (settled.outcome !== 'ready') {
+                logger.debug('Newsletter', `Cleanup stopped: the link index did not settle (${settled.state})`);
+                return ok({ kind: 'skipped', reason: settled.state === 'unknown' ? 'index-unavailable' : 'index-not-ready', report: report() });
             }
 
             let fresh: string;

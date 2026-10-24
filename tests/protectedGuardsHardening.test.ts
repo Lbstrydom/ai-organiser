@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { rewriteOnRename, setActiveProtection } from '../src/core/protectedPaths';
 import { guardActiveNote, installActiveNoteGuard, referrersProtectedActive } from '../src/utils/protectedGuard';
+import { observeMetadataIndex } from '../src/utils/metadataIndexState';
 import { applyProtectedFolders, enforceOutputDisjointness, unregisterProtectedFolders } from '../src/commands/protectedFolderCommands';
 import { scanNotes } from '../src/services/embedScanService';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
@@ -67,9 +68,30 @@ describe('guards fail closed when the target cannot be established', () => {
 
 	it('finds a protected note that links to the file', () => {
 		setActiveProtection(() => ['P']);
-		const app = { metadataCache: { resolvedLinks: { 'P/n.md': { 'a.pdf': 1 }, 'Q/m.md': { 'a.pdf': 1 } } } } as never;
+		const metadataCache = { resolvedLinks: { 'P/n.md': { 'a.pdf': 1 }, 'Q/m.md': { 'a.pdf': 1 } } };
+		observeMetadataIndex(metadataCache).resolved(); // a completely indexed vault
+		const app = { metadataCache } as never;
 		expect(referrersProtectedActive(app, 'a.pdf')).toBe(true);
 		expect(referrersProtectedActive(app, 'other.pdf')).toBe(false);
+	});
+
+	it('an index whose completeness cannot be established is not a complete footprint (fails closed while protected)', () => {
+		setActiveProtection(() => ['P']);
+		const links = { 'Q/m.md': { 'a.pdf': 1 } };
+		// Obsidian 1.14.5 shape: `initialized` but no `resolved`; nothing observed yet => not provably complete.
+		const unobserved = { metadataCache: { initialized: true, resolvedLinks: links } } as never;
+		expect(referrersProtectedActive(unobserved, 'other.pdf')).toBe(true);
+		// Same index once a completed resolution has been observed: only real referrers count.
+		const cache = { initialized: true, resolvedLinks: links };
+		observeMetadataIndex(cache).resolved();
+		expect(referrersProtectedActive({ metadataCache: cache } as never, 'other.pdf')).toBe(false);
+		// Still being built (flag false): fail closed regardless of what was observed.
+		const building = { initialized: false, resolvedLinks: links };
+		observeMetadataIndex(building).resolved();
+		expect(referrersProtectedActive({ metadataCache: building } as never, 'other.pdf')).toBe(true);
+		// Nothing protected: nothing to refuse.
+		setActiveProtection(() => []);
+		expect(referrersProtectedActive(unobserved, 'other.pdf')).toBe(false);
 	});
 });
 

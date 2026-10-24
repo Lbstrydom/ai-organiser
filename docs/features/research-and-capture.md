@@ -497,13 +497,30 @@ paid audio every day that may never be heard.
     the marked note. Both stages require the heard ack: the marker alone is never authority to delete,
     and age never substitutes for an ack. The cap of 28 days keeps stage 2 before ack pruning
     (`to` + lookback + 30).
-  - **Fail closed.** Index not ready (`metadataCache.resolved`, plus a present link table), a stored
+  - **Fail closed.** Link index not PROVEN complete (`src/utils/metadataIndexState.ts`, plus a present link
+    table; see "Link-index readiness" below), a stored
     operation record that is unsupported or corrupt, an episode named by a valid operation record,
     an unreadable or unparsable note, a protected folder, a reference from any other note (resolved
     links, or a mention in another `Catch-up/` note; an unreadable note makes it unknown), a reference
     anywhere in the episode's own note except the validated identity line (`ownNoteIsReferenceFree`,
     re-checked from a fresh read before the trash) all skip. Only the exact generated listen shape is
     rewritten; a second reference, a code span or a transcript mention aborts without writing.
+  - **Link-index readiness is proven, never assumed** (`getMetadataIndexState`; the same check gates the
+    audio-reference test, the Drive offload eligibility gate and the protected-referrer guard, which used to
+    treat an absent flag as ready). `metadataCache.resolved` no longer exists on current Obsidian, and
+    `initialized` only means link resolution was QUEUED (read from the 1.15 app bundle), so flags can say
+    "building" but never "done". A proof is Obsidian's own `isCacheClean()` (or the fields it reads:
+    `inProgressTaskCount === 0` and an idle `linkResolverQueue`; an unreadable queue is unknown, never
+    idle), the old `resolved` flag, or an observed documented `resolved` event. A `changed` event not
+    yet followed by `resolved` is building. With no proof the state is `building`/`unknown` and the
+    sweep skips as `index-not-ready`/`index-unavailable`; `main.ts` arms a one-shot gate so the next
+    `resolved` event (or the 30-minute tick) retries instead of waiting for tomorrow. The sweep waits
+    (bounded, cancellable) before reading and re-awaits before each marker write or trash, because its own
+    write re-indexes the note. Obsidian 1.15.0 behaviour was read from its app file, not measured live.
+  - **Protected output folder.** `runCatchUp`/`resumeCatchUp` check the episode folder before any spend, the
+    audio step before ANY file operation, and `writeEpisodeNote` immediately before the create; a refusal is
+    `catchup-output-protected` ("choose a different output folder or stop protecting it"), not an AI
+    provider error. A kept script/audio record stays resumable.
   - **The snapshot must stay valid.** The sweep watches the vault from before discovery to the last
     destructive step; any markdown change it did not cause (its own note write is recognised by
     one-shot expected-event tokens, revoked if the write fails) ends the sweep as
