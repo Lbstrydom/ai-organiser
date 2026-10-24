@@ -47,8 +47,12 @@ let pending: Mirror | null = null;
 
 export function setHeldMirror(held: readonly string[]): void {
     const next: Mirror = { loaded: true, held: [...held] };
-    if (frozen) pending = next;
-    else current = next;
+    if (frozen) {
+        // A capture that becomes held during a sweep is hidden from it at once (the safe direction); only a RELEASE waits.
+        const union = new Set([...current.held, ...next.held]);
+        current = { loaded: current.loaded, held: [...union] };
+        pending = next;
+    } else current = next;
 }
 
 export function clearHeldMirror(): void {

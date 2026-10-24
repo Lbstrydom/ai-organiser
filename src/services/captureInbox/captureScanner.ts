@@ -148,7 +148,13 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             if (kind === null && !isKnownUnsupportedMedia(path)) continue;
             // Judge every attachment (no early exit), so none is left unshielded above.
             if (pathExclusion(path, policy)) excluded = true;
-            attachments.push({ path, ext: extensionOf(path), kind, size: info.get(path)?.size ?? 0 });
+            const meta = info.get(path);
+            // A file the snapshot does not list yet is still arriving: the capture waits rather than guessing a size.
+            if (!meta) {
+                refs.unresolvedMedia.push(path);
+                continue;
+            }
+            attachments.push({ path, ext: extensionOf(path), kind, size: meta.size });
         }
         if (excluded) {
             skip(id, 'excluded');
@@ -158,7 +164,14 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'too-large');
             continue;
         }
-        for (const a of attachments) if (a.kind !== null) a.digest = (await port.digestOf(a.path, a.size, info.get(a.path)?.mtime ?? 0)) ?? 'unreadable';
+        const missing = [...refs.unresolvedMedia];
+        for (const a of attachments) {
+            if (a.kind === null) continue;
+            // No digest means the file cannot be read yet: the capture waits (nothing is judged or sent on an unknown identity).
+            const digest = await port.digestOf(a.path, a.size, info.get(a.path)?.mtime ?? 0);
+            if (digest === null) missing.push(a.path);
+            else a.digest = digest;
+        }
         const entry = journal.entries[id];
         const fingerprint = await computeFingerprint(text, attachments, entry?.inserted);
         if (alreadyHandled(journal, id, fingerprint, revision)) continue;
@@ -166,7 +179,7 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'already-swept');
             continue;
         }
-        outcome.captures.push({ id, notePath: id, text, attachments, missingAttachments: refs.unresolvedMedia, fingerprint, ctime: note.ctime });
+        outcome.captures.push({ id, notePath: id, text, attachments, missingAttachments: missing, fingerprint, ctime: note.ctime });
     }
 
     for (const file of inInbox) {
@@ -195,7 +208,9 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             skip(id, 'too-large');
             continue;
         }
-        att.digest = (await port.digestOf(id, file.size, file.mtime)) ?? 'unreadable';
+        const digest = await port.digestOf(id, file.size, file.mtime);
+        if (digest === null) continue; // unreadable for now: not offered until it can be read
+        att.digest = digest;
         const fingerprint = await computeFingerprint('', [att], journal.entries[id]?.inserted);
         if (alreadyHandled(journal, id, fingerprint, revision)) continue;
         outcome.captures.push({ id, notePath: null, text: '', attachments: [att], missingAttachments: [], fingerprint, ctime: file.ctime });

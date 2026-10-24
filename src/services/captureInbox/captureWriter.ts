@@ -46,8 +46,8 @@ export interface WriterPort {
     folderExists(path: string): boolean;
     /** The size of a file now, or null when it is gone. */
     fileSize(path: string): Promise<number | null>;
-    /** sha256 of a file's bytes now, or null when it cannot be read. Optional: without it the fingerprint compares sizes only. */
-    fileDigest?(path: string): Promise<string | null>;
+    /** sha256 of a file's bytes now, or null when it cannot be read (an unreadable file never matches a recorded digest). */
+    fileDigest(path: string): Promise<string | null>;
     /** A note whose frontmatter `key` equals `value` (crash recovery), or null. */
     findNoteByFrontmatter(key: string, value: string): string | null;
 }
@@ -156,7 +156,7 @@ async function currentAttachments(deps: WriterDeps, entry: CaptureEntry): Promis
         const size = await deps.port.fileSize(a.path);
         if (size === null) return null;
         // Judged by content, not just length: a file swapped for another of the same size is a different capture.
-        const digest = a.digest !== undefined && deps.port.fileDigest ? (await deps.port.fileDigest(a.path)) ?? 'unreadable' : undefined;
+        const digest = a.digest !== undefined ? (await deps.port.fileDigest(a.path)) ?? 'unreadable' : undefined;
         out.push({ path: a.path, size, digest });
     }
     return out;

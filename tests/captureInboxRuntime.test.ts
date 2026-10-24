@@ -30,7 +30,7 @@ function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed
     readNote: async (p) => files.get(p)?.text ?? null,
     editNote: async (p, _b, recompute) => { const r = recompute(files.get(p)!.text!); if (!r.ok) return err<void>(r.error); files.get(p)!.text = r.value.content; return ok(undefined); },
     createNote: async (p, c) => { files.set(p, { size: c.length, text: c }); return ok(p); },
-    pathExists: (p) => files.has(p), folderExists: () => true, fileSize: async (p) => files.get(p)?.size ?? null,
+    pathExists: (p) => files.has(p), folderExists: () => true, fileSize: async (p) => files.get(p)?.size ?? null, fileDigest: async () => null,
     findNoteByFrontmatter: () => null,
   };
   const writer: WriterDeps = { port: writerPort, journal: access, config: () => config, policy: () => policy, isSwept: async () => false, protectedFolders: () => [], outputRoots: () => [], now: () => clock };
@@ -264,6 +264,10 @@ describe('links in code are text, not attachments', () => {
     expect(extractLinkTargets('![[a.m4a]]\n```\n![[b.m4a]]')).toEqual(['a.m4a']);
     expect(extractLinkTargets('````\n```\n![[b.m4a]]\n````\n![[c.m4a]]')).toEqual(['c.m4a']);
     expect(extractLinkTargets('```\n~~~\n![[b.m4a]]\n```\n![[c.m4a]]')).toEqual(['c.m4a']);
+  });
+
+  it('ignores multi-backtick code spans and brackets this plugin escaped itself', () => {
+    expect(extractLinkTargets('Literal ``![[voice.m4a]]`` and ```![[two.m4a]]``` and \\[[escaped.m4a]] but ![[real.m4a]]')).toEqual(['real.m4a']);
   });
 
   it('withoutCode keeps line structure', () => {

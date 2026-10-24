@@ -7,7 +7,7 @@
  * timer; a state change persists immediately.
  */
 import type { Plugin } from 'obsidian';
-import { loadPluginData, updatePluginData } from '../../core/pluginDataStore';
+import { updatePluginData } from '../../core/pluginDataStore';
 import { logger } from '../../utils/logger';
 import { decodeJournal } from './captureJournal';
 import { emptyJournal, type CaptureJournal } from './captureTypes';
@@ -46,8 +46,20 @@ export class CaptureJournalStore {
     }
 
     async load(): Promise<CaptureJournal> {
-        const data = await loadPluginData(this.plugin);
-        const decoded = decodeJournal(data[CAPTURE_JOURNAL_DATA_KEY]);
+        let stored: unknown;
+        try {
+            // Read directly: a read that FAILED must not look like an empty file, or every capture would be handled again.
+            const data = (await this.plugin.loadData()) as unknown;
+            if (data !== null && data !== undefined && (typeof data !== 'object' || Array.isArray(data))) throw new Error('plugin data is not an object');
+            stored = (data as Record<string, unknown> | null)?.[CAPTURE_JOURNAL_DATA_KEY];
+        } catch (e) {
+            this.corrupt = `plugin data could not be read (${e instanceof Error ? e.message : 'unknown error'})`;
+            this.loaded = false;
+            this.journal = emptyJournal();
+            logger.error('CaptureInbox', `The capture journal could not be read (${this.corrupt}); the capture inbox is stopped`);
+            return this.journal;
+        }
+        const decoded = decodeJournal(stored);
         if (decoded.status === 'corrupt') {
             // Fail closed: nothing is decoded, nothing is overwritten, nothing runs.
             this.corrupt = decoded.reason;
@@ -68,7 +80,9 @@ export class CaptureJournalStore {
         if (this.corrupt === null) return false;
         try {
             await updatePluginData(this.plugin, (data) => {
-                data[CAPTURE_JOURNAL_BACKUP_DATA_KEY] = data[CAPTURE_JOURNAL_DATA_KEY];
+                // Every unreadable journal is kept (the last three), never overwritten by the next reset.
+                const earlier = Array.isArray(data[CAPTURE_JOURNAL_BACKUP_DATA_KEY]) ? (data[CAPTURE_JOURNAL_BACKUP_DATA_KEY] as unknown[]) : [];
+                data[CAPTURE_JOURNAL_BACKUP_DATA_KEY] = [...earlier, { at: new Date().toISOString(), journal: data[CAPTURE_JOURNAL_DATA_KEY] ?? null }].slice(-3);
                 data[CAPTURE_JOURNAL_DATA_KEY] = emptyJournal();
                 return { changed: true };
             });
@@ -79,6 +93,7 @@ export class CaptureJournalStore {
         this.corrupt = null;
         this.journal = emptyJournal();
         this.loaded = true;
+        this.emit();
         return true;
     }
 

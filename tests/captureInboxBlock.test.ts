@@ -220,6 +220,27 @@ describe('frontmatter is judged by what the YAML means', () => {
   });
 });
 
+describe('round-two hardening', () => {
+  it('machine text cannot carry a remote image (a tracking pixel would load when the note is read)', () => {
+    const w = applyAccept('A note\n', ID, { ...content, machineText: 'look ![preview](https://attacker.example/pixel.png) done' });
+    expect(w.ok).toBe(true);
+    if (w.ok) expect(w.value.text).not.toMatch(/(^|[^\\])!\[/);
+  });
+
+  it('null-like frontmatter is refused, an empty or comment-only one is not', () => {
+    for (const fm of ['~', 'null', 'Null']) expect(setCaptureKeys(`---\n${fm}\n---\nbody\n`, { id: 'x', status: 's' }).ok, fm).toBe(false);
+    expect(setCaptureKeys('---\n# only a comment\n---\nbody\n', { id: 'x', status: 's' }).ok).toBe(true);
+  });
+
+  it('an id that YAML would type (true, null, 123, 1e3) is quoted and reads back as the same string', () => {
+    for (const id of ['true', 'null', '123', '1e3', 'No', '0x1F']) {
+      const r = setCaptureKeys('x', { id, status: 's' });
+      expect(r.ok).toBe(true);
+      if (r.ok) expect(readCaptureId(r.value.text), id).toBe(id);
+    }
+  });
+});
+
 describe('capture id in the note', () => {
   it('reads back what it wrote, including a quoted or single-quoted id', () => {
     for (const id of ['plain-uuid-1234', 'Inbox/odd: name #1.md', '- leading dash']) {

@@ -77,13 +77,15 @@ describe('sweep and capture inbox interplay', () => {
     expect(sweepRunPolicy(p as never)).toEqual(sweepPolicy(p as never));
   });
 
-  it('the held set is frozen while a sweep runs, so its policy cannot change under it', () => {
+  it('while a sweep runs a NEW hold applies at once and a RELEASE waits (the safe direction both ways)', () => {
     setHeldMirror(['Inbox/a.md']);
     freezeHeldMirror();
-    setHeldMirror(['Inbox/a.md', 'Inbox/b.md']);
-    expect(heldMirrorPaths()).toEqual(['Inbox/a.md']);
+    setHeldMirror(['Inbox/a.md', 'Inbox/b.md']); // b becomes held mid-run
+    expect(heldMirrorPaths().slice().sort()).toEqual(['Inbox/a.md', 'Inbox/b.md']);
+    setHeldMirror(['Inbox/b.md']); // a is accepted mid-run: still held until the run ends
+    expect(heldMirrorPaths().slice().sort()).toEqual(['Inbox/a.md', 'Inbox/b.md']);
     unfreezeHeldMirror();
-    expect(heldMirrorPaths()).toEqual(['Inbox/a.md', 'Inbox/b.md']);
+    expect(heldMirrorPaths()).toEqual(['Inbox/b.md']);
   });
 
   it('a frozen mirror that was never loaded stays unloaded until the first update applies', () => {

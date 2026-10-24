@@ -45,13 +45,51 @@ describe('CaptureJournalStore', () => {
     expect(f.data[CAPTURE_JOURNAL_DATA_KEY]).toEqual({ version: 1, entries: { 'a.md': null } });
   });
 
+  it('a data file that cannot be read is corrupt, never a fresh start (nothing is decoded, nothing is written)', async () => {
+    const f = fakePlugin();
+    (f.plugin as unknown as { loadData: () => Promise<unknown> }).loadData = async () => { throw new Error('EBUSY'); };
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    expect(store.corruption()).toMatch(/could not be read/);
+    expect(store.isLoaded()).toBe(false);
+    await expect(store.mutate((j) => j)).rejects.toThrow('capture-journal-not-loaded');
+    const arr = fakePlugin();
+    (arr.plugin as unknown as { loadData: () => Promise<unknown> }).loadData = async () => [];
+    const s2 = new CaptureJournalStore(arr.plugin);
+    await s2.load();
+    expect(s2.corruption()).toMatch(/not an object/);
+  });
+
+  it('a second reset does not overwrite the first copy', async () => {
+    const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: { version: 1, entries: { a: 'one' } } });
+    const s1 = new CaptureJournalStore(f.plugin);
+    await s1.load();
+    await s1.resetCorrupt();
+    (f.data as Record<string, unknown>)[CAPTURE_JOURNAL_DATA_KEY] = { version: 1, entries: { b: 'two' } };
+    const s2 = new CaptureJournalStore(f.plugin);
+    await s2.load();
+    await s2.resetCorrupt();
+    const kept = f.data[CAPTURE_JOURNAL_BACKUP_DATA_KEY] as Array<{ journal: { entries: Record<string, string> } }>;
+    expect(kept.map((k) => Object.keys(k.journal.entries)[0])).toEqual(['a', 'b']);
+  });
+
+  it('a reset tells the subscribers', async () => {
+    const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: 'garbage' });
+    const store = new CaptureJournalStore(f.plugin);
+    let calls = 0;
+    store.subscribe(() => { calls++; });
+    await store.load();
+    await store.resetCorrupt();
+    expect(calls).toBeGreaterThan(0);
+  });
+
   it('an explicit reset keeps a copy of the unreadable data, then starts empty', async () => {
     const stored = { version: 1, entries: { 'a.md': 'broken' } };
     const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: stored });
     const store = new CaptureJournalStore(f.plugin);
     await store.load();
     expect(await store.resetCorrupt()).toBe(true);
-    expect(f.data[CAPTURE_JOURNAL_BACKUP_DATA_KEY]).toEqual(stored);
+    expect(f.data[CAPTURE_JOURNAL_BACKUP_DATA_KEY]).toEqual([expect.objectContaining({ journal: stored })]);
     expect(store.corruption()).toBeNull();
     expect(store.isLoaded()).toBe(true);
     expect(Object.keys(store.get().entries)).toEqual([]);

@@ -222,7 +222,13 @@ export function decodeJournal(raw: unknown): JournalDecode {
     if (!isRecord(raw.entries)) return { status: 'corrupt', reason: 'entries missing' };
     const entries: Record<string, CaptureEntry> = {};
     for (const [key, value] of Object.entries(raw.entries)) {
-        if (!isRecord(value) || typeof value.id !== 'string' || typeof value.state !== 'string' || !ENTRY_STATES.has(value.state)) {
+        const finite = (n: unknown): boolean => typeof n === 'number' && Number.isFinite(n);
+        if (
+            !isRecord(value) || typeof value.id !== 'string' || typeof value.state !== 'string' || !ENTRY_STATES.has(value.state) ||
+            typeof value.fingerprint !== 'string' || !finite(value.processingVersion) || !finite(value.attempts) || !finite(value.createdAt) || !finite(value.updatedAt) ||
+            (value.attachments !== undefined && (!Array.isArray(value.attachments) || value.attachments.some((a) => !isRecord(a) || typeof a.path !== 'string' || !finite(a.size)))) ||
+            (value.text !== undefined && typeof value.text !== 'string') || (value.noteText !== undefined && typeof value.noteText !== 'string')
+        ) {
             return { status: 'corrupt', reason: `entry ${key} is malformed` };
         }
         entries[key] = value as unknown as CaptureEntry;
@@ -231,7 +237,7 @@ export function decodeJournal(raw: unknown): JournalDecode {
     if (raw.tombstones !== undefined) {
         if (!isRecord(raw.tombstones)) return { status: 'corrupt', reason: 'tombstones malformed' };
         for (const [key, value] of Object.entries(raw.tombstones)) {
-            if (!isRecord(value) || typeof value.id !== 'string' || typeof value.fingerprintHash !== 'string') return { status: 'corrupt', reason: `tombstone ${key} is malformed` };
+            if (!isRecord(value) || typeof value.id !== 'string' || typeof value.fingerprintHash !== 'string' || typeof value.state !== 'string' || typeof value.at !== 'number') return { status: 'corrupt', reason: `tombstone ${key} is malformed` };
             tombstones[key] = value as unknown as CaptureTombstone;
         }
     }

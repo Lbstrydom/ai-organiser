@@ -43,7 +43,8 @@ function defuseMachineText(text: string): string {
                 .replace(/^(\s*)(`{3,}|~{3,})/, '$1\\$2')
                 .replace(/^(\s*(?:[-*+]|\d+[.)])\s+)\[([^\]]?)\]/, '$1\\[$2\\]')
                 .replace(/(^|\s)#(?=[\p{L}\p{N}_])/gu, '$1\\#')
-                .replaceAll('[[', '\\[['),
+                .replaceAll('[[', '\\[[')
+                .replaceAll('![', '!\\['),
         )
         .join('\n');
 }

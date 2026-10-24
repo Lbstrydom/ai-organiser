@@ -42,7 +42,9 @@ function eolOf(text: string): string {
 
 /** A YAML-safe scalar for the id (a vault path may contain `:` or `#`). */
 function scalar(value: string): string {
-    return /^[A-Za-z0-9_][A-Za-z0-9_./ -]*$/.test(value) && !/\s$/.test(value) ? value : JSON.stringify(value);
+    // YAML types plain scalars: `true`, `null`, `1e3` would stop being strings, so those are quoted too.
+    const plain = /^[A-Za-z0-9_][A-Za-z0-9_./ -]*$/.test(value) && !/\s$/.test(value) && !/^(?:true|false|null|yes|no|on|off|y|n|~)$/i.test(value) && !/^[+-]?(?:\d[\d_]*)(?:\.[\d_]*)?(?:e[+-]?\d+)?$/i.test(value) && !/^0[xob]/i.test(value);
+    return plain ? value : JSON.stringify(value);
 }
 
 const keyLine = (key: string) => new RegExp(`^${key}:.*\\r?$`);
@@ -71,7 +73,11 @@ export function setCaptureKeys(text: string, keys: { id: string; status: string 
     } catch {
         return err('frontmatter-unclosed');
     }
-    if (parsed !== null && parsed !== undefined) {
+    if (parsed === null || parsed === undefined) {
+        // `~`, `null` or only comments: an empty body can take keys, a body that says null cannot.
+        const meaningful = body.split('\n').map((l) => l.trim()).some((l) => l !== '' && !l.startsWith('#'));
+        if (meaningful) return err('frontmatter-unclosed');
+    } else {
         if (typeof parsed !== 'object' || Array.isArray(parsed)) return err('frontmatter-unclosed');
         const first = body.split('\n').map((l) => l.trim()).find((l) => l !== '' && !l.startsWith('#'));
         if (first !== undefined && first.startsWith('{')) return err('frontmatter-unclosed');

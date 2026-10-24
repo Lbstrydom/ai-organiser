@@ -33,7 +33,8 @@ export function withoutCode(text: string): string {
                 out.push('');
                 continue;
             }
-            out.push(line.replace(/`[^`\n]{0,300}`/g, ' '));
+            // Code spans of any backtick length, and brackets this plugin itself escaped when it wrote machine text.
+            out.push(line.replace(/(`{1,6})[^\n]{0,300}?\1(?!`)/g, ' ').replace(/\\\[\[/g, ' '));
         } else {
             if (m && m[1][0] === fence.char && m[1].length >= fence.len && /^\s{0,3}[`~]+\s*$/.test(line)) fence = null;
             out.push('');

@@ -160,6 +160,10 @@ describe('capture journal', () => {
       ['bad tombstone', { ...good, tombstones: { t: { id: 't' } } }],
       ['bad alias', { ...good, aliases: { m: 7 } }],
       ['bad counter', { ...good, counters: { processed: 'x' } }],
+      ['truncated entry (no fingerprint or times)', { ...good, entries: { 'a.md': { id: 'a.md', state: 'accept_pending_write' } } }],
+      ['entry with a malformed attachment', { ...good, entries: { 'a.md': { ...mk('a.md', 'ready'), attachments: [{ path: 5 }] } } }],
+      ['entry with non-text held text', { ...good, entries: { 'a.md': { ...mk('a.md', 'ready'), text: 42 } } }],
+      ['tombstone without state', { ...good, tombstones: { t: { id: 't', fingerprintHash: 'h' } } }],
       ['bad counter bucket', { ...good, counters: { failed: { a: 'no' } } }],
     ];
     for (const [name, raw] of bad) expect(decodeJournal(raw).status, name).toBe('corrupt');

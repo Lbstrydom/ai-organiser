@@ -43,6 +43,7 @@ class FakePort implements WriterPort {
   pathExists(p: string) { return this.files.has(p); }
   folderExists(p: string) { return this.folders.has(p); }
   async fileSize(p: string) { return this.sizes.get(p) ?? null; }
+  async fileDigest(p: string) { return this.sizes.has(p) ? `d:${this.sizes.get(p)}` : null; }
   findNoteByFrontmatter(key: string, value: string) {
     for (const [path, text] of this.files) if (new RegExp(`^${key}: ${JSON.stringify(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|^${key}: ${value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm').test(text)) return path;
     return null;

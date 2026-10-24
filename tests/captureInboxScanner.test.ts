@@ -184,6 +184,25 @@ describe('scanInbox', () => {
     expect(read).toEqual(['Inbox/ok.m4a']);
   });
 
+  it('a capture whose attachment cannot be read yet waits instead of being judged on an unknown identity', async () => {
+    const files = [f('Inbox/n.md'), f('Inbox/a.m4a', { size: 500 })];
+    const { p } = port(files, { 'Inbox/n.md': 'typed words here now' }, { 'Inbox/n.md': { resolved: ['Inbox/a.m4a'] } });
+    p.digestOf = async () => null;
+    const r = await scanInbox(p, deps());
+    expect(r.captures[0].missingAttachments).toEqual(['Inbox/a.m4a']);
+    const bare = port([f('Inbox/m.m4a')], {});
+    bare.p.digestOf = async () => null;
+    expect((await scanInbox(bare.p, deps())).captures).toEqual([]);
+  });
+
+  it('an attachment the snapshot does not list yet is still arriving: the capture waits, with no guessed size', async () => {
+    const files = [f('Inbox/n.md')];
+    const { p } = port(files, { 'Inbox/n.md': 'typed words here now' }, { 'Inbox/n.md': { resolved: ['Inbox/arriving.m4a'] } });
+    const r = await scanInbox(p, deps());
+    expect(r.captures[0].attachments).toEqual([]);
+    expect(r.captures[0].missingAttachments).toEqual(['Inbox/arriving.m4a']);
+  });
+
   it('does nothing without an inbox folder', async () => {
     const { p, reads } = port([f('Inbox/a.md')], {});
     const r = await scanInbox(p, deps({ config: { ...config, inboxFolders: [] } }));

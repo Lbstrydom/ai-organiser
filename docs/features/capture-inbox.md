@@ -62,6 +62,12 @@ Audio goes to the transcription provider and images to the multimodal provider *
 
 Shared (the sweep's): `sweepInboxFolders`, `sweepExcludedFolders`, `sweepExcludedTags`, `sweepExcludedProperties`, `sweepExcludedTerms`, `sweepNothingToExclude`. Capture's own: `captureOnOpen` (false), `captureOnOpenMaxPerRun` (3), `captureMaxPerRun` (10), `captureMaxAttachmentMB` (10), `captureMinWords` (3), `captureDigitiseImages` (false), `captureMaxImagesPerCapture` (3), `captureMaxTextChars` (12 000), `captureStabilitySeconds` (8), `captureRequireMarker` (false), `captureDestinationRoot` (empty: no folder is proposed), `captureConfirmedAt`, `captureSince`. Process-when-opened runs only after one confirmed manual run, at most `captureOnOpenMaxPerRun` captures, at least 15 minutes apart, and never widens its scope to old notes.
 
+## Fail closed, and what identifies a capture
+
+- **A saved journal that cannot be fully read stops the capture inbox.** An empty fallback would forget which captures were handled, so each would be processed and charged again, and held captures and pending writes would be lost. Nothing is decoded or overwritten; the sweep refuses with `capture-journal-corrupt`; the settings offer **Reset capture journal**, which keeps a copy of the unreadable data (the last three) and then starts empty. A `data.json` that cannot be read at all is treated the same way, not as a first run.
+- **A capture is identified by its note text and by a sha256 digest of each attachment's bytes** (plus path and size), so swapping a file for another of the same length is a different capture. Digests are read only for attachments that already passed the exclusion guard and the size cap, and are cached by path, size and modification time, so an unchanged file is read once. The bytes sent for transcription must match the digest, and Accept re-checks it. An attachment that cannot be read yet makes its capture wait.
+- **Frontmatter is judged by parsing the YAML**, not by how its lines look: scalar, list, flow-style, null-like and unparseable frontmatter is refused, and `capture-id` / `capture-status` in any spelling (quoted, flow) blocks the insertion. A link inside a code fence or code span is text, not an attachment.
+
 ## Known limits (deliberate)
 
 - **An image is read by the existing digitisation call from its path.** The bytes are validated first, but the pipeline re-reads the file, so a file swapped in that instant is not covered (the size is re-checked immediately before).
