@@ -287,11 +287,11 @@ export class NewsletterSettingsSection extends BaseSettingSection {
                 new Setting(this.containerEl).setName(cu?.heading || 'Catch-up audio').setHeading();
                 new Setting(this.containerEl)
                     .setName(cu?.modeLabel || 'Audio delivery')
-                    .setDesc(audioMode === 'daily' ? (cu?.modeDailyHint || '') : (cu?.modeDesc || ''))
+                    .setDesc((audioMode === 'daily' ? cu?.modeDescDaily : audioMode === 'smart-daily' ? cu?.modeDescSmartDaily : cu?.modeDescOnDemand) || '')
                     .addDropdown(drop => drop
-                        .addOption('on-demand', cu?.modeOnDemand || 'On demand — one catch-up episode when you ask')
-                        .addOption('smart-daily', cu?.modeSmartDaily || 'Smart daily — automatic, but waits until your last episode is heard')
-                        .addOption('daily', cu?.modeDaily || 'Daily — a new audio every day (previous behaviour)')
+                        .addOption('on-demand', cu?.modeOnDemand || 'On demand')
+                        .addOption('smart-daily', cu?.modeSmartDaily || 'Smart daily')
+                        .addOption('daily', cu?.modeDaily || 'Daily')
                         .setValue(audioMode)
                         .onChange(value => {
                             if (!isAudioMode(value)) return;

@@ -26,7 +26,7 @@ function snapshot(over: Partial<CatchUpSnapshot> = {}): CatchUpSnapshot {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
         state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null,
-        oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, ...over,
+        oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, ...over,
     };
 }
 
@@ -62,6 +62,15 @@ describe('deriveModalView', () => {
     it('four or more pending days are "big" (the 20 minute tier)', () => {
         const v = deriveModalView(input({ snapshot: snapshot({ plan: plan(['2026-10-20', '2026-10-21', '2026-10-22', '2026-10-23']) }) }));
         expect(v).toMatchObject({ kind: 'pending', days: 4, capMinutes: 20, big: true });
+    });
+
+    it('waiting is derived from the settings and carries every blocking episode, newest first', () => {
+        const s = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [ep('20261020-100000-aaaa', '2026-10-19'), ep('20261021-100000-bbbb', '2026-10-20')], autoPendingDays: 2 });
+        const smart = { newsletterAudioPodcast: true, newsletterAudioMode: 'smart-daily' };
+        const v = deriveModalView(input({ snapshot: s, settings: smart }));
+        expect(v).toMatchObject({ kind: 'pending', waiting: { days: 2 } });
+        expect((v as { waiting: { episodes: Array<{ id: string }> } }).waiting.episodes.map((e) => e.id)).toEqual(['20261021-100000-bbbb', '20261020-100000-aaaa']);
+        expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ waiting: null });
     });
 
     it('include-all never offers a still-open day (it would stay left out)', () => {

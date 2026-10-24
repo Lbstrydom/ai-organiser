@@ -19,6 +19,34 @@ export function availabilityOf(settings: AudioModeSettings): Availability {
     return getAudioMode(settings) === 'daily' ? 'wrong-mode' : 'ok';
 }
 
+/**
+ * Smart daily is silently waiting: an earlier episode is unheard, so the automatic run makes nothing
+ * even though days are pending. Said plainly in the window and the status bar. Null in every other situation,
+ * including when nothing would run anyway (no day an automatic run would cover), so the message is always true.
+ */
+export interface Waiting {
+    /** Days an automatic run would cover once the wait ends. */
+    days: number;
+    /** Every episode holding the run back, newest first. */
+    episodes: EpisodeMeta[];
+}
+
+export type StateSettings = AudioModeSettings & { newsletterCatchUpWhenBehind?: unknown };
+
+export function deriveWaiting(
+    snapshot: Pick<CatchUpSnapshot, 'unheard' | 'autoPendingDays'>,
+    settings: StateSettings,
+): Waiting | null {
+    if (settings.newsletterAudioPodcast !== true || getAudioMode(settings) !== 'smart-daily') return null;
+    // Automatic replacement does not wait (its own wording covers it).
+    if (settings.newsletterCatchUpWhenBehind === 'replace') return null;
+    if (snapshot.unheard.length === 0 || snapshot.autoPendingDays < 1) return null;
+    return {
+        days: snapshot.autoPendingDays,
+        episodes: [...snapshot.unheard].sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0)),
+    };
+}
+
 export interface UnheardInfo {
     episode: EpisodeMeta;
     /** Every in-window unheard episode, newest first. */
@@ -27,6 +55,8 @@ export interface UnheardInfo {
 
 interface Common {
     unheard: UnheardInfo | null;
+    /** Smart daily is waiting for the unheard episode(s); see `deriveWaiting`. */
+    waiting: Waiting | null;
     latestEpisode: EpisodeMeta | null;
     noStoredDates: string[];
     expiringDates: string[];
@@ -70,6 +100,8 @@ export interface ModalInput {
     availability: Availability;
     snapshot: CatchUpSnapshot;
     operation: OperationState;
+    /** The mode settings, for the waiting state. Absent means "never waiting". */
+    settings?: StateSettings;
 }
 
 export function deriveModalView(input: ModalInput): ModalView {
@@ -80,6 +112,7 @@ export function deriveModalView(input: ModalInput): ModalView {
         unheard: snapshot.unheard.length > 0
             ? { episode: [...snapshot.unheard].sort((a, b) => (a.id < b.id ? 1 : -1))[0], count: snapshot.unheard.length }
             : null,
+        waiting: input.settings ? deriveWaiting(snapshot, input.settings) : null,
         latestEpisode: snapshot.latestEpisode,
         noStoredDates: snapshot.pending.noStoredDates,
         expiringDates: snapshot.expiringDates,

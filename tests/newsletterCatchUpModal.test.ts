@@ -119,7 +119,7 @@ function snapshot(over: Record<string, unknown> = {}) {
     return {
         today: '2026-10-23', window: [], memoryOn: true, outputRoot: 'R',
         pending: { entries: [], unresolved: [], noStoredDates: [], coveredDates: [], openDates: [] },
-        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, ...over,
+        state: 'caught-up', plan: null, episodes: [], missingAudio: [], unheard: [], latestEpisode: null, oldestStoredDate: null, expiringDates: [], skipped: [], evidenceDegraded: false, autoPendingDays: 0, ...over,
     };
 }
 
@@ -253,6 +253,36 @@ describe('the window', () => {
         const { buildCatchUpSnapshot } = await import('../src/services/newsletter/catchUp/catchUpSelection');
         const last = (buildCatchUpSnapshot as unknown as { mock: { calls: Array<[{ forceDates?: string[] }]> } }).mock.calls.at(-1)![0];
         expect(last.forceDates).toEqual(['2026-10-21', '2026-10-22', '2026-10-23']);
+    });
+
+    it('smart daily: says it is waiting, how many days are pending and what ends the wait', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22', '2026-10-23']), state: 'pending', unheard: [episode('20261021-100000-aaaa', '2026-10-19', '2026-10-21')], autoPendingDays: 2 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily' }));
+        expect(root.textContent).toContain('Waiting: your last episode is unheard, 2 days pending.');
+        expect(root.textContent).toContain('This ends when you listen to it, mark it listened, or replace it.');
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Open episode', 'Mark listened']));
+        expect(root.textContent).not.toContain('Your last episode is not marked as listened');
+        expect(root.querySelector('[role="status"].ai-organiser-catchup-waiting')).toBeTruthy();
+    });
+
+    it('smart daily with several unheard episodes names them all', async () => {
+        snapshotRef.value = snapshot({
+            plan: plan(['2026-10-23']), state: 'pending', autoPendingDays: 1,
+            unheard: [episode('20261020-100000-aaaa', '2026-10-17', '2026-10-18'), episode('20261021-100000-bbbb', '2026-10-19', '2026-10-21')],
+        });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily' }));
+        expect(root.textContent).toContain('Waiting: 2 episodes are unheard, 1 day pending.');
+        expect(root.textContent).toContain('This ends when you listen to each one, mark them listened, or replace them.');
+        expect(root.textContent).toContain('2026-10-19 → 2026-10-21');
+        expect(root.textContent).toContain('2026-10-17 → 2026-10-18');
+        expect(root.querySelectorAll('.ai-organiser-catchup-waiting-episode')).toHaveLength(2);
+    });
+
+    it('on demand never claims to be waiting', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-20', '2026-10-22')], autoPendingDays: 1 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'on-demand' }));
+        expect(root.textContent).not.toContain('Waiting:');
+        expect(root.textContent).toContain('Your last episode is not marked as listened');
     });
 
     it('an unheard episode shows a warning ABOVE Generate, with Mark listened', async () => {

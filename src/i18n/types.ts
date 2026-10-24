@@ -910,11 +910,12 @@ export interface Translations {
             catchUp: {
                 heading: string;
                 modeLabel: string;
-                modeDesc: string;
+                modeDescOnDemand: string;
+                modeDescSmartDaily: string;
+                modeDescDaily: string;
                 modeOnDemand: string;
                 modeSmartDaily: string;
                 modeDaily: string;
-                modeDailyHint: string;
                 modeNotice: string;
                 lookbackDays: string;
                 lookbackDaysDesc: string;
@@ -1806,6 +1807,13 @@ export interface Translations {
             includeAll: string;           // "Include all {n} days again"
             statusBarSkipped: string;     // "{n} days left out (already listened to)"
             evidenceDegraded: string;     // the listening history could not be read
+            waitingTitleOne: string;      // "Waiting: your last episode is unheard, {pending}."
+            waitingTitleMany: string;     // "Waiting: {count} episodes are unheard, {pending}."
+            waitingPending: string;       // "{days} pending"
+            waitingEndsOne: string;
+            waitingEndsMany: string;
+            statusBarWaiting: string;     // "Waiting: last episode unheard · {pending}"
+            statusBarWaitingMany: string; // "Waiting: {count} episodes unheard · {pending}"
             noStored: string;             // "No newsletters stored for {dates}."
             unresolved: string;           // "Updates on {dates} could not be checked. Open the digest or fetch again."
             unresolvedOnly: string;

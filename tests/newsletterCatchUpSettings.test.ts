@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-const recorded = vi.hoisted(() => ({ items: [] as Array<{ name: string; heading: boolean; dropdown?: { options: Array<[string, string]>; value: string; change: (v: string) => void }; slider?: { min: number; max: number; value: number; change: (v: number) => void }; toggle?: { value: boolean; change: (v: boolean) => void } }> }));
+const recorded = vi.hoisted(() => ({ items: [] as Array<{ name: string; desc?: string; heading: boolean; dropdown?: { options: Array<[string, string]>; value: string; change: (v: string) => void }; slider?: { min: number; max: number; value: number; change: (v: number) => void }; toggle?: { value: boolean; change: (v: boolean) => void } }> }));
 
 vi.mock('obsidian', async () => {
     const base = await import('./mocks/obsidian');
@@ -16,7 +16,7 @@ vi.mock('obsidian', async () => {
         private item: (typeof recorded.items)[number];
         constructor(_el: unknown) { this.item = { name: '', heading: false }; recorded.items.push(this.item); }
         setName(n: string) { this.item.name = n; return this; }
-        setDesc(_d: string) { return this; }
+        setDesc(d: string) { this.item.desc = d; return this; }
         setHeading() { this.item.heading = true; return this; }
         setClass() { return this; }
         addDropdown(cb: (d: unknown) => void) {
@@ -142,6 +142,25 @@ describe('audio delivery in the Newsletter section', () => {
         const dd = find('Audio delivery')!.dropdown!;
         expect(dd.options.map(([v]) => v)).toEqual(['on-demand', 'smart-daily', 'daily']);
         expect(dd.value).toBe('smart-daily');
+    });
+
+    it('the three modes are named plainly, and the description under the dropdown says what the SELECTED mode does', () => {
+        const expected: Record<string, [string, RegExp]> = {
+            'on-demand': ['On demand', /Nothing is made automatically\. You ask for a catch-up when you want one/],
+            'smart-daily': ['Smart daily', /One audio covers every day since your last one.*waits until you have heard the last episode/],
+            daily: ['Daily', /A short audio every day, whether or not you heard yesterday's/],
+        };
+        for (const [mode, [label, desc]] of Object.entries(expected)) {
+            recorded.items.length = 0;
+            render({ newsletterAudioMode: mode });
+            const item = find('Audio delivery')!;
+            expect(item.dropdown!.options.find(([v]) => v === mode)![1]).toBe(label);
+            expect(item.desc).toMatch(desc);
+        }
+        recorded.items.length = 0;
+        render({ newsletterAudioMode: 'on-demand' });
+        expect(find('Audio delivery')!.dropdown!.options.map(([, l]) => l)).toEqual(['On demand', 'Smart daily', 'Daily']);
+        expect(JSON.stringify(find('Audio delivery'))).not.toContain('previous behaviour');
     });
 
     it('a garbage stored mode shows the default, never daily', () => {

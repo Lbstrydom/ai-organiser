@@ -87,6 +87,11 @@ export interface CatchUpSnapshot {
      * and the automatic run holds back: a person may choose to generate anyway, an unattended run may not.
      */
     evidenceDegraded: boolean;
+    /**
+     * How many days an AUTOMATIC run would cover right now (closed days only). The waiting message
+     * quotes this, not the window headline, because an open day is not something Smart daily is waiting to make.
+     */
+    autoPendingDays: number;
 }
 
 /** Story titles from a brief's bullet lines: `- **Title**: text`. */
@@ -250,17 +255,26 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
     const oldestStoredDate = window.find((d) => days.get(d)?.info.hasBrief) ?? null;
 
     // A delta whose late additions cannot be itemised into text is unresolved, never silently dropped.
-    const entries: CatchUpPlanEntry[] = [];
-    const unresolved = [...pending.unresolved];
-    for (const e of pending.entries) {
-        const facts = days.get(e.date) as DayFacts;
-        const body = e.kind === 'delta'
-            ? deltaText(ledger, e.date, e.sinceRevision ?? 0)
-            : { text: facts.brief, titles: titlesFromBrief(facts.brief) };
-        if (body.text.trim() === '') { unresolved.push({ date: e.date, reason: 'unitemisable' }); continue; }
-        entries.push({ ...e, text: body.text, newsletters: facts.newsletters, titles: body.titles });
-    }
+    const itemise = (result: PendingResult): { entries: CatchUpPlanEntry[]; unresolved: PendingResult['unresolved'] } => {
+        const out: CatchUpPlanEntry[] = [];
+        const unresolvedOut = [...result.unresolved];
+        for (const e of result.entries) {
+            const facts = days.get(e.date) as DayFacts;
+            const body = e.kind === 'delta'
+                ? deltaText(ledger, e.date, e.sinceRevision ?? 0)
+                : { text: facts.brief, titles: titlesFromBrief(facts.brief) };
+            if (body.text.trim() === '') { unresolvedOut.push({ date: e.date, reason: 'unitemisable' }); continue; }
+            out.push({ ...e, text: body.text, newsletters: facts.newsletters, titles: body.titles });
+        }
+        return { entries: out, unresolved: unresolvedOut };
+    };
+    const { entries, unresolved } = itemise(pending);
     const resolved: PendingResult = { ...pending, entries, unresolved };
+
+    // What an unattended run would cover: the same pure rule, closed days only.
+    const autoPendingDays = kind === 'auto'
+        ? entries.length
+        : itemise(computePending({ window, buckets, coverage, memoryOn: memoryOn && ledger !== null, kind: 'auto' })).entries.length;
 
     // "Since the last audio" is where the last NARRATED range ended, not which file was made last.
     const state = deriveCaughtUpState({ pending: resolved, latestEpisodeTo: latestNarrated?.to ?? null, oldestStoredDate });
@@ -294,5 +308,6 @@ export async function buildCatchUpSnapshot(deps: SelectionDeps, kind: PendingRun
         expiringDates: expiringPending(entries.map((e) => e.date), today, settings.newsletterRetentionDays ?? 30),
         skipped,
         evidenceDegraded,
+        autoPendingDays,
     };
 }

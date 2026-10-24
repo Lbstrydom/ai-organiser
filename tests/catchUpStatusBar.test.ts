@@ -144,6 +144,30 @@ describe('CatchUpStatusBar', () => {
         bar.dispose();
     });
 
+    it('smart daily waiting: says so plainly in the label and the accessible name', async () => {
+        snap.value = { ...snapshot(2, 1), autoPendingDays: 2 } as never;
+        const { p, item } = plugin({ newsletterAudioMode: 'smart-daily' });
+        const bar = new CatchUpStatusBar(p);
+        bar.mount();
+        bar.refresh();
+        await settle();
+        expect(item.attrs['aria-label']).toBe('Waiting: last episode unheard · 2 days pending');
+        expect(item.attrs.title).toContain('This ends when you listen to it, mark it listened, or replace it.');
+        bar.dispose();
+    });
+
+    it('other modes keep the unchanged label even with an unheard episode', async () => {
+        snap.value = { ...snapshot(2, 1), autoPendingDays: 2 } as never;
+        const { p, item } = plugin({ newsletterAudioMode: 'on-demand' });
+        const bar = new CatchUpStatusBar(p);
+        bar.mount();
+        bar.refresh();
+        await settle();
+        expect(item.attrs['aria-label']).toContain('1 not listened');
+        expect(item.attrs['aria-label']).not.toContain('Waiting');
+        bar.dispose();
+    });
+
     it('adds the unheard count beside the pending summary', async () => {
         snap.value = snapshot(2, 1);
         const { p, item } = plugin();

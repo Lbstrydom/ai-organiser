@@ -29,7 +29,7 @@ import {
 } from '../../services/newsletter/catchUp/catchUpService';
 import { createCatchUpPorts, previewCost } from '../../services/newsletter/catchUp/catchUpRuntime';
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
-import { availabilityOf, deriveModalView, type ModalView } from '../../services/newsletter/catchUp/catchUpModalState';
+import { availabilityOf, deriveModalView, type ModalView, type Waiting } from '../../services/newsletter/catchUp/catchUpModalState';
 import { datesBetween, formatDateList, formatDates, formatEpisodeDone, formatPendingSummary, isContiguous } from '../../services/newsletter/catchUp/catchUpFormat';
 import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
@@ -120,7 +120,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             // A slower, older read must never replace a newer one, or an operation in flight.
             if (!this.isCurrentRefresh(request)) return;
             this.snapshot = snapshot;
-            this.view = deriveModalView({ availability: availabilityOf(this.plugin.settings), snapshot, operation });
+            this.view = deriveModalView({ availability: availabilityOf(this.plugin.settings), snapshot, operation, settings: this.plugin.settings });
             this.render();
         } catch (e) {
             logger.error('Newsletter', 'Catch-up window failed to load', e);
@@ -201,7 +201,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         if (view.expiringDates.length > 0) this.note(m.expiring.replace('{dates}', formatDates(view.expiringDates)), 'is-warn');
         if (view.evidenceDegraded) this.note(this.plugin.t.modals.newsletterCatchUp.evidenceDegraded, 'is-warn');
         this.renderSkipped(view);
-        if (opts.unheardWarning && view.unheard) this.renderUnheard(view.unheard.episode);
+        if (opts.unheardWarning && view.waiting) this.renderWaiting(view.waiting);
+        else if (opts.unheardWarning && view.unheard) this.renderUnheard(view.unheard.episode);
     }
 
     /** Days the plan leaves out on purpose, said plainly, with a way to bring the heard ones back. */
@@ -219,6 +220,29 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             this.banner = null;
             void this.refresh();
         });
+    }
+
+    /**
+     * Smart daily is holding back: say so, name each episode that holds it, and what ends the wait.
+     * The same two ways out as the plain unheard warning (open it, mark it listened), plus replace.
+     */
+    private renderWaiting(waiting: Waiting): void {
+        const m = this.plugin.t.modals.newsletterCatchUp;
+        const box = this.contentEl.createDiv({ cls: 'ai-organiser-catchup-unheard ai-organiser-catchup-waiting' });
+        box.setAttribute('role', 'status');
+        const pending = (waiting.days === 1 ? m.daysOne : m.daysMany).replace('{n}', String(waiting.days));
+        const many = waiting.episodes.length > 1;
+        box.createEl('strong', {
+            text: (many ? m.waitingTitleMany : m.waitingTitleOne).replace('{count}', String(waiting.episodes.length)).replace('{pending}', m.waitingPending.replace('{days}', pending)),
+        });
+        box.createEl('p', { text: many ? m.waitingEndsMany : m.waitingEndsOne });
+        for (const episode of waiting.episodes) {
+            const range = episode.from === episode.to ? episode.to : `${episode.from} → ${episode.to}`;
+            box.createEl('p', { text: range, cls: 'ai-organiser-catchup-waiting-episode' });
+            const row = box.createDiv({ cls: 'ai-organiser-catchup-actions' });
+            this.button(row, m.openEpisode, () => { void this.app.workspace.openLinkText(episode.notePath, '', false); });
+            this.button(row, m.markListened, () => { void this.markListened(episode); });
+        }
     }
 
     private renderUnheard(episode: EpisodeMeta): void {

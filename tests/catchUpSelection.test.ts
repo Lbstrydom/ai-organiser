@@ -371,6 +371,25 @@ describe('days the plan leaves out are never silent (pinned causes of "only toda
     });
 });
 
+describe('autoPendingDays: what an unattended run would cover', () => {
+    it('counts closed days only, while the manual plan also offers the open day', async () => {
+        const s = await snap();
+        expect(s.plan!.entries.map((e) => e.date)).toContain('2026-10-23');
+        expect(s.autoPendingDays).toBe(s.plan!.entries.length - 1);
+    });
+
+    it('equals the plan size for an automatic snapshot', async () => {
+        const s = await snap({ kind: 'auto' });
+        expect(s.autoPendingDays).toBe(s.plan!.entries.length);
+    });
+
+    it('is zero when only the open day is pending', async () => {
+        const s = await snap({ data: baseLedger(), s: { newsletterCatchUpLookbackDays: 1 } });
+        expect(s.plan!.entries.map((e) => e.date)).toEqual(['2026-10-23']);
+        expect(s.autoPendingDays).toBe(0);
+    });
+});
+
 describe('story memory off', () => {
     it('only CLOSED days are eligible and coverage is written as whole', async () => {
         const s = await snap({ s: { newsletterStoryMemory: false } });
