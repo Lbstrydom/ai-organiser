@@ -260,6 +260,16 @@ describe('waitForMetadataIndex', () => {
         await expect(p).resolves.toMatchObject({ outcome: 'aborted' });
     });
 
+    it('a resolved callback that fires during registration still releases its listener', async () => {
+        const { app, cache, observer } = fresh({ initialized: true });
+        observer.resolved();
+        const offref = vi.fn();
+        (cache as unknown as { on: unknown }).on = vi.fn((_name: string, cb: Handler) => { cb(); return {}; });
+        (cache as unknown as { offref: unknown }).offref = offref;
+        await expect(waitForMetadataIndex(app, { timeoutMs: 1_000 })).resolves.toMatchObject({ outcome: 'ready' });
+        expect(offref).toHaveBeenCalledTimes(1);
+    });
+
     it('settles exactly once: a late event after the timeout changes nothing', async () => {
         const { app, emit } = fresh({ initialized: false });
         const p = waitForMetadataIndex(app, { timeoutMs: 100 });

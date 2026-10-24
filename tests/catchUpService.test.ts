@@ -825,6 +825,9 @@ describe('a protected output folder (persona test N2)', () => {
         const rec = await loadOperation(plugin as never);
         expect(rec?.phase).toBe('audio-ready');
         expect(rec?.script).toBe(SHORT_SCRIPT); // the paid-for script is kept
+        expect(vault.exists(rec!.audio!.path)).toBe(true); // the staged audio is still owned by the record, not trashed
+        expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
+        expect([...vault.files.keys()].filter((k) => k.endsWith('.md') && k.includes('Catch-up/'))).toEqual([]); // no episode note exists
 
         // Still protected: resume is refused up front and re-voices nothing.
         const calls = engine.synthesizeChunk.mock.calls.length;
@@ -852,6 +855,16 @@ describe('a protected output folder (persona test N2)', () => {
         expect(vault.app.fileManager.trashFile).not.toHaveBeenCalled();
         expect(vault.app.vault.createBinary).not.toHaveBeenCalled();
         expect((await loadOperation(plugin as never))?.script).toBe(SHORT_SCRIPT);
+    });
+
+    it('protection that appears while the folder is being made refuses the note write itself', async () => {
+        const { writeEpisodeNote } = await import('../src/services/newsletter/catchUp/catchUpEpisode');
+        const protectedFolders: string[] = [];
+        const { ensureFolderExists } = await import('../src/utils/minutesUtils');
+        (ensureFolderExists as unknown as { mockImplementationOnce?: (f: () => Promise<void>) => void }).mockImplementationOnce?.(async () => { protectedFolders.push(ROOT); });
+        const input = { id: 'op1', from: '2026-10-21', to: '2026-10-23', coverage: {}, audio: 'catchup-op1-12345678.mp3', fingerprint: '12345678', minutes: 1, sources: 1, titles: [], script: 'x' };
+        await expect(writeEpisodeNote(vault.app as never, ROOT, input as never, protectedFolders)).rejects.toThrow('catchup-output-protected');
+        expect(vault.app.vault.create).not.toHaveBeenCalled();
     });
 
     it('a kept script resumed into a now-protected folder: refused before any TTS call', async () => {

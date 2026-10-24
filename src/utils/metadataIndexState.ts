@@ -189,6 +189,8 @@ export function waitForMetadataIndex(app: App, opts: WaitOptions): Promise<WaitR
         const onAbort = (): void => finish('aborted');
 
         ref = app.metadataCache.on('resolved', () => settle(false));
+        // A callback that fired during registration settled before `ref` existed: release it now.
+        if (settled) { app.metadataCache.offref(ref); return; }
         opts.signal?.addEventListener('abort', onAbort);
         settle(false);
         if (settled) return;

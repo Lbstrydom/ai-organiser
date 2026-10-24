@@ -437,6 +437,8 @@ export async function writeEpisodeNote(
     assertInside(outputRoot, folder);
     assertInside(outputRoot, path);
     await ensureFolderExists(app.vault, folder);
+    // Protection can change while the folder is being made: ask again immediately before the write.
+    if (protectedSource !== undefined && !assertWritable(protectedSource, 'create', path).ok) throw new Error(OUTPUT_PROTECTED);
     await app.vault.create(path, buildEpisodeNote(input));
     return { path, created: true };
 }
