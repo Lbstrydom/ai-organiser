@@ -18,6 +18,7 @@ between its `SKILL.md` and its `references/`.
 | [chat-and-rag.md](chat-and-rag.md) | Free chat + projects, smart document indexing, Mermaid chat, visual (page-image) search |
 | [vault-tools.md](vault-tools.md) | Obsidian Bases, canvas toolkit, find-embeds hygiene scan, protected folders, attachment helper, setup kit, agent index |
 | [cloud-inventory.md](cloud-inventory.md) | Drive folder inventory: the user's own Apps Script, the shared Apps Script client, owned-block hub notes |
+| [capture-inbox.md](capture-inbox.md) | Capture inbox: the Clarify step before the sweep (text first, transcribe or digitise only when needed, review-first, immutable originals, held captures kept out of the sweep) |
 | [inbox-sweep.md](inbox-sweep.md) | Inbox sweep (exclusion guard, extraction, review, outbox, report) and the Google Tasks export |
 | [vault-upkeep.md](vault-upkeep.md) | Vault upkeep sweep: interval job, proposing checks, review and report |
 | [agent-connectors.md](agent-connectors.md) | Connect an AI app: route guides with plain statements of what is enforced, read-only scoped connector, chat-project vault map |

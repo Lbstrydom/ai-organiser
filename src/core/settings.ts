@@ -500,6 +500,31 @@ export interface AIOrganiserSettings {
     sweepLedger: SweepLedger;
     sweepApprovals: ApprovalRecord[];
 
+    // === CAPTURE INBOX (clarify step before the sweep) ===
+    // The inbox folders and what is kept out are the SWEEP's settings (`sweepInboxFolders`, `sweepExcluded*`): one inbox, one privacy policy.
+    /** Also process captures when Obsidian opens or returns to the foreground (bounded, opt-in) */
+    captureOnOpen: boolean;
+    captureOnOpenMaxPerRun: number;
+    captureMaxPerRun: number;
+    /** Larger audio or image files are skipped without upload */
+    captureMaxAttachmentMB: number;
+    /** A note with fewer written words than this counts as having no usable text */
+    captureMinWords: number;
+    /** Digitise images even when the note already has text */
+    captureDigitiseImages: boolean;
+    captureMaxImagesPerCapture: number;
+    captureMaxTextChars: number;
+    /** How long a capture must be unchanged before it is read */
+    captureStabilitySeconds: number;
+    /** Wait for `capture-complete: true` or a sibling .done file */
+    captureRequireMarker: boolean;
+    /** Where organised notes may be created ('' = no destination is proposed) */
+    captureDestinationRoot: string;
+    /** ISO time of the first confirmed manual run; automatic runs never start before it */
+    captureConfirmedAt: string;
+    /** Epoch ms: only captures created after this are picked up automatically. Set once, never moved */
+    captureSince: number;
+
     // === GOOGLE TASKS EXPORT (F6) ===
     tasksScriptUrl: string;
     tasksListId: string;
@@ -1060,6 +1085,19 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     sweepMaxChars: 12000,
     sweepLedger: {},
     sweepApprovals: [],
+    captureOnOpen: false,
+    captureOnOpenMaxPerRun: 3,
+    captureMaxPerRun: 10,
+    captureMaxAttachmentMB: 10,
+    captureMinWords: 3,
+    captureDigitiseImages: false,
+    captureMaxImagesPerCapture: 3,
+    captureMaxTextChars: 12000,
+    captureStabilitySeconds: 8,
+    captureRequireMarker: false,
+    captureDestinationRoot: '',
+    captureConfirmedAt: '',
+    captureSince: 0,
     tasksScriptUrl: '',
     tasksListId: '',
     tasksListName: '',
@@ -1507,6 +1545,7 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     migrateProtectedAndAttachmentSettings(oldSettings);
     migrateAgentIndexAndInventorySettings(oldSettings);
     migrateSweepSettings(oldSettings);
+    migrateCaptureSettings(oldSettings);
     migrateUpkeepSettings(oldSettings);
 
     migrateAzureSettings(oldSettings);
@@ -1666,6 +1705,29 @@ export function migrateUpkeepSettings(old: Record<string, unknown>): void {
         : null;
     old.upkeepFailures = num(old.upkeepFailures, 0, 0, 100);
     old.upkeepLastNotified = typeof old.upkeepLastNotified === 'string' ? old.upkeepLastNotified : '';
+}
+
+/** Coerce the capture inbox settings to valid shapes. Order-safe and idempotent. */
+export function migrateCaptureSettings(old: Record<string, unknown>): void {
+    const intIn = (value: unknown, fallback: number, min: number, max: number): number => {
+        if (typeof value !== 'number' && typeof value !== 'string') return fallback;
+        const n = Number(value);
+        return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
+    };
+    const d = DEFAULT_SETTINGS;
+    old.captureOnOpen = old.captureOnOpen === true;
+    old.captureOnOpenMaxPerRun = intIn(old.captureOnOpenMaxPerRun, d.captureOnOpenMaxPerRun, 1, 10);
+    old.captureMaxPerRun = intIn(old.captureMaxPerRun, d.captureMaxPerRun, 1, 50);
+    old.captureMaxAttachmentMB = intIn(old.captureMaxAttachmentMB, d.captureMaxAttachmentMB, 1, 25);
+    old.captureMinWords = intIn(old.captureMinWords, d.captureMinWords, 1, 50);
+    old.captureDigitiseImages = old.captureDigitiseImages === true;
+    old.captureMaxImagesPerCapture = intIn(old.captureMaxImagesPerCapture, d.captureMaxImagesPerCapture, 1, 10);
+    old.captureMaxTextChars = intIn(old.captureMaxTextChars, d.captureMaxTextChars, 1000, 60000);
+    old.captureStabilitySeconds = intIn(old.captureStabilitySeconds, d.captureStabilitySeconds, 2, 120);
+    old.captureRequireMarker = old.captureRequireMarker === true;
+    old.captureDestinationRoot = typeof old.captureDestinationRoot === 'string' ? old.captureDestinationRoot.trim() : '';
+    old.captureConfirmedAt = typeof old.captureConfirmedAt === 'string' ? old.captureConfirmedAt : '';
+    old.captureSince = typeof old.captureSince === 'number' && Number.isFinite(old.captureSince) && old.captureSince >= 0 ? Math.floor(old.captureSince) : 0;
 }
 
 /**

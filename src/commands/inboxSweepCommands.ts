@@ -21,17 +21,17 @@ import { pluginContext, summarizeText } from '../services/llmFacade';
 import { validateScriptUrl } from '../services/appsScriptClient';
 import { logger } from '../utils/logger';
 import { estimateSweep, runSweep, type NoteProposals, type SweepDeps } from '../services/inboxSweep/sweepService';
-import { commitReview, repairApprovals, sendApproved, sweepPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
+import { commitReview, repairApprovals, sendApproved, sweepPolicy, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
+import { freezeHeldMirror, isCaptureActive, isCaptureCorrupt, isHeldMirrorLoaded, unfreezeHeldMirror } from '../services/captureInbox/heldMirror';
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
 import { validateReportPath } from '../services/inboxSweep/sweepReport';
-import { guardSnapshot, policyRevisionOf, propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
-import { buildSnapshot } from '../services/inboxSweep/noteSnapshot';
+import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
 import { buildTasksScript } from '../services/inboxSweep/tasksScriptTemplate';
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { InboxSweepReviewModal } from '../ui/modals/InboxSweepReviewModal';
-import { FolderListEditor } from '../ui/setup/FolderListEditor';
+import { draftFromSettings, exclusionCount, lines, propertyLines, previewScope, renderInboxFolders, renderKeepOut, validateKeepOut } from '../ui/setup/inboxScopeSteps';
 import { plural } from '../utils/plural';
 
 // ─── Deps over the live vault ───────────────────────────────────────────────
@@ -62,7 +62,7 @@ export function buildSweepDeps(plugin: AIOrganiserPlugin, signal?: AbortSignal):
             const res = await summarizeText(pluginContext(plugin), prompt, { signal: sig ?? signal, label: 'inbox-sweep', disableThinking: true });
             return res.success && typeof res.content === 'string' ? ok(res.content) : err('sweep-run-failed');
         },
-        policy: () => sweepPolicy(plugin),
+        policy: () => sweepRunPolicy(plugin),
         ledger: () => plugin.settings.sweepLedger,
         currentPath: (path) => (plugin.app.vault.getAbstractFileByPath(path) instanceof TFile ? path : null),
     };
@@ -79,6 +79,9 @@ export function sweepBlocker(plugin: AIOrganiserPlugin): string | null {
     if (!propertiesAreReadable(s.sweepExcludedProperties)) return 'sweep-property-invalid';
     if (!validateReportPath(s.sweepReportPath, s.protectedFolders).ok) return 'sweep-report-invalid';
     if (!plugin.llmService) return 'sweep-no-provider';
+    // The capture inbox holds raw captures out of the sweep; until it has loaded it cannot say which.
+    if (isCaptureActive() && isCaptureCorrupt()) return 'capture-journal-corrupt';
+    if (isCaptureActive() && !isHeldMirrorLoaded()) return 'sweep-capture-loading';
     return null;
 }
 
@@ -116,6 +119,8 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
     const blocker = sweepBlocker(plugin);
     if (blocker) { guidanceNotice(plugin, blocker); return; }
     sweeping = true;
+    // The set of held captures is frozen for the length of the run, so the policy cannot change under it.
+    freezeHeldMirror();
     const ctl = new AbortController();
     try {
         // Finish anything an earlier run left half done before starting a new one.
@@ -154,6 +159,7 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         guidanceNotice(plugin, 'unknown');
     } finally {
         sweeping = false;
+        unfreezeHeldMirror();
     }
 }
 
@@ -223,24 +229,12 @@ export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> 
 
 // ─── Guided setup: inbox sweep ──────────────────────────────────────────────
 
-const lines = (text: string): string[] => text.split(/[\n,]+/).map((s) => s.trim()).filter(Boolean);
-/** One entry per line, commas kept: a property value may contain one. */
-const propertyLines = (text: string): string[] => text.split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
-
 export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => void): void {
     const t = plugin.t;
     const c = t.inboxSweep;
     const s = plugin.settings;
-    const draft = {
-        inbox: [...s.sweepInboxFolders],
-        excludedFolders: [...s.sweepExcludedFolders],
-        tags: s.sweepExcludedTags.join('\n'),
-        properties: s.sweepExcludedProperties.join('\n'),
-        terms: s.sweepExcludedTerms.join('\n'),
-        nothing: s.sweepNothingToExclude,
-        report: s.sweepReportPath,
-    };
-    const exclusionCount = (): number => draft.excludedFolders.length + lines(draft.tags).length + propertyLines(draft.properties).length + lines(draft.terms).length;
+    // The inbox and keep-out questions are shared with the capture inbox (`inboxScopeSteps`).
+    const draft = { ...draftFromSettings(s), report: s.sweepReportPath };
 
     new GuidedSetupModal(plugin.app, t, {
         title: c.wizardTitle,
@@ -254,7 +248,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
                 },
                 render: (el) => {
                     el.createEl('p', { text: c.foldersHelp });
-                    new FolderListEditor({ app: plugin.app, container: el, t, getFolders: () => draft.inbox, onChange: (n) => { draft.inbox = [...n]; } }).render();
+                    renderInboxFolders(plugin, el, draft);
                     new Setting(el).setName(c.reportName).setDesc(c.reportDesc).addText((tx) => {
                         tx.setValue(draft.report).onChange((v) => { draft.report = v; });
                         tx.inputEl.setAttribute('aria-label', c.reportName);
@@ -264,19 +258,8 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
             {
                 id: 'keepout',
                 title: c.stepKeepOut,
-                validate: () => {
-                    if (!propertiesAreReadable(propertyLines(draft.properties))) return err('sweep-property-invalid');
-                    return exclusionCount() === 0 && !draft.nothing ? err('sweep-keepout-required') : ok(undefined);
-                },
-                render: (el) => {
-                    el.createEl('p', { text: c.keepOutHelp });
-                    el.createEl('h4', { text: c.keepOutFolders });
-                    new FolderListEditor({ app: plugin.app, container: el, t, getFolders: () => draft.excludedFolders, onChange: (n) => { draft.excludedFolders = [...n]; } }).render();
-                    new Setting(el).setName(c.keepOutTags).setDesc(c.keepOutTagsDesc).addTextArea((ta) => ta.setValue(draft.tags).onChange((v) => { draft.tags = v; }));
-                    new Setting(el).setName(c.keepOutProps).setDesc(c.keepOutPropsDesc).addTextArea((ta) => ta.setValue(draft.properties).onChange((v) => { draft.properties = v; }));
-                    new Setting(el).setName(c.keepOutTerms).setDesc(c.keepOutTermsDesc).addTextArea((ta) => ta.setValue(draft.terms).onChange((v) => { draft.terms = v; }));
-                    new Setting(el).setName(c.nothingToKeepOut).setDesc(c.nothingToKeepOutDesc).addToggle((tg) => tg.setValue(draft.nothing).onChange((v) => { draft.nothing = v; }));
-                },
+                validate: () => validateKeepOut(draft, 'sweep-keepout-required'),
+                render: (el) => renderKeepOut(plugin, el, draft, c),
             },
             {
                 id: 'preview',
@@ -285,24 +268,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
                     el.createEl('p', { text: c.previewHelp });
                     const box = el.createDiv({ attr: { role: 'status' } });
                     box.setText(c.previewWorking);
-                    const policy = {
-                        ...sweepPolicy(plugin),
-                        excludedFolders: draft.excludedFolders,
-                        excludedTags: lines(draft.tags),
-                        excludedProperties: propertyLines(draft.properties),
-                        excludedTerms: lines(draft.terms),
-                    };
-                    const revision = await policyRevisionOf(policy);
-                    const folders = draft.inbox.map(normalisePath);
-                    let allowed = 0;
-                    let kept = 0;
-                    for (const f of plugin.app.vault.getMarkdownFiles()) {
-                        if (!folders.some((folder) => isInsideOrEqual(normalisePath(f.path), folder))) continue;
-                        const text = await plugin.app.vault.cachedRead(f);
-                        const snap = await buildSnapshot(f.path, text, revision);
-                        if (guardSnapshot(snap, policy, revision).allowed) allowed++;
-                        else kept++;
-                    }
+                    const { allowed, kept } = await previewScope(plugin, draft, sweepPolicy(plugin));
                     box.setText(c.previewResult.replace('{allowed}', String(allowed)).replace('{kept}', String(kept)));
                 },
             },
@@ -318,7 +284,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
             const set = {
                 inbox: draft.inbox, excludedFolders: draft.excludedFolders,
                 tags: lines(draft.tags).map((x) => x.replace(/^#/, '')), props: propertyLines(draft.properties), terms: lines(draft.terms),
-                nothing: exclusionCount() === 0 && draft.nothing, report: path.value, done: new Date().toISOString(),
+                nothing: exclusionCount(draft) === 0 && draft.nothing, report: path.value, done: new Date().toISOString(),
             };
             s.sweepInboxFolders = set.inbox;
             s.sweepExcludedFolders = set.excludedFolders;

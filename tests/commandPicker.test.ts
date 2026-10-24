@@ -171,11 +171,11 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('Refine — improve, Pending sub-group, digitise, clear-tags', () => {
-        it('first-expansion has 9 rows (quick-peek moved to Find; refresh-onedrive-embed added)', () => {
+        it('first-expansion has 12 rows (the capture inbox sits next to the sweep)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const refine = cats.find(c => c.id === 'refine')!;
             expect(refine.commands.map(c => c.id)).toEqual([
-                'sweep-inbox', 'setup-inbox-sweep', 'send-tasks-to-google', 'setup-google-tasks', 'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
+                'sweep-inbox', 'setup-inbox-sweep', 'process-capture-inbox', 'review-captures', 'setup-capture-inbox', 'send-tasks-to-google', 'setup-google-tasks', 'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
             ]);
         });
         it('Process pending sub-group contains the 3 pending commands', () => {
@@ -269,18 +269,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 68 (65 unique + 3 cross-listings)', () => {
+        it('total picker rows = 71 (68 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(68);
+            expect(leafCount).toBe(71);
         });
-        it('unique command IDs = 65', () => {
+        it('unique command IDs = 68', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(65);
+            expect(uniqueIds.size).toBe(68);
         });
-        it('alphabetised ai-organiser:* callbacks (65 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (68 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -332,6 +332,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:open-upkeep-review',
                 'ai-organiser:play-narration',
                 'ai-organiser:presentation-chat',
+                'ai-organiser:process-capture-inbox',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
                 'ai-organiser:refresh-cloud-inventories',
@@ -339,10 +340,12 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:research-web',
                 'ai-organiser:resolve-pending-embeds',
                 'ai-organiser:resume-offload',
+                'ai-organiser:review-captures',
                 'ai-organiser:run-vault-upkeep',
                 'ai-organiser:semantic-search',
                 'ai-organiser:send-tasks-to-google',
                 'ai-organiser:setup-agent-index',
+                'ai-organiser:setup-capture-inbox',
                 'ai-organiser:setup-cloud-inventory',
                 'ai-organiser:setup-google-tasks',
                 'ai-organiser:setup-inbox-sweep',
@@ -358,7 +361,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(65);
+            expect(unique.size).toBe(68);
         });
     });
 });

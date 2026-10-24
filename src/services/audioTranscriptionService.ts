@@ -110,6 +110,12 @@ export interface TranscriptionOptions {
      * (`provider === 'azure-speech'`). Required for both; ignored otherwise.
      */
     azureEndpoint?: string;
+    /**
+     * The container extension of the bytes handed to `transcribeAudioFromData` (m4a, wav, ...),
+     * used for the multipart content type. Unset = mp3, which is what compressed output always is,
+     * so every existing caller is unchanged.
+     */
+    extension?: string;
 }
 
 /**
@@ -360,7 +366,7 @@ export async function transcribeAudioFromData(
         const formData = buildMultipartFormData(
             exactBuffer,
             fileName,
-            'mp3', // Compressed files are always MP3
+            options.extension ?? 'mp3', // Compressed files are always MP3 unless the caller says otherwise
             effectiveOptions,
             boundary
         );
@@ -875,7 +881,7 @@ function buildMultipartFormData(
     // File part
     parts.push(
         `--${boundary}\r\n` +
-        `Content-Disposition: form-data; name="file"; filename="${fileName}"\r\n` +
+        `Content-Disposition: form-data; name="file"; filename="${fileName.replace(/["\\\r\n]/g, '_')}"\r\n` +
         `Content-Type: ${mimeType}\r\n\r\n`
     );
     parts.push(fileData);

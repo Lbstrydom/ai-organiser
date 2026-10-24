@@ -32,6 +32,7 @@ import { FindEmbedsSettingsSection } from './FindEmbedsSettingsSection';
 import { AgentIndexSettingsSection } from './AgentIndexSettingsSection';
 import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
 import { InboxSweepSettingsSection } from './InboxSweepSettingsSection';
+import { CaptureInboxSettingsSection } from './CaptureInboxSettingsSection';
 import { GoogleTasksSettingsSection } from './GoogleTasksSettingsSection';
 import { VaultUpkeepSettingsSection } from './VaultUpkeepSettingsSection';
 import { AgentConnectorsSettingsSection } from './AgentConnectorsSettingsSection';
@@ -347,6 +348,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-inbox-sweep', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-inbox-sweep', this.plugin.t.inboxSweep.sectionTitle, 'inbox');
                 new InboxSweepSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-capture-inbox', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-capture-inbox', this.plugin.t.captureInbox.sectionTitle, 'inbox');
+                new CaptureInboxSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-google-tasks', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-google-tasks', this.plugin.t.googleTasks.sectionTitle, 'list-checks');

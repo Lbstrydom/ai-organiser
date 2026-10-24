@@ -287,6 +287,12 @@ Repo-wide rules that bind *every* subsystem are in
 | Inbox sweep | Pre-LLM fail-closed exclusion guard, evidence-verified extraction, review-first approval, durable outbox and owned report sections | Changing what may reach the model, the prompt, or the commit order |
 | Google Tasks export | One-way, idempotent export of approved tasks through the user's own script locked to one list | Changing the script template, the export batches or the setup bootstrap |
 
+### [Capture Inbox](docs/features/capture-inbox.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Capture inbox | The Clarify step before the sweep: text-first reading of captures already in the inbox folders, review-first, the original touched once by insertion after Accept, held captures kept out of the sweep, one inbox and one privacy policy shared with the sweep | Changing what reaches a provider, the journal, the Accept write, `sweepRunPolicy`, or the shared setup steps |
+
 ### [Vault Upkeep](docs/features/vault-upkeep.md)
 
 | Subsystem | What it is | Read it when |
