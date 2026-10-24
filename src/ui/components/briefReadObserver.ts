@@ -160,8 +160,9 @@ class BriefReadChild extends MarkdownRenderChild {
             if (!host.enabled() || host.generation() !== s.generation) { s.done = true; disposeSession(s); return; }
             const active = host.app.workspace.getActiveViewOfType(MarkdownView) === view;
             s.state = tick(s.state, now(), {
-                visible: document.visibilityState === 'visible',
-                focused: document.hasFocus(),
+                // The view's own document: correct in a popout window too.
+                visible: container.ownerDocument.visibilityState === 'visible',
+                focused: container.ownerDocument.hasFocus(),
                 activeLeaf: active,
             });
             if (isReadThrough(s.state)) {
