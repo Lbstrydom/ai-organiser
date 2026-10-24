@@ -6,6 +6,8 @@
  *   options interface → exported builder function → XML-structured prompt
  */
 
+import { fillTrailingSlot } from './promptParts';
+
 export interface TriagePromptOptions {
     language?: string;
     contentType?: 'web' | 'pdf' | 'youtube' | 'document' | 'audio' | 'newsletter';
@@ -87,6 +89,6 @@ A single plain text paragraph. No markdown formatting. No preamble.
 }
 
 export function insertContentIntoTriagePrompt(prompt: string, content: string): string {
-    // Replacer function: insert the text literally (a string would expand `$&`, `$1`, `$$`, ...).
-    return prompt.replace('CONTENT_PLACEHOLDER', () => content);
+    // Last sentinel = the real slot; inserted literally (no `$` expansion).
+    return fillTrailingSlot(prompt, 'CONTENT_PLACEHOLDER', content);
 }
