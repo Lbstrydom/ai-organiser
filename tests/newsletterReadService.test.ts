@@ -13,7 +13,7 @@ vi.mock('obsidian', () => ({
 const summarizeText = vi.hoisted(() => vi.fn());
 vi.mock('../src/services/llmFacade', () => ({ summarizeText, pluginContext: (p: unknown) => p }));
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TFile } from 'obsidian';
 import { DEFAULT_SETTINGS, getNewsletterOutputFullPath, migrateNewsletterAudioSettings } from '../src/core/settings';
 import { NewsletterService, getDigestPath, digestBucketForPath } from '../src/services/newsletter/newsletterService';
@@ -76,9 +76,15 @@ const generate = (service: NewsletterService, batch: ProcessedNewsletter[]) =>
     (service as unknown as { generateAndInjectBrief(d: string, b: ProcessedNewsletter[]): Promise<void> }).generateAndInjectBrief(TODAY, batch);
 
 beforeEach(() => {
+    // The code under test reads the real clock for "today"; the fixtures are dated, so pin it (Date only) or the test depends on the day it runs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // The daily audio waits until TODAY's bucket has closed, so the clock sits the day after it.
+    vi.setSystemTime(new Date(2026, 9, 22, 12, 0, 0));
     summarizeText.mockReset();
     summarizeText.mockResolvedValue({ success: true, content: '### News\n- **Something new**: A development. (Sources: Alpha, Beta)' });
 });
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe('the brief adapts to what was read', () => {
     it('a prior-day story the reader read is listed as already told; without the read it is listed as missed', async () => {
