@@ -55,6 +55,81 @@ export function validateBaseContent(content: string): string | null {
     return null;
 }
 
+/** `property.<name>` is the template dialect's spelling; Bases reads a bare name (or `note["x"]`). */
+const PROPERTY_REF = /(?<![\w.])property\.([A-Za-z0-9_-]+)/g;
+const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+function filterRef(name: string): string {
+    return IDENTIFIER.test(name) ? name : `note["${name}"]`;
+}
+
+/** Rewrite `property.<name>` references outside string literals (double or single quoted). */
+function rewriteFilterText(expression: string): string {
+    return expression
+        .split(/("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*')/)
+        .map((part, i) => (i % 2 === 1 ? part : part.replace(PROPERTY_REF, (_m, name: string) => filterRef(name))))
+        .join('');
+}
+
+/**
+ * Convert a filter tree. YAML aliases can turn it into a cycle or an exponentially shared graph, so a
+ * node reached twice, or nesting beyond MAX_FILTER_DEPTH, is refused instead of expanded.
+ */
+function nativeFilter(node: unknown, seen: Set<object> = new Set(), depth = 0): unknown {
+    if (typeof node === 'string') return rewriteFilterText(node);
+    if (typeof node !== 'object' || node === null) return node;
+    if (depth > MAX_FILTER_DEPTH || seen.has(node)) {
+        throw new Error('Dashboard template cannot be converted: its filters nest too deeply or reuse a YAML alias');
+    }
+    seen.add(node);
+    if (Array.isArray(node)) return node.map((child) => nativeFilter(child, seen, depth + 1));
+    return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, nativeFilter(value, seen, depth + 1)]));
+}
+
+/** A document written with front-matter style fences: the text between the first two `---` lines (the whole text when there is no closing fence). */
+function unfence(content: string): string {
+    const lines = content.split(/\r?\n/);
+    // A fence is `---` at column 0 (an indented one is block-scalar text).
+    const fence = /^---[ \t]*$/;
+    if (!fence.test(lines[0] ?? '')) return content;
+    const close = lines.findIndex((l, i) => i > 0 && fence.test(l));
+    return close === -1 ? content : lines.slice(1, close).join('\n');
+}
+
+/** A template-dialect column as a Bases `order` entry. */
+function nativeColumn(column: string): string {
+    if (column === 'name' || column === 'property.name') return 'file.name';
+    if (column === 'created') return 'file.ctime';
+    const prop = /^property\.(.+)$/.exec(column);
+    if (!prop) return column;
+    return IDENTIFIER.test(prop[1]) ? prop[1] : `note.${prop[1]}`;
+}
+
+/**
+ * The text of a .base document in the native Bases schema (`filters` + `views` with `order`).
+ *
+ * The plugin's own template dialect (`name` + `columns`, filters written `property.<name>`) is
+ * not read by Obsidian: such a file opens with 0 results and a single file-name column. A
+ * document that already has a `views` list (or is not a dialect document at all) is returned
+ * unchanged; a dialect document becomes one table view. Invalid YAML throws like the other helpers.
+ */
+export function toNativeBase(content: string): string {
+    const root = parseBaseMapping(unfence(content));
+    const hasViews = Array.isArray(root.views) && root.views.length > 0;
+    const hasTemplateShape = typeof root.name === 'string' && root.name.trim() !== ''
+        && Array.isArray(root.columns) && root.columns.length > 0;
+    if (hasViews || !hasTemplateShape) return content;
+
+    const out: Record<string, unknown> = {};
+    if (root.filters !== undefined && root.filters !== null) out.filters = nativeFilter(root.filters);
+    for (const [key, value] of Object.entries(root)) {
+        if (!['name', 'description', 'columns', 'filters', 'views'].includes(key)) out[key] = value;
+    }
+    const order = (root.columns as unknown[]).filter((c): c is string => typeof c === 'string' && c.trim() !== '').map(nativeColumn);
+    out.views = [{ type: 'table', name: root.name, order }];
+    return yaml.dump(out, { lineWidth: -1 });
+}
+
 /** A Bases filter: an expression string, or a group whose keys are and / or / not holding filter lists. */
 function isFilterNode(node: unknown): boolean {
     return filterHeight(node, new Set(), new Map()) >= 0;
@@ -156,8 +231,8 @@ export class DashboardService {
                 return false;
             }
 
-            // Inject folder filter into template content
-            const content = this.injectFolderFilter(template.content, options.folder.path);
+            // Write the native Bases schema (a template-dialect document is converted), scoped to the folder
+            const content = this.injectFolderFilter(toNativeBase(template.content), options.folder.path);
 
             // Create dashboard file
             await this.app.vault.create(filePath, content);
@@ -221,7 +296,7 @@ export class DashboardService {
             }
             out = [...lines.slice(0, at[0]), rendered.slice(0, -1), ...lines.slice(end)].join('\n');
         } else {
-            const columnsAt = lines.findIndex(l => /^columns[ \t]*:/.test(l));
+            const columnsAt = lines.findIndex(l => /^(?:columns|views)[ \t]*:/.test(l));
             if (columnsAt === -1) {
                 out = content + (content.endsWith('\n') ? '' : eol) + rendered;
             } else {
@@ -318,9 +393,9 @@ export class DashboardService {
                 return false;
             }
             
-            // Create dashboard file
-            await this.app.vault.create(filePath, content);
-            
+            // Create dashboard file (a template-dialect document is written in the native schema)
+            await this.app.vault.create(filePath, toNativeBase(content));
+
             new Notice(`Custom dashboard created: ${fullFileName}`);
             return true;
             
