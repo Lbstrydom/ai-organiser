@@ -12,7 +12,7 @@ vi.mock('obsidian', () => ({
 }));
 vi.mock('../src/services/llmFacade', () => ({ summarizeText: vi.fn(), pluginContext: (p: unknown) => p }));
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { Notice, TFile } from 'obsidian';
 import { DEFAULT_SETTINGS, getNewsletterOutputFullPath } from '../src/core/settings';
 import { getDigestPath } from '../src/services/newsletter/newsletterService';
@@ -52,7 +52,14 @@ function setup(over: Record<string, unknown> = {}, opts: { noteText?: string; pa
     return { plugin, data };
 }
 
-beforeEach(() => { messages().length = 0; });
+beforeEach(() => {
+    // The code under test reads the real clock for "today"; the fixtures are dated, so pin it (Date only) or the test depends on the day it runs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 21, 12, 0, 0));
+    messages().length = 0;
+});
+afterEach(() => { vi.useRealTimers(); });
+
 
 describe('runMarkBriefRead', () => {
     it('records the read, reports it, and a second run reports it already counted', async () => {
