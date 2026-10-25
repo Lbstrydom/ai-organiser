@@ -188,6 +188,23 @@ describe('replace', () => {
         expect(episodeCreatedAt('20261323-120000-aaaa')).not.toBeNull(); // JS normalises month 13: still a finite time, the id check is the pattern
     });
 
+    // Two clocks, the more recent wins: the id (local wall clock) and the file's creation time (reset by a sync).
+    // The test vault stamps files with a fixed old time, so this decides by the clock the test injects, never by the day it runs.
+    it('the file creation time can only make an episode look YOUNGER, never older than its id says', async () => {
+        await behind();
+        const file = vault.app.vault.getAbstractFileByPath(notes()[0]) as { stat: { ctime: number } };
+        expect(file.stat.ctime).toBeLessThan(NOW1.getTime());
+        // A sync reset the file an hour before "now": too young, whatever the id says.
+        file.stat.ctime = NOW3.getTime() - 60 * 60 * 1000;
+        expect(await autoRunDecision(ports(NOW3, replace))).toEqual({ run: false, reason: 'unheard' });
+        // A creation time in the FUTURE of the injected clock is also young (never negative age treated as old).
+        file.stat.ctime = NOW3.getTime() + 60 * 60 * 1000;
+        expect(await autoRunDecision(ports(NOW3, replace))).toEqual({ run: false, reason: 'unheard' });
+        // Old enough on both clocks: it acts.
+        file.stat.ctime = NOW3.getTime() - AUTO_MIN_AGE_MS - 1;
+        expect(await autoRunDecision(ports(NOW3, replace))).toMatchObject({ run: true });
+    });
+
     it('never replaces an episode that other notes link to', async () => {
         await behind();
         const note = notes()[0];
