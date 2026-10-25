@@ -1850,6 +1850,24 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 55
+        },
+        {
+          "column_name": "past_cap_reason",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 56
+        },
+        {
+          "column_name": "past_cap_card",
+          "data_type": "jsonb",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 57
         }
       ]
     },
