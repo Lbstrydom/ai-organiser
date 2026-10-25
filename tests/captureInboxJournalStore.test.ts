@@ -36,11 +36,12 @@ describe('CaptureJournalStore', () => {
   it('a corrupt stored journal stops the store: not loaded, every write refused, nothing overwritten', async () => {
     const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: { version: 1, entries: { 'a.md': null } } });
     const store = new CaptureJournalStore(f.plugin);
-    await store.load();
+    expect(await store.load()).toEqual({ ok: false, error: 'capture-journal-corrupt' });
     expect(store.corruption()).toMatch(/malformed/);
     expect(store.isLoaded()).toBe(false);
-    await expect(store.mutate((j) => upsertEntry(j, entry('x.md')))).rejects.toThrow('capture-journal-not-loaded');
-    expect(() => store.mutateLazy((j) => j)).toThrow('capture-journal-not-loaded');
+    expect(await store.mutate((j) => upsertEntry(j, entry('x.md')))).toEqual({ ok: false, error: 'capture-journal-not-loaded' });
+    expect(store.mutateLazy((j) => j)).toEqual({ ok: false, error: 'capture-journal-not-loaded' });
+    expect(await store.flush()).toEqual({ ok: true, value: undefined });
     expect(f.saves).toHaveLength(0);
     expect(f.data[CAPTURE_JOURNAL_DATA_KEY]).toEqual({ version: 1, entries: { 'a.md': null } });
   });
@@ -49,10 +50,10 @@ describe('CaptureJournalStore', () => {
     const f = fakePlugin();
     (f.plugin as unknown as { loadData: () => Promise<unknown> }).loadData = async () => { throw new Error('EBUSY'); };
     const store = new CaptureJournalStore(f.plugin);
-    await store.load();
+    expect((await store.load()).ok).toBe(false);
     expect(store.corruption()).toMatch(/could not be read/);
     expect(store.isLoaded()).toBe(false);
-    await expect(store.mutate((j) => j)).rejects.toThrow('capture-journal-not-loaded');
+    expect(await store.mutate((j) => j)).toEqual({ ok: false, error: 'capture-journal-not-loaded' });
     const arr = fakePlugin();
     (arr.plugin as unknown as { loadData: () => Promise<unknown> }).loadData = async () => [];
     const s2 = new CaptureJournalStore(arr.plugin);
@@ -88,12 +89,12 @@ describe('CaptureJournalStore', () => {
     const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: stored });
     const store = new CaptureJournalStore(f.plugin);
     await store.load();
-    expect(await store.resetCorrupt()).toBe(true);
+    expect((await store.resetCorrupt()).ok).toBe(true);
     expect(f.data[CAPTURE_JOURNAL_BACKUP_DATA_KEY]).toEqual([expect.objectContaining({ journal: stored })]);
     expect(store.corruption()).toBeNull();
     expect(store.isLoaded()).toBe(true);
     expect(Object.keys(store.get().entries)).toEqual([]);
-    expect(await store.resetCorrupt()).toBe(false);
+    expect(await store.resetCorrupt()).toEqual({ ok: false, error: 'capture-journal-not-corrupt' });
   });
 
   it('is not loaded until load() runs, and loads what was persisted', async () => {
@@ -158,27 +159,107 @@ describe('CaptureJournalStore', () => {
     await store.load();
     const real = (f.plugin as unknown as { saveData: (d: unknown) => Promise<void> }).saveData;
     (f.plugin as unknown as { saveData: () => Promise<void> }).saveData = async () => { throw new Error('disk full'); };
-    await store.mutate((j) => upsertEntry(j, entry('a.md')));
+    expect((await store.mutate((j) => upsertEntry(j, entry('a.md')))).ok).toBe(true);
+    expect(await store.flush()).toEqual({ ok: false, error: 'capture-journal-unsaved' });
     (f.plugin as unknown as { saveData: (d: unknown) => Promise<void> }).saveData = real;
-    await store.flush();
+    expect((await store.flush()).ok).toBe(true);
     expect((f.data[CAPTURE_JOURNAL_DATA_KEY] as { entries: Record<string, unknown> }).entries['a.md']).toBeDefined();
   });
 
   it('refuses to write before the stored journal was read (it would replace it with an empty one)', async () => {
     const f = fakePlugin({ [CAPTURE_JOURNAL_DATA_KEY]: { version: 1, entries: { 'x.md': entry('x.md') }, tombstones: {}, aliases: {}, counters: {} } });
     const store = new CaptureJournalStore(f.plugin);
-    await expect(store.mutate((j) => j)).rejects.toThrow('capture-journal-not-loaded');
-    expect(() => store.mutateLazy((j) => j)).toThrow('capture-journal-not-loaded');
+    expect(await store.mutate((j) => j)).toEqual({ ok: false, error: 'capture-journal-not-loaded' });
+    expect(store.mutateLazy((j) => j)).toEqual({ ok: false, error: 'capture-journal-not-loaded' });
     expect(f.saves).toHaveLength(0);
   });
 
-  it('a durable write rejects when the save failed; a normal one only logs', async () => {
+  it('a transform that throws is an error and changes nothing', async () => {
+    const f = fakePlugin();
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    const boom = () => { throw new Error('bad transform'); };
+    expect(await store.mutate(boom)).toEqual({ ok: false, error: 'capture-journal-transform-failed' });
+    expect(store.mutateLazy(boom)).toEqual({ ok: false, error: 'capture-journal-transform-failed' });
+    expect(f.saves).toHaveLength(0);
+  });
+
+  it('a failed load cancels anything scheduled before it: the unreadable journal is never overwritten', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fakePlugin();
+      const store = new CaptureJournalStore(f.plugin);
+      await store.load();
+      store.mutateLazy((j) => upsertEntry(j, entry('a.md')));
+      (f.plugin as unknown as { loadData: () => Promise<unknown> }).loadData = async () => { throw new Error('EBUSY'); };
+      expect((await store.load()).ok).toBe(false);
+      await vi.advanceTimersByTimeAsync(LAZY_PERSIST_MS * 2);
+      expect(f.saves).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a save queued before a failed load does not write over the unreadable journal', async () => {
+    const stored = { version: 1, entries: { 'a.md': 'broken-later' } };
+    const f = fakePlugin();
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    let release: (() => void) | undefined;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const real = (f.plugin as unknown as { saveData: (d: unknown) => Promise<void> }).saveData;
+    (f.plugin as unknown as { saveData: (d: unknown) => Promise<void> }).saveData = async (d) => { await gate; return real(d); };
+    const first = store.mutate((j) => upsertEntry(j, entry('a.md')));
+    const second = store.mutate((j) => upsertEntry(j, entry('b.md')));
+    (f.plugin as unknown as { loadData: () => Promise<unknown> }).loadData = async () => ({ [CAPTURE_JOURNAL_DATA_KEY]: stored });
+    expect((await store.load()).ok).toBe(false);
+    release!();
+    // non-durable writes never fail the caller; the refused write stays unsaved (checked below)
+    expect((await first).ok).toBe(true);
+    expect((await second).ok).toBe(true);
+    const written = f.data[CAPTURE_JOURNAL_DATA_KEY] as { entries: Record<string, unknown> } | undefined;
+    expect(written?.entries?.['b.md']).toBeUndefined();
+  });
+
+  it('flush reports a failed save that was already in flight', async () => {
+    const f = fakePlugin();
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    let fail: (() => void) | undefined;
+    (f.plugin as unknown as { saveData: () => Promise<void> }).saveData = () => new Promise<void>((_, reject) => { fail = () => reject(new Error('disk full')); });
+    const writing = store.mutate((j) => upsertEntry(j, entry('a.md')));
+    for (let i = 0; i < 50 && !fail; i++) await new Promise((r) => setTimeout(r, 5));
+    const flushing = store.flush();
+    fail!();
+    await writing;
+    expect(await flushing).toEqual({ ok: false, error: 'capture-journal-unsaved' });
+  });
+
+  it('flush waits for a save that is already in flight', async () => {
+    const f = fakePlugin();
+    const store = new CaptureJournalStore(f.plugin);
+    await store.load();
+    let release: (() => void) | undefined;
+    (f.plugin as unknown as { saveData: () => Promise<void> }).saveData = () => new Promise<void>((resolve) => { release = resolve; });
+    const writing = store.mutate((j) => upsertEntry(j, entry('a.md')));
+    for (let i = 0; i < 50 && !release; i++) await new Promise((r) => setTimeout(r, 5));
+    let flushed = false;
+    const flushing = store.flush().then(() => { flushed = true; });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(flushed).toBe(false);
+    release!();
+    await writing;
+    await flushing;
+    expect(flushed).toBe(true);
+  });
+
+  it('a durable write is an error when the save failed; a normal one only logs', async () => {
     const f = fakePlugin();
     const store = new CaptureJournalStore(f.plugin);
     await store.load();
     (f.plugin as unknown as { saveData: () => Promise<void> }).saveData = async () => { throw new Error('disk full'); };
-    await expect(store.mutate((j) => upsertEntry(j, entry('a.md')), { durable: true })).rejects.toThrow('capture-journal-unsaved');
-    await expect(store.mutate((j) => upsertEntry(j, entry('b.md')))).resolves.toBeDefined();
+    expect(await store.mutate((j) => upsertEntry(j, entry('a.md')), { durable: true })).toEqual({ ok: false, error: 'capture-journal-unsaved' });
+    expect((await store.mutate((j) => upsertEntry(j, entry('b.md')))).ok).toBe(true);
   });
 
   it('notifies subscribers and survives a throwing listener', async () => {

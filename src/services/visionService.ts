@@ -54,6 +54,25 @@ export class VisionService {
             quality
         });
 
+        return this.digitiseProcessed(processedImage, mode);
+    }
+
+    /**
+     * Digitise an image from bytes the caller already holds and has validated. The pipeline never re-reads the vault, so
+     * the bytes that were checked are the bytes that are processed and sent.
+     * @param bytes - The image file's bytes
+     * @param fileExtension - The file extension without the dot
+     */
+    async digitiseBytes(bytes: ArrayBuffer, fileExtension: string, options?: DigitiseOptions): Promise<DigitiseResult> {
+        const mode = options?.mode ?? this.plugin.settings.digitiseDefaultMode;
+        const maxDimension = options?.maxDimension ?? this.plugin.settings.digitiseMaxDimension;
+        const quality = options?.quality ?? this.plugin.settings.digitiseImageQuality;
+        const processedImage = await this.imageProcessor.processImageBytes(bytes, fileExtension, { maxDimension, quality });
+        return this.digitiseProcessed(processedImage, mode);
+    }
+
+    /** The shared tail of both entry points: prompt, multimodal call, parse. */
+    private async digitiseProcessed(processedImage: { base64: string; mediaType: string }, mode: DigitiseMode): Promise<DigitiseResult> {
         // Build multimodal content parts (Phase 1 types)
         const parts: ContentPart[] = [
             { type: 'text', text: buildDigitisePrompt(mode, this.plugin.settings.language || 'default') },

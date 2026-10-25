@@ -21,7 +21,7 @@ import { findCaptureBlock } from './enrichmentBlock';
 import { readCaptureId } from './frontmatterKey';
 import { checkSignature, extensionOf } from './mediaSignature';
 import { machineTextExclusion, pathExclusion } from './capturePolicy';
-import type { ScanOutcome, ScannedCapture, CaptureVaultPort } from './captureScanner';
+import { CAPTURE_FILE_MISSING, type ScanOutcome, type ScannedCapture, type CaptureVaultPort } from './captureScanner';
 import { assess, observationsChanged, type StatResult } from './stabilityTracker';
 import { planSources, usableText } from './textFirst';
 import type { JournalAccess } from './captureWriter';
@@ -39,14 +39,15 @@ import {
 
 /** Bytes and stats; the production port wraps the vault adapter. */
 export interface ProcessorPort {
-    readBytes(path: string): Promise<Uint8Array>;
+    /** err = the file cannot be read right now (gone, or the read failed). */
+    readBytes(path: string): Promise<Result<Uint8Array>>;
     stat(path: string): Promise<StatResult>;
     exists(path: string): boolean;
 }
 
 /** Everything the processor needs from the plugin, injected so it compiles and tests alone. */
 export interface CaptureDeps {
-    journal: JournalAccess & { mutateLazy(fn: (j: CaptureJournal) => CaptureJournal): void };
+    journal: JournalAccess & { mutateLazy(fn: (j: CaptureJournal) => CaptureJournal): Result<void> };
     config(): CaptureConfig;
     /** The BASE sweep policy (never the held-paths one) */
     policy(): SweepPolicy;
@@ -57,7 +58,8 @@ export interface CaptureDeps {
     now(): number;
     digitisationEnabled(): boolean;
     transcribe(bytes: Uint8Array, fileName: string, extension: string): Promise<Result<string>>;
-    digitise(path: string): Promise<Result<string>>;
+    /** Read an image from bytes the processor already validated (never from the path again). */
+    digitise(bytes: Uint8Array, fileName: string, extension: string): Promise<Result<string>>;
     classify(parts: PromptParts): Promise<Result<RawProposal>>;
     taxonomyPrompt(): string | Promise<string>;
     language(): LanguageCode | 'default';
@@ -296,12 +298,22 @@ async function stillAllowed(deps: CaptureDeps, cap: ScannedCapture, extra?: stri
     // A note that embeds this media may have arrived since the scan: the media is then that note's, not a bare capture.
     if (cap.notePath === null && deps.vault.referrersOf(cap.id).length > 0) throw new Cancelled();
     if (cap.notePath !== null) {
-        const fresh = await deps.vault.readText(cap.id);
-        if (fresh !== cap.text) throw new Cancelled();
-        if (exclusionReason(cap.id, fresh, policy)) return 'excluded';
+        const read = await deps.vault.readText(cap.id);
+        // A note that cannot be read now cannot be judged now: the job is dropped and the next scan starts it afresh.
+        if (!read.ok || read.value !== cap.text) throw new Cancelled();
+        if (exclusionReason(cap.id, read.value, policy)) return 'excluded';
     }
     if (extra !== undefined && machineTextExclusion(cap.id, extra, policy)) return 'excluded';
     return null;
+}
+
+/** The attachment's bytes, or a retriable failure (the file may simply not be readable yet). */
+async function readAttachment(deps: CaptureDeps, path: string): Promise<Uint8Array> {
+    const read = await deps.port.readBytes(path);
+    // A file that is gone cannot become valid: it is skipped, as an empty read always was. A failed read may pass: retriable.
+    if (!read.ok && read.error === CAPTURE_FILE_MISSING) throw new Skip('invalid-media');
+    if (!read.ok) throw new Error('The attachment could not be read.');
+    return read.value;
 }
 
 async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ctl: RunControl): Promise<JobOutcome> {
@@ -338,7 +350,7 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
             await markStage(deps, id, 'transcribe');
             for (const att of audio) {
                 checkCancel();
-                const bytes = await deps.port.readBytes(att.path);
+                const bytes = await readAttachment(deps, att.path);
                 if (bytes.byteLength > config.maxAttachmentBytes) throw new Skip('too-large');
                 if (!checkSignature(att.path, bytes).ok) throw new Skip('invalid-media');
                 await assertSameBytes(att, bytes);
@@ -360,13 +372,14 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
                 checkCancel();
                 const now = await deps.port.stat(att.path);
                 if (!now || now.size !== att.size) throw new Skip('invalid-media');
-                const bytes = await deps.port.readBytes(att.path);
+                const bytes = await readAttachment(deps, att.path);
                 if (bytes.byteLength > config.maxAttachmentBytes) throw new Skip('too-large');
                 if (!checkSignature(att.path, bytes).ok) throw new Skip('invalid-media');
                 await assertSameBytes(att, bytes);
                 const late = await stillAllowed(deps, cap);
                 if (late) throw new Skip(late);
-                const result = await deps.digitise(att.path);
+                // The very bytes that passed the signature, size and digest checks go to the pipeline, not the path.
+                const result = await deps.digitise(bytes, basename(att.path), extensionOf(att.path));
                 checkCancel();
                 if (!result.ok) throw providerFailure(result.error);
                 if (result.value.trim() === '') continue;

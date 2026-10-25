@@ -5,13 +5,20 @@
  * File events are only hints that this should run; the scan itself is the truth. One pass over the
  * in-memory file list filtered by prefix, then text reads for candidates only (mobile-friendly).
  */
+import { Result, ok, err } from '../../core/result';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
+import { logger } from '../../utils/logger';
 import { exclusionReason, policyRevisionOf, type SweepPolicy } from '../inboxSweep/sweepGuard';
 import { alreadyHandled } from './captureJournal';
 import { computeFingerprint } from './enrichmentBlock';
 import { classifyByExtension, extensionOf, isKnownUnsupportedMedia, type MediaKind } from './mediaSignature';
 import { pathExclusion } from './capturePolicy';
 import type { CaptureConfig, CaptureJournal, SkipReason } from './captureTypes';
+
+/** The file is not in the vault (any more). Distinct from a read that failed: a gone file is a settled fact, a failed read may pass. */
+export const CAPTURE_FILE_MISSING = 'capture-file-missing';
+/** The file exists but could not be read right now. */
+export const CAPTURE_READ_FAILED = 'capture-read-failed';
 
 export interface VaultFileInfo {
     path: string;
@@ -31,7 +38,8 @@ export interface ResolvedAttachments {
 /** The slice of the vault the scanner needs. The production port wraps Obsidian; tests fake it. */
 export interface CaptureVaultPort {
     listFiles(): VaultFileInfo[];
-    readText(path: string): Promise<string>;
+    /** err = the note cannot be read right now (`capture-file-missing` or `capture-read-failed`): it is left for the next scan. */
+    readText(path: string): Promise<Result<string>>;
     /**
      * The media a note embeds or links. `text` is omitted for a note that is not being read (a kept-out
      * note): the port then answers from Obsidian's link index alone, so nothing is read.
@@ -39,9 +47,9 @@ export interface CaptureVaultPort {
     resolveAttachments(notePath: string, text?: string): ResolvedAttachments;
     /**
      * sha256 of a file's bytes, cached by (path, size, mtime) so an unchanged file is read once. Called only for
-     * attachments that already passed the exclusion guard and the size cap. null = unreadable.
+     * attachments that already passed the exclusion guard and the size cap. err = unreadable.
      */
-    digestOf(path: string, size: number, mtime: number): Promise<string | null>;
+    digestOf(path: string, size: number, mtime: number): Promise<Result<string>>;
     /** Notes anywhere in the vault that embed or link this file (from the link index; no reads) */
     referrersOf(path: string): string[];
 }
@@ -90,7 +98,20 @@ export interface ScanDeps {
     includeExisting?: boolean;
 }
 
-export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise<ScanOutcome> {
+/**
+ * Never rejects: a failure outside what a single note or file can explain (the file list, the policy revision, the
+ * swept check) is `capture-scan-failed`, and the caller treats the scan as not having happened.
+ */
+export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise<Result<ScanOutcome>> {
+    try {
+        return ok(await scan(port, deps));
+    } catch (e) {
+        logger.warn('CaptureInbox', 'The inbox scan failed', e);
+        return err('capture-scan-failed');
+    }
+}
+
+async function scan(port: CaptureVaultPort, deps: ScanDeps): Promise<ScanOutcome> {
     const { config, policy, journal } = deps;
     const inbox = config.inboxFolders.map(normalisePath).filter((p) => p !== '');
     const outcome: ScanOutcome = { captures: [], skipped: [], olderIgnored: 0 };
@@ -133,7 +154,10 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             outcome.olderIgnored++;
             continue;
         }
-        const text = await port.readText(id);
+        const read = await port.readText(id);
+        // An unreadable note is not judged on text nobody saw: it waits for the next scan (its media stays claimed above).
+        if (!read.ok) continue;
+        const text = read.value;
         const refs = port.resolveAttachments(id, text);
         for (const path of refs.resolved) referenced.add(path);
         if (exclusionReason(id, text, policy)) {
@@ -169,8 +193,8 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             if (a.kind === null) continue;
             // No digest means the file cannot be read yet: the capture waits (nothing is judged or sent on an unknown identity).
             const digest = await port.digestOf(a.path, a.size, info.get(a.path)?.mtime ?? 0);
-            if (digest === null) missing.push(a.path);
-            else a.digest = digest;
+            if (!digest.ok) missing.push(a.path);
+            else a.digest = digest.value;
         }
         const entry = journal.entries[id];
         const fingerprint = await computeFingerprint(text, attachments, entry?.inserted);
@@ -209,8 +233,8 @@ export async function scanInbox(port: CaptureVaultPort, deps: ScanDeps): Promise
             continue;
         }
         const digest = await port.digestOf(id, file.size, file.mtime);
-        if (digest === null) continue; // unreadable for now: not offered until it can be read
-        att.digest = digest;
+        if (!digest.ok) continue; // unreadable for now: not offered until it can be read
+        att.digest = digest.value;
         const fingerprint = await computeFingerprint('', [att], journal.entries[id]?.inserted);
         if (alreadyHandled(journal, id, fingerprint, revision)) continue;
         outcome.captures.push({ id, notePath: null, text: '', attachments: [att], missingAttachments: [], fingerprint, ctime: file.ctime });

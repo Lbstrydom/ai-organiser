@@ -55,6 +55,19 @@ export class ImageProcessorService {
      * @returns Processed image with base64 data
      */
     async processImage(file: TFile, options?: ImageProcessOptions): Promise<ProcessedImage> {
+        // Read file as ArrayBuffer
+        const arrayBuffer = await this.app.vault.readBinary(file);
+        return this.processImageBytes(arrayBuffer, file.extension, options);
+    }
+
+    /**
+     * The same pipeline as {@link processImage}, from bytes the caller already holds. A caller that validated the
+     * bytes (signature, size, digest) hands exactly those bytes here, so nothing is re-read from the vault between
+     * the check and the use.
+     * @param arrayBuffer - The image file's bytes
+     * @param fileExtension - The file extension without the dot (decides the media type and any conversion)
+     */
+    async processImageBytes(arrayBuffer: ArrayBuffer, fileExtension: string, options?: ImageProcessOptions): Promise<ProcessedImage> {
         const opts = {
             maxDimension: options?.maxDimension ?? DEFAULT_IMAGE_MAX_DIMENSION,
             quality: options?.quality ?? DEFAULT_IMAGE_QUALITY,
@@ -62,13 +75,11 @@ export class ImageProcessorService {
             includeBlob: options?.includeBlob ?? false
         };
 
-        // Read file as ArrayBuffer
-        const arrayBuffer = await this.app.vault.readBinary(file);
         const originalSizeBytes = arrayBuffer.byteLength;
         const blob = new Blob([arrayBuffer]);
 
         // Determine media type from extension
-        const extension = file.extension.toLowerCase();
+        const extension = fileExtension.toLowerCase();
         const originalMediaType = this.getMediaTypeFromExtension(extension);
 
         // Check if conversion is needed
