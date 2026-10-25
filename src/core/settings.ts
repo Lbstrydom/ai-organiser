@@ -7,6 +7,7 @@ import { FEATURE_REGISTRY, type FeatureId } from './features';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
+import type { ReportedItems } from '../services/inboxSweep/sweepItemIdentity';
 import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
 import { DEFAULT_AUDIO_MODE, deriveAudioMode, type NewsletterAudioMode } from '../services/newsletter/newsletterAudioMode';
 import { DEFAULT_READ_MODE, isReadMode, type NewsletterReadMode } from '../services/newsletter/newsletterReadMode';
@@ -499,6 +500,8 @@ export interface AIOrganiserSettings {
     sweepMaxChars: number;
     sweepLedger: SweepLedger;
     sweepApprovals: ApprovalRecord[];
+    /** Identity keys of the items already added to the sweep report, per source note (see sweepLedger `itemKeys`) */
+    sweepReportedItems: ReportedItems;
 
     // === CAPTURE INBOX (clarify step before the sweep) ===
     // The inbox folders and what is kept out are the SWEEP's settings (`sweepInboxFolders`, `sweepExcluded*`): one inbox, one privacy policy.
@@ -1085,6 +1088,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     sweepMaxChars: 12000,
     sweepLedger: {},
     sweepApprovals: [],
+    sweepReportedItems: {},
     captureOnOpen: false,
     captureOnOpenMaxPerRun: 3,
     captureMaxPerRun: 10,
@@ -1773,7 +1777,7 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
             const tasks = rawTasks.flatMap((t): ApprovalRecord['tasks'] => {
                 const x = t as Record<string, unknown> | null;
                 if (!x || typeof x.id !== 'string' || typeof x.text !== 'string' || typeof x.sourcePath !== 'string' || typeof x.sourceHash !== 'string' || typeof x.state !== 'string' || !states.includes(x.state)) return [];
-                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined }];
+                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined, ...(Array.isArray(x.keys) && x.keys.every((k) => typeof k === 'string') ? { keys: x.keys } : {}) }];
             });
             const dispositions = rawDispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
                 const x = dd as Record<string, unknown> | null;
@@ -1786,6 +1790,14 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
         }
     }
     old.sweepApprovals = approvals;
+
+    const reported: ReportedItems = {};
+    if (old.sweepReportedItems && typeof old.sweepReportedItems === 'object' && !Array.isArray(old.sweepReportedItems)) {
+        for (const [path, keys] of Object.entries(old.sweepReportedItems as Record<string, unknown>)) {
+            if (Array.isArray(keys)) reported[path] = keys.filter((k): k is string => typeof k === 'string').slice(-500);
+        }
+    }
+    old.sweepReportedItems = reported;
 
     old.tasksScriptUrl = typeof old.tasksScriptUrl === 'string' ? old.tasksScriptUrl.trim() : '';
     old.tasksListId = typeof old.tasksListId === 'string' ? old.tasksListId.trim() : '';

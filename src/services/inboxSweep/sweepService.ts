@@ -10,12 +10,17 @@ import { buildSweepPrompt, parseSweepResponse, promptText, type SweepItem } from
 import { buildSnapshot } from './noteSnapshot';
 import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, type GuardedSnapshot, type SweepPolicy } from './sweepGuard';
 import { isSwept, type SweepLedger } from './sweepLedger';
+import { itemKeys, reportedMatch } from './sweepItemIdentity';
 import { logger } from '../../utils/logger';
 
 export interface NoteProposals {
     path: string;
     contentHash: string;
     items: SweepItem[];
+    /** Aligned with `items`: true when the item was already added to the sweep report from this note */
+    reported?: boolean[];
+    /** Aligned with `items`: true when the item looks like one already added (same quoted line, similar wording) but is not the same wording */
+    similar?: boolean[];
     dropped: number;
     truncated: boolean;
 }
@@ -37,6 +42,8 @@ export interface SweepDeps {
     /** The CURRENT policy; read again for every note and before every call */
     policy(): SweepPolicy;
     ledger(): SweepLedger;
+    /** Identity keys of the items already reported from this note (absent: none are known) */
+    reportedKeys?(path: string): ReadonlySet<string>;
     /** True when the path is still where the snapshot said it was (a rename mid-run changes it) */
     currentPath?(path: string): string | null;
 }
@@ -148,7 +155,11 @@ async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promis
         const parsed = parseSweepResponse(answer.value, promptText(guarded, options.maxChars).text);
         // An answer we cannot read is a failure for this note, never "nothing to do": it stays unswept.
         if (parsed.malformed) { out.failed++; continue; }
-        out.notes.push({ path: guarded.path, contentHash: guarded.contentHash, items: parsed.items, dropped: parsed.dropped, truncated });
+        const known = deps.reportedKeys?.(guarded.path);
+        const matches = parsed.items.map((item) => (known ? reportedMatch(known, itemKeys(item)) : null));
+        const reported = matches.map((m) => m === 'exact');
+        const similar = matches.map((m) => m === 'similar');
+        out.notes.push({ path: guarded.path, contentHash: guarded.contentHash, items: parsed.items, reported, similar, dropped: parsed.dropped, truncated });
     }
     return out.cancelled && out.notes.length === 0 && out.failed === 0 ? err('cancelled') : ok(out);
 }

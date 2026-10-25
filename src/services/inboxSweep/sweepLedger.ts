@@ -31,7 +31,10 @@ export interface ApprovedTask {
     state: TaskState;
     /** Stable code when the last export attempt failed */
     error?: string;
+    /** Item identity (see `itemKeys`); absent on tasks approved before item identity existed */
+    keys?: string[];
 }
+
 
 export interface Disposition {
     sourcePath: string;
@@ -137,7 +140,7 @@ export function pruneApprovals(records: readonly ApprovalRecord[], keepFinished 
 
 // ─── Renames ────────────────────────────────────────────────────────────────
 
-function remap(path: string, oldPath: string, newPath: string): string {
+export function remap(path: string, oldPath: string, newPath: string): string {
     const p = normalisePath(path);
     const o = normalisePath(oldPath);
     if (p === o) return normalisePath(newPath);
@@ -156,6 +159,7 @@ export function renameLedger(ledger: SweepLedger, oldPath: string, newPath: stri
     }
     return { ledger: out, changed };
 }
+
 
 /** The same remap for the source paths inside open approval records. */
 export function renameApprovals(records: readonly ApprovalRecord[], oldPath: string, newPath: string): { records: ApprovalRecord[]; changed: boolean } {

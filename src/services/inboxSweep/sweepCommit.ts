@@ -31,6 +31,7 @@ import {
     type ApprovalRecord,
     type Disposition,
 } from './sweepLedger';
+import { dropAlreadyReported, recordReportedItems } from './sweepItemIdentity';
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
 import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
 import { heldMirrorPaths, isCaptureActive, isHeldMirrorLoaded } from '../captureInbox/heldMirror';
@@ -169,12 +170,14 @@ async function writeSection(plugin: AIOrganiserPlugin, record: ApprovalRecord): 
 // ─── The four steps ─────────────────────────────────────────────────────────
 
 export interface CommitInput {
-    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string }>;
+    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string; keys?: string[] }>;
     dispositions: readonly Disposition[];
 }
 
 export interface CommitOutcome {
     record: ApprovalRecord;
+    /** Approved tasks left out because the same item was already added from that note (or repeated in the batch) */
+    duplicates?: number;
     /** Set when a step stopped; the record is saved and a later run can finish it */
     stoppedAt?: 'persist' | 'report' | 'ledger';
     error?: string;
@@ -195,7 +198,15 @@ async function commitReviewGuarded(plugin: AIOrganiserPlugin, input: CommitInput
     }
 }
 
-async function commitReviewUnsafe(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
+async function commitReviewUnsafe(plugin: AIOrganiserPlugin, rawInput: CommitInput): Promise<CommitOutcome> {
+    // An item already added from its note is never added twice: not to the report, not to the export.
+    const { kept, dropped } = dropAlreadyReported(rawInput.tasks, plugin.settings.sweepReportedItems, plugin.settings.sweepApprovals);
+    const input: CommitInput = { ...rawInput, tasks: kept };
+    const out = await commitFiltered(plugin, input);
+    return dropped > 0 ? { ...out, duplicates: dropped } : out;
+}
+
+async function commitFiltered(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
     const path = validateReportPath(plugin.settings.sweepReportPath, plugin.settings.protectedFolders);
     const runId = newRunId();
     let record = newApproval({
@@ -225,6 +236,9 @@ export function finishRecord(plugin: AIOrganiserPlugin, start: ApprovalRecord): 
 
 async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): Promise<CommitOutcome> {
     let record = start;
+    // The step awaits (the note write, the saves): a rename in that window remaps the stored record, so each step
+    // works from the stored record as it is NOW, not from the copy this call started with.
+    const live = (r: ApprovalRecord): ApprovalRecord => plugin.settings.sweepApprovals.find((x) => x.runId === r.runId) ?? r;
     let stage: 'report' | 'ledger' = 'report';
     try {
         if (!record.reportDone) {
@@ -238,18 +252,29 @@ async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): P
                 const written = await writeSection(plugin, record);
                 if (!written.ok) return { record, stoppedAt: 'report', error: written.error };
             }
-            const next = markReported(record);
+            const next = markReported(live(record));
             const saved = await saveRecord(plugin, next);
             if (!saved.ok) return { record, stoppedAt: 'report', error: saved.error };
             record = next;
         }
         if (!record.ledgerDone) {
             stage = 'ledger';
+            record = live(record);
             const next = { ...record, ledgerDone: true };
             const ledgerBefore = plugin.settings.sweepLedger;
-            plugin.settings.sweepLedger = applyDispositions(ledgerBefore, record, new Date().toISOString());
+            const itemsBefore = plugin.settings.sweepReportedItems;
+            const ledgerApplied = applyDispositions(ledgerBefore, record, new Date().toISOString());
+            plugin.settings.sweepLedger = ledgerApplied;
+            const itemsApplied = recordReportedItems(itemsBefore, record);
+            plugin.settings.sweepReportedItems = itemsApplied;
             const saved = await saveRecord(plugin, next);
-            if (!saved.ok) { plugin.settings.sweepLedger = ledgerBefore; return { record, stoppedAt: 'ledger', error: saved.error }; }
+            if (!saved.ok) {
+                // A rename that remapped a map while the save was pending owns the live value: do not overwrite it.
+                if (plugin.settings.sweepLedger === ledgerApplied) plugin.settings.sweepLedger = ledgerBefore;
+                // A rename that remapped the map while the save was pending owns the live value: do not overwrite it.
+                if (plugin.settings.sweepReportedItems === itemsApplied) plugin.settings.sweepReportedItems = itemsBefore;
+                return { record, stoppedAt: 'ledger', error: saved.error };
+            }
             record = next;
         }
         return { record };

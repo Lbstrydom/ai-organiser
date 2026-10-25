@@ -24,6 +24,7 @@ import { estimateSweep, runSweep, type NoteProposals, type SweepDeps } from '../
 import { commitReview, repairApprovals, sendApproved, sweepPolicy, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
 import { freezeHeldMirror, isCaptureActive, isCaptureCorrupt, isHeldMirrorLoaded, unfreezeHeldMirror } from '../services/captureInbox/heldMirror';
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
+import { renameReportedItems, reportedKeysFor } from '../services/inboxSweep/sweepItemIdentity';
 import { validateReportPath } from '../services/inboxSweep/sweepReport';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
 import { buildTasksScript } from '../services/inboxSweep/tasksScriptTemplate';
@@ -64,6 +65,7 @@ export function buildSweepDeps(plugin: AIOrganiserPlugin, signal?: AbortSignal):
         },
         policy: () => sweepRunPolicy(plugin),
         ledger: () => plugin.settings.sweepLedger,
+        reportedKeys: (path) => reportedKeysFor(path, plugin.settings.sweepReportedItems, plugin.settings.sweepApprovals),
         currentPath: (path) => (plugin.app.vault.getAbstractFileByPath(path) instanceof TFile ? path : null),
     };
 }
@@ -181,8 +183,10 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<vo
         new Notice(out.stoppedAt === 'persist' ? formatGuidance(describeError(plugin.t, out.error)) : t.commitStopped.replace('{reason}', formatGuidance(describeError(plugin.t, out.error))), 10000);
         return;
     }
-    new Notice(input.tasks.length > 0 ? plural(t.addedNotice, input.tasks.length).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
-    if (input.tasks.length > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && plugin.settings.tasksListId) {
+    const added = input.tasks.length - (out.duplicates ?? 0);
+    new Notice(added > 0 ? plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
+    if (out.duplicates) new Notice(plural(t.duplicatesSkipped, out.duplicates), 6000);
+    if (added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && plugin.settings.tasksListId) {
         await runSendApproved(plugin);
     }
 }
@@ -469,6 +473,7 @@ function registerRenameTracking(plugin: AIOrganiserPlugin): void {
         const s = plugin.settings;
         const ledger = renameLedger(s.sweepLedger, oldPath, file.path);
         const approvals = renameApprovals(s.sweepApprovals, oldPath, file.path);
+        const reportedItems = renameReportedItems(s.sweepReportedItems, oldPath, file.path);
         const oldNorm = normalisePath(oldPath);
         const moved = (f: string): string => (isInsideOrEqual(normalisePath(f), oldNorm) ? normalisePath(file.path) + normalisePath(f).slice(oldNorm.length) : f);
         const inbox = s.sweepInboxFolders.map(moved);
@@ -476,12 +481,13 @@ function registerRenameTracking(plugin: AIOrganiserPlugin): void {
         const report = moved(s.sweepReportPath);
         const reportMoved = report !== s.sweepReportPath;
         // Every rename-sensitive setting is looked at on its own before deciding nothing changed.
-        const changed = ledger.changed || approvals.changed || reportMoved
+        const changed = ledger.changed || approvals.changed || reportedItems.changed || reportMoved
             || inbox.some((f, i) => f !== s.sweepInboxFolders[i]) || excluded.some((f, i) => f !== s.sweepExcludedFolders[i]);
         if (!changed) return;
         // The live data is remapped immediately; saving happens in order afterwards.
         s.sweepLedger = ledger.ledger;
         s.sweepApprovals = approvals.records;
+        s.sweepReportedItems = reportedItems.items;
         s.sweepInboxFolders = inbox;
         s.sweepExcludedFolders = excluded;
         if (reportMoved) s.sweepReportPath = report;

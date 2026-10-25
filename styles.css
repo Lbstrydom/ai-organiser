@@ -9941,6 +9941,14 @@
     overflow-wrap: anywhere;
 }
 
+.ai-organiser-sweep-reported {
+    font-style: italic;
+}
+
+.ai-organiser-sweep-item input:disabled {
+    opacity: 0.55;
+}
+
 .ai-organiser-sweep-swept {
     display: flex;
     align-items: center;
