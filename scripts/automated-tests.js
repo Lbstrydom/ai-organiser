@@ -113,8 +113,25 @@ test('Bases template has required fields', () => {
     const configPath = path.join(__dirname, '..', 'src', 'services', 'configurationService.ts');
     const content = fs.readFileSync(configPath, 'utf8');
 
-    assertContains(content, 'name:', 'Template missing name field');
-    assertContains(content, 'columns:', 'Template missing columns field');
+    // The native Bases schema: a `views` list whose table view lists its columns under `order`
+    // (Obsidian ignores a top-level `columns:` and does not know `property.<name>`).
+    const templatesMatch = content.match(/DEFAULT_BASES_TEMPLATES[\s\S]*?^\];/m);
+    assertTrue(!!templatesMatch, 'Could not locate DEFAULT_BASES_TEMPLATES block');
+    const templates = templatesMatch[0];
+    assertContains(templates, 'name:', 'Template missing name field');
+    assertContains(templates, 'views:', 'Template missing views field (native Bases schema)');
+    assertContains(templates, 'type: table', 'Template view missing a type');
+    assertContains(templates, 'order:', 'Template view missing its order (columns) list');
+    assertTrue(!templates.includes('columns:'), 'Template still uses the legacy top-level columns: key');
+    assertTrue(!templates.includes('property.'), 'Template still uses the legacy property.<name> references');
+});
+
+test('Legacy Bases template dialect is still converted when a dashboard is created', () => {
+    const dashboardPath = path.join(__dirname, '..', 'src', 'services', 'dashboardService.ts');
+    const content = fs.readFileSync(dashboardPath, 'utf8');
+
+    assertContains(content, 'export function toNativeBase', 'dashboardService must export toNativeBase');
+    assertContains(content, 'toNativeBase(template.content)', 'createDashboard must convert the template to the native schema');
 });
 
 // ============================================
