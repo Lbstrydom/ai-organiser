@@ -33,7 +33,7 @@ import { prepareReplace, replaceAndRunCatchUp, type RefuseReason, type ReplacePr
 import { markEpisodeListened } from '../../services/newsletter/catchUp/catchUpListen';
 import { availabilityOf, deriveModalView, type ModalView, type Waiting } from '../../services/newsletter/catchUp/catchUpModalState';
 import { formatBytes } from '../../services/notebooklm/notebooklmUtils';
-import { datesBetween, formatDateList, formatDates, formatEpisodeDone, formatPendingSummary, isContiguous } from '../../services/newsletter/catchUp/catchUpFormat';
+import { datesBetween, formatDateList, formatDates, formatEpisodeDone, formatPendingSummary, isContiguous, sameDays } from '../../services/newsletter/catchUp/catchUpFormat';
 import { CATCHUP_BIG_THRESHOLD_DAYS, type EpisodeMeta, type TidyPlan } from '../../services/newsletter/catchUp/catchUpTypes';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
@@ -219,7 +219,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         this.renderSkipped(view);
         if (opts.unheardWarning && view.replaceSoon) this.note(this.plugin.t.modals.newsletterCatchUp.waitingReplaceSoon, 'is-warn');
         if (opts.unheardWarning && view.waiting) this.renderWaiting(view.waiting);
-        else if (opts.unheardWarning && view.unheard) this.renderUnheard(view.unheard.episode);
+        // Replace swaps an old episode for a new one over the pending days; with nothing pending it would only remake the same audio.
+        else if (opts.unheardWarning && view.unheard) this.renderUnheard(view.unheard.episode, view.kind === 'pending');
     }
 
     /** Days the plan leaves out on purpose, said plainly, with a way to bring the heard ones back. */
@@ -253,9 +254,10 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             text: (many ? m.waitingTitleMany : m.waitingTitleOne).replace('{count}', String(waiting.episodes.length)).replace('{pending}', m.waitingPending.replace('{days}', pending)),
         });
         box.createEl('p', { text: many ? m.waitingEndsMany : m.waitingEndsOne });
+        box.createEl('p', { text: m.waitingGenerateHint, cls: 'ai-organiser-catchup-note is-muted' });
         for (const episode of waiting.episodes) {
             const range = episode.from === episode.to ? episode.to : `${episode.from} → ${episode.to}`;
-            box.createEl('p', { text: range, cls: 'ai-organiser-catchup-waiting-episode' });
+            box.createEl('p', { text: m.waitingEpisodeLine.replace('{range}', range), cls: 'ai-organiser-catchup-waiting-episode' });
             const row = box.createDiv({ cls: 'ai-organiser-catchup-actions' });
             this.openButton(row, m.openEpisode, episode.notePath);
             this.button(row, m.markListened, () => { void this.markListened(episode); });
@@ -264,16 +266,16 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         box.createEl('p', { text: m.markMapHint, cls: 'ai-organiser-catchup-note is-muted' });
     }
 
-    private renderUnheard(episode: EpisodeMeta): void {
+    private renderUnheard(episode: EpisodeMeta, canReplace: boolean): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
         const box = this.contentEl.createDiv({ cls: 'ai-organiser-catchup-unheard' });
         box.createEl('strong', { text: m.unheardTitle });
         const range = episode.from === episode.to ? episode.to : `${episode.from} → ${episode.to}`;
-        box.createEl('p', { text: m.unheardBody.replace('{range}', range) });
+        box.createEl('p', { text: (canReplace ? m.unheardBody : m.unheardBodyDone).replace('{range}', range) });
         const row = box.createDiv({ cls: 'ai-organiser-catchup-actions' });
         this.openButton(row, m.openEpisode, episode.notePath);
         this.button(row, m.markListened, () => { void this.markListened(episode); });
-        this.renderReplaceButton(box, this.view && 'unheard' in this.view && this.view.unheard ? this.view.unheard.count : 1);
+        if (canReplace) this.renderReplaceButton(box, this.view && 'unheard' in this.view && this.view.unheard ? this.view.unheard.count : 1);
         box.createEl('p', { text: m.markMapHint, cls: 'ai-organiser-catchup-note is-muted' });
     }
 
@@ -286,6 +288,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             ? m.coversOne.replace('{date}', view.from)
             : isContiguous(view.dates) ? m.covers.replace('{from}', view.from).replace('{to}', view.to) : m.coversList.replace('{dates}', formatDateList(this.plugin.t, view.dates)));
         if (view.unresolvedDates.length > 0) this.note(m.unresolved.replace('{dates}', formatDates(this.plugin.t, view.unresolvedDates)), 'is-warn');
+        // "Include again" on days an unheard episode already covers would pile up a second one: say how to swap instead.
+        if (this.includeAgainDates && view.unheard) this.note(m.includeAgainNote, 'is-warn');
         this.renderCommon(view, { unheardWarning: true });
 
         // Length and cost: previewed before any spend.
@@ -445,6 +449,8 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         this.contentEl.createEl('h3', { text: m.resumeTitle });
         this.note(view.phase === 'audio-ready' ? m.resumeAudioReady : m.resumeScripted);
         this.note(m.resumeRange.replace('{from}', view.from).replace('{to}', view.to));
+        // The same choice as before the run: a failed run must not quietly drop the ticked tidy.
+        if (!this.confirmingDiscard) this.renderTidyOption(view.tidy);
         if (this.confirmingDiscard) {
             this.note(m.discardConfirm, 'is-warn');
             const confirmRow = this.footer();
@@ -453,7 +459,7 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
             return;
         }
         const footer = this.footer();
-        this.button(footer, view.action === 'finish-saving' ? m.finishSaving : m.resume, () => { void this.resume(); }, true);
+        this.button(footer, view.action === 'finish-saving' ? m.finishSaving : m.resume, () => { void this.resume(view.tidy); }, true);
         // Start over remakes the SAME days: they may no longer be pending (an "Include again" episode,
         // or one made before a reload), so the range of the unfinished episode is re-offered in full.
         this.button(footer, m.startOver, () => { void this.discard({ restartDates: datesBetween(view.from, view.to) }); });
@@ -484,8 +490,16 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
     /** Nothing pending: Generate is absent, but replaying and remaking stay reachable. */
     private renderReplayRow(latest: { notePath: string; coverage: Record<string, unknown> } | null, windowDates: readonly string[] = []): void {
         const m = this.plugin.t.modals.newsletterCatchUp;
-        if (latest) this.note(m.includeAgainHint);
+        // The episode's own days, exactly: a range could name days the episode never covered.
+        const latestDays = latest ? Object.keys(latest.coverage).sort() : [];
+        // When the episode's days ARE the whole window, "include all" already says it: one button, not two.
+        const sameAsAll = sameDays(latestDays, windowDates);
+        if (latest && !sameAsAll) this.note(m.includeAgainHint);
         const footer = this.footer();
+        if (latest) {
+            // One way to open an episode per screen: the unheard box already offers it for the episode it names.
+            if (!this.hasOpenButton(latest.notePath)) this.openButton(footer, m.replayLatest, latest.notePath);
+        }
         // Any day in the window can be brought back, not only the last episode's own range.
         if (windowDates.length > 0) {
             this.button(footer, (windowDates.length === 1 ? m.includeAllOne : m.includeAll).replace('{n}', String(windowDates.length)), () => {
@@ -494,12 +508,9 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
                 void this.refresh();
             });
         }
-        if (latest) {
-            // One way to open an episode per screen: the unheard box already offers it for the episode it names.
-            if (!this.hasOpenButton(latest.notePath)) this.openButton(footer, m.replayLatest, latest.notePath);
+        if (latest && !sameAsAll) {
             this.button(footer, m.includeAgain, () => {
-                // The episode's own days, exactly: a range could name days the episode never covered.
-                this.includeAgainDates = Object.keys(latest.coverage).sort();
+                this.includeAgainDates = latestDays;
                 this.banner = null;
                 void this.refresh();
             });
@@ -660,8 +671,13 @@ export class NewsletterCatchUpModal extends Modal implements ProgressHost {
         this.afterRun = this.afterRun ? { text: `${this.afterRun.text} ${note.text}`, clean: this.afterRun.clean && note.clean } : note;
     }
 
-    private async resume(): Promise<void> {
-        await this.execute((ports, opts) => resumeCatchUp(ports, opts));
+    private async resume(tidy: TidyPlan | null): Promise<void> {
+        this.afterRun = null;
+        await this.execute(async (ports, opts) => {
+            const res = await resumeCatchUp(ports, opts);
+            if (res.ok) await this.tidyAfter(res.value, tidy);
+            return res;
+        });
     }
 
     /**
