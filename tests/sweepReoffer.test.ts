@@ -66,6 +66,17 @@ describe('item identity keys', () => {
 	});
 });
 
+describe('normalisation length', () => {
+	it('text that NFKC lengthens keeps its identity (the cap is on the text as written)', () => {
+		const ligatures = 'ﬃ'.repeat(200); // 200 characters written, 600 after NFKC
+		const a = itemKeys({ text: `${ligatures}a`, evidence: 'q' });
+		const b = itemKeys({ text: `${ligatures}b`, evidence: 'q' });
+		expect(normaliseItemText(`${ligatures}a`).length).toBeGreaterThan(400);
+		expect(isReportedItem(new Set(a), b)).toBe(false);
+		expect(isReportedItem(new Set(a), a)).toBe(true);
+	});
+});
+
 describe('isReportedItem', () => {
 	const known = new Set(itemKeys({ text: 'Draft the migration plan', evidence: 'I need to draft the migration plan' }));
 

@@ -51,7 +51,9 @@ const KEY_SEPARATOR = '|';
 
 /** Letters and digits only, lower case, single spaces: stable across punctuation, case and spacing edits. */
 export function normaliseItemText(text: string): string {
-    return text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, MAX_KEY_CHARS).trim();
+    // The cap is on the text as written (the report cuts a task at 300 characters of it), BEFORE normalising:
+    // normalising can lengthen text (NFKC expands ligatures), and cutting after it would merge distinct items.
+    return text.slice(0, MAX_KEY_CHARS).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
 }
 
 /**
