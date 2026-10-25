@@ -142,13 +142,22 @@ export function alreadyHandled(journal: CaptureJournal, id: string, fingerprint:
 
 /** Accepted and organised captures keep their text only while recent; older ones become tombstones. */
 export const KEEP_FINISHED = 25;
+/** Accepted or organised captures the user has not marked processed stay reachable (the review window is where that is done), up to this many beyond the recent ones. */
+export const KEEP_UNMARKED = 50;
 
 export function pruneFinished(journal: CaptureJournal, now: number, keep = KEEP_FINISHED): CaptureJournal {
     const done = Object.values(journal.entries)
         .filter((e) => e.state === 'accepted' || e.state === 'organised')
         .sort((a, b) => b.updatedAt - a.updatedAt);
     let next = journal;
-    for (const e of done.slice(keep)) next = finish(next, e.id, e.state === 'organised' ? 'organised' : 'accepted', now);
+    let spare = KEEP_UNMARKED;
+    for (const e of done.slice(keep)) {
+        if (e.processedAt === undefined && spare > 0) {
+            spare--;
+            continue;
+        }
+        next = finish(next, e.id, e.state === 'organised' ? 'organised' : 'accepted', now);
+    }
     return next;
 }
 

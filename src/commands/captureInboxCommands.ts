@@ -25,7 +25,7 @@ import { buildRuntimeDeps } from '../services/captureInbox/captureDepsFactory';
 import { CaptureJournalStore } from '../services/captureInbox/captureJournalStore';
 import { processAgain, retryCapture } from '../services/captureInbox/captureProcessor';
 import { CaptureRuntime } from '../services/captureInbox/captureRuntime';
-import { acceptCapture, createOrganisedNote, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
+import { acceptCapture, createOrganisedNote, processedTarget, setCaptureProcessed, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
 import { clearHeldMirror, setCaptureActive, setCaptureCorrupt, setHeldMirror } from '../services/captureInbox/heldMirror';
 import { estimateCost, formatEstimate } from '../services/captureInbox/costEstimate';
 import { CaptureInboxStatusBar } from '../ui/components/CaptureInboxStatusBar';
@@ -145,6 +145,20 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             if (res.ok) return res.value;
             guidance(plugin, res.error);
             return null;
+        },
+
+        async markProcessed(id) {
+            const entry = getEntry(store.get(), id);
+            if (!entry) return failed('capture-changed');
+            // Previewed: the user sees the one change before it is made.
+            if (!(await confirmText(plugin, t.markProcessed.replace('…', ''), t.markProcessedPreview.replace('{path}', processedTarget(entry))))) return false;
+            const res = await setCaptureProcessed(deps.writer, id, true);
+            return res.ok ? true : failed(res.error);
+        },
+
+        async unmarkProcessed(id) {
+            const res = await setCaptureProcessed(deps.writer, id, false);
+            return res.ok ? true : failed(res.error);
         },
 
         async skip(id) {

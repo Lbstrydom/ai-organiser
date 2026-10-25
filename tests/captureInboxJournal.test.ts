@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     addAlias, alreadyHandled, awaitingCount, bump, bumpBucket, canStartProcessing, decodeJournal, finish,
-    getEntry, heldPaths, reconcile, rekey, upsertEntry,
+    getEntry, heldPaths, pruneFinished, reconcile, rekey, upsertEntry,
 } from '../src/services/captureInbox/captureJournal';
 import { MAX_ATTEMPTS, MAX_AWAITING_REVIEW, emptyJournal } from '../src/services/captureInbox/captureTypes';
 import type { CaptureEntry, CaptureState } from '../src/services/captureInbox/captureTypes';
@@ -187,4 +187,34 @@ describe('capture journal', () => {
     expect(Object.values(j.tombstones).filter((t) => t.state === 'skipped').length).toBeLessThanOrEqual(2000);
   });
 
+});
+
+describe('pruneFinished keeps unmarked organised captures reachable', () => {
+    it('prunes accepted and marked ones past the recent window but keeps organised ones not yet marked processed', () => {
+        let j = emptyJournal();
+        for (let i = 0; i < 30; i++) j = upsertEntry(j, mk(`Inbox/o${i}.md`, 'organised', { updatedAt: 1000 + i }));
+        for (let i = 0; i < 30; i++) j = upsertEntry(j, mk(`Inbox/m${i}.md`, 'organised', { updatedAt: 100 + i, processedAt: 5 }));
+        const pruned = pruneFinished(j, 9999);
+        expect(Object.keys(pruned.entries).filter((k) => k.startsWith('Inbox/o'))).toHaveLength(30);
+        // the 25 most recent are the unmarked ones; every marked one is older, so every marked one becomes a tombstone
+        expect(Object.keys(pruned.entries).filter((k) => k.startsWith('Inbox/m'))).toHaveLength(0);
+        expect(Object.keys(pruned.tombstones)).toHaveLength(30);
+    });
+
+    it('is bounded: unmarked ones beyond the spare allowance are tombstoned', () => {
+        let j = emptyJournal();
+        for (let i = 0; i < 120; i++) j = upsertEntry(j, mk(`Inbox/o${i}.md`, 'organised', { updatedAt: 1000 + i }));
+        const pruned = pruneFinished(j, 9999);
+        expect(Object.keys(pruned.entries)).toHaveLength(25 + 50);
+        // the newest 75 stay
+        expect(pruned.entries['Inbox/o119.md']).toBeDefined();
+        expect(pruned.entries['Inbox/o45.md']).toBeDefined();
+        expect(pruned.entries['Inbox/o44.md']).toBeUndefined();
+    });
+
+    it('an accepted capture that is not yet marked processed gets the same allowance', () => {
+        let j = emptyJournal();
+        for (let i = 0; i < 30; i++) j = upsertEntry(j, mk(`Inbox/a${i}.md`, 'accepted', { updatedAt: 1000 + i }));
+        expect(Object.keys(pruneFinished(j, 9999).entries)).toHaveLength(30);
+    });
 });

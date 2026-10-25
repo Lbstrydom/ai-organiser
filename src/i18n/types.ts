@@ -4416,6 +4416,17 @@ export interface Translations {
         reviewHeadingText: string;
         reviewHeadingOrganise: string;
         reviewHeadingTasks: string;
+        reviewHeadingInbox: string;
+        inboxExplain: string;
+        markProcessed: string;
+        markProcessedPreview: string;
+        markedProcessedNotice: string;
+        processedLine: string;
+        undoProcessed: string;
+        rowProcessed: string;
+        showProcessed: string;
+        hideProcessed: string;
+        unmarkedNotice: string;
         noteTextLabel: string;
         machineTextLabel: string;
         acceptText: string;

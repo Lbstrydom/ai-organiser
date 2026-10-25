@@ -291,7 +291,7 @@ Repo-wide rules that bind *every* subsystem are in
 
 | Subsystem | What it is | Read it when |
 |---|---|---|
-| Capture inbox | The Clarify step before the sweep: text-first reading of captures already in the inbox folders, review-first, the original touched once by insertion after Accept, held captures kept out of the sweep, one inbox and one privacy policy shared with the sweep | Changing what reaches a provider, the journal, the Accept write, `sweepRunPolicy`, or the shared setup steps |
+| Capture inbox | The Clarify step before the sweep: text-first reading of captures already in the inbox folders, review-first, the original touched by insertion at Accept (and by one status-value change if the user chooses Mark as processed), the user's text kept as typed, held captures kept out of the sweep, one inbox and one privacy policy shared with the sweep | Changing what reaches a provider, the journal, the Accept write, `sweepRunPolicy`, or the shared setup steps |
 
 ### [Vault Upkeep](docs/features/vault-upkeep.md)
 

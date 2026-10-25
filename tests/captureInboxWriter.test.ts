@@ -1,10 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
-  acceptCapture, createOrganisedNote, retryPendingWrites, skipCapture, ORGANISED_FROM_KEY,
+  acceptCapture, createOrganisedNote, processedTarget, retryPendingWrites, setCaptureProcessed, skipCapture, ORGANISED_FROM_KEY,
   type JournalAccess, type WriterDeps, type WriterPort,
 } from '../src/services/captureInbox/captureWriter';
 import { getEntry, upsertEntry } from '../src/services/captureInbox/captureJournal';
-import { computeFingerprint, stripCaptureInsertions, normaliseForFingerprint } from '../src/services/captureInbox/enrichmentBlock';
+import { applyAccept, computeFingerprint, stripCaptureInsertions, normaliseForFingerprint } from '../src/services/captureInbox/enrichmentBlock';
 import { ok, err, type Result } from '../src/core/result';
 import { emptyJournal, type CaptureConfig, type CaptureEntry, type CaptureJournal } from '../src/services/captureInbox/captureTypes';
 import type { SweepPolicy } from '../src/services/inboxSweep/sweepGuard';
@@ -322,6 +322,62 @@ describe('createOrganisedNote', () => {
     expect(getEntry(s.journal, id)!.state).toBe('organised');
   });
 
+  it('copies the user\'s text intact: links, urls, dates and times survive into the created note', async () => {
+    const s = setup();
+    const example = 'Call Dana at 14:30 on 2026-10-30 about the room, spec is at https://example.com/spec and see [[Project Zephyr migration]] for the plan.';
+    const { id } = await seedNote(s, { noteText: example }, `${example}\n`);
+    await acceptCapture(s.deps, id);
+    const r = await createOrganisedNote(s.deps, id);
+    expect(r.ok).toBe(true);
+    const note = s.port.files.get('Areas/Home/Call plumber.md')!;
+    expect(note).toContain(example);
+    expect(note).toContain('[[Project Zephyr migration]]');
+    expect(note).toContain('14:30');
+    expect(note).toContain('https://example.com/spec');
+  });
+
+  it('an older entry that holds stripped text still gets the real text: the body is read from the note', async () => {
+    const s = setup();
+    const typed = 'Call Dana at 14:30 and see [[Project Zephyr]] on 2026-10-30.';
+    const { id } = await seedNote(s, { noteText: 'Call Dana at   and see   on  .' }, `${typed}\n`);
+    await acceptCapture(s.deps, id);
+    await createOrganisedNote(s.deps, id);
+    const note = s.port.files.get('Areas/Home/Call plumber.md')!;
+    expect(note).toContain(typed);
+    expect(note).not.toContain('Call Dana at   and');
+  });
+
+  it('keeps embeds, checkboxes and tags exactly as typed (decided: the organised note shows the user\'s note as written)', async () => {
+    const s = setup();
+    const typed = 'Voice memo ![[Inbox/Voice note.m4a]]\n- [ ] call Dana #work';
+    const { id } = await seedNote(s, { noteText: typed }, `${typed}\n`);
+    await acceptCapture(s.deps, id);
+    await createOrganisedNote(s.deps, id);
+    expect(s.port.files.get('Areas/Home/Call plumber.md')).toContain(typed);
+  });
+
+  it('copies the first line\'s indentation and trailing spaces as typed', async () => {
+    const s = setup();
+    const typed = '    indented code first  \nsecond line  ';
+    const { id } = await seedNote(s, { noteText: typed }, `${typed}\n`);
+    await acceptCapture(s.deps, id);
+    await createOrganisedNote(s.deps, id);
+    expect(s.port.files.get('Areas/Home/Call plumber.md')).toContain(`\n${typed}\n\nRemind me`);
+  });
+
+  it('a note longer than the held limit is copied whole from the note, not cut at the limit', async () => {
+    const s = setup();
+    s.deps.policy = () => ({ ...policy, maxNoteChars: 500_000 });
+    const long = `${'word '.repeat(12_000)}THE END [[Link]]`;
+    const { id } = await seedNote(s, { noteText: long.slice(0, 50_000) }, `${long}\n`);
+    await acceptCapture(s.deps, id);
+    await createOrganisedNote(s.deps, id);
+    const note = s.port.files.get('Areas/Home/Call plumber.md')!;
+    expect(note).toContain(long);
+    expect(note).not.toContain('<!-- aio:capture -->');
+    expect(note).not.toContain('capture-id');
+  });
+
   it('is idempotent: a double click or a crash creates one note', async () => {
     const s = setup();
     const id = await accepted(s);
@@ -450,5 +506,100 @@ describe('skipCapture', () => {
     expect(s.port.edits).toBe(0);
     expect(s.journal.tombstones[id].state).toBe('skipped_by_user');
     expect(s.journal.counters.rejected).toBe(1);
+  });
+});
+
+describe('setCaptureProcessed (mark as processed, previewed and undoable)', () => {
+  async function organised(s: ReturnType<typeof setup>) {
+    const { id } = await seedNote(s);
+    await acceptCapture(s.deps, id);
+    await createOrganisedNote(s.deps, id);
+    return id;
+  }
+
+  it('changes only the status value on the original; nothing moves, no text changes, the fingerprint is unchanged', async () => {
+    const s = setup();
+    const id = await organised(s);
+    const before = s.port.files.get(id)!;
+    const entry = getEntry(s.journal, id)!;
+    const r = await setCaptureProcessed(s.deps, id, true);
+    expect(r.ok).toBe(true);
+    const after = s.port.files.get(id)!;
+    expect(after).toBe(before.replace('capture-status: accepted-text', 'capture-status: processed'));
+    expect(after).not.toBe(before);
+    expect(s.port.files.has(id)).toBe(true);
+    expect(getEntry(s.journal, id)!.processedAt).toBe(1234);
+    const atts = entry.attachments!;
+    expect(await computeFingerprint(after, atts, entry.inserted)).toBe(entry.fingerprint);
+  });
+
+  it('Undo restores the exact original bytes, and both directions are idempotent', async () => {
+    const s = setup();
+    const id = await organised(s);
+    const before = s.port.files.get(id)!;
+    await setCaptureProcessed(s.deps, id, true);
+    const edits = s.port.edits;
+    await setCaptureProcessed(s.deps, id, true);
+    expect(s.port.edits).toBe(edits);
+    expect((await setCaptureProcessed(s.deps, id, false)).ok).toBe(true);
+    expect(s.port.files.get(id)).toBe(before);
+    expect(getEntry(s.journal, id)!.processedAt).toBeUndefined();
+    await setCaptureProcessed(s.deps, id, false);
+    expect(s.port.files.get(id)).toBe(before);
+  });
+
+  it('marks the companion note of a bare media capture, never the audio file', async () => {
+    const s = setup();
+    const companion = 'Inbox/memo (capture).md';
+    const body = applyAccept('![[Inbox/memo.m4a]]\n', 'uid-1', { machineText: 'spoken', proposal: { title: 'T', tags: [], folder: null }, source: 'transcript' });
+    if (!body.ok) throw new Error(body.error);
+    s.port.files.set(companion, body.value.text);
+    s.port.files.set('Inbox/memo.m4a', 'AUDIO');
+    s.set(upsertEntry(s.journal, { id: companion, uid: 'uid-1', state: 'accepted', fingerprint: 'f', processingVersion: 1, attempts: 0, createdAt: 1, updatedAt: 1, hasNote: false, companionPath: companion }));
+    expect((await setCaptureProcessed(s.deps, companion, true)).ok).toBe(true);
+    expect(s.port.files.get(companion)).toContain('capture-status: processed');
+    expect(s.port.files.get('Inbox/memo.m4a')).toBe('AUDIO');
+    expect(processedTarget(getEntry(s.journal, companion)!)).toBe(companion);
+  });
+
+  it('a note that grew past the plain size cap because of Accept can still be marked and unmarked', async () => {
+    const s = setup();
+    const id = await organised(s);
+    s.port.files.set(id, `${s.port.files.get(id)}\n${'x '.repeat(15_000)}`);
+    expect((await setCaptureProcessed(s.deps, id, true)).ok).toBe(true);
+    expect((await setCaptureProcessed(s.deps, id, false)).ok).toBe(true);
+  });
+
+  it('a protected or refused edit is a write failure and changes nothing; a failed journal save is reported and the retry finishes it', async () => {
+    const s = setup();
+    const id = await organised(s);
+    const realEdit = s.port.editNote.bind(s.port);
+    s.port.editNote = async () => err<void>('protected-path');
+    expect(await setCaptureProcessed(s.deps, id, true)).toEqual({ ok: false, error: 'capture-write-failed' });
+    expect(getEntry(s.journal, id)!.processedAt).toBeUndefined();
+    s.port.editNote = realEdit;
+    // the note is edited but the journal cannot be saved: reported, and the same call again completes it without a second edit
+    const realMutate = s.access.mutate;
+    s.access.mutate = async () => err('capture-journal-unsaved');
+    expect(await setCaptureProcessed(s.deps, id, true)).toEqual({ ok: false, error: 'capture-write-failed' });
+    expect(s.port.files.get(id)).toContain('capture-status: processed');
+    s.access.mutate = realMutate;
+    const edits = s.port.edits;
+    expect((await setCaptureProcessed(s.deps, id, true)).ok).toBe(true);
+    expect(s.port.edits).toBe(edits);
+    expect(getEntry(s.journal, id)!.processedAt).toBe(1234);
+  });
+
+  it('refuses a capture that is not accepted, a note that lost its capture id, and a note that is now kept out', async () => {
+    const s = setup();
+    const { id } = await seedNote(s);
+    expect(await setCaptureProcessed(s.deps, id, true)).toEqual({ ok: false, error: 'capture-changed' });
+    await acceptCapture(s.deps, id);
+    const accepted = s.port.files.get(id)!;
+    s.port.files.set(id, accepted.replace('capture-id: Inbox/Voice note.md', 'capture-id: other'));
+    expect(await setCaptureProcessed(s.deps, id, true)).toEqual({ ok: false, error: 'capture-changed' });
+    s.port.files.set(id, `${accepted}\nacme`);
+    expect(await setCaptureProcessed(s.deps, id, true)).toEqual({ ok: false, error: 'capture-source-excluded' });
+    expect(s.port.files.get(id)).toBe(`${accepted}\nacme`);
   });
 });
