@@ -9,7 +9,8 @@ import type { CaughtUpOutcome } from '../src/services/newsletter/newsletterMemor
  * the settings button so the two surfaces cannot tell the user different things.
  */
 const nl = {
-    caughtUpOk: 'Caught up through {through} — {buckets} day(s), {stories} stories',
+    caughtUpOk: 'Marked {stories} stor[y|ies] through {through} as already known.',
+    caughtUpOkNone: 'Every story through {through} was already known.',
     caughtUpNoop: 'Already up to date — nothing to mark',
     caughtUpDisabled: 'Turn on story memory first',
     caughtUpError: 'Could not mark caught up: {error}',
@@ -21,8 +22,15 @@ describe('formatCaughtUpOutcome', () => {
         const out = formatCaughtUpOutcome(
             { kind: 'ok', buckets: 3, stories: 17, through: '2026-09-04' }, nl,
         );
-        expect(out).toBe('Caught up through 2026-09-04 — 3 day(s), 17 stories');
+        expect(out).toBe('Marked 17 stories through 2026-09-04 as already known.');
         expect(out).not.toContain('{');
+    });
+
+    it('speaks of stories, never of day buckets, and keeps one story singular', () => {
+        expect(formatCaughtUpOutcome({ kind: 'ok', buckets: 1, stories: 1, through: '2026-09-04' }, nl))
+            .toBe('Marked 1 story through 2026-09-04 as already known.');
+        expect(formatCaughtUpOutcome({ kind: 'ok', buckets: 1, stories: 0, through: '2026-09-04' }, nl))
+            .toBe('Every story through 2026-09-04 was already known.');
     });
 
     it('distinguishes nothing-to-do from success', () => {
@@ -41,16 +49,15 @@ describe('formatCaughtUpOutcome', () => {
     });
 
     it('falls back to English when the i18n bundle is missing the keys', () => {
-        for (const outcome of [
-            { kind: 'ok', buckets: 1, stories: 1, through: '2026-09-04' },
-            { kind: 'noop' },
-            { kind: 'disabled' },
-            { kind: 'error', error: 'x' },
-        ] as CaughtUpOutcome[]) {
-            const out = formatCaughtUpOutcome(outcome, undefined);
-            expect(out.length).toBeGreaterThan(0);
-            expect(out).not.toContain('{');
-        }
+        const cases: Array<[CaughtUpOutcome, string]> = [
+            [{ kind: 'ok', buckets: 1, stories: 1, through: '2026-09-04' }, 'Marked 1 story through 2026-09-04 as already known.'],
+            [{ kind: 'ok', buckets: 2, stories: 5, through: '2026-09-04' }, 'Marked 5 stories through 2026-09-04 as already known.'],
+            [{ kind: 'ok', buckets: 1, stories: 0, through: '2026-09-04' }, 'Every story through 2026-09-04 was already known.'],
+            [{ kind: 'noop' }, 'Already up to date — nothing to mark'],
+            [{ kind: 'disabled' }, 'Turn on story memory first'],
+            [{ kind: 'error', error: 'x' }, 'Could not mark caught up: x'],
+        ];
+        for (const [outcome, expected] of cases) expect(formatCaughtUpOutcome(outcome, undefined)).toBe(expected);
     });
 
     it('an error whose text is literally "disabled" is still an error', () => {

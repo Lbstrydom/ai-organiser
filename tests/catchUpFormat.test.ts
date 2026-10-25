@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDates, formatEpisodeDone, formatPendingSummary, lookbackClampNote } from '../src/services/newsletter/catchUp/catchUpFormat';
+import { formatDates, formatEpisodeDone, formatPendingSummary, lookbackClampNote, sameDays } from '../src/services/newsletter/catchUp/catchUpFormat';
 import { getTranslations } from '../src/i18n';
 
 const t = getTranslations('en');
@@ -22,6 +22,19 @@ describe('catch-up wording', () => {
     it('singular and plural summaries read as lower-case counts', () => {
         expect(formatPendingSummary(t, 1, 1)).toBe('1 day · 1 newsletter');
         expect(formatPendingSummary(t, 3, 12)).toBe('3 days · 12 newsletters');
+    });
+
+    // Persona A9: '1 day · 0 newsletters' for a day that has none to count.
+    it('never counts zero newsletters next to the days', () => {
+        expect(formatPendingSummary(t, 1, 0)).toBe('1 day');
+        expect(formatPendingSummary(t, 3, 0)).toBe('3 days');
+    });
+
+    it('sameDays compares the dates, not their order or repeats', () => {
+        expect(sameDays(['2026-10-22', '2026-10-21'], ['2026-10-21', '2026-10-22'])).toBe(true);
+        expect(sameDays(['2026-10-21'], ['2026-10-21', '2026-10-22'])).toBe(false);
+        expect(sameDays(['2026-10-21', '2026-10-23'], ['2026-10-21', '2026-10-22'])).toBe(false);
+        expect(sameDays([], [])).toBe(true);
     });
 
     it('a few dates are listed, many are a range', () => {

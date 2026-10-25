@@ -13,7 +13,15 @@ export interface FakeFileSpec {
 	unreadable?: boolean;
 }
 
-export function makeFakeApp(specs: Record<string, FakeFileSpec | string>) {
+/** What Obsidian's own link index would say, for tests of the "graph is a floor" rule. */
+export interface FakeLinkIndex {
+	/** `metadataCache.resolvedLinks`: referrer path -> { target path: count } */
+	resolvedLinks?: Record<string, Record<string, number>>;
+	/** `metadataCache.getFileCache(path)`: the links/embeds Obsidian parsed, with 0-based lines */
+	fileCache?: Record<string, { links?: Array<{ link: string; original: string; position: { start: { line: number } } }>; embeds?: Array<{ link: string; original: string; position: { start: { line: number } } }> }>;
+}
+
+export function makeFakeApp(specs: Record<string, FakeFileSpec | string>, index: FakeLinkIndex = {}) {
 	const files = new Map<string, TFile>();
 	const content = new Map<string, FakeFileSpec>();
 
@@ -26,8 +34,14 @@ export function makeFakeApp(specs: Record<string, FakeFileSpec | string>) {
 	};
 	for (const [path, spec] of Object.entries(specs)) add(path, spec);
 
-	const resolve = (link: string, _source: string): TFile | null => {
-		const norm = link.replace(/^\/+/, '');
+	const resolve = (link: string, source: string): TFile | null => {
+		let norm = link.replace(/^\/+/, '');
+		// "./x" and "../x" are relative to the note, as in Obsidian
+		if (norm.startsWith('./') || norm.startsWith('../')) {
+			const parts = source.split('/').slice(0, -1);
+			for (const seg of norm.split('/')) { if (seg === '..') parts.pop(); else if (seg !== '.') parts.push(seg); }
+			norm = parts.join('/');
+		}
 		const lower = norm.toLowerCase();
 		const exact = [...files.values()].find((f) => f.path.toLowerCase() === lower);
 		if (exact) return exact;
@@ -67,6 +81,8 @@ export function makeFakeApp(specs: Record<string, FakeFileSpec | string>) {
 		metadataCache: {
 			getFirstLinkpathDest: resolve,
 			resolved: true,
+			...(index.resolvedLinks ? { resolvedLinks: index.resolvedLinks } : {}),
+			...(index.fileCache ? { getFileCache: (f: { path: string }) => index.fileCache![f.path] ?? null } : {}),
 		},
 	};
 

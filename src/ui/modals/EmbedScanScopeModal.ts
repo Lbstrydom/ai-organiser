@@ -6,6 +6,8 @@
 
 import { App, Modal, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
+import { getCanvasFilesInFolder, getMarkdownFilesInFolder } from '../../services/embedScanService';
+import { listAllReferrerFiles } from '../../services/referrerSet';
 
 export type EmbedScanScope = 'note' | 'folder' | 'vault';
 
@@ -68,10 +70,11 @@ export class EmbedScanScopeModal extends Modal {
         const activeFile = this.app.workspace.getActiveFile();
         const noteName = activeFile?.basename || es.noFileOpen;
         const folderName = activeFile?.parent?.path || 'Root';
+        // The same notes and canvases the scan will read (excluded folders included: every one is a possible referrer).
         const folderFiles = activeFile?.parent
-            ? this.plugin.getNonExcludedMarkdownFilesFromFolder(activeFile.parent).length
+            ? getMarkdownFilesInFolder(this.app, activeFile.parent).length + getCanvasFilesInFolder(activeFile.parent).length
             : 0;
-        const vaultFiles = this.plugin.getNonExcludedMarkdownFiles().length;
+        const vaultFiles = listAllReferrerFiles(this.app).length;
 
         const options: ScopeOption[] = [
             {

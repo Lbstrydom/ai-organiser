@@ -54,8 +54,8 @@ export interface WriterPort {
 
 export interface JournalAccess {
     get(): CaptureJournal;
-    /** `durable`: reject when the journal could not be saved (used for write-ahead markers a recovery depends on). */
-    mutate(fn: (journal: CaptureJournal) => CaptureJournal, opts?: { durable?: boolean }): Promise<CaptureJournal>;
+    /** `durable`: an error when the journal could not be saved (used for write-ahead markers a recovery depends on). */
+    mutate(fn: (journal: CaptureJournal) => CaptureJournal, opts?: { durable?: boolean }): Promise<Result<CaptureJournal>>;
 }
 
 export interface WriterDeps {
@@ -135,11 +135,10 @@ async function acceptLocked(deps: WriterDeps, id: string, edits: AcceptEdits, op
     const edited = !!entry.edited || machineText !== (entry.text ?? '') || JSON.stringify(proposal) !== JSON.stringify(entry.proposal ?? null);
 
     // Write-ahead: from here a crash can be recovered from `accept_pending_write` alone.
-    try {
-        await deps.journal.mutate((j) => upsertEntry(j, { ...entry, uid: uidOf(entry), state: 'accept_pending_write', text: machineText, proposal, edited, updatedAt: deps.now() }), { durable: true });
-    } catch (e) {
+    const marked = await deps.journal.mutate((j) => upsertEntry(j, { ...entry, uid: uidOf(entry), state: 'accept_pending_write', text: machineText, proposal, edited, updatedAt: deps.now() }), { durable: true });
+    if (!marked.ok) {
         // The intent could not be saved: writing now would leave nothing to recover from.
-        logger.error('CaptureInbox', 'Could not save the write-ahead marker', e);
+        logger.error('CaptureInbox', `Could not save the write-ahead marker (${marked.error})`);
         await deps.journal.mutate((j) => upsertEntry(j, { ...entry, updatedAt: deps.now() }));
         return err('capture-write-failed');
     }
@@ -183,7 +182,9 @@ async function acceptNote(deps: WriterDeps, entry: CaptureEntry, content: BlockC
     // `null` = this capture's block is already in the note (a recovered write): nothing to insert.
     if (predicted.value.inserted) {
         const spans = predicted.value.inserted;
-        await deps.journal.mutate((j) => upsertEntry(j, { ...getEntry(j, id)!, inserted: spans }));
+        const recorded = await deps.journal.mutate((j) => upsertEntry(j, { ...getEntry(j, id)!, inserted: spans }));
+        // Without the recorded span a crash could not strip the insertion: nothing is written.
+        if (!recorded.ok) return backToReview(deps, id, 'capture-write-failed');
     }
 
     let actual: InsertedSpans | null = predicted.value.inserted;

@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.stubGlobal('window', globalThis);
 
 import { runJobs, syncEntries, retryCapture, processAgain, type CaptureDeps, type ProcessorPort } from '../src/services/captureInbox/captureProcessor';
-import { scanInbox, type CaptureVaultPort, type VaultFileInfo } from '../src/services/captureInbox/captureScanner';
+import { scanInbox, type CaptureVaultPort, type ScanOutcome, type VaultFileInfo } from '../src/services/captureInbox/captureScanner';
 import { getEntry, upsertEntry } from '../src/services/captureInbox/captureJournal';
 import { ok, err, type Result } from '../src/core/result';
 import { sha256Hex } from '../src/services/attachmentDuplicateService';
@@ -24,7 +24,7 @@ const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2]);
 
 interface World {
   deps: CaptureDeps;
-  calls: { transcribe: Array<{ bytes: Uint8Array; name: string; ext: string }>; digitise: string[]; classify: PromptParts[]; reads: string[] };
+  calls: { transcribe: Array<{ bytes: Uint8Array; name: string; ext: string }>; digitise: Array<{ bytes: Uint8Array; name: string; ext: string }>; classify: PromptParts[]; reads: string[] };
   files: Map<string, { info: VaultFileInfo; text?: string; bytes?: Uint8Array }>;
   journal(): CaptureJournal;
   set: { policy: SweepPolicy; config: CaptureConfig; enabled: boolean; digitisation: boolean; swept: boolean; transcribe: () => Promise<Result<string>>; digitise: () => Promise<Result<string>>; classify: () => Promise<Result<Record<string, unknown>>>; };
@@ -47,27 +47,27 @@ function world(): World {
   };
   const vault: CaptureVaultPort = {
     listFiles: () => [...files.values()].map((f) => f.info),
-    readText: async (p) => { calls.reads.push(p); return files.get(p)?.text ?? ''; },
+    readText: async (p) => { calls.reads.push(p); const f = files.get(p); return f ? ok(f.text ?? '') : err('capture-file-missing'); },
     resolveAttachments: (p) => ({ resolved: links.get(p) ?? [], unresolvedMedia: [] }),
     referrersOf: (p) => [...links].filter(([, l]) => l.includes(p)).map(([n]) => n),
-    digestOf: async (p) => { const b = files.get(p)?.bytes; return b ? sha256Hex(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer) : null; },
+    digestOf: async (p) => { const b = files.get(p)?.bytes; return b ? ok(await sha256Hex(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer)) : err('capture-file-missing'); },
   };
   const port: ProcessorPort = {
-    readBytes: async (p) => { calls.reads.push(p); return files.get(p)?.bytes ?? new Uint8Array(0); },
+    readBytes: async (p) => { calls.reads.push(p); const f = files.get(p); return f ? ok(f.bytes ?? new Uint8Array(0)) : err('capture-file-missing'); },
     stat: async (p) => { const f = files.get(p); return f ? { size: f.info.size, mtime: f.info.mtime } : null; },
     exists: (p) => files.has(p),
   };
   const deps: CaptureDeps = {
     journal: {
       get: () => journal,
-      mutate: async (fn) => (journal = fn(journal)),
-      mutateLazy: (fn) => { journal = fn(journal); },
+      mutate: async (fn) => ok((journal = fn(journal))),
+      mutateLazy: (fn) => { journal = fn(journal); return ok(undefined); },
     },
     config: () => set.config, policy: () => set.policy, port, vault,
     isSwept: async () => set.swept, isEnabled: () => set.enabled, now: () => clock,
     digitisationEnabled: () => set.digitisation,
     transcribe: async (bytes, name, ext) => { calls.transcribe.push({ bytes, name, ext }); return set.transcribe(); },
-    digitise: async (path) => { calls.digitise.push(path); return set.digitise(); },
+    digitise: async (bytes, name, ext) => { calls.digitise.push({ bytes, name, ext }); return set.digitise(); },
     classify: async (parts) => { calls.classify.push(parts); return set.classify() as Promise<Result<Record<string, unknown>>>; },
     taxonomyPrompt: () => 'TAXONOMY', language: () => 'default', maxTags: () => 5,
     formatTags: (tags) => tags.map((t) => String(t).toLowerCase()),
@@ -86,7 +86,7 @@ function world(): World {
       const summary = { processed: 0, awaitingReview: 0, failed: 0, skipped: 0, waiting: 0, backpressure: false };
       for (let i = 0; i < (opts.passes ?? 2); i++) {
         clock += opts.advance ?? 10_000;
-        const scan = await scanInbox(vault, { config: set.config, policy: set.policy, journal: journal, isSwept: deps.isSwept });
+        const scan = await scanOk(vault, { config: set.config, policy: set.policy, journal: journal, isSwept: deps.isSwept });
         await syncEntries(deps, scan);
         const r = await runJobs(deps, scan, { cancelled: opts.cancelled ?? (() => false) }, opts.limit ?? 10);
         summary.processed += r.processed; summary.awaitingReview += r.awaitingReview; summary.failed += r.failed; summary.skipped += r.skipped;
@@ -96,6 +96,13 @@ function world(): World {
     },
   };
   return w;
+}
+
+/** The scan outcome of a scan that must have succeeded. */
+async function scanOk(...args: Parameters<typeof scanInbox>): Promise<ScanOutcome> {
+  const r = await scanInbox(...args);
+  if (!r.ok) throw new Error(`scan failed: ${r.error}`);
+  return r.value;
 }
 
 describe('text first and the privacy order', () => {
@@ -185,7 +192,7 @@ describe('text first and the privacy order', () => {
     w.addNote('Inbox/b.md', '![[y.mp3]]', ['Inbox/y.mp3']);
     w.addMedia('Inbox/x.mp3', MP3);
     w.addMedia('Inbox/y.mp3', MP3);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     w.set.policy = { ...basePolicy, excludedFolders: ['Private', 'Inbox'] };
     const s = await runJobs(w.deps, scan, { cancelled: () => false }, 10);
@@ -206,7 +213,8 @@ describe('text first and the privacy order', () => {
     w2.addNote('Inbox/a.md', '![[p.png]]', ['Inbox/p.png']);
     w2.addMedia('Inbox/p.png', PNG);
     await w2.go();
-    expect(w2.calls.digitise).toEqual(['Inbox/p.png']);
+    expect(w2.calls.digitise.map((c) => c.name)).toEqual(['p.png']);
+    expect(w2.calls.digitise[0].ext).toBe('png');
     expect(getEntry(w2.journal(), 'Inbox/a.md')!.source).toBe('digitised');
   });
 
@@ -295,7 +303,7 @@ describe('one at a time, cancel, failure and backpressure', () => {
     const w = world();
     // real notes, already processed and waiting for review (their fingerprints match what the scan sees)
     for (let i = 0; i < MAX_AWAITING_REVIEW; i++) w.addNote(`Inbox/old${i}.md`, `Old typed capture number ${i} waits`, []);
-    const first = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const first = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     let j = w.journal();
     for (const c of first.captures) {
       j = upsertEntry(j, { id: c.id, state: 'awaiting_review', fingerprint: c.fingerprint, processingVersion: 1, attempts: 0, createdAt: 1, updatedAt: 1 });
@@ -313,7 +321,7 @@ describe('audit regressions', () => {
     const w = world();
     w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
     w.addMedia('Inbox/x.mp3', MP3);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: { ...w.set.policy, excludedTags: ['secret'] }, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: { ...w.set.policy, excludedTags: ['secret'] }, journal: w.journal(), isSwept: w.deps.isSwept });
     w.set.policy = { ...w.set.policy, excludedTags: ['secret'] };
     await syncEntries(w.deps, scan);
     w.files.get('Inbox/a.md')!.text = '![[x.mp3]]\n#secret';
@@ -325,7 +333,7 @@ describe('audit regressions', () => {
   it('a note edited after the scan is dropped, not processed on stale text', async () => {
     const w = world();
     w.addNote('Inbox/a.md', 'Original words typed here', []);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     w.files.get('Inbox/a.md')!.text = 'Edited words typed here';
     await runJobs(w.deps, scan, { cancelled: () => false }, 10);
@@ -409,7 +417,7 @@ describe('final-gate regressions (processor)', () => {
   it('audio that gains an embedding note during the stability wait is not uploaded as a bare capture', async () => {
     const w = world();
     w.addMedia('Inbox/m.mp3', MP3);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     expect(scan.captures[0].notePath).toBeNull();
     // a kept-out note that embeds the file arrives after the scan
@@ -419,12 +427,71 @@ describe('final-gate regressions (processor)', () => {
   });
 });
 
+describe('an unreadable file is a result, not a crash', () => {
+  it('an attachment that cannot be read fails the capture as retriable and sends nothing', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'spoken words', ['Inbox/v.mp3']);
+    w.addMedia('Inbox/v.mp3', new Uint8Array([0x49, 0x44, 0x33, 4]));
+    w.deps.port.readBytes = async () => err('capture-read-failed');
+    await w.go({ passes: 2 });
+    expect(w.calls.transcribe).toEqual([]);
+    const e = Object.values(w.journal().entries)[0];
+    expect(e.state).toBe('failed');
+    expect(e.retriable).toBe(true);
+  });
+
+  it('an attachment that is gone is skipped as invalid media, never retried', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'spoken words', ['Inbox/v.mp3']);
+    w.addMedia('Inbox/v.mp3', new Uint8Array([0x49, 0x44, 0x33, 4]));
+    w.deps.port.readBytes = async () => err('capture-file-missing');
+    await w.go({ passes: 2 });
+    expect(w.calls.transcribe).toEqual([]);
+    const e = Object.values(w.journal().entries)[0] ?? Object.values(w.journal().tombstones)[0];
+    expect(e.state).toBe('skipped');
+    expect((e as { skipReason?: string }).skipReason ?? 'invalid-media').toBe('invalid-media');
+  });
+
+  it('a note that cannot be re-read before an upload drops the job: nothing is sent and the capture stays ready', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'spoken words', ['Inbox/v.mp3']);
+    w.addMedia('Inbox/v.mp3', new Uint8Array([0x49, 0x44, 0x33, 4]));
+    const realRead = w.deps.vault.readText;
+    let scanned = false;
+    w.deps.vault.readText = async (p) => (scanned ? err('capture-read-failed') : realRead(p));
+    const realBytes = w.deps.port.readBytes;
+    w.deps.port.readBytes = async (p) => { scanned = true; return realBytes(p); };
+    await w.go({ passes: 3 });
+    expect(w.calls.transcribe).toEqual([]);
+    expect(Object.values(w.journal().entries)[0].state).toBe('ready');
+  });
+});
+
+describe('the image pipeline gets the validated bytes', () => {
+  it('a file swapped between validation and the pipeline is never digitised: the pipeline receives the bytes that were checked', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', '![[p.png]]', ['Inbox/p.png']);
+    w.addMedia('Inbox/p.png', PNG);
+    const swapped = new Uint8Array(PNG.length); swapped.set(PNG); swapped[PNG.length - 1] ^= 0xff;
+    // the live guard before the call re-reads the note: the file is swapped right there, after validation
+    const realRead = w.deps.vault.readText;
+    const realBytes = w.deps.port.readBytes;
+    let validated = false;
+    w.deps.port.readBytes = async (p) => { const b = await realBytes(p); validated = true; return b; };
+    w.deps.vault.readText = async (p) => { if (validated) w.files.get('Inbox/p.png')!.bytes = swapped; return realRead(p); };
+    await w.go({ passes: 1 });
+    expect(w.calls.digitise).toHaveLength(1);
+    expect(Array.from(w.calls.digitise[0].bytes)).toEqual(Array.from(PNG));
+    expect(Array.from(w.calls.digitise[0].bytes)).not.toEqual(Array.from(swapped));
+  });
+});
+
 describe('digest check before upload', () => {
   it('a file swapped for another of the same size after the scan is not uploaded; the job is dropped', async () => {
     const w = world();
     w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
     w.addMedia('Inbox/x.mp3', MP3);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     const swapped = new Uint8Array(MP3.length); swapped.set(MP3); swapped[MP3.length - 1] ^= 0xff; // same size, same header, different bytes
     w.files.get('Inbox/x.mp3')!.bytes = swapped;
@@ -447,7 +514,7 @@ describe('audit round 3 regressions (processor)', () => {
     const w = world();
     w.addNote('Inbox/a.md', 'First typed capture words here', []);
     w.addNote('Inbox/b.md', 'Second typed capture words here', []);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     // while the first job is in its provider call the second entry is skipped by the user
     w.set.classify = async () => { await w.deps.journal.mutate((j) => { const e = getEntry(j, 'Inbox/b.md'); return e ? upsertEntry(j, { ...e, state: 'waiting_for_stable' }) : j; }); return ok({ tags: ['x'], suggestedTitle: 'T' }); };
@@ -459,7 +526,7 @@ describe('audit round 3 regressions (processor)', () => {
     const w = world();
     w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
     w.addMedia('Inbox/x.mp3', MP3);
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     const real = w.deps.journal.mutate;
     w.deps.journal.mutate = async (fn, o) => real((j) => { const next = fn(j); return Object.keys(next.entries).length === Object.keys(j.entries).length && getEntry(j, 'Inbox/a.md')?.state === 'ready' ? { ...next, entries: {} } : next; }, o);
@@ -493,7 +560,7 @@ describe('syncEntries (stability and edits)', () => {
     const w = world();
     w.addNote('Inbox/a.md', 'Fresh typed capture words here', []);
     w.files.get('Inbox/a.md')!.info.mtime = NOW - 1000;
-    const scan = await scanInbox(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
+    const scan = await scanOk(w.deps.vault, { config: w.set.config, policy: w.set.policy, journal: w.journal(), isSwept: w.deps.isSwept });
     await syncEntries(w.deps, scan);
     expect(getEntry(w.journal(), 'Inbox/a.md')!.state).toBe('waiting_for_stable');
   });

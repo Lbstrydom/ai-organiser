@@ -322,6 +322,24 @@ describe('ImageProcessorService', () => {
         });
     });
 
+    describe('processImageBytes (bytes the caller already holds)', () => {
+        it('gives the same result as processImage for the same bytes, and never reads the vault', async () => {
+            mockApp.vault.readBinary.mockResolvedValue(new ArrayBuffer(1024));
+            const file = createMockFile('png', 1024);
+            const viaFile = await service.processImage(file as any);
+            expect(mockApp.vault.readBinary).toHaveBeenCalledTimes(1);
+            mockApp.vault.readBinary.mockClear();
+            const viaBytes = await service.processImageBytes(new ArrayBuffer(1024), 'png');
+            expect(mockApp.vault.readBinary).not.toHaveBeenCalled();
+            expect(viaBytes).toEqual(viaFile);
+        });
+
+        it('takes its media type and conversion from the extension it is given, case-insensitively', async () => {
+            const result = await service.processImageBytes(new ArrayBuffer(512), 'BMP');
+            expect(result.wasConverted).toBe(true);
+        });
+    });
+
     describe('MIME type validation', () => {
         it('returns actual MIME type from toDataURL for supported formats', async () => {
             mockApp.vault.readBinary.mockResolvedValue(new ArrayBuffer(1024));

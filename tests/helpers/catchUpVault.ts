@@ -50,14 +50,21 @@ function frontmatterOf(content: string): Record<string, unknown> | undefined {
     }
 }
 
-export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> = {}): CatchUpVault {
+export function makeCatchUpVault(initial: Record<string, string | ArrayBuffer> = {}, opts: { ctime?: number; mtime?: number } = {}): CatchUpVault {
     const files = new Map<string, string | ArrayBuffer>(Object.entries(initial));
     const tfiles = new Map<string, TFile>();
     const cache = { enabled: true };
 
     const tfile = (path: string): TFile => {
         let f = tfiles.get(path);
-        if (!f) { f = createTFile(path); tfiles.set(path, f); }
+        if (!f) {
+            f = createTFile(path);
+            // The shared TFile mock stamps `Date.now()` of the REAL clock. The catch-up tests inject their own clock
+            // (fixed instants in 2026-10), and the automatic replace compares file creation time with that clock, so a
+            // real-clock stamp made them pass or fail depending on the day they were run. Fixed stamps keep them deterministic.
+            f.stat = { ...f.stat, ctime: opts.ctime ?? 1, mtime: opts.mtime ?? 1 };
+            tfiles.set(path, f);
+        }
         return f;
     };
 

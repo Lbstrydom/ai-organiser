@@ -54,7 +54,7 @@ export class CaptureInboxSettingsSection extends BaseSettingSection {
             this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', text: formatGuidance(describeError(t, 'capture-journal-corrupt')) });
             new Setting(this.containerEl).addButton((b) => b.setWarning().setButtonText(c.resetJournal).onClick(() => {
                 new ConfirmationModal(this.plugin.app, c.resetJournal, c.resetJournalConfirm, () => {
-                    void corrupt.resetCorrupt().then((ok) => { new Notice(ok ? c.resetJournalDone : formatGuidance(describeError(t, 'capture-write-failed')), 8000); });
+                    void corrupt.resetCorrupt().then((reset) => { new Notice(reset.ok ? c.resetJournalDone : formatGuidance(describeError(t, 'capture-write-failed')), 8000); });
                 }, this.plugin).open();
             }));
         }

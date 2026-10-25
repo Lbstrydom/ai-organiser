@@ -351,11 +351,64 @@ describe('Remove the link and delete', () => {
 		expect(reval).toHaveBeenCalledTimes(1); // no re-check on a closed window
 	});
 
-	it('refuses with a reason when the link sits where it cannot be removed safely', async () => {
+	it('does not offer the button, and says why on the card, when a link sits in the note properties', async () => {
 		const h = setup();
 		h.app.vault.read.mockResolvedValue('---\nrec: "![[meeting Jan 2026.m4a]]"\n---\n');
-		await toPreview(h);
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		const labels = buttonLabels(keptPanel(h));
+		expect(labels).toContain('Open note');
+		expect(labels).not.toContain('Remove the link and delete');
+		expect(labels).not.toContain('Turn on and continue');
+		expect(keptPanel(h)!.textContent).toContain('cannot be removed automatically');
+		expect(keptPanel(h)!.querySelector('.ai-organiser-embed-scan-kept-note')).not.toBeNull();
+	});
+
+	it('does the same for a mention in a code block', async () => {
+		const h = setup();
+		h.app.vault.read.mockResolvedValue('```\n![[meeting Jan 2026.m4a]]\n```\n');
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		expect(buttonLabels(keptPanel(h))).not.toContain('Remove the link and delete');
+		expect(keptPanel(h)!.textContent).toContain('cannot be removed automatically');
+	});
+
+	it('also does not offer the one-click enable when removal is off but would fail anyway', async () => {
+		const h = setup({ attachmentAllowLinkRemoval: false });
+		h.app.vault.read.mockResolvedValue('---\nrec: "![[meeting Jan 2026.m4a]]"\n---\n');
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		expect(buttonLabels(keptPanel(h))).not.toContain('Turn on and continue');
+		expect(keptPanel(h)!.textContent).toContain('cannot be removed automatically');
+	});
+
+	it('a link only the index knows (the text shows none) is not offered for removal either', async () => {
+		const h = setup();
+		h.app.vault.read.mockResolvedValue('no visible link here\n');
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		expect(buttonLabels(keptPanel(h))).not.toContain('Remove the link and delete');
+		expect(keptPanel(h)!.textContent).toContain('cannot be removed automatically');
+	});
+
+	it('a note that cannot be planned at click time still ends in visible card text, not only a fading notice', async () => {
+		const h = setup();
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h); // the plan was fine when the card was built
+		h.app.vault.read.mockResolvedValue('---\nrec: "![[meeting Jan 2026.m4a]]"\n---\n'); // the note changed since
+		(Array.from(keptPanel(h)!.querySelectorAll('button')).find((b) => b.textContent === 'Remove the link and delete') as HTMLElement).click();
+		await flush();
 		expect(previews).toHaveLength(0);
 		expect(mockNotices.some((n) => n.includes('cannot be removed automatically'))).toBe(true);
+		expect(keptPanel(h)!.textContent).toContain('cannot be removed automatically');
+		expect(buttonLabels(keptPanel(h))).not.toContain('Remove the link and delete');
+	});
+
+	it('still offers the button when every link can be removed', async () => {
+		const h = setup();
+		reval.mockResolvedValueOnce({ ok: true, value: new Map([[REC, kept()]]) });
+		await selectAndDelete(h);
+		expect(buttonLabels(keptPanel(h))).toContain('Remove the link and delete');
+		expect(keptPanel(h)!.querySelector('.ai-organiser-embed-scan-kept-note')).toBeNull();
 	});
 });

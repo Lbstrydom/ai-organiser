@@ -53,7 +53,7 @@ class FakePort implements WriterPort {
 function setup(over: { swept?: boolean; port?: FakePort } = {}) {
   const port = over.port ?? new FakePort();
   let journal: CaptureJournal = emptyJournal();
-  const access: JournalAccess = { get: () => journal, mutate: async (fn) => (journal = fn(journal)) };
+  const access: JournalAccess = { get: () => journal, mutate: async (fn) => ok((journal = fn(journal))) };
   const deps: WriterDeps = {
     port, journal: access, config: () => config, policy: () => policy, isSwept: async () => !!over.swept,
     protectedFolders: () => ['Protected'], outputRoots: () => ['Sweep Reports'], now: () => 1234,
@@ -208,7 +208,7 @@ describe('audit regressions (writer)', () => {
     const { id } = await seedNote(s);
     const realMutate = s.access.mutate;
     s.access.mutate = async (fn, opts) => {
-      if (opts?.durable) throw new Error('capture-journal-unsaved');
+      if (opts?.durable) return err('capture-journal-unsaved');
       return realMutate(fn, opts);
     };
     const r = await acceptCapture(s.deps, id);

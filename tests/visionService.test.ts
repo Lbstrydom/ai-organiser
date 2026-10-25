@@ -3,6 +3,8 @@
  */
 import { vi } from 'vitest';
 import { VisionService } from '../src/services/visionService';
+import { sendMultimodal } from '../src/services/llmFacade';
+vi.mock('../src/services/llmFacade', async (orig) => ({ ...(await orig<Record<string, unknown>>()), sendMultimodal: vi.fn() }));
 import { TFile } from 'obsidian';
 import { createTFile } from './mocks/obsidian';
 
@@ -360,5 +362,48 @@ X-->Y
             expect(result.supported).toBe(false);
             expect(result.reason).toContain('cloud provider');
         });
+    });
+});
+
+describe('VisionService.digitiseBytes (bytes the caller validated)', () => {
+    beforeEach(() => { vi.clearAllMocks(); });
+
+    it('processes the given bytes and never reads the vault', async () => {
+        const processed = { base64: 'QUJD', mediaType: 'image/png' };
+        const imageProcessor = { processImageBytes: vi.fn().mockResolvedValue(processed), processImage: vi.fn() };
+        const service = new VisionService(mockPlugin);
+        (service as unknown as { imageProcessor: unknown }).imageProcessor = imageProcessor;
+        (sendMultimodal as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, content: '## Text\nhello' });
+        const bytes = new Uint8Array([1, 2, 3]).buffer;
+
+        const result = await service.digitiseBytes(bytes, 'png');
+
+        expect(imageProcessor.processImageBytes).toHaveBeenCalledWith(bytes, 'png', { maxDimension: 1536, quality: 0.85 });
+        expect(imageProcessor.processImage).not.toHaveBeenCalled();
+        expect(mockApp.vault.readBinary).not.toHaveBeenCalled();
+        expect(result.extractedText).toContain('hello');
+        const parts = (sendMultimodal as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as Array<{ type: string; data?: string }>;
+        expect(parts.find((p) => p.type === 'image')?.data).toBe('QUJD');
+    });
+
+    it('digitise(file) still reads the file once and takes the same path to the model', async () => {
+        const processed = { base64: 'QUJD', mediaType: 'image/png' };
+        const imageProcessor = { processImageBytes: vi.fn(), processImage: vi.fn().mockResolvedValue(processed) };
+        const service = new VisionService(mockPlugin);
+        (service as unknown as { imageProcessor: unknown }).imageProcessor = imageProcessor;
+        (sendMultimodal as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ success: true, content: '## Text\nhi' });
+        const file = createTFile('Inbox/p.png');
+
+        await service.digitise(file);
+
+        expect(imageProcessor.processImage).toHaveBeenCalledTimes(1);
+        expect(imageProcessor.processImageBytes).not.toHaveBeenCalled();
+    });
+
+    it('a failed model call is an error, as for digitise(file)', async () => {
+        const service = new VisionService(mockPlugin);
+        (service as unknown as { imageProcessor: unknown }).imageProcessor = { processImageBytes: vi.fn().mockResolvedValue({ base64: 'QQ==', mediaType: 'image/png' }) };
+        (sendMultimodal as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({ success: false, error: 'boom' });
+        await expect(service.digitiseBytes(new ArrayBuffer(3), 'png')).rejects.toThrow('boom');
     });
 });
