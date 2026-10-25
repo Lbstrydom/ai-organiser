@@ -89,7 +89,7 @@ export function buildQueue(journal: CaptureJournal, now: number, opts: { include
             reviewable: e.state === 'awaiting_review' || e.state === 'accepted' || e.state === 'organised' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
             retriable: e.state === 'failed',
             processed: isProcessed(e),
-            settleSeconds: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'attachment' && e.waitReason !== 'empty' && opts.stabilityMs !== undefined ? settleSeconds(e, now, opts.stabilityMs) : undefined,
+            settleSeconds: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'attachment' && e.waitReason !== 'empty' && opts.stabilityMs !== undefined && settleRemainingMs(e, now, opts.stabilityMs) > 0 ? settleSeconds(e, now, opts.stabilityMs) : undefined,
             waitingForAttachment: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason === 'attachment',
             waitingForText: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason === 'empty',
             taggingFailed: e.state === 'awaiting_review' && !!e.taggingFailed,

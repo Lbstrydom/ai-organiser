@@ -220,6 +220,33 @@ describe('F9: "./" and "../" spellings still name the file', () => {
   });
 });
 
+describe('F7: heading numbering is by the highest number used', () => {
+  it('sparse or edited numbering never repeats a number', () => {
+    const task = { id: 'aio-00000000-0000-4000-8000-000000000001', text: 'T', context: '', sourcePath: 'Inbox/n.md' };
+    const sec = renderSection('run-dddddd', '2026-10-25T09:00:00Z', [task]);
+    if (!sec.ok) throw new Error('render');
+    const base = '# Report\n\n## Sweep 2026-10-25\n\n## Sweep 2026-10-25 (3)\n';
+    const out = appendSection(base, 'run-dddddd', sec.value);
+    if (!out.ok) throw new Error('append');
+    expect(out.value).toContain('## Sweep 2026-10-25 (4)');
+  });
+});
+
+describe('F6: every guidance entry is covered', () => {
+  it('no guidance next step keeps an "if you are not in the setup" sentence inside the setup', () => {
+    for (const entry of Object.values(en.guidance)) expect(formatGuidanceInSetup(entry as { message: string; nextStep: string })).not.toMatch(/not in the setup/i);
+  });
+});
+
+describe('queue: no countdown once the window has elapsed', () => {
+  it('shows no "about 1 s left" for a capture whose window is over', () => {
+    const e = mk('Inbox/s.md', 'waiting_for_stable', { observed: { 'Inbox/s.md': { size: 5, mtime: 1, at: 100_000 } } });
+    const j = upsertEntry(emptyJournal(), e);
+    expect(buildQueue(j, 103_000, { stabilityMs: 8000 })[0].settleSeconds).toBe(5);
+    expect(buildQueue(j, 109_000, { stabilityMs: 8000 })[0].settleSeconds).toBeUndefined();
+  });
+});
+
 describe('F10: the result says what the confirmation said', () => {
   it('"moved to the trash", not "deleted"', () => {
     expect(en.embedScan.deleteSuccess).toMatch(/moved to the trash/);

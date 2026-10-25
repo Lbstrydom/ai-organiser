@@ -429,6 +429,8 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
             if (!e) return j;
             return bump(upsertEntry(j, { ...e, state: 'awaiting_review', stage: undefined, proposal, taggingFailed: taggingFailed || undefined, retriable: undefined, failedStage: undefined, updatedAt: deps.now() }), 'processed');
         });
+        // The write must have landed on a live entry; if it vanished (skipped, deleted) there is nothing to review.
+        if (getEntry(deps.journal.get(), id)?.state !== 'awaiting_review') throw new Cancelled();
         return 'review';
     } catch (e) {
         return handleFailure(deps, id, e);
@@ -449,8 +451,12 @@ async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, co
         const parts = buildCaptureClassifyPrompt({ text, taxonomyPrompt: taxonomy, maxTags: deps.maxTags(), language: deps.language(), maxChars: config.maxTextChars, folderContext: ctx });
         const res = await deps.classify(parts);
         if (res.ok) raw = res.value;
-        else taggingFailed = true;
-    } catch {
+        else {
+            taggingFailed = true;
+            logger.debug('CaptureInbox', `Tagging failed: ${String(res.error).slice(0, 300)}`);
+        }
+    } catch (e) {
+        logger.debug('CaptureInbox', 'Tagging threw', e);
         // A failed proposal degrades to a title from the text; the capture is still reviewable, and the review says the tagging step failed.
         taggingFailed = true;
     }

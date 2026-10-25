@@ -30,7 +30,7 @@ Reads the notes in the folders you choose and proposes next actions, waiting-for
 - A failure after the approval record is saved leaves it saved: the next sweep or "Send approved tasks" finishes the record before doing anything else.
 - No keep-out rule and no explicit "Nothing to keep out" means no sweep (`sweep-keepout-required`).
 
-- **Rewording and headings.** The same wording with a different quoted line (the user reworded the line in the note) is `similar`, not new: still addable, with the "Looks like one you already added" note. A second report section on the same day is numbered ("Sweep 2026-10-25 (2)") so headings stay distinct; findSection accepts the numbered form and appending stays idempotent.
+- **Rewording and headings.** Close but not identical wording under a different quoted line (the user reworded the line in the note) is `similar`, not new (identical wording stays `exact` whatever the quote): still addable, with the "Looks like one you already added" note. A second report section on the same day is numbered ("Sweep 2026-10-25 (2)") so headings stay distinct; findSection accepts the numbered form and appending stays idempotent.
 
 ## Settings
 
