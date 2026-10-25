@@ -49,7 +49,7 @@ export interface StoredOccurrence {
     kind: 'markdown' | 'canvas';
     /** The normalised link text (markdown) or the canvas node's file path */
     linktext: string;
-    /** The destination as written when it was percent-decoded to `linktext`; either spelling may be the real file name */
+    /** The other spelling of the same destination (the decoded one, or the one as written); resolution tries `linktext` first and this when that names nothing */
     rawLinktext?: string;
     lineNumber: number;
     /** Known only from Obsidian's own link index (the text reader found nothing); `linktext` is the target's full path */
@@ -393,6 +393,25 @@ function rawLinktextOf(raw: RawReference, normalized: string): { rawLinktext?: s
     return rawNormalized !== '' && rawNormalized !== normalized ? { rawLinktext: rawNormalized } : {};
 }
 
+/**
+ * The link text to resolve for one reference, and the spelling to fall back to. THE one place that decides it,
+ * shared by the scan, the delete re-check's re-parse and the link removal, so they can never pick different
+ * spellings. Null when no spelling points at a non-markdown file. A decoded "%23" or "%3F" becomes "#" or "?",
+ * which would cut the name short: then the spelling as written is the text.
+ */
+export function referenceLinktext(raw: RawReference): { linktext: string; rawLinktext?: string } | null {
+    const normalized = normalizeEmbedPath(raw.path);
+    const alt = rawLinktextOf(raw, normalized);
+    // Decoding produced a "#", "?" or "|" the destination did not contain: the name as written is the likelier file,
+    // so it goes first and the cut-short decoded spelling is only the fallback (resolution tries them in that order).
+    if (raw.rawPath !== undefined && /[#?|]/.test(raw.path) && !/[#?|]/.test(raw.rawPath) && alt.rawLinktext !== undefined && pointsAtNonMarkdown(alt.rawLinktext)) {
+        return { linktext: alt.rawLinktext, ...(normalized !== '' && pointsAtNonMarkdown(normalized) ? { rawLinktext: normalized } : {}) };
+    }
+    if (normalized !== '' && pointsAtNonMarkdown(normalized)) return { linktext: normalized, ...alt };
+    if (alt.rawLinktext !== undefined && pointsAtNonMarkdown(alt.rawLinktext)) return { linktext: alt.rawLinktext };
+    return null;
+}
+
 /** True when the path has a non-markdown extension (a link to a note has none or `.md`). */
 function pointsAtNonMarkdown(normalized: string): boolean {
     const ext = getExtensionFromPath(normalized);
@@ -423,13 +442,13 @@ export function collectOccurrences(
         for (const nodeText of parseCanvasTextNodes(text)) {
             for (const raw of nodeText.split('\n').flatMap((line) => extractReferencesFromLine(line, 0))) {
                 if (isExternalUrl(raw.path)) continue;
-                const normalized = normalizeEmbedPath(raw.path);
-                if (!normalized || !pointsAtNonMarkdown(normalized)) continue;
+                const text = referenceLinktext(raw);
+                if (!text) continue;
                 // A link inside a text node follows Markdown link rules (relative to the canvas), not the
                 // vault-path rule of a file node, so it is recorded as a markdown-style reference.
-                const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, ...rawLinktextOf(raw, normalized), lineNumber: 0 };
+                const occ: StoredOccurrence = { referrerPath, kind: 'markdown', ...text, lineNumber: 0 };
                 occurrences.push(occ);
-                embedded.set(occ, { path: normalized, lineNumber: 0, isEmbedded: raw.isEmbedded, originalText: 'canvas text node' });
+                embedded.set(occ, { path: text.linktext, lineNumber: 0, isEmbedded: raw.isEmbedded, originalText: 'canvas text node' });
             }
         }
         return { occurrences, embedded };
@@ -438,15 +457,9 @@ export function collectOccurrences(
     for (let i = 0; i < lines.length; i++) {
         for (const raw of extractReferencesFromLine(lines[i], i + 1)) {
             if (isExternalUrl(raw.path)) continue;
-            const normalized = normalizeEmbedPath(raw.path);
-            const alt = rawLinktextOf(raw, normalized);
-            // A decoded "%23" or "%3F" turns into "#" or "?", which would cut the name short: then the spelling as written is the text.
-            const decodedPoints = normalized !== '' && pointsAtNonMarkdown(normalized);
-            const rawPoints = alt.rawLinktext !== undefined && pointsAtNonMarkdown(alt.rawLinktext);
-            if (!decodedPoints && !rawPoints) continue;
-            const occ: StoredOccurrence = decodedPoints
-                ? { referrerPath, kind: 'markdown', linktext: normalized, ...alt, lineNumber: raw.lineNumber }
-                : { referrerPath, kind: 'markdown', linktext: alt.rawLinktext!, lineNumber: raw.lineNumber };
+            const text = referenceLinktext(raw);
+            if (!text) continue;
+            const occ: StoredOccurrence = { referrerPath, kind: 'markdown', ...text, lineNumber: raw.lineNumber };
             occurrences.push(occ);
             embedded.set(occ, raw);
         }

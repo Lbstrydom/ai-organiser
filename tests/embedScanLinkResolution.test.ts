@@ -11,6 +11,7 @@ import {
 	collectOccurrences,
 	scanNotes,
 	obsidianTargetsFor,
+	referenceLinktext,
 } from '../src/services/embedScanService';
 import { revalidate, EMPTY_CHANGES, createAppVaultPort, type AttachmentVaultPort } from '../src/services/attachmentEligibility';
 import { planLinkRemoval } from '../src/services/attachmentUnlinkService';
@@ -288,13 +289,18 @@ describe('audit follow-ups: ambiguity over both spellings, removal matching, nes
 		// the decoded spelling "aA.png" resolves to Files/aA.png; the raw one would name Files/a%41.png
 		const resolve = (l: string) => (l === 'aA.png' ? 'Files/aA.png' : l === 'a%41.png' ? 'Files/a%41.png' : null);
 		expect(planLinkRemoval(text, 'Files/a%41.png', 'n.md', resolve).status).toBe('nothing');
-		expect(planLinkRemoval(text, 'Files/aA.png', 'n.md', resolve).status).toBe('ok');
+		const mine = planLinkRemoval('See ![x](a%41.png) end\n', 'Files/aA.png', 'n.md', resolve);
+		expect(mine.status).toBe('ok');
+		if (mine.status === 'ok') expect(mine.plan.nextText).toBe('See  end\n');
 	});
 
 	it('removal still falls back to the raw spelling when the decoded one names nothing', () => {
 		const text = '![x](a%41.png)\n';
 		const resolve = (l: string) => (l === 'a%41.png' ? 'Files/a%41.png' : null);
 		expect(planLinkRemoval(text, 'Files/a%41.png', 'n.md', resolve).status).toBe('ok');
+		const res = planLinkRemoval('Look [the pic](a%41.png) now\n', 'Files/a%41.png', 'n.md', resolve);
+		expect(res.status).toBe('ok');
+		if (res.status === 'ok') expect(res.plan.nextText).toBe('Look the pic now\n');
 	});
 
 	it('a link-looking text inside an angle-bracket destination is part of that destination', () => {
@@ -310,6 +316,31 @@ describe('audit follow-ups: ambiguity over both spellings, removal matching, nes
 	it('a percent-encoded # or ? in a file name keeps the occurrence (the name as written is the text)', () => {
 		const { occurrences } = collectOccurrences('n.md', 'md', '[x](a%23b.pdf) ![y](c%3Fd.png)');
 		expect(occurrences.map((o) => o.linktext).sort()).toEqual(['a%23b.pdf', 'c%3Fd.png']);
+	});
+
+	it('removal picks the same spelling as the scan for an encoded delimiter', () => {
+		const resolve = (l: string) => (l === 'a%23b.pdf' ? 'Files/a%23b.pdf' : l === 'a' ? 'Files/a.pdf' : null);
+		const text = 'See [x](a%23b.pdf) here\n';
+		const keep = planLinkRemoval(text, 'Files/a.pdf', 'n.md', resolve); // a link to the file literally named a%23b.pdf, not to "a"
+		expect(keep.status).toBe('nothing');
+		const res = planLinkRemoval(text, 'Files/a%23b.pdf', 'n.md', resolve);
+		expect(res.status).toBe('ok');
+		if (res.status === 'ok') expect(res.plan.nextText).toBe('See x here\n');
+	});
+
+	it('the shared choice of spelling', () => {
+		const pick = (line: string) => extractReferenceSpansFromLine(line, 1).map((r) => referenceLinktext(r));
+		// decoding would cut the name at the "#": the name as written goes first, the cut-short one is the fallback
+		expect(pick('![x](a.pdf%23b.png)')).toEqual([{ linktext: 'a.pdf%23b.png', rawLinktext: 'a.pdf' }]);
+		expect(pick('![x](my%20file.pdf)')).toEqual([{ linktext: 'my file.pdf', rawLinktext: 'my%20file.pdf' }]);
+		expect(pick('[[note]]')).toEqual([null]);
+	});
+
+	it('a file named with a literal %23 is counted even when a shorter-named file also exists', async () => {
+		const v = makeFakeApp({ 'Attachments/a.pdf': { size: 5 }, 'Attachments/a.pdf%23b.png': { size: 5 }, 'n.md': '![x](a.pdf%23b.png)' });
+		const r = await scanNotes(v.app as never, [v.files.get('n.md')!] as never, { includeOrphans: true });
+		expect(r.targets.map((x) => x.file?.path)).toEqual(['Attachments/a.pdf%23b.png']);
+		expect(r.possiblyOrphaned.map((f) => f.path)).toEqual(['Attachments/a.pdf']);
 	});
 
 	it('and a file literally named that way is counted as referenced', async () => {

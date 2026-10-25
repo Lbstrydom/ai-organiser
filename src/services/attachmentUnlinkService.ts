@@ -20,7 +20,7 @@ import { Result, ok, err, type BatchResult } from '../core/result';
 import { nonBodyLines } from '../utils/markdownRegions';
 import { isFeatureEnabled } from './featureService';
 import { applyNoteEdit, type CompositeTarget } from './noteEdit/applyNoteEdit';
-import { extractReferenceSpansFromLine, isExternalUrl, normalizeEmbedPath } from './embedScanService';
+import { extractReferenceSpansFromLine, isExternalUrl, normalizeEmbedPath, referenceLinktext } from './embedScanService';
 import type { AIOrganiserSettings } from '../core/settings';
 
 export type Resolve = (linktext: string, sourcePath: string) => string | null;
@@ -158,13 +158,11 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         const line = cr ? raw.slice(0, -1) : raw;
         const hits = extractReferenceSpansFromLine(line, i + 1).filter((ref) => {
             if (isExternalUrl(ref.path)) return false;
-            const linktext = normalizeEmbedPath(ref.path);
-            if (linktext === '') return false;
-            // The decoded spelling first; the one as written only when the decoded one names nothing (a file may
-            // literally be named with a "%41"). The same rule the scan and the re-check use, so a link that
-            // resolves to another file is never treated as a link to this one.
-            const rawText = ref.rawPath === undefined ? '' : normalizeEmbedPath(ref.rawPath);
-            const hit = resolve(linktext, notePath) ?? (rawText !== '' && rawText !== linktext ? resolve(rawText, notePath) : null);
+            // The scan's own choice of spelling (`referenceLinktext`): the decoded one first, the one as written only
+            // when the decoded one names nothing, so a link that resolves to another file is never taken for this one.
+            const text = referenceLinktext(ref);
+            if (!text) return false;
+            const hit = resolve(text.linktext, notePath) ?? (text.rawLinktext ? resolve(text.rawLinktext, notePath) : null);
             return hit === filePath;
         });
         if (hits.length === 0) continue;
