@@ -54,9 +54,10 @@ describe('collectOccurrences', () => {
 		expect(bad.occurrences).toEqual([]);
 	});
 
-	it('handles unicode and percent-style names without crashing', () => {
+	it('handles unicode and percent-encoded names without crashing', () => {
 		const { occurrences } = collectOccurrences('n.md', 'md', '![[Écoles/résumé été.pdf]] ![x](my%20file.png)');
-		expect(occurrences.map((o) => o.linktext).sort()).toEqual(['Écoles/résumé été.pdf', 'my%20file.png'].sort());
+		// a markdown destination is decoded like Obsidian does (this used to be pinned as the raw '%20' text, which never resolved)
+		expect(occurrences.map((o) => o.linktext).sort()).toEqual(['Écoles/résumé été.pdf', 'my file.png'].sort());
 	});
 });
 

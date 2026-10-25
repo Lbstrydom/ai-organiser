@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { deriveModalView, pendingCounts, type ModalInput } from '../src/services/newsletter/catchUp/catchUpModalState';
+import { deriveModalView, pendingCounts, tidyForDays, type ModalInput } from '../src/services/newsletter/catchUp/catchUpModalState';
 import type { CatchUpPlan, CatchUpPlanEntry, EpisodeMeta } from '../src/services/newsletter/catchUp/catchUpTypes';
 import type { CatchUpSnapshot } from '../src/services/newsletter/catchUp/catchUpSelection';
 import type { OperationRecord } from '../src/services/newsletter/catchUp/catchUpDraft';
@@ -137,6 +137,34 @@ describe('deriveModalView', () => {
             pending: { entries: [], unresolved: [{ date: '2026-10-21', reason: 'unitemisable' }], noStoredDates: [], coveredDates: [], openDates: [] },
         });
         expect(deriveModalView(input({ snapshot: s }))).toMatchObject({ kind: 'pending', unresolvedDates: ['2026-10-21'] });
+    });
+});
+
+const tidyFile = (date: string, bytes = 1000) => ({
+    date, name: `brief-${date}-abcd1234.mp3`, path: `R/${date}/brief-${date}-abcd1234.mp3`, bytes, mtime: 1, narratedRev: null, digestPath: `R/Digest ${date}.md`, briefHash: 'aa',
+});
+
+// Persona A2: Resume dropped the tidy choice the person had ticked before the failed run.
+describe('the unfinished episode keeps its tidy', () => {
+    const tidy = { files: [tidyFile('2026-10-21'), tidyFile('2026-10-22', 500), tidyFile('2026-10-23')], bytes: 2500, days: ['2026-10-21', '2026-10-22', '2026-10-23'] };
+    const dates = (v: unknown) => (v as { tidy: { files: Array<{ date: string }> } }).tidy.files.map((x) => x.date);
+
+    it('is the part of the daily audio that belongs to the episode\'s own days', () => {
+        const v = deriveModalView(input({ snapshot: snapshot({ tidy }), operation: { kind: 'scripted', record: record('scripted') } }));
+        expect(v).toMatchObject({ kind: 'resume', tidy: { bytes: 1500, days: ['2026-10-21', '2026-10-22'] } });
+        expect(dates(v)).toEqual(['2026-10-21', '2026-10-22']);
+    });
+
+    it('is null when no daily audio belongs to those days, or there is none', () => {
+        expect(deriveModalView(input({ snapshot: snapshot({ tidy: null }), operation: { kind: 'audio-ready', record: record('audio-ready') } }))).toMatchObject({ kind: 'resume', tidy: null });
+        expect(tidyForDays(tidy, ['2026-10-30'])).toBeNull();
+    });
+
+    it('only a day the episode covers in FULL can ever be tidied, never a delta day', () => {
+        const rec = record('scripted');
+        rec.frozen.entries[1] = { date: '2026-10-22', kind: 'delta', coverage: { kind: 'whole' }, sinceRevision: 1 } as never;
+        const v = deriveModalView(input({ snapshot: snapshot({ tidy }), operation: { kind: 'scripted', record: rec } }));
+        expect(dates(v)).toEqual(['2026-10-21']);
     });
 });
 

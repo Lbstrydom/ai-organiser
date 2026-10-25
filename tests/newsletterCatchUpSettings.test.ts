@@ -223,7 +223,7 @@ describe('catch-up controls', () => {
 
     it('audio cleanup is off by default: a 0 to 28 day slider that saves, clamps and schedules a sweep', async () => {
         const { plugin } = render({ newsletterAudioMode: 'on-demand' });
-        const sl = find('Remove audio of heard episodes after (days)')!.slider!;
+        const sl = find('Remove audio of listened catch-up episodes after (days)')!.slider!;
         expect([sl.min, sl.max, sl.value]).toEqual([0, 28, 0]);
         sl.change(14);
         expect(plugin.settings.newsletterCatchUpAudioCleanupDays).toBe(14);
@@ -237,15 +237,15 @@ describe('catch-up controls', () => {
 
     it('shows a stored value and clamps a garbage one', () => {
         render({ newsletterAudioMode: 'on-demand', newsletterCatchUpAudioCleanupDays: 21 });
-        expect(find('Remove audio of heard episodes after (days)')!.slider!.value).toBe(21);
+        expect(find('Remove audio of listened catch-up episodes after (days)')!.slider!.value).toBe(21);
         recorded.items.length = 0;
         render({ newsletterAudioMode: 'on-demand', newsletterCatchUpAudioCleanupDays: 400 });
-        expect(find('Remove audio of heard episodes after (days)')!.slider!.value).toBe(28);
+        expect(find('Remove audio of listened catch-up episodes after (days)')!.slider!.value).toBe(28);
     });
 
     it('daily mode only previews the cleanup control (switched off in the DOM), and saves nothing', () => {
         const { plugin } = render({ newsletterAudioMode: 'daily' });
-        expect(names().filter((n) => n === 'Remove audio of heard episodes after (days)')).toHaveLength(1);
+        expect(names().filter((n) => n === 'Remove audio of listened catch-up episodes after (days)')).toHaveLength(1);
         expect(plugin.saveSettings).not.toHaveBeenCalled();
     });
 

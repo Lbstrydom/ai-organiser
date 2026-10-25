@@ -76,6 +76,7 @@ function plugin(over: Record<string, unknown> = {}, active: unknown = null) {
         },
         addCommand: (c: { id: string; name: string; icon: string; callback: () => void }) => commands.push(c),
         refreshCatchUpStatus: vi.fn(),
+        showConfirmationDialog: vi.fn(async () => true),
         commands,
     };
     return p as never as typeof p & Parameters<typeof runRegenerateAudio>[0];
@@ -145,7 +146,33 @@ describe('Mark caught up', () => {
     it('an acknowledgement failure never breaks the existing flow', async () => {
         ack.mockRejectedValueOnce(new Error('boom'));
         await runMarkCaughtUp(plugin());
-        expect(notices.some((n) => n.includes('Caught up through'))).toBe(true);
+        expect(notices.some((n) => n.includes('as already known'))).toBe(true);
+    });
+
+    // Persona A6: one click silently silenced every earlier story in every later brief.
+    it('asks first, saying what it does, and does nothing at all when declined', async () => {
+        const p = plugin();
+        p.showConfirmationDialog.mockResolvedValueOnce(false);
+        await runMarkCaughtUp(p);
+        expect(p.showConfirmationDialog).toHaveBeenCalledWith(t.settings.newsletter.markCaughtUpConfirm);
+        expect(t.settings.newsletter.markCaughtUpConfirm).toMatch(/already known/);
+        expect(service.markCaughtUp).not.toHaveBeenCalled();
+        expect(ack).not.toHaveBeenCalled();
+        expect(notices).toEqual([]);
+    });
+
+    it('a declined confirmation releases the guard, so a later click still works', async () => {
+        const p = plugin();
+        p.showConfirmationDialog.mockResolvedValueOnce(false);
+        await runMarkCaughtUp(p);
+        await runMarkCaughtUp(p);
+        expect(service.markCaughtUp).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not ask when the newsletter feature is off', async () => {
+        const p = plugin({ featureFlags: { newsletter: false } });
+        await runMarkCaughtUp(p);
+        expect(p.showConfirmationDialog).not.toHaveBeenCalled();
     });
 });
 
@@ -271,7 +298,7 @@ describe('Mark caught up reports partial success as partial', () => {
     it('says so when the episodes could not be marked, in addition to the normal notice', async () => {
         ack.mockRejectedValueOnce(new Error('disk full'));
         await runMarkCaughtUp(plugin());
-        expect(notices.some((n) => n.includes('Caught up through'))).toBe(true);
+        expect(notices.some((n) => n.includes('as already known'))).toBe(true);
         expect(notices).toContain(t.modals.newsletterCatchUp.ackFailed);
         expect(notices.join(' ')).not.toContain('disk full');
     });
