@@ -4297,6 +4297,7 @@ export interface Translations {
         droppedNote: string;
         noProposals: string;
         alreadyAdded: string;
+        looksAdded: string;
         allAlreadyAdded: string;
         duplicatesSkipped: string;
         includeItem: string;

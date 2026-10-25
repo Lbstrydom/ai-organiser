@@ -261,11 +261,13 @@ async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): P
             const ledgerBefore = plugin.settings.sweepLedger;
             const itemsBefore = plugin.settings.sweepReportedItems;
             plugin.settings.sweepLedger = applyDispositions(ledgerBefore, record, new Date().toISOString());
-            plugin.settings.sweepReportedItems = recordReportedItems(itemsBefore, record);
+            const itemsApplied = recordReportedItems(itemsBefore, record);
+            plugin.settings.sweepReportedItems = itemsApplied;
             const saved = await saveRecord(plugin, next);
             if (!saved.ok) {
                 plugin.settings.sweepLedger = ledgerBefore;
-                plugin.settings.sweepReportedItems = itemsBefore;
+                // A rename that remapped the map while the save was pending owns the live value: do not overwrite it.
+                if (plugin.settings.sweepReportedItems === itemsApplied) plugin.settings.sweepReportedItems = itemsBefore;
                 return { record, stoppedAt: 'ledger', error: saved.error };
             }
             record = next;

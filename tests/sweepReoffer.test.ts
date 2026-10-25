@@ -19,6 +19,7 @@ vi.mock('../src/services/noteEdit/applyNoteEdit', () => ({
 import {
 	dropAlreadyReported,
 	isReportedItem,
+	reportedMatch,
 	itemKeys,
 	legacyTaskKeys,
 	MAX_REPORTED_KEYS_PER_NOTE,
@@ -72,15 +73,20 @@ describe('isReportedItem', () => {
 		expect(isReportedItem(known, itemKeys({ text: 'Draft the migration plan!', evidence: 'something else' }))).toBe(true);
 	});
 
-	it('the same quote with reworded but similar text matches (the model reworded it)', () => {
-		expect(isReportedItem(known, itemKeys({ text: 'Write the migration plan', evidence: 'I need to draft the migration plan' }))).toBe(true);
+	it('the same quote with reworded but similar text is only "similar": flagged for the user, never enforced', () => {
+		const reworded = itemKeys({ text: 'Write the migration plan', evidence: 'I need to draft the migration plan' });
+		expect(reportedMatch(known, reworded)).toBe('similar');
+		expect(isReportedItem(known, reworded)).toBe(false);
 	});
 
-	it('the same quote with a different commitment does NOT match (one sentence, two tasks)', () => {
-		const both = 'Call Dana and book the venue';
-		const first = new Set(itemKeys({ text: 'Call Dana', evidence: both }));
-		expect(isReportedItem(first, itemKeys({ text: 'Book the venue', evidence: both }))).toBe(false);
-		expect(isReportedItem(first, itemKeys({ text: 'Call Dana', evidence: both }))).toBe(true);
+	it('two commitments from one sentence are never "exact", even when their wording overlaps', () => {
+		const both = 'Send the invoice to Alice and send the invoice to Bob';
+		const first = new Set(itemKeys({ text: 'Send the invoice to Alice', evidence: both }));
+		const second = itemKeys({ text: 'Send the invoice to Bob', evidence: both });
+		expect(isReportedItem(first, second)).toBe(false); // never silently blocked
+		expect(reportedMatch(first, second)).toBe('similar'); // but the user is told
+		expect(reportedMatch(first, itemKeys({ text: 'Book the venue', evidence: both }))).toBeNull();
+		expect(reportedMatch(first, itemKeys({ text: 'Send the invoice to Alice', evidence: both }))).toBe('exact');
 	});
 
 	it('a different quote with different wording does not match, and nothing known means nothing matches', () => {
@@ -94,6 +100,11 @@ describe('legacy keys (tasks reported before keys existed)', () => {
 		expect(legacyTaskKeys('Waiting: Priya to send the revised SOW (Priya)')).toEqual(['|priya to send the revised sow priya', '|priya to send the revised sow']);
 		expect(legacyTaskKeys('Someday: Look at a data catalogue tool')).toEqual(['|look at a data catalogue tool']);
 		expect(legacyTaskKeys('Draft the migration plan')).toEqual(['|draft the migration plan']);
+	});
+
+	it('keep a parenthesis the user wrote; only a waiting-for item can have had "(who)" appended', () => {
+		expect(legacyTaskKeys('Call Dana (re budget)')).toEqual(['|call dana re budget']);
+		expect(legacyTaskKeys('Project: Move house (phase 2)')).toEqual(['|move house phase 2']);
 	});
 });
 
@@ -216,6 +227,13 @@ describe('runSweep flags items already reported from the note', () => {
 		expect(res.ok && res.value.notes[0].reported).toEqual([true, false]);
 	});
 
+	it('the same quoted line with different but similar wording is flagged similar, not reported', async () => {
+		const known = new Set(itemKeys({ text: 'Write the migration plan', evidence: 'I need to draft the migration plan' }));
+		const res = await runSweep(sweepDeps(NOTE, () => known), { maxNotes: 5, maxChars: 12_000 });
+		expect(res.ok && res.value.notes[0].reported).toEqual([false, false]);
+		expect(res.ok && res.value.notes[0].similar).toEqual([true, false]);
+	});
+
 	it('estimateSweep is unaffected', async () => {
 		const est = await estimateSweep(sweepDeps(NOTE), { maxNotes: 5, maxChars: 12_000 });
 		expect(est.ok && est.value.notes).toBe(1);
@@ -313,6 +331,27 @@ describe('commitReview with item identity', () => {
 		const again = await commitReview(h.plugin, { tasks: [task(3, 'Call Dana', q), task(4, 'Book the venue', q), task(5, 'Send the invite', q)], dispositions: [] });
 		expect(again.duplicates).toBe(2);
 		expect(again.record.tasks.map((t) => t.text)).toEqual(['Send the invite']);
+	});
+
+	it('a reworded item (same quote, similar wording) is NOT blocked: the user was told and chose it', async () => {
+		const h = makePlugin();
+		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
+		const out = await commitReview(h.plugin, { tasks: [task(2, 'Write the migration plan', 'I need to draft the migration plan')], dispositions: [] });
+		expect(out.duplicates).toBeUndefined();
+		expect(lines(h.vault.get('Inbox sweep report.md')!)).toHaveLength(2);
+	});
+
+	it('a failed ledger save does not overwrite a map that a rename replaced meanwhile', async () => {
+		const h = makePlugin();
+		let calls = 0;
+		const original = (h.plugin as unknown as { saveSettings: () => Promise<void> }).saveSettings;
+		(h.plugin as unknown as { saveSettings: () => Promise<void> }).saveSettings = async () => {
+			calls++;
+			if (calls === 3) { h.settings.sweepReportedItems = { 'Archive/a.md': ['q|renamed'] }; throw new Error('disk full'); }
+			await original();
+		};
+		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
+		expect(h.settings.sweepReportedItems).toEqual({ 'Archive/a.md': ['q|renamed'] });
 	});
 
 	it('restores the ledger AND the keys when the ledger step cannot be saved', async () => {

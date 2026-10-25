@@ -4542,6 +4542,7 @@ export const en: Translations = {
         droppedNote: "{count} suggestion[s] [was|were] dropped because the note does not support [it|them].",
         noProposals: "No items were found in this note.",
         alreadyAdded: "Already in your sweep report",
+        looksAdded: "Looks like one you already added",
         allAlreadyAdded: "Everything found in this note is already in your sweep report.",
         duplicatesSkipped: "{count} item[s] already added earlier, skipped.",
         includeItem: "Include this item",

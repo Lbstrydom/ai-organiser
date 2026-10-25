@@ -67,11 +67,16 @@ export function itemKeys(parts: { text: string; evidence: string; edited?: strin
 
 const KIND_PREFIX = /^(?:waiting|project|someday):\s*/i;
 
-/** Keys for a task recorded before keys existed: its stored text (no quote is known), without the kind prefix and a trailing "(who)". */
+/**
+ * Keys for a task recorded before keys existed: its stored text (no quote is known) without the kind prefix.
+ * The review appended " (who)" only to waiting-for items, so only for those is a trailing parenthesis also
+ * tried off; a parenthesis the user wrote in another task stays part of its wording.
+ */
 export function legacyTaskKeys(text: string): string[] {
+    const waiting = /^waiting:\s*/i.test(text);
     const body = text.replace(KIND_PREFIX, '');
-    const withoutWho = body.replace(/\s*\([^()]*\)\s*$/, '');
-    return [...new Set([normaliseItemText(body), normaliseItemText(withoutWho)].filter(Boolean).map((w) => `${KEY_SEPARATOR}${w}`))];
+    const wordings = [body, ...(waiting ? [body.replace(/\s*\([^()]*\)\s*$/, '')] : [])].map(normaliseItemText);
+    return [...new Set(wordings.filter(Boolean).map((w) => `${KEY_SEPARATOR}${w}`))];
 }
 
 const keysOfTask = (t: ApprovedTask): string[] => (t.keys && t.keys.length > 0 ? t.keys : legacyTaskKeys(t.text));
@@ -106,23 +111,34 @@ function overlap(a: string, b: string): number {
     return both / (left.size + right.size - both);
 }
 
-/** Two items from one note are the same item when their wording is the same, or they quote the same line AND say about the same thing. */
+/** Same quoted line and at least this much shared wording: probably the model's rewording of an item already added. */
 const SAME_QUOTE_MIN_OVERLAP = 0.5;
 
 /**
- * Was this item reported before? Same wording, or the same quoted line with similar wording (the model
- * reworded it). The same line with different wording is a different commitment ("Call Dana" and "Book the
- * venue" from one sentence), so it is not a match.
+ * How does a proposed item relate to what was reported from its note?
+ *  - `exact`: the same wording. It is the same item, and it is never added twice.
+ *  - `similar`: the same quoted line with similar but different wording. Probably the model's rewording,
+ *    possibly a second commitment in one sentence ("Send the invoice to Alice and to Bob"), so the user
+ *    is told and decides.
+ *  - null: not seen before.
  */
-export function isReportedItem(known: ReadonlySet<string>, keys: readonly string[]): boolean {
-    if (known.size === 0 || keys.length === 0) return false;
+export function reportedMatch(known: ReadonlySet<string>, keys: readonly string[]): 'exact' | 'similar' | null {
+    if (known.size === 0 || keys.length === 0) return null;
     const pairs = [...known].map(splitKey);
-    return keys.some((key) => {
+    let similar = false;
+    for (const key of keys) {
         const [quote, wording] = splitKey(key);
-        return pairs.some(([knownQuote, knownWording]) =>
-            (wording !== '' && knownWording === wording)
-            || (quote !== '' && knownQuote === quote && overlap(wording, knownWording) >= SAME_QUOTE_MIN_OVERLAP));
-    });
+        for (const [knownQuote, knownWording] of pairs) {
+            if (wording !== '' && knownWording === wording) return 'exact';
+            if (quote !== '' && knownQuote === quote && overlap(wording, knownWording) >= SAME_QUOTE_MIN_OVERLAP) similar = true;
+        }
+    }
+    return similar ? 'similar' : null;
+}
+
+/** True when the same wording was reported before (the only match that is enforced). */
+export function isReportedItem(known: ReadonlySet<string>, keys: readonly string[]): boolean {
+    return reportedMatch(known, keys) === 'exact';
 }
 
 /** Step 3b companion: remember the items of a record whose report section is written. Pure. */

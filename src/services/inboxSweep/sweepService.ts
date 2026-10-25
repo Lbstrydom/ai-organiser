@@ -9,7 +9,7 @@ import { Result, ok, err } from '../../core/result';
 import { buildSweepPrompt, parseSweepResponse, promptText, type SweepItem } from '../prompts/sweepPrompts';
 import { buildSnapshot } from './noteSnapshot';
 import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, type GuardedSnapshot, type SweepPolicy } from './sweepGuard';
-import { isReportedItem, isSwept, itemKeys, type SweepLedger } from './sweepLedger';
+import { isSwept, itemKeys, reportedMatch, type SweepLedger } from './sweepLedger';
 import { logger } from '../../utils/logger';
 
 export interface NoteProposals {
@@ -18,6 +18,8 @@ export interface NoteProposals {
     items: SweepItem[];
     /** Aligned with `items`: true when the item was already added to the sweep report from this note */
     reported?: boolean[];
+    /** Aligned with `items`: true when the item looks like one already added (same quoted line, similar wording) but is not the same wording */
+    similar?: boolean[];
     dropped: number;
     truncated: boolean;
 }
@@ -153,8 +155,10 @@ async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promis
         // An answer we cannot read is a failure for this note, never "nothing to do": it stays unswept.
         if (parsed.malformed) { out.failed++; continue; }
         const known = deps.reportedKeys?.(guarded.path);
-        const reported = parsed.items.map((item) => (known ? isReportedItem(known, itemKeys(item)) : false));
-        out.notes.push({ path: guarded.path, contentHash: guarded.contentHash, items: parsed.items, reported, dropped: parsed.dropped, truncated });
+        const matches = parsed.items.map((item) => (known ? reportedMatch(known, itemKeys(item)) : null));
+        const reported = matches.map((m) => m === 'exact');
+        const similar = matches.map((m) => m === 'similar');
+        out.notes.push({ path: guarded.path, contentHash: guarded.contentHash, items: parsed.items, reported, similar, dropped: parsed.dropped, truncated });
     }
     return out.cancelled && out.notes.length === 0 && out.failed === 0 ? err('cancelled') : ok(out);
 }

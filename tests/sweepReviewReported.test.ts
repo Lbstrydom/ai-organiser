@@ -57,6 +57,19 @@ describe('InboxSweepReviewModal with items already reported', () => {
 		expect((rows[0].querySelector('input[type="text"]') as HTMLInputElement).disabled).toBe(true);
 	});
 
+	it('an item that only looks like one already added is shown with a note but can still be added', () => {
+		const similar: NoteProposals = { ...mixed, items: [mixed.items[1]], reported: [false], similar: [true] };
+		const { el, results } = open([similar]);
+		const box = checkboxes(el)[0];
+		expect(box.disabled).toBe(false);
+		expect(el.textContent).toContain(en.inboxSweep.looksAdded);
+		expect(el.textContent).not.toContain(en.inboxSweep.alreadyAdded);
+		box.checked = true;
+		box.dispatchEvent(new Event('change', { bubbles: true }));
+		primary(el).click();
+		expect(results[0]!.tasks.map((t) => t.text)).toEqual(['Call Dana']);
+	});
+
 	it('only the new item counts: ticking it gives "Add 1" and passes keys for it alone', () => {
 		const { el, results } = open([mixed]);
 		const boxes = checkboxes(el);

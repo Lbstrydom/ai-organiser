@@ -22,6 +22,8 @@ interface Row {
     checked: boolean;
     /** Already added to the sweep report from this note: shown, but cannot be added again */
     reported: boolean;
+    /** Looks like an item already added (same line, similar wording): can be added, the user decides */
+    similar: boolean;
     text: string;
     context: string;
 }
@@ -42,7 +44,7 @@ export class InboxSweepReviewModal extends Modal {
         super(app);
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.addClass('ai-organiser-modal-content');
-        this.rows = notes.flatMap((note) => note.items.map((item, i) => ({ note, item, checked: false, reported: note.reported?.[i] === true, text: item.text, context: item.context })));
+        this.rows = notes.flatMap((note) => note.items.map((item, i) => ({ note, item, checked: false, reported: note.reported?.[i] === true, similar: note.similar?.[i] === true, text: item.text, context: item.context })));
     }
 
     private get t() { return this.plugin.t.inboxSweep; }
@@ -97,6 +99,7 @@ export class InboxSweepReviewModal extends Modal {
                 line.createSpan({ text: t.kindLabels[row.item.kind], cls: 'setting-item-description' });
             }
             if (row.reported) line.createSpan({ text: t.alreadyAdded, cls: 'setting-item-description ai-organiser-sweep-reported' });
+            else if (row.similar) line.createSpan({ text: t.looksAdded, cls: 'setting-item-description ai-organiser-sweep-reported' });
             line.createDiv({ text: `“${row.item.evidence}”`, cls: 'setting-item-description ai-organiser-sweep-evidence' });
         }
 
