@@ -123,6 +123,9 @@ describe('toNativeBase', () => {
         for (let i = 1; i < 12; i++) levels.push(`&l${i} {and: [*l${i - 1}, *l${i - 1}]}`);
         const bomb = ['name: T', 'defs:', ...levels.map((l) => `  - ${l}`), 'filters: *l11', 'columns:', '  - file.name'].join('\n');
         expect(() => toNativeBase(bomb)).toThrow(/cannot be converted/);
+        // A fan-out whose leaves are plain strings is bounded too: 3000 strings in one list.
+        const strings = `name: T\nfilters:\n  and: [${Array.from({ length: 3000 }, () => "'a == 1'").join(', ')}]\ncolumns:\n  - file.name\n`;
+        expect(() => toNativeBase(strings)).toThrow(/cannot be converted/);
         let deep = "'x'";
         for (let i = 0; i < 40; i++) deep = `{and: [${deep}]}`;
         expect(() => toNativeBase(`name: T\nfilters: ${deep}\ncolumns:\n  - file.name\n`)).toThrow(/cannot be converted/);

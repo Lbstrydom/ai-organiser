@@ -80,11 +80,12 @@ const MAX_FILTER_NODES = 2000;
  * expanded; ordinary reuse of a small alias converts (each use becomes its own copy).
  */
 function nativeFilter(node: unknown, path: Set<object> = new Set(), budget = { nodes: 0 }, depth = 0): unknown {
-    if (typeof node === 'string') return rewriteFilterText(node);
-    if (typeof node !== 'object' || node === null) return node;
-    if (depth > MAX_FILTER_DEPTH || path.has(node) || ++budget.nodes > MAX_FILTER_NODES) {
+    // Every node counts, strings included: the budget bounds the work and the output, not just the groups.
+    if (++budget.nodes > MAX_FILTER_NODES || depth > MAX_FILTER_DEPTH || (typeof node === 'object' && node !== null && path.has(node))) {
         throw new Error('Dashboard template cannot be converted: its filters nest too deeply, repeat themselves or expand too far');
     }
+    if (typeof node === 'string') return rewriteFilterText(node);
+    if (typeof node !== 'object' || node === null) return node;
     path.add(node);
     const out = Array.isArray(node)
         ? node.map((child) => nativeFilter(child, path, budget, depth + 1))
