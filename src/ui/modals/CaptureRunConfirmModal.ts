@@ -42,6 +42,11 @@ export interface RunConfirmResult {
     includeExisting: boolean;
 }
 
+/** A size a person can read: very small audio is "under 0.1 MB", not "about 0.0 MB". */
+export function audioText(mb: number): string {
+    return mb < 0.1 ? "under 0.1 MB" : `about ${mb.toFixed(1)} MB`;
+}
+
 export class CaptureRunConfirmModal extends Modal {
     private cleanups: (() => void)[] = [];
     private answered = false;
@@ -61,8 +66,8 @@ export class CaptureRunConfirmModal extends Modal {
         if (est.captures === 0) {
             lines.push(t.confirmNone);
         } else {
-            lines.push(plural(t.confirmBody, est.captures, 'captures')
-                .replace('{audioMB}', est.audioMB.toFixed(1))
+            lines.push(plural(est.audioMB === 0 && est.images === 0 ? t.confirmBodyText : t.confirmBody, est.captures, 'captures')
+                .replace('{audioMB}', audioText(est.audioMB))
                 .replace('{images}', String(est.images))
                 .replace('{cost}', est.cost));
         }

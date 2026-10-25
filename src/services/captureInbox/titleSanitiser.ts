@@ -25,6 +25,24 @@ function clean(raw: unknown): string {
     return chars.join('').replace(/^[.\s-]+|[.\s]+$/g, '').trim();
 }
 
+/**
+ * Words for a fallback title (used when tagging gives none): the user's own first words with links reduced to their names,
+ * URLs dropped and a clock time kept (14:30 becomes 14.30, a colon cannot be in a file name). `strippedText` is the prompt
+ * text, used only when the note has no words of its own (a bare media capture).
+ */
+export function titleSeed(noteBody: string, strippedText: string): string {
+    const own = noteBody
+        .replace(/!\[\[[^\]\n]{0,300}\]\]/g, ' ')
+        .replace(/\[\[([^\]|\n]{0,300})(?:\|([^\]\n]{0,300}))?\]\]/g, (_m, target: string, alias?: string) => alias ?? target.split('#')[0])
+        .replace(/!?\[([^\]\n]{0,300})\]\([^)\n]{0,500}\)/g, '$1')
+        .replace(/https?:\/\/\S+/g, ' ')
+        .replace(/\b(\d{1,2}):(\d{2})(?::\d{2})?\b/g, '$1.$2')
+        .replace(/^---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/, ' ')
+        .replace(/^#+\s*/gm, '');
+    const words = (own.trim() !== '' ? own : strippedText).split(/\s+/).filter(Boolean);
+    return words.slice(0, 6).join(' ');
+}
+
 const usable = (t: string): boolean => t !== '' && !RESERVED.test(t);
 
 /** A usable file-name title, or `fallback` when nothing is left. Never returns an empty string. */

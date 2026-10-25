@@ -26,6 +26,8 @@ export interface QueueRow {
     errorText?: string;
     /** The note already had text, so its audio was not transcribed (the review can transcribe it anyway) */
     audioNotTranscribed: boolean;
+    /** Settling because a file it refers to has not arrived (no countdown applies) */
+    waitingForAttachment: boolean;
 }
 
 /** Entries the user can still act on or is waiting for; finished work is not listed. */
@@ -34,7 +36,7 @@ const LISTED: ReadonlySet<CaptureState> = new Set([
 ]);
 
 /** Awaiting review first, then problems, then what is still moving. */
-const ORDER: Record<string, number> = { awaiting_review: 0, failed: 1, accept_pending_write: 2, accepted: 3, organised: 3, processing: 4, ready: 5, waiting_for_stable: 6, new: 7 };
+const ORDER: Record<string, number> = { awaiting_review: 0, failed: 1, accept_pending_write: 2, accepted: 3, organised: 3, processing: 4, waiting_for_stable: 5, ready: 6, new: 7 };
 
 export function rowTitle(entry: CaptureEntry): string {
     const path = entry.companionPath ?? entry.id;
@@ -78,7 +80,8 @@ export function buildQueue(journal: CaptureJournal, now: number, opts: { include
             reviewable: e.state === 'awaiting_review' || e.state === 'accepted' || e.state === 'organised' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
             retriable: e.state === 'failed',
             processed: isProcessed(e),
-            settleSeconds: e.state === 'waiting_for_stable' && !e.needsConfirm && opts.stabilityMs !== undefined ? settleSeconds(e, now, opts.stabilityMs) : undefined,
+            settleSeconds: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'attachment' && opts.stabilityMs !== undefined ? settleSeconds(e, now, opts.stabilityMs) : undefined,
+            waitingForAttachment: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason === 'attachment',
             errorText: e.state === 'failed' ? e.errorText : undefined,
             audioNotTranscribed: e.state === 'awaiting_review' && e.source === 'note-text' && (e.attachments ?? []).some((a) => a.kind === 'audio'),
             skippable: e.state === 'awaiting_review' || e.state === 'failed' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
@@ -116,11 +119,11 @@ export interface QueueCounts {
 export function queueCounts(journal: CaptureJournal): QueueCounts {
     const entries = Object.values(journal.entries);
     return {
-        toReview: entries.filter((e) => e.state === 'awaiting_review').length,
+        toReview: entries.filter((e) => e.state === 'awaiting_review' || (e.state === 'waiting_for_stable' && !!e.needsConfirm)).length,
         failed: entries.filter((e) => e.state === 'failed').length,
         settling: entries.filter((e) => e.state === 'waiting_for_stable' && !e.needsConfirm || e.state === 'new').length,
         ready: entries.filter((e) => e.state === 'ready').length,
-        waiting: entries.filter((e) => e.state === 'new' || e.state === 'waiting_for_stable' || e.state === 'ready' || e.state === 'processing').length,
+        waiting: entries.filter((e) => e.state === 'new' || (e.state === 'waiting_for_stable' && !e.needsConfirm) || e.state === 'ready' || e.state === 'processing').length,
         backpressure: awaitingCount(journal) >= MAX_AWAITING_REVIEW,
     };
 }

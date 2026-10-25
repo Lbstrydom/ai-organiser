@@ -9774,6 +9774,43 @@
     margin: 8px 0 12px;
 }
 
+/* A control row never pushes the window sideways: on a narrow screen the control wraps under its label (one rule for every guided setup window). */
+.ai-organiser-setup-body .setting-item {
+    flex-wrap: wrap;
+}
+
+.ai-organiser-setup-body .setting-item-info {
+    min-width: 0;
+    flex: 1 1 12em;
+}
+
+.ai-organiser-setup-body .setting-item-control {
+    flex-wrap: wrap;
+    min-width: 0;
+    max-width: 100%;
+}
+
+.ai-organiser-setup-body .setting-item-control select,
+.ai-organiser-setup-body .setting-item-control input[type='text'] {
+    max-width: 100%;
+}
+
+@media (max-width: 600px) {
+    .ai-organiser-setup-body .setting-item {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    /* In a column the basis would be a height: the label takes only what it needs. */
+    .ai-organiser-setup-body .setting-item-info {
+        flex: 0 0 auto;
+    }
+
+    .ai-organiser-setup-body .setting-item-control {
+        justify-content: flex-start;
+    }
+}
+
 .ai-organiser-setup-error {
     min-height: 1.4em;
     margin: 4px 0 8px;
@@ -10220,6 +10257,17 @@
 .ai-organiser-capture-queue .ai-organiser-modal-buttons,
 .ai-organiser-capture-confirm .ai-organiser-modal-buttons {
     margin-top: var(--size-4-4);
+}
+
+/* A button that follows a field or a paragraph in the review window gets room above it (it sat flush against the folder field). */
+.ai-organiser-capture-review > button,
+.ai-organiser-capture-review > .setting-item,
+.ai-organiser-capture-review > .ai-organiser-capture-actions {
+    margin-top: var(--size-4-2);
+}
+
+.ai-organiser-capture-review > .ai-organiser-capture-reason {
+    margin: var(--size-2-1) 0 var(--size-4-2);
 }
 
 /* Catch-up settings shown switched off while audio delivery is Daily. */

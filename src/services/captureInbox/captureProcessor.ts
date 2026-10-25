@@ -24,6 +24,9 @@ import { machineTextExclusion, pathExclusion } from './capturePolicy';
 import { CAPTURE_FILE_MISSING, type ScanOutcome, type ScannedCapture, type CaptureVaultPort } from './captureScanner';
 import { assess, observationsChanged, type StatResult } from './stabilityTracker';
 import { planSources, usableText, userText } from './textFirst';
+import { logger } from '../../utils/logger';
+import { friendlyProviderError } from './providerErrorText';
+import { titleSeed } from './titleSanitiser';
 import type { JournalAccess } from './captureWriter';
 import {
     MAX_ATTEMPTS,
@@ -95,7 +98,10 @@ export const MISSING_ATTACHMENT_GIVE_UP_MS = 24 * 60 * 60 * 1000;
 const NON_RETRIABLE_ERROR = /\b(401|403)\b|unauthori[sz]ed|forbidden|invalid[^.]{0,20}key|no api key|not configured/i;
 
 function providerFailure(message: string): Error {
-    return NON_RETRIABLE_ERROR.test(message) ? new NonRetriable(message) : new Error(message);
+    // The raw answer (JSON, status codes, request ids) goes to the debug log only; the capture shows a friendly sentence.
+    logger.debug('CaptureInbox', `Provider failure detail: ${message.slice(0, 500)}`);
+    const friendly = friendlyProviderError(message);
+    return NON_RETRIABLE_ERROR.test(message) ? new NonRetriable(friendly) : new Error(friendly);
 }
 
 /** The bytes about to be sent must be the bytes the capture was judged with; a file swapped since the scan drops the job. */
@@ -184,11 +190,13 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
             continue;
         }
         const stable = outcome.verdict.kind === 'ready' && (!config.requireMarker || markerPresent(cap, deps));
+        // A file the capture refers to that has not arrived is a different wait from a file that is still changing.
+        const waitReason: 'attachment' | undefined = !stable && (cap.missingAttachments.length > 0 || (outcome.verdict.kind === 'waiting' && outcome.verdict.reason === 'missing')) ? 'attachment' : undefined;
         const attachments = toRefs(cap);
 
         if (!entry) {
             hard.push(unlessMoved(undefined, newEntry(cap.id, cap.fingerprint, now, {
-                state: stable ? 'ready' : 'waiting_for_stable', attachments, hasNote: cap.notePath !== null, observed: outcome.observed,
+                state: stable ? 'ready' : 'waiting_for_stable', attachments, hasNote: cap.notePath !== null, observed: outcome.observed, waitReason,
             })));
             continue;
         }
@@ -199,18 +207,23 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
             const reviewing = entry.state === 'awaiting_review';
             const to = reviewing || entry.needsConfirm || !stable ? 'waiting_for_stable' : 'ready';
             hard.push(unlessMoved(entry, {
-                ...entry, state: to, fingerprint: cap.fingerprint, attachments, observed: outcome.observed, needsConfirm: reviewing || entry.needsConfirm,
+                ...entry, state: to, fingerprint: cap.fingerprint, attachments, observed: outcome.observed, needsConfirm: reviewing || entry.needsConfirm, waitReason,
                 text: undefined, noteText: undefined, proposal: undefined, attempts: 0, retriable: undefined, failedStage: undefined, stage: undefined, updatedAt: now,
             }));
             continue;
         }
 
         if (entry.state === 'waiting_for_stable' && stable && !entry.needsConfirm) {
-            hard.push(unlessMoved(entry, { ...entry, state: 'ready', observed: outcome.observed, attachments, updatedAt: now }));
+            hard.push(unlessMoved(entry, { ...entry, state: 'ready', observed: outcome.observed, attachments, waitReason: undefined, updatedAt: now }));
         } else if (entry.state === 'ready' && !stable) {
-            hard.push(unlessMoved(entry, { ...entry, state: 'waiting_for_stable', observed: outcome.observed, updatedAt: now }));
+            hard.push(unlessMoved(entry, { ...entry, state: 'waiting_for_stable', observed: outcome.observed, waitReason, updatedAt: now }));
         } else if (entry.state === 'failed' && entry.retriable && entry.attempts < MAX_ATTEMPTS && stable) {
             hard.push(unlessMoved(entry, { ...entry, state: 'ready', observed: outcome.observed, updatedAt: now }));
+        } else if (entry.state === 'waiting_for_stable' && entry.waitReason !== waitReason) {
+            lazy.push((j) => {
+                const live = getEntry(j, entry.id);
+                return live && live.state === 'waiting_for_stable' ? upsertEntry(j, { ...live, observed: outcome.observed, waitReason }) : j;
+            });
         } else if (observationsChanged(entry.observed, outcome.observed)) {
             // Observation churn only: coalesced, and it does not change `updatedAt` (it is not a decision).
             lazy.push((j) => {
@@ -422,7 +435,8 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
 async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, config: CaptureConfig, taxonomy: string) {
     const root = config.destinationRoot;
     const ctx = buildCaptureFolderContext(root, deps.listFolders(), (p) => deps.folderAllowed(p));
-    const fallbackTitle = text.split(/\s+/).filter(Boolean).slice(0, 6).join(' ') || basename(cap.id).replace(/\.[^.]+$/, '');
+    // The fallback title comes from what the user wrote (a clock time or date in it stays), not from the stripped prompt text.
+    const fallbackTitle = titleSeed(cap.text, text) || basename(cap.id).replace(/\.[^.]+$/, '');
     const allowed = ctx?.subfolders ?? [];
     let raw: RawProposal = {};
     // Last-resort destination without a model: the folder whose name shares words with the text.

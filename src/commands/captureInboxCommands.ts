@@ -29,7 +29,7 @@ import { CaptureJournalStore } from '../services/captureInbox/captureJournalStor
 import { processAgain, retryCapture } from '../services/captureInbox/captureProcessor';
 import { CaptureRuntime } from '../services/captureInbox/captureRuntime';
 import { acceptCapture, createOrganisedNote, processedTarget, setCaptureProcessed, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
-import { selectForRun } from '../services/captureInbox/runSelection';
+import { outlayOf, selectForRun } from '../services/captureInbox/runSelection';
 import { clearHeldMirror, setCaptureActive, setCaptureCorrupt, setHeldMirror } from '../services/captureInbox/heldMirror';
 import { estimateCost, formatEstimate } from '../services/captureInbox/costEstimate';
 import { CaptureInboxStatusBar } from '../ui/components/CaptureInboxStatusBar';
@@ -108,13 +108,17 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             // What a run would really send: captures that are settled (or, for the existing notes the box adds, old enough to need no settling), at most one run's worth.
             const estimateOf = (s: ScanOutcome): RunEstimate => {
                 const { sent, later } = selectForRun(s.captures, (id) => getEntry(journal, id)?.state, config.maxPerRun);
-                const audioBytes = sent.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'audio').reduce((m, a) => m + a.size, 0), 0);
-                const images = sent.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'image').length, 0);
+                // By the run's own text-first rules: audio a note's text makes unnecessary, an image that is skipped (image reading off) or a capture with nothing to read sends nothing.
+                const params = { minWords: config.minWords, digitiseImagesWithText: config.digitiseImages, digitisationEnabled: deps.digitisationEnabled(), maxImages: config.maxImagesPerCapture };
+                const outlays = sent.map((c) => outlayOf(c, params, getEntry(journal, c.id)?.forceTranscribe));
+                const sending = outlays.filter((o) => o.sends).length;
+                const audioBytes = outlays.reduce((n, o) => n + o.audioBytes, 0);
+                const images = outlays.reduce((n, o) => n + o.images, 0);
                 const audioMB = audioBytes / (1024 * 1024);
                 // Audio and images go to the transcription and vision providers, which are not the local text model.
                 const sendsMedia = audioBytes > 0 || images > 0;
                 const provider = isAzureMode(plugin.settings) ? 'azure' : plugin.settings.serviceType === 'local' && !sendsMedia ? 'local' : 'cloud';
-                return { ids: sent.map((c) => c.id), captures: sent.length, later, audioMB, images, cost: formatEstimate(estimateCost({ captures: sent.length, audioMB, images }), provider) };
+                return { ids: sent.map((c) => c.id), captures: sending, later, audioMB, images, cost: formatEstimate(estimateCost({ captures: sending, audioMB, images }), provider) };
             };
             const base = estimateOf(scan);
             if (base.captures === 0 && scan.olderIgnored === 0) {
@@ -218,7 +222,7 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
 
         async transcribeAnyway(id) {
             // Ask first: this drops the reviewed text and uses the provider. Cancelling leaves everything as it was.
-            if (!(await confirmText(plugin, t.transcribeAnyway, t.processAgainConfirm))) return;
+            if (!(await confirmText(plugin, t.transcribeAnyway, t.transcribeAnywayConfirm))) return;
             await store.mutate((j) => {
                 const e = getEntry(j, id);
                 if (!e || e.state !== 'awaiting_review') return j;
