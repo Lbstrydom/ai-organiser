@@ -313,30 +313,44 @@ describe('audit follow-ups: ambiguity over both spellings, removal matching, nes
 		expect(paths2).toContain('a.png');
 	});
 
-	it('a percent-encoded # or ? in a file name keeps the occurrence (the name as written is the text)', () => {
-		const { occurrences } = collectOccurrences('n.md', 'md', '[x](a%23b.pdf) ![y](c%3Fd.png)');
-		expect(occurrences.map((o) => o.linktext).sort()).toEqual(['a%23b.pdf', 'c%3Fd.png']);
+	it('a percent-encoded # or ? is a character of the name, a literal # starts a fragment', () => {
+		const { occurrences } = collectOccurrences('n.md', 'md', '[x](a%23b.pdf) ![y](c%3Fd.png) [z](e%23f.pdf#page=3)');
+		expect(occurrences.map((o) => [o.linktext, o.rawLinktext]).sort()).toEqual([
+			['a#b.pdf', 'a%23b.pdf'],
+			['c?d.png', 'c%3Fd.png'],
+			['e#f.pdf', 'e%23f.pdf'],
+		].sort());
 	});
 
-	it('removal picks the same spelling as the scan for an encoded delimiter', () => {
-		const resolve = (l: string) => (l === 'a%23b.pdf' ? 'Files/a%23b.pdf' : l === 'a' ? 'Files/a.pdf' : null);
-		const text = 'See [x](a%23b.pdf) here\n';
-		const keep = planLinkRemoval(text, 'Files/a.pdf', 'n.md', resolve); // a link to the file literally named a%23b.pdf, not to "a"
-		expect(keep.status).toBe('nothing');
-		const res = planLinkRemoval(text, 'Files/a%23b.pdf', 'n.md', resolve);
+	it('removal picks the same spelling as the scan for an encoded delimiter, fragment or not', () => {
+		const resolve = (l: string) => (l === 'a#b.pdf' ? 'Files/a#b.pdf' : l === 'a%23b.pdf' ? 'Files/a%23b.pdf' : l === 'a' ? 'Files/a.pdf' : null);
+		for (const text of ['See [x](a%23b.pdf) here\n', 'See [x](a%23b.pdf#page=3) here\n']) {
+			// never a link to the shorter "a.pdf"
+			expect(planLinkRemoval(text, 'Files/a.pdf', 'n.md', resolve).status).toBe('nothing');
+			// the decoded name wins when it names a file
+			const decoded = planLinkRemoval(text, 'Files/a#b.pdf', 'n.md', resolve);
+			expect(decoded.status).toBe('ok');
+			if (decoded.status === 'ok') expect(decoded.plan.nextText).toBe('See x here\n');
+			// a link that resolves to the decoded file is not a link to the file literally named with the %23
+			expect(planLinkRemoval(text, 'Files/a%23b.pdf', 'n.md', resolve).status).toBe('nothing');
+		}
+		// with no file of the decoded name, the name as written is the target
+		const onlyRaw = (l: string) => (l === 'a%23b.pdf' ? 'Files/a%23b.pdf' : null);
+		const res = planLinkRemoval('See [x](a%23b.pdf) here\n', 'Files/a%23b.pdf', 'n.md', onlyRaw);
 		expect(res.status).toBe('ok');
 		if (res.status === 'ok') expect(res.plan.nextText).toBe('See x here\n');
 	});
 
 	it('the shared choice of spelling', () => {
 		const pick = (line: string) => extractReferenceSpansFromLine(line, 1).map((r) => referenceLinktext(r));
-		// decoding would cut the name at the "#": the name as written goes first, the cut-short one is the fallback
-		expect(pick('![x](a.pdf%23b.png)')).toEqual([{ linktext: 'a.pdf%23b.png', rawLinktext: 'a.pdf' }]);
+		// an encoded "#" is part of the name, so decoding never cuts it short; the name as written is the fallback
+		expect(pick('![x](a.pdf%23b.png)')).toEqual([{ linktext: 'a.pdf#b.png', rawLinktext: 'a.pdf%23b.png' }]);
+		expect(pick('![x](a.pdf%23b.png#page=1)')).toEqual([{ linktext: 'a.pdf#b.png', rawLinktext: 'a.pdf%23b.png' }]);
 		expect(pick('![x](my%20file.pdf)')).toEqual([{ linktext: 'my file.pdf', rawLinktext: 'my%20file.pdf' }]);
 		expect(pick('[[note]]')).toEqual([null]);
 	});
 
-	it('a file named with a literal %23 is counted even when a shorter-named file also exists', async () => {
+	it('a file named with a literal %23 is counted, and a shorter-named file stays an orphan', async () => {
 		const v = makeFakeApp({ 'Attachments/a.pdf': { size: 5 }, 'Attachments/a.pdf%23b.png': { size: 5 }, 'n.md': '![x](a.pdf%23b.png)' });
 		const r = await scanNotes(v.app as never, [v.files.get('n.md')!] as never, { includeOrphans: true });
 		expect(r.targets.map((x) => x.file?.path)).toEqual(['Attachments/a.pdf%23b.png']);

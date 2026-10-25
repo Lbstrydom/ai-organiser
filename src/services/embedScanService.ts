@@ -182,8 +182,13 @@ export interface RawReference {
     lineNumber: number;
     isEmbedded: boolean;
     originalText: string;
-    /** The destination as written, only when decoding changed it */
-    rawPath?: string;
+    /**
+     * Markdown links only: the file part of the destination, decoded, with any `#fragment` or `?query` cut off BEFORE
+     * decoding (so an encoded "%23" stays part of the name and is never mistaken for a fragment).
+     */
+    linktext?: string;
+    /** Markdown links only: the file part as written, when decoding changed it */
+    rawLinktext?: string;
 }
 
 /** A reference together with where it sits in the line (`start` inclusive, `end` exclusive). */
@@ -295,10 +300,16 @@ export function extractReferenceSpansFromLine(line: string, lineNumber: number):
             rawPath = legacy[0].slice(0, -1);
             end = afterOpen + legacy[0].length;
         }
-        const path = decodeMarkdownDestination(rawPath);
+        // Cut the fragment or query off the destination as written, then decode only the file part: an encoded
+        // "%23" is a character of the name, a literal "#" starts a fragment.
+        const cut = rawPath.search(/[#?]/);
+        const fileRaw = (cut < 0 ? rawPath : rawPath.slice(0, cut)).trim();
+        const fileDecoded = decodeMarkdownDestination(fileRaw).trim();
+        const path = decodeMarkdownDestination(cut < 0 ? rawPath : rawPath.slice(0, cut)) + (cut < 0 ? '' : rawPath.slice(cut));
         const span: RawReferenceSpan = {
             path, lineNumber, isEmbedded, originalText: line.slice(start, end), start, end, label,
-            ...(path !== rawPath ? { rawPath } : {}),
+            linktext: fileDecoded,
+            ...(fileRaw !== fileDecoded ? { rawLinktext: fileRaw } : {}),
         };
         (isEmbedded ? markdownEmbeds : markdownLinks).push(span);
     }
@@ -386,13 +397,6 @@ export function parseCanvasTextNodes(text: string): string[] {
     return out;
 }
 
-/** `{ rawLinktext }` when decoding the destination changed the link text, so a file literally named with the raw spelling still resolves. */
-function rawLinktextOf(raw: RawReference, normalized: string): { rawLinktext?: string } {
-    if (raw.rawPath === undefined) return {};
-    const rawNormalized = normalizeEmbedPath(raw.rawPath);
-    return rawNormalized !== '' && rawNormalized !== normalized ? { rawLinktext: rawNormalized } : {};
-}
-
 /**
  * The link text to resolve for one reference, and the spelling to fall back to. THE one place that decides it,
  * shared by the scan, the delete re-check's re-parse and the link removal, so they can never pick different
@@ -400,15 +404,11 @@ function rawLinktextOf(raw: RawReference, normalized: string): { rawLinktext?: s
  * which would cut the name short: then the spelling as written is the text.
  */
 export function referenceLinktext(raw: RawReference): { linktext: string; rawLinktext?: string } | null {
-    const normalized = normalizeEmbedPath(raw.path);
-    const alt = rawLinktextOf(raw, normalized);
-    // Decoding produced a "#", "?" or "|" the destination did not contain: the name as written is the likelier file,
-    // so it goes first and the cut-short decoded spelling is only the fallback (resolution tries them in that order).
-    if (raw.rawPath !== undefined && /[#?|]/.test(raw.path) && !/[#?|]/.test(raw.rawPath) && alt.rawLinktext !== undefined && pointsAtNonMarkdown(alt.rawLinktext)) {
-        return { linktext: alt.rawLinktext, ...(normalized !== '' && pointsAtNonMarkdown(normalized) ? { rawLinktext: normalized } : {}) };
-    }
-    if (normalized !== '' && pointsAtNonMarkdown(normalized)) return { linktext: normalized, ...alt };
-    if (alt.rawLinktext !== undefined && pointsAtNonMarkdown(alt.rawLinktext)) return { linktext: alt.rawLinktext };
+    // A markdown link carries its file part already cut and decoded (see `RawReference.linktext`); a wikilink is normalised here.
+    const decoded = raw.linktext ?? normalizeEmbedPath(raw.path);
+    const written = raw.rawLinktext !== undefined && raw.rawLinktext !== decoded ? raw.rawLinktext : undefined;
+    if (decoded !== '' && pointsAtNonMarkdown(decoded)) return { linktext: decoded, ...(written !== undefined ? { rawLinktext: written } : {}) };
+    if (written !== undefined && written !== '' && pointsAtNonMarkdown(written)) return { linktext: written };
     return null;
 }
 
