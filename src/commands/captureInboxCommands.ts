@@ -218,8 +218,8 @@ function trackRenames(plugin: AIOrganiserPlugin, store: CaptureJournalStore): vo
 
 async function start(plugin: AIOrganiserPlugin): Promise<void> {
     const store = new CaptureJournalStore(plugin);
-    await store.load();
-    if (store.corruption() !== null) {
+    const loaded = await store.load();
+    if (!loaded.ok) {
         // Fail closed: no runtime, no commands that process, and the sweep refuses to run until the user resets.
         corruptStores.set(plugin, store);
         setCaptureCorrupt(true);

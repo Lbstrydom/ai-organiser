@@ -3,7 +3,7 @@
  * digitisation pipeline, the existing tagging prompt and provider, the sweep's policy and ledger. This is
  * the only file of the feature that knows the plugin object; everything else takes injected deps.
  */
-import { TFile, TFolder } from 'obsidian';
+import { TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { ok, err } from '../../core/result';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
@@ -64,11 +64,10 @@ export function buildRuntimeDeps(plugin: AIOrganiserPlugin, store: CaptureJourna
             });
             return result.success && typeof result.transcript === 'string' ? ok(result.transcript) : err(result.error ?? 'Transcription failed');
         },
-        digitise: async (path) => {
-            const file = app.vault.getAbstractFileByPath(path);
-            if (!(file instanceof TFile)) return err('The image is gone.');
+        digitise: async (bytes, _fileName, extension) => {
             try {
-                const result = await new VisionService(plugin).digitise(file);
+                const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+                const result = await new VisionService(plugin).digitiseBytes(buffer, extension);
                 return ok(result.extractedText);
             } catch (e) {
                 return err(e instanceof Error ? e.message : 'Image reading failed');

@@ -8,9 +8,11 @@
  * because an attachment can arrive after its note.
  */
 import { TFile, type App } from 'obsidian';
+import { Result, ok, err } from '../../core/result';
+import { logger } from '../../utils/logger';
 import { sha256Hex } from '../attachmentDuplicateService';
 import { classifyByExtension, extensionOf, isKnownUnsupportedMedia } from './mediaSignature';
-import type { CaptureVaultPort, ResolvedAttachments, VaultFileInfo } from './captureScanner';
+import { CAPTURE_FILE_MISSING, CAPTURE_READ_FAILED, type CaptureVaultPort, type ResolvedAttachments, type VaultFileInfo } from './captureScanner';
 import type { ProcessorPort } from './captureProcessor';
 
 // Every class is bounded and stops at a newline: an unclosed bracket costs a short scan, never the rest of the note.
@@ -85,9 +87,15 @@ export function createVaultPort(app: App): CaptureVaultPort & ProcessorPort {
         listFiles(): VaultFileInfo[] {
             return app.vault.getFiles().map((f) => ({ path: f.path, extension: f.extension, ctime: f.stat.ctime, mtime: f.stat.mtime, size: f.stat.size }));
         },
-        async readText(path: string): Promise<string> {
+        async readText(path: string): Promise<Result<string>> {
             const file = app.vault.getAbstractFileByPath(path);
-            return file instanceof TFile ? app.vault.read(file) : '';
+            if (!(file instanceof TFile)) return err(CAPTURE_FILE_MISSING);
+            try {
+                return ok(await app.vault.read(file));
+            } catch (e) {
+                logger.warn('CaptureInbox', `Could not read a note: ${path}`, e);
+                return err(CAPTURE_READ_FAILED);
+            }
         },
         resolveAttachments(notePath: string, text?: string): ResolvedAttachments {
             let targets: string[];
@@ -112,26 +120,32 @@ export function createVaultPort(app: App): CaptureVaultPort & ProcessorPort {
         referrersOf(path: string): string[] {
             return reverseMap().get(path) ?? [];
         },
-        async digestOf(path: string, size: number, mtime: number): Promise<string | null> {
+        async digestOf(path: string, size: number, mtime: number): Promise<Result<string>> {
             const key = `${path}|${size}|${mtime}`;
             const hit = digests.get(key);
-            if (hit !== undefined) return hit;
+            if (hit !== undefined) return ok(hit);
             const file = app.vault.getAbstractFileByPath(path);
-            if (!(file instanceof TFile)) return null;
+            if (!(file instanceof TFile)) return err(CAPTURE_FILE_MISSING);
             try {
                 const digest = await sha256Hex(await app.vault.readBinary(file));
                 // Only the latest digest per path is kept: the cache is a memory of what was already read, not an archive.
                 for (const k of digests.keys()) if (k.startsWith(`${path}|`)) digests.delete(k);
                 digests.set(key, digest);
-                return digest;
-            } catch {
-                return null;
+                return ok(digest);
+            } catch (e) {
+                logger.warn('CaptureInbox', `Could not read an attachment to digest it: ${path}`, e);
+                return err(CAPTURE_READ_FAILED);
             }
         },
-        async readBytes(path: string): Promise<Uint8Array> {
+        async readBytes(path: string): Promise<Result<Uint8Array>> {
             const file = app.vault.getAbstractFileByPath(path);
-            if (!(file instanceof TFile)) return new Uint8Array(0);
-            return new Uint8Array(await app.vault.readBinary(file));
+            if (!(file instanceof TFile)) return err(CAPTURE_FILE_MISSING);
+            try {
+                return ok(new Uint8Array(await app.vault.readBinary(file)));
+            } catch (e) {
+                logger.warn('CaptureInbox', `Could not read an attachment: ${path}`, e);
+                return err(CAPTURE_READ_FAILED);
+            }
         },
         async stat(path: string): Promise<{ size: number; mtime: number } | null> {
             const stat = await app.vault.adapter.stat(path);
