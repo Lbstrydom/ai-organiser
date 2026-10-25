@@ -36,6 +36,7 @@ import {
     type CaptureConfig,
     type CaptureEntry,
     type CaptureJournal,
+    type CaptureProposal,
     type CaptureStage,
     type SkipReason,
 } from './captureTypes';
@@ -191,7 +192,11 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
         }
         const stable = outcome.verdict.kind === 'ready' && (!config.requireMarker || markerPresent(cap, deps));
         // A file the capture refers to that has not arrived is a different wait from a file that is still changing.
-        const waitReason: 'attachment' | undefined = !stable && (cap.missingAttachments.length > 0 || (outcome.verdict.kind === 'waiting' && outcome.verdict.reason === 'missing')) ? 'attachment' : undefined;
+        // A note with nothing in it and no attachment is a different wait again: no countdown ends it, writing in it does.
+        const emptyNote = !stable && cap.notePath !== null && cap.attachments.length === 0 && cap.missingAttachments.length === 0 && stats[cap.notePath]?.size === 0;
+        const waitReason: 'attachment' | 'empty' | undefined = emptyNote
+            ? 'empty'
+            : !stable && (cap.missingAttachments.length > 0 || (outcome.verdict.kind === 'waiting' && outcome.verdict.reason === 'missing')) ? 'attachment' : undefined;
         const attachments = toRefs(cap);
 
         if (!entry) {
@@ -208,7 +213,7 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
             const to = reviewing || entry.needsConfirm || !stable ? 'waiting_for_stable' : 'ready';
             hard.push(unlessMoved(entry, {
                 ...entry, state: to, fingerprint: cap.fingerprint, attachments, observed: outcome.observed, needsConfirm: reviewing || entry.needsConfirm, waitReason,
-                text: undefined, noteText: undefined, proposal: undefined, attempts: 0, retriable: undefined, failedStage: undefined, stage: undefined, updatedAt: now,
+                text: undefined, noteText: undefined, proposal: undefined, taggingFailed: undefined, attempts: 0, retriable: undefined, failedStage: undefined, stage: undefined, updatedAt: now,
             }));
             continue;
         }
@@ -217,8 +222,6 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
             hard.push(unlessMoved(entry, { ...entry, state: 'ready', observed: outcome.observed, attachments, waitReason: undefined, updatedAt: now }));
         } else if (entry.state === 'ready' && !stable) {
             hard.push(unlessMoved(entry, { ...entry, state: 'waiting_for_stable', observed: outcome.observed, waitReason, updatedAt: now }));
-        } else if (entry.state === 'failed' && entry.retriable && entry.attempts < MAX_ATTEMPTS && stable) {
-            hard.push(unlessMoved(entry, { ...entry, state: 'ready', observed: outcome.observed, updatedAt: now }));
         } else if (entry.state === 'waiting_for_stable' && entry.waitReason !== waitReason) {
             lazy.push((j) => {
                 const live = getEntry(j, entry.id);
@@ -418,13 +421,13 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
         const beforeTagging = await stillAllowed(deps, cap, machineText);
         if (beforeTagging) throw new Skip(beforeTagging);
         const promptNote = plan.useNoteText ? usableText(cap.text, basename(id)).slice(0, MAX_HELD_CHARS) : '';
-        const proposal = await classify(deps, cap, `${promptNote}\n\n${machineText}`.trim(), config, taxonomy);
+        const { proposal, taggingFailed } = await classify(deps, cap, `${promptNote}\n\n${machineText}`.trim(), config, taxonomy);
         checkCancel();
 
         await deps.journal.mutate((j) => {
             const e = getEntry(j, id);
             if (!e) return j;
-            return bump(upsertEntry(j, { ...e, state: 'awaiting_review', stage: undefined, proposal, retriable: undefined, failedStage: undefined, updatedAt: deps.now() }), 'processed');
+            return bump(upsertEntry(j, { ...e, state: 'awaiting_review', stage: undefined, proposal, taggingFailed: taggingFailed || undefined, retriable: undefined, failedStage: undefined, updatedAt: deps.now() }), 'processed');
         });
         return 'review';
     } catch (e) {
@@ -432,25 +435,28 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
     }
 }
 
-async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, config: CaptureConfig, taxonomy: string) {
+async function classify(deps: CaptureDeps, cap: ScannedCapture, text: string, config: CaptureConfig, taxonomy: string): Promise<{ proposal: CaptureProposal; taggingFailed: boolean }> {
     const root = config.destinationRoot;
     const ctx = buildCaptureFolderContext(root, deps.listFolders(), (p) => deps.folderAllowed(p));
     // The fallback title comes from what the user wrote (a clock time or date in it stays), not from the stripped prompt text.
     const fallbackTitle = titleSeed(cap.text, text) || basename(cap.id).replace(/\.[^.]+$/, '');
     const allowed = ctx?.subfolders ?? [];
     let raw: RawProposal = {};
+    let taggingFailed = false;
     // Last-resort destination without a model: the folder whose name shares words with the text.
     const lexical = (): string | null => rankByTitleOverlap('', text.slice(0, 600), allowed)[0]?.path ?? null;
     try {
         const parts = buildCaptureClassifyPrompt({ text, taxonomyPrompt: taxonomy, maxTags: deps.maxTags(), language: deps.language(), maxChars: config.maxTextChars, folderContext: ctx });
         const res = await deps.classify(parts);
         if (res.ok) raw = res.value;
+        else taggingFailed = true;
     } catch {
-        // A failed proposal degrades to a title from the text; the capture is still reviewable.
+        // A failed proposal degrades to a title from the text; the capture is still reviewable, and the review says the tagging step failed.
+        taggingFailed = true;
     }
     const proposal = parseProposal(raw, allowed, root, { maxTags: deps.maxTags(), fallbackTitle, formatTags: (tags) => deps.formatTags(tags) });
     if (ctx && proposal.folder === null) proposal.folder = lexical();
-    return proposal;
+    return { proposal, taggingFailed };
 }
 
 async function handleFailure(deps: CaptureDeps, id: string, error: unknown): Promise<JobOutcome> {

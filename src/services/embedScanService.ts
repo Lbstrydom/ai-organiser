@@ -480,7 +480,9 @@ export function buildCandidateIndex(paths: Iterable<string>): (linktext: string)
         else byName.set(name, [path]);
     }
     return (linktext: string) => {
-        const lower = linktext.replaceAll('\\', '/').replace(/^\/+/, '').toLowerCase();
+        // A leading "./" or "../" says where the link starts from, not which file it names: Obsidian leaves such a link
+        // unresolved when the file is not there, but the file is still named, so it is kept (fail closed).
+        const lower = linktext.replaceAll('\\', '/').replace(/^(?:\.{1,2}\/+)+/, '').replace(/^\/+/, '').toLowerCase();
         const name = lower.split('/').pop()!;
         const sameName = byName.get(name) ?? [];
         if (!lower.includes('/')) return [...sameName];

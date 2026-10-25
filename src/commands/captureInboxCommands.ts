@@ -22,13 +22,14 @@ import { queueCounts, settleSeconds } from '../services/captureInbox/captureQueu
 import type { ScanOutcome } from '../services/captureInbox/captureScanner';
 import { plural } from '../utils/plural';
 import { buildCaptureFolderContext } from '../services/captureInbox/captureClassify';
-import { captureBlocker, remapSharedScope } from '../services/captureInbox/captureConfig';
+import { captureBlocker, captureSetupConfirmed, remapSharedScope } from '../services/captureInbox/captureConfig';
 import type { CaptureController } from '../services/captureInbox/captureController';
 import { buildRuntimeDeps } from '../services/captureInbox/captureDepsFactory';
 import { CaptureJournalStore } from '../services/captureInbox/captureJournalStore';
 import { processAgain, retryCapture } from '../services/captureInbox/captureProcessor';
 import { CaptureRuntime } from '../services/captureInbox/captureRuntime';
 import { acceptCapture, createOrganisedNote, processedTarget, setCaptureProcessed, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
+import { runNoticeLines } from '../services/captureInbox/runNotice';
 import { outlayOf, selectForRun } from '../services/captureInbox/runSelection';
 import { clearHeldMirror, setCaptureActive, setCaptureCorrupt, setHeldMirror } from '../services/captureInbox/heldMirror';
 import { estimateCost, formatEstimate } from '../services/captureInbox/costEstimate';
@@ -100,7 +101,8 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             if (!deps.isVisible()) { new Notice(t.notVisible, 6000); return; }
             // A look at the inbox that a file event started is not a run: wait for it instead of refusing.
             if (runtime.isRunning()) await runtime.whenIdle();
-            const scan = await runtime.refresh();
+            // The user asked for this look, so a file that has sat untouched for the whole window counts as settled.
+            const scan = await runtime.refresh({ trustMtime: true });
             if (!scan) { new Notice(runtime.isRunning() ? t.alreadyRunning : t.scanFailed, 6000); return; }
             const config = deps.config();
             const journal = store.get();
@@ -123,7 +125,7 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             const base = estimateOf(scan);
             if (base.captures === 0 && scan.olderIgnored === 0) {
                 if (settling > 0) {
-                    const seconds = Math.min(...Object.values(journal.entries).filter((e) => e.state === 'waiting_for_stable' && !e.needsConfirm).map((e) => settleSeconds(e, Date.now(), config.stabilityMs)));
+                    const seconds = Math.min(...Object.values(journal.entries).filter((e) => e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'empty' && e.waitReason !== 'attachment').map((e) => settleSeconds(e, Date.now(), config.stabilityMs)));
                     new Notice(plural(t.nothingReadySettling, settling).replace('{count}', String(settling)).replace('{seconds}', String(Math.max(1, Number.isFinite(seconds) ? seconds : 1))), 8000);
                 } else new Notice(t.nothingToProcess, 6000);
                 return;
@@ -154,13 +156,8 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
                 // Only skips this run recorded: kept-out notes are listed again by every scan and are counted in the queue, not here.
                 const skipped = s.skipped + result.scan.skipped.filter((k) => k.reason !== 'excluded' && !knownSkips.has(k.id)).length;
                 const after = queueCounts(store.get());
-                const lines = [
-                    t.summaryNotice.replace('{processed}', String(s.processed)).replace('{review}', String(s.awaitingReview)).replace('{failed}', String(s.failed)).replace('{skipped}', String(skipped)),
-                    // What is left, so a capped run never looks like the end.
-                    after.ready > 0 ? plural(t.runLeftover, after.ready).replace('{count}', String(after.ready)) : '',
-                    after.settling > 0 ? plural(t.runSettling, after.settling).replace('{count}', String(after.settling)) : '',
-                    skipped > 0 ? t.runSkipped : '',
-                ].filter(Boolean);
+                // What is left, so a capped run never looks like the end; "beyond the limit" only when the confirmation really held some back.
+                const lines = runNoticeLines(t, s, skipped, after, (answer.includeExisting ? withExisting : base).later > 0);
                 new Notice(lines.join(' '), 9000);
                 if (s.backpressure) new Notice(t.backpressureNote, 7000);
             } finally {
@@ -309,13 +306,14 @@ async function start(plugin: AIOrganiserPlugin): Promise<void> {
     });
 
     let ready = false;
-    const hint = (file: TAbstractFile): void => { if (ready && inInbox(plugin, file.path)) runtime.hint(); };
+    // Until the user has set the feature up (or confirmed a run) nothing looks at the inbox in the background.
+    const hint = (file: TAbstractFile): void => { if (ready && captureSetupConfirmed(plugin.settings) && inInbox(plugin, file.path)) runtime.hint(); };
     plugin.registerEvent(plugin.app.vault.on('create', hint));
     plugin.registerEvent(plugin.app.vault.on('modify', hint));
     plugin.registerEvent(plugin.app.vault.on('delete', hint));
     trackRenames(plugin, store);
     plugin.registerDomEvent(activeDocument, 'visibilitychange', () => {
-        if (activeDocument.visibilityState !== 'visible' || !ready) return;
+        if (activeDocument.visibilityState !== 'visible' || !ready || !captureSetupConfirmed(plugin.settings)) return;
         void runtime.refresh().then(() => runtime.runOnce({ trigger: 'auto' }));
     });
 
@@ -324,6 +322,7 @@ async function start(plugin: AIOrganiserPlugin): Promise<void> {
         bar.mount();
         void (async () => {
             await runtime.recoverOnStart();
+            if (!captureSetupConfirmed(plugin.settings)) return;
             await runtime.refresh();
             await runtime.runOnce({ trigger: 'auto' });
         })().catch((e: unknown) => logger.warn('CaptureInbox', 'Startup pass failed', e));

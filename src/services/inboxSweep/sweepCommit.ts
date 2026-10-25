@@ -36,6 +36,7 @@ import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_
 import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
 import { heldMirrorPaths, isCaptureActive, isHeldMirrorLoaded } from '../captureInbox/heldMirror';
 import { withHeldPaths } from '../captureInbox/capturePolicy';
+import { captureSetupConfirmed } from '../captureInbox/captureConfig';
 
 /**
  * Approval mutations run one at a time. A rollback after a failed save restores a snapshot, which is
@@ -63,12 +64,12 @@ export function sweepPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
 /**
  * The policy the SWEEP runs under: the base policy, plus every note the capture inbox still holds (not yet
  * accepted), so the sweep waits for Accept instead of reading a raw note whose text is about to change.
- * Fails closed: if the capture feature is on but its journal has not loaded, the whole inbox is held out.
- * With the capture feature off this is exactly `sweepPolicy`.
+ * Fails closed: if the capture feature is on and set up but its journal has not loaded, the whole inbox is held out.
+ * With the capture feature off, or on but not yet set up (`captureSetupConfirmed`), this is exactly `sweepPolicy`.
  */
 export function sweepRunPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
     const base = sweepPolicy(plugin);
-    if (!isCaptureActive()) return base;
+    if (!isCaptureActive() || !captureSetupConfirmed(plugin.settings)) return base;
     if (!isHeldMirrorLoaded()) return { ...base, excludedFolders: [...base.excludedFolders, ...plugin.settings.sweepInboxFolders] };
     return withHeldPaths(base, heldMirrorPaths());
 }
@@ -78,7 +79,7 @@ export function sweepRunPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
  * the user accepts them, which is not the same as the user's keep-out rules, so the sweep says so. 0 with the feature off.
  */
 export function heldInboxCount(plugin: AIOrganiserPlugin, folders: readonly string[] = plugin.settings.sweepInboxFolders): number {
-    if (!isCaptureActive() || !isHeldMirrorLoaded()) return 0;
+    if (!isCaptureActive() || !captureSetupConfirmed(plugin.settings) || !isHeldMirrorLoaded()) return 0;
     const inbox = folders.map(normalisePath).filter((p) => p !== '');
     // Only notes: the sweep never reads a bare audio or image file, so a held one is not a note it left out.
     return heldMirrorPaths().filter((p) => p.toLowerCase().endsWith('.md') && inbox.some((i) => isInsideOrEqual(normalisePath(p), i))).length;

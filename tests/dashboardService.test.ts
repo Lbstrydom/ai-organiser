@@ -158,4 +158,21 @@ describe('DashboardService', () => {
             expect(mockNotices.length).toBeGreaterThan(0);
         });
     });
+
+    describe('Notices', () => {
+        it('shows exactly one notice for a created dashboard, and it names the folder (F8)', async () => {
+            const template = `---
+name: Test
+views:
+  - type: table
+    name: T
+    order:
+      - file.name`;
+            const { service, folder } = setupService(template, 'Projects');
+            const success = await service.createDashboard({ template: 'Test Template', folder });
+            expect(success).toBe(true);
+            expect(mockNotices).toHaveLength(1);
+            expect(JSON.stringify(mockNotices[0])).toContain('Dashboard created: template.base in Projects');
+        });
+    });
 });

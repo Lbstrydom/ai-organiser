@@ -15,6 +15,7 @@
 import { err, type Result } from '../../core/result';
 import { logger } from '../../utils/logger';
 import { reconcile } from './captureJournal';
+import { settleRemainingMs } from './captureQueueModel';
 import { runJobs, syncEntries, type CaptureDeps, type RunSummary } from './captureProcessor';
 import { CAPTURE_FILE_MISSING, scanInbox, type ScanOutcome } from './captureScanner';
 import { finishBareAccept, noteHasBlockFor, retryPendingWrites, type WriterDeps } from './captureWriter';
@@ -23,6 +24,8 @@ import { finishBareAccept, noteHasBlockFor, retryPendingWrites, type WriterDeps 
 export const MIN_AUTO_INTERVAL_MS = 15 * 60 * 1000;
 /** File events are coalesced for this long before a refresh. */
 export const HINT_DEBOUNCE_MS = 2000;
+/** The re-scan after a settling window ends waits this much longer, so the window has really elapsed when the file is looked at again. */
+export const SETTLE_RESCAN_SLACK_MS = 500;
 
 export interface RuntimeDeps extends CaptureDeps {
     writer: WriterDeps;
@@ -59,6 +62,7 @@ export class CaptureRuntime {
     private idleWaiters: Array<() => void> = [];
     private cancelFlag = false;
     private hintTimer: number | null = null;
+    private settleTimer: number | null = null;
     private lastAutoRun = 0;
     /** A file event arrived while a run was active: look again when it ends. */
     private hintPending = false;
@@ -115,6 +119,35 @@ export class CaptureRuntime {
         this.cancelFlag = true;
         if (this.hintTimer !== null) window.clearTimeout(this.hintTimer);
         this.hintTimer = null;
+        this.clearSettleTimer();
+    }
+
+    private clearSettleTimer(): void {
+        if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
+        this.settleTimer = null;
+    }
+
+    /**
+     * A settling capture matures on its own: look again when the earliest window ends. Without this the countdown is
+     * only a picture and a capture waits for "Process now". Only windows still running arm it, so a capture held back
+     * for another reason (a missing completion marker, an empty note) never makes a re-scan loop.
+     */
+    private armSettleRescan(): void {
+        this.clearSettleTimer();
+        if (!this.usable()) return;
+        const now = this.deps.now();
+        const stabilityMs = this.deps.config().stabilityMs;
+        let soonest = Infinity;
+        for (const entry of Object.values(this.deps.journal.get().entries)) {
+            if (entry.state !== 'waiting_for_stable' || entry.needsConfirm || entry.waitReason === 'empty' || entry.waitReason === 'attachment') continue;
+            const left = settleRemainingMs(entry, now, stabilityMs);
+            if (left > 0) soonest = Math.min(soonest, left);
+        }
+        if (!Number.isFinite(soonest)) return;
+        this.settleTimer = window.setTimeout(() => {
+            this.settleTimer = null;
+            void this.refresh();
+        }, soonest + SETTLE_RESCAN_SLACK_MS);
     }
 
     private usable(): boolean {
@@ -149,7 +182,7 @@ export class CaptureRuntime {
     }
 
     /** Scan and settle stability. Calls no provider, so it is safe to run on every hint. */
-    async refresh(): Promise<ScanOutcome | null> {
+    async refresh(opts: { trustMtime?: boolean } = {}): Promise<ScanOutcome | null> {
         if (!this.usable() || !this.deps.isVisible()) return null;
         if (this.running) {
             this.hintPending = true;
@@ -163,13 +196,14 @@ export class CaptureRuntime {
                 return null;
             }
             const scan = scanned.value;
-            // A hint is not proof that a sync finished: an old mtime does not count as stable here.
-            await syncEntries(this.deps, scan, { trustMtime: false });
+            // A hint is not proof that a sync finished: an old mtime does not count as stable there. A look the user asked for does count it.
+            await syncEntries(this.deps, scan, { trustMtime: opts.trustMtime ?? false });
             return scan;
         } catch (e) {
             logger.warn('CaptureInbox', 'Refresh failed', e);
             return null;
         } finally {
+            this.armSettleRescan();
             this.setIdle();
             this.replayHint();
         }
@@ -207,6 +241,7 @@ export class CaptureRuntime {
             logger.error('CaptureInbox', 'Run failed', e);
             return null;
         } finally {
+            this.armSettleRescan();
             this.setIdle();
             this.replayHint();
         }

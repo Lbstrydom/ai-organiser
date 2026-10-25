@@ -85,6 +85,8 @@ export interface CaptureEntry {
     /** A short, one-line reason for a failure (never the capture's content) */
     errorText?: string;
     source?: CaptureSource;
+    /** The tagging call failed (provider unreachable or unusable answer): the proposal is only a title from the text */
+    taggingFailed?: boolean;
     /** Held machine text (transcript / digitised), until the user accepts (at most MAX_HELD_CHARS) */
     text?: string;
     /** The text the user wrote in the note, as typed (held for the review preview, at most MAX_HELD_CHARS; the organised note copies the live note) */
@@ -104,7 +106,7 @@ export interface CaptureEntry {
     /** Edited while it was awaiting review: it waits for an explicit "Process again" (it spends money) */
     needsConfirm?: boolean;
     /** Why a settling capture is waiting: a file it refers to has not arrived (a countdown would never end) */
-    waitReason?: 'attachment';
+    waitReason?: 'attachment' | 'empty';
     /** Last-seen observations of the note and its attachments, keyed by path */
     observed?: Record<string, FileObservation>;
     /** The organise intent: journalled before the new note is created */
@@ -192,6 +194,7 @@ export const CAPTURE_ERROR_CODES = [
     'capture-no-provider',
     'capture-source-excluded',
     'capture-journal-corrupt',
+    'capture-tagging-failed',
 ] as const;
 export type CaptureErrorCode = (typeof CAPTURE_ERROR_CODES)[number];
 

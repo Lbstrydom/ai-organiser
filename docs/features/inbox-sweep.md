@@ -30,6 +30,8 @@ Reads the notes in the folders you choose and proposes next actions, waiting-for
 - A failure after the approval record is saved leaves it saved: the next sweep or "Send approved tasks" finishes the record before doing anything else.
 - No keep-out rule and no explicit "Nothing to keep out" means no sweep (`sweep-keepout-required`).
 
+- **Rewording and headings.** The same wording with a different quoted line (the user reworded the line in the note) is `similar`, not new: still addable, with the "Looks like one you already added" note. A second report section on the same day is numbered ("Sweep 2026-10-25 (2)") so headings stay distinct; findSection accepts the numbered form and appending stays idempotent.
+
 ## Settings
 
 `sweepInboxFolders`, `sweepExcludedFolders`, `sweepExcludedTags`, `sweepExcludedProperties`, `sweepExcludedTerms`, `sweepNothingToExclude`, `sweepReportPath`, `sweepMaxNotes` (20), `sweepMaxChars` (12 000), `sweepLedger`, `sweepApprovals`, `sweepReportedItems`; `tasksScriptUrl`, `tasksListId`, `tasksListName`, `tasksLastTest`. The Tasks secret is in SecretStorage (`ai-organiser-google-tasks-secret`), created when the setup script is first copied.

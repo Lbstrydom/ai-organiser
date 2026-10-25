@@ -9,11 +9,12 @@ import { sweepBlocker } from '../src/commands/inboxSweepCommands';
 import { exclusionReason } from '../src/services/inboxSweep/sweepGuard';
 import { clearHeldMirror, freezeHeldMirror, heldMirrorPaths, isHeldMirrorLoaded, setCaptureActive, setCaptureCorrupt, setHeldMirror, unfreezeHeldMirror } from '../src/services/captureInbox/heldMirror';
 
-const plugin = (captureOn: boolean) => (setCaptureActive(captureOn), {
+const plugin = (captureOn: boolean, setUp = true) => (setCaptureActive(captureOn), {
   settings: {
     ...structuredClone(DEFAULT_SETTINGS),
     sweepInboxFolders: ['Inbox'], sweepExcludedTerms: ['acme'],
     featureFlags: { 'capture-inbox': captureOn, 'inbox-sweep': true },
+    featureSetupCompletedAt: setUp ? { 'capture-inbox': '2026-10-25T10:00:00.000Z' } : {},
   },
   llmService: {},
 });
@@ -21,6 +22,25 @@ const plugin = (captureOn: boolean) => (setCaptureActive(captureOn), {
 beforeEach(() => { unfreezeHeldMirror(); clearHeldMirror(); setCaptureActive(false); setCaptureCorrupt(false); });
 
 describe('sweep and capture inbox interplay', () => {
+  it('turning the feature on without finishing its setup holds nothing out of the sweep (F3)', () => {
+    const p = plugin(true, false);
+    setHeldMirror(['Inbox/held.md']);
+    const policy = sweepRunPolicy(p as never);
+    expect(policy).toEqual(sweepPolicy(p as never));
+    expect(exclusionReason('Inbox/held.md', 'some text', policy)).toBeNull();
+    expect(heldInboxCount(p as never)).toBe(0);
+    // not even the fail-closed hold of the whole inbox while the journal loads
+    clearHeldMirror();
+    expect(exclusionReason('Inbox/anything.md', 'text', sweepRunPolicy(p as never))).toBeNull();
+  });
+
+  it('a confirmed manual run also counts as a deliberate start, so holding begins (F3)', () => {
+    const p = plugin(true, false);
+    p.settings.captureConfirmedAt = '2026-10-25T10:00:00.000Z';
+    setHeldMirror(['Inbox/held.md']);
+    expect(exclusionReason('Inbox/held.md', 'some text', sweepRunPolicy(p as never))).toBe('folder');
+  });
+
   it('the sweep does not read a held capture, but reads its neighbours', () => {
     const p = plugin(true);
     setHeldMirror(['Inbox/held.md']);

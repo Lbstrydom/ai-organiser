@@ -46,6 +46,7 @@ export class CaptureInboxQueueModal extends Modal {
     private label(row: QueueRow): string {
         const t = this.plugin.t.captureInbox;
         if (row.processed) return t.rowProcessed;
+        if (row.waitingForText) return t.emptyNoteLabel;
         const state = t.stateLabels[row.state].replace('{stage}', row.failedStage ?? '');
         return row.source ? `${state} · ${t.sourceLabels[row.source]}` : state;
     }
@@ -58,6 +59,7 @@ export class CaptureInboxQueueModal extends Modal {
             return [row.errorText, help].filter((x): x is string => !!x).map(endSentence).join(' ') || null;
         }
         if (row.audioNotTranscribed) return t.audioNotTranscribed;
+        if (row.waitingForText) return t.waitingEmpty;
         if (row.waitingForAttachment) return t.waitingAttachment;
         if (row.settleSeconds !== undefined) return t.settleLine.replace('{seconds}', String(Math.max(1, row.settleSeconds)));
         return null;

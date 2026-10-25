@@ -114,6 +114,8 @@ export class CaptureReviewModal extends Modal {
         // Both later consequences wait for Accept: nothing is written to your note as a side effect of another button.
         const needsAccept = !accepted;
         contentEl.createEl('h3', { text: t.reviewHeadingOrganise });
+        // A failed tagging step is said plainly, with what to do, instead of leaving empty fields to be misread as "nothing to suggest".
+        if (entry.taggingFailed && !accepted) contentEl.createEl('p', { text: guidanceMessage(this.plugin, 'capture-tagging-failed'), cls: 'ai-organiser-capture-warning' });
         const titleInput = this.field(contentEl, t.titleLabel, 'ai-organiser-capture-title', this.edits.title ?? entry.proposal?.title ?? '', (v) => { this.edits.title = v; });
         void titleInput;
         this.field(contentEl, t.tagsLabel, 'ai-organiser-capture-tags', this.edits.tags ?? (entry.proposal?.tags ?? []).join(', '), (v) => { this.edits.tags = v; });

@@ -9,7 +9,7 @@
 import { App, Modal } from 'obsidian';
 import type { Translations } from '../../i18n/types';
 import { Result } from '../../core/result';
-import { describeError, formatGuidance } from '../../core/friendlyErrors';
+import { describeError, formatGuidanceInSetup } from '../../core/friendlyErrors';
 import { SetupFlow, type FlowStep } from '../setup/setupFlow';
 import { listen } from '../utils/domUtils';
 import { logger } from '../../utils/logger';
@@ -124,7 +124,7 @@ export class GuidedSetupModal extends Modal {
     }
 
     private showError(code: string): void {
-        this.errorEl?.setText(formatGuidance(describeError(this.t, code)));
+        this.errorEl?.setText(formatGuidanceInSetup(describeError(this.t, code)));
     }
 
     private runCleanups(): void {
