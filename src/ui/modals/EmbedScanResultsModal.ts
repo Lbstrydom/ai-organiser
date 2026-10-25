@@ -72,6 +72,7 @@ interface SortOption {
 
 interface FilterState {
     searchQuery: string;
+    /** The types the user picked with the chips; empty means no filter (everything is shown). */
     activeTypes: Set<EmbedTargetType>;
     sortField: SortField;
     sortDirection: SortDirection;
@@ -145,7 +146,7 @@ export function resetEgressChoice(): void {
 
 /** The outcome of re-checking the selected files against the live vault. */
 type SafetyCheck =
-    | { status: 'ok'; safe: TFile[]; kept: Array<{ file: TFile; eligibility: Eligibility }> }
+    | { status: 'ok'; safe: TFile[]; kept: Array<{ file: TFile; eligibility: Eligibility; linksRemovable?: boolean }> }
     /** Obsidian is still indexing links: nothing could be proven, nothing was decided */
     | { status: 'not-ready' }
     /** Could not check (already reported to the user) */
@@ -185,7 +186,7 @@ export class EmbedScanResultsModal extends Modal {
     private duplicateAbort: AbortController | null = null;
     private duplicateOf = new Map<string, string[]>();
     /** Files the last re-check kept, with the evidence, until they are fixed, deleted or the window closes. */
-    private keptCards = new Map<string, { card: KeptCard; eligibility: Eligibility }>();
+    private keptCards = new Map<string, { card: KeptCard; eligibility: Eligibility; linksRemovable?: boolean }>();
     private keptEl!: HTMLElement;
     private notReadyEl!: HTMLElement;
     /** Set while the re-check could not run because Obsidian is indexing; the selection is kept for a retry. */
@@ -209,7 +210,7 @@ export class EmbedScanResultsModal extends Modal {
 
     private filters: FilterState = {
         searchQuery: '',
-        activeTypes: new Set(ALL_EMBED_TYPES),
+        activeTypes: new Set(),
         sortField: 'size',
         sortDirection: 'desc',
         minSizeBytes: 0,
@@ -262,7 +263,9 @@ export class EmbedScanResultsModal extends Modal {
 
     private targetEligibility(target: EmbedTarget): Eligibility | null {
         if (!target.file) return null;
-        return this.eligibilityOf(target.file, target.references.length, !!target.ambiguous);
+        // "Used by N notes" counts notes and canvases, not the number of times each one links the file.
+        const referrers = new Set(target.references.map((r) => r.sourceFile.path)).size;
+        return this.eligibilityOf(target.file, referrers, !!target.ambiguous);
     }
 
     private orphanEligibility(file: TFile): Eligibility {
@@ -503,16 +506,19 @@ export class EmbedScanResultsModal extends Modal {
         this.summaryEl.empty();
         const embedScan = this.t.embedScan;
         this.summaryEl.createSpan({
-            text: plural(embedScan.scannedNotes, this.scanResult.notesScanned),
+            text: plural(embedScan.scannedNotes, this.scanResult.notesScanned + (this.scanResult.canvasesScanned ?? 0)),
         });
-        const totalSize = this.scanResult.targets.reduce((sum, t) => sum + t.sizeBytes, 0);
+        // One set of numbers: every file found (in use and not used), and its size across both lists.
+        const inUse = this.scanResult.targets.filter((t) => t.file !== null);
+        const unused = this.scanResult.possiblyOrphaned;
+        const totalSize = inUse.reduce((sum, t) => sum + t.sizeBytes, 0) + unused.reduce((sum, f) => sum + f.stat.size, 0);
         this.summaryEl.createSpan({ text: ' · ' });
-        this.summaryEl.createSpan({
-            text: plural(embedScan.totalFiles, this.scanResult.targets.length),
-        });
-        if (this.scanResult.possiblyOrphaned.length > 0) {
+        this.summaryEl.createSpan({ text: plural(embedScan.totalFiles, inUse.length + unused.length) });
+        if (unused.length > 0) {
             this.summaryEl.createSpan({ text: ' · ' });
-            this.summaryEl.createSpan({ text: plural(embedScan.summaryUnused, this.scanResult.possiblyOrphaned.length) });
+            this.summaryEl.createSpan({ text: plural(embedScan.summaryInUse, inUse.length) });
+            this.summaryEl.createSpan({ text: ' · ' });
+            this.summaryEl.createSpan({ text: plural(embedScan.summaryUnused, unused.length) });
         }
         this.summaryEl.createSpan({ text: ' · ' });
         this.summaryEl.createSpan({
@@ -529,7 +535,10 @@ export class EmbedScanResultsModal extends Modal {
         this.renderCleanups = [];
         this.updateSummary();
         const filtered = this.getFilteredTargets();
-        this.updateStatus(filtered.length);
+        // "Showing N of M" counts what is on screen against everything found: in-use files and orphans alike.
+        const shown = filtered.filter((t) => t.file !== null).length + this.getFilteredOrphans().length;
+        const found = this.scanResult.targets.filter((t) => t.file !== null).length + this.scanResult.possiblyOrphaned.length;
+        this.updateStatus(shown, found);
         this.renderKept();
         this.renderNotReady();
         if (this.orphansContainer) {
@@ -544,8 +553,8 @@ export class EmbedScanResultsModal extends Modal {
 
     private getFilteredTargets(): EmbedTarget[] {
         let targets = this.scanResult.targets.filter(t => {
-            // Type filter
-            if (!this.filters.activeTypes.has(t.type)) return false;
+            // Type filter (no chip picked = no filter)
+            if (this.filters.activeTypes.size > 0 && !this.filters.activeTypes.has(t.type)) return false;
             // Min size filter
             if (t.sizeBytes < this.filters.minSizeBytes) return false;
             if (this.largeOnly && t.sizeBytes < this.largeBytes) return false;
@@ -581,9 +590,8 @@ export class EmbedScanResultsModal extends Modal {
         });
     }
 
-    private updateStatus(filteredCount: number): void {
+    private updateStatus(filteredCount: number, total: number): void {
         this.statusEl.empty();
-        const total = this.scanResult.targets.length;
         const embedScan = this.t.embedScan;
 
         // Select-all checkbox
@@ -849,7 +857,7 @@ export class EmbedScanResultsModal extends Modal {
             .filter((f) =>
                 f.stat.size >= minSizeBytes
                 && (!this.largeOnly || f.stat.size >= this.largeBytes)
-                && activeTypes.has(this.orphanType(f))
+                && (activeTypes.size === 0 || activeTypes.has(this.orphanType(f)))
                 && (!this.duplicatesOnly || this.isDuplicate(f.path))
                 && (!searchQuery || f.path.toLowerCase().includes(searchQuery)))
             // A file nothing references has no reference count to sort by, so that order falls back to size.
@@ -1021,13 +1029,39 @@ export class EmbedScanResultsModal extends Modal {
             return { status: 'failed' };
         }
         const safe: TFile[] = [];
-        const kept: Array<{ file: TFile; eligibility: Eligibility }> = [];
+        const kept: Array<{ file: TFile; eligibility: Eligibility; linksRemovable?: boolean }> = [];
         for (const file of selected) {
             const eligibility = res.value.get(file.path);
-            if (eligibility?.eligible) safe.push(file);
-            else kept.push({ file, eligibility: eligibility ?? { eligible: false, reasons: ['target-missing'], referenceCount: 0 } });
+            if (eligibility?.eligible) { safe.push(file); continue; }
+            const verdict = eligibility ?? { eligible: false, reasons: ['target-missing' as const], referenceCount: 0 };
+            kept.push({ file, eligibility: verdict, linksRemovable: await this.linksRemovableFor(file, verdict) });
         }
         return { status: 'ok', safe, kept };
+    }
+
+    /**
+     * Whether every link to a kept file can be removed automatically: each referring note must yield a removal plan.
+     * Undefined when the question does not apply (something else blocks too, or a canvas refers to it); false when a
+     * link sits in the note properties or a code block, or the link index knows one the text does not show.
+     */
+    private async linksRemovableFor(file: TFile, eligibility: Eligibility): Promise<boolean | undefined> {
+        const plugin = this.ctx?.plugin;
+        if (!plugin || !isFeatureEnabled(plugin.settings, 'embed-scan')) return undefined;
+        if (eligibility.reasons.length !== 1 || eligibility.reasons[0] !== 'still-referenced') return undefined;
+        const referrers = eligibility.blockers?.referrers ?? [];
+        if (referrers.length === 0 || referrers.some((r) => r.extension !== 'md')) return undefined;
+        const resolve = (linktext: string, sourcePath: string): string | null =>
+            this.app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null;
+        try {
+            for (const notePath of new Set(referrers.map((r) => r.path))) {
+                const note = this.app.vault.getAbstractFileByPath(notePath);
+                if (!(note instanceof TFile)) return false;
+                if (planLinkRemoval(await this.app.vault.read(note), file.path, notePath, resolve).status !== 'ok') return false;
+            }
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     /**
@@ -1047,11 +1081,12 @@ export class EmbedScanResultsModal extends Modal {
         }
         this.notReadyPaths = null;
         for (const file of checked.safe) this.keptCards.delete(file.path);
-        for (const { file, eligibility } of checked.kept) {
+        for (const { file, eligibility, linksRemovable } of checked.kept) {
             this.selectedPaths.delete(file.path);
             this.keptCards.set(file.path, {
                 eligibility,
-                card: describeKept({ path: file.path, name: file.name, sizeBytes: file.stat.size }, eligibility, this.keptContext()),
+                linksRemovable,
+                card: describeKept({ path: file.path, name: file.name, sizeBytes: file.stat.size }, eligibility, this.keptContext(), { linksRemovable }),
             });
         }
         if (checked.kept.length > 0) {
@@ -1113,7 +1148,11 @@ export class EmbedScanResultsModal extends Modal {
             const file = this.app.vault.getAbstractFileByPath(path);
             const name = file instanceof TFile ? file.name : path.split('/').pop() ?? path;
             const size = file instanceof TFile ? file.stat.size : entry.card.sizeBytes;
-            this.keptCards.set(path, { eligibility: entry.eligibility, card: describeKept({ path, name, sizeBytes: size }, entry.eligibility, this.keptContext()) });
+            this.keptCards.set(path, {
+                eligibility: entry.eligibility,
+                linksRemovable: entry.linksRemovable,
+                card: describeKept({ path, name, sizeBytes: size }, entry.eligibility, this.keptContext(), { linksRemovable: entry.linksRemovable }),
+            });
         }
     }
 
@@ -1215,6 +1254,12 @@ export class EmbedScanResultsModal extends Modal {
                 }
                 const planned = planLinkRemoval(await this.app.vault.read(note), filePath, notePath, resolve);
                 if (planned.status === 'not-removable') {
+                    // Say it on the card as well as in the notice, which fades: the button goes and the reason stays.
+                    this.keptCards.set(filePath, {
+                        ...entry,
+                        linksRemovable: false,
+                        card: describeKept({ path: filePath, name: file.name, sizeBytes: file.stat.size }, entry.eligibility, this.keptContext(), { linksRemovable: false }),
+                    });
                     new Notice(`${formatGuidance(describeError(this.t, 'link-not-removable'))} ${notePath}`, 10000);
                     return;
                 }

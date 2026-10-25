@@ -10312,6 +10312,12 @@
     overflow-wrap: anywhere;
 }
 
+.ai-organiser-embed-scan-kept-note {
+    margin-top: 6px;
+    font-size: var(--font-ui-smaller);
+    overflow-wrap: anywhere;
+}
+
 .ai-organiser-embed-scan-kept-actions {
     display: flex;
     flex-wrap: wrap;
