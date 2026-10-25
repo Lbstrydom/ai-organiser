@@ -21,7 +21,7 @@ import { installObsidianDomShims } from './helpers/obsidianDom';
 import { InboxSweepReviewModal } from '../src/ui/modals/InboxSweepReviewModal';
 import type { NoteProposals } from '../src/services/inboxSweep/sweepService';
 import type { CommitInput } from '../src/services/inboxSweep/sweepCommit';
-import { itemKeys } from '../src/services/inboxSweep/sweepLedger';
+import { itemKeys } from '../src/services/inboxSweep/sweepItemIdentity';
 import { en } from '../src/i18n/en';
 
 beforeAll(() => installObsidianDomShims());

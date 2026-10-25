@@ -14,7 +14,8 @@ vi.mock('../src/services/noteEdit/applyNoteEdit', () => ({
 	},
 }));
 
-import { renameApprovals, itemKeys } from '../src/services/inboxSweep/sweepLedger';
+import { renameApprovals } from '../src/services/inboxSweep/sweepLedger';
+import { itemKeys } from '../src/services/inboxSweep/sweepItemIdentity';
 import { commitReview } from '../src/services/inboxSweep/sweepCommit';
 import { id, lines, makePlugin, record, task } from './helpers/sweepReofferFixtures';
 

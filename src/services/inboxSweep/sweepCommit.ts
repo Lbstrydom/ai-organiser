@@ -24,15 +24,14 @@ import { buildSnapshot } from './noteSnapshot';
 import { guardSnapshot, policyRevisionOf, type SweepPolicy } from './sweepGuard';
 import {
     applyDispositions,
-    dropAlreadyReported,
     markReported,
     newApproval,
     pendingApprovals,
     pruneApprovals,
-    recordReportedItems,
     type ApprovalRecord,
     type Disposition,
 } from './sweepLedger';
+import { dropAlreadyReported, recordReportedItems } from './sweepItemIdentity';
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
 import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
 import { heldMirrorPaths, isCaptureActive, isHeldMirrorLoaded } from '../captureInbox/heldMirror';

@@ -2,7 +2,7 @@
  * Item identity for the sweep: normalisation, quote|wording keys, the exact / similar match, legacy keys.
  */
 import { describe, it, expect } from 'vitest';
-import { dropAlreadyReported, isReportedItem, itemKeys, legacyTaskKeys, normaliseItemText, reportedMatch } from '../src/services/inboxSweep/sweepLedger';
+import { dropAlreadyReported, isReportedItem, itemKeys, legacyTaskKeys, normaliseItemText, reportedMatch } from '../src/services/inboxSweep/sweepItemIdentity';
 import { record } from './helpers/sweepReofferFixtures';
 
 describe('item identity keys', () => {

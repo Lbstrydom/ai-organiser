@@ -2,7 +2,8 @@
  * Shared builders for the sweep re-offer tests: approval records, sweep deps over one note, and a fake plugin
  * with an in-memory vault. The test files install the note-edit mock themselves (vi.mock is per file).
  */
-import { itemKeys, newApproval, type ApprovalRecord } from '../../src/services/inboxSweep/sweepLedger';
+import { newApproval, type ApprovalRecord } from '../../src/services/inboxSweep/sweepLedger';
+import { itemKeys } from '../../src/services/inboxSweep/sweepItemIdentity';
 import type { SweepDeps } from '../../src/services/inboxSweep/sweepService';
 import type { SweepPolicy } from '../../src/services/inboxSweep/sweepGuard';
 import { DEFAULT_SETTINGS } from '../../src/core/settings';

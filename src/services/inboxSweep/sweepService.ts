@@ -9,7 +9,8 @@ import { Result, ok, err } from '../../core/result';
 import { buildSweepPrompt, parseSweepResponse, promptText, type SweepItem } from '../prompts/sweepPrompts';
 import { buildSnapshot } from './noteSnapshot';
 import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, type GuardedSnapshot, type SweepPolicy } from './sweepGuard';
-import { isSwept, itemKeys, reportedMatch, type SweepLedger } from './sweepLedger';
+import { isSwept, type SweepLedger } from './sweepLedger';
+import { itemKeys, reportedMatch } from './sweepItemIdentity';
 import { logger } from '../../utils/logger';
 
 export interface NoteProposals {

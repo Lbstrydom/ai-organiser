@@ -8,9 +8,9 @@ import {
 	recordReportedItems,
 	renameReportedItems,
 	reportedKeysFor,
-} from '../src/services/inboxSweep/sweepLedger';
+} from '../src/services/inboxSweep/sweepItemIdentity';
 import { estimateSweep, runSweep } from '../src/services/inboxSweep/sweepService';
-import { itemKeys } from '../src/services/inboxSweep/sweepLedger';
+import { itemKeys } from '../src/services/inboxSweep/sweepItemIdentity';
 import { DEFAULT_SETTINGS, migrateOldSettings } from '../src/core/settings';
 import { id, NOTE, record, sweepDeps } from './helpers/sweepReofferFixtures';
 

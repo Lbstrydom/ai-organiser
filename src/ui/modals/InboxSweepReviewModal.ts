@@ -12,7 +12,7 @@ import type { NoteProposals } from '../../services/inboxSweep/sweepService';
 import type { SweepItem, SweepItemKind } from '../../services/prompts/sweepPrompts';
 import type { CommitInput } from '../../services/inboxSweep/sweepCommit';
 import { newTaskId } from '../../services/inboxSweep/sweepCommit';
-import { itemKeys } from '../../services/inboxSweep/sweepLedger';
+import { itemKeys } from '../../services/inboxSweep/sweepItemIdentity';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
 
