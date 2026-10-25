@@ -103,6 +103,8 @@ export interface CaptureEntry {
     forceTranscribe?: boolean;
     /** Edited while it was awaiting review: it waits for an explicit "Process again" (it spends money) */
     needsConfirm?: boolean;
+    /** Why a settling capture is waiting: a file it refers to has not arrived (a countdown would never end) */
+    waitReason?: 'attachment';
     /** Last-seen observations of the note and its attachments, keyed by path */
     observed?: Record<string, FileObservation>;
     /** The organise intent: journalled before the new note is created */

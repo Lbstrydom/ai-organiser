@@ -14,15 +14,24 @@ const COALESCE_MS = 500;
 
 /** The text shown for a queue snapshot, or null when the item should be hidden. Pure. */
 export function statusText(
-    counts: { toReview: number; waiting: number; failed?: number },
-    t: { statusReview: string; statusWaiting: string; statusFailed?: string },
+    counts: { toReview: number; waiting: number; failed?: number; ready?: number; settling?: number },
+    t: { statusReview: string; statusWaiting: string; statusFailed?: string; statusReady?: string; statusSettling?: string; statusWorking?: string },
 ): string | null {
     const failed = counts.failed ?? 0;
     if (counts.toReview === 0 && counts.waiting === 0 && failed === 0) return null;
     const parts: string[] = [];
     if (counts.toReview > 0) parts.push(plural(t.statusReview, counts.toReview));
     if (failed > 0 && t.statusFailed) parts.push(t.statusFailed.replace('{count}', String(failed)));
-    if (counts.waiting > 0) parts.push(t.statusWaiting.replace('{count}', String(counts.waiting)));
+    const split = counts.ready !== undefined && counts.settling !== undefined && t.statusReady !== undefined && t.statusSettling !== undefined;
+    if (split) {
+        // Ready ones need "Process now"; settling ones need nothing: one combined number would hide which is which.
+        const ready = counts.ready ?? 0;
+        const settling = counts.settling ?? 0;
+        const working = Math.max(0, counts.waiting - ready - settling);
+        if (ready > 0) parts.push(t.statusReady!.replace('{count}', String(ready)));
+        if (settling > 0) parts.push(t.statusSettling!.replace('{count}', String(settling)));
+        if (working > 0) parts.push((t.statusWorking ?? t.statusWaiting).replace('{count}', String(working)));
+    } else if (counts.waiting > 0) parts.push(t.statusWaiting.replace('{count}', String(counts.waiting)));
     return parts.join(' · ');
 }
 

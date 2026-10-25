@@ -4380,6 +4380,14 @@ export interface Translations {
         settleLine: string;
         readyNote: string;
         waitingMore: string;
+        statusReady: string;
+        statusSettling: string;
+        statusWorking: string;
+        waitingAttachment: string;
+        confirmBodyText: string;
+        transcribeAnywayConfirm: string;
+        sweepNotSetUp: string;
+        protectedInside: string;
         runLeftover: string;
         runSettling: string;
         runSkipped: string;

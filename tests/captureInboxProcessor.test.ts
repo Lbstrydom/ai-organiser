@@ -278,7 +278,7 @@ describe('one at a time, cancel, failure and backpressure', () => {
     w.addMedia('Inbox/x.mp3', MP3);
     await w.go({ passes: 1 });
     let e = getEntry(w.journal(), 'Inbox/a.md')!;
-    expect(e).toMatchObject({ state: 'failed', failedStage: 'transcribe', attempts: 1, retriable: true, errorText: 'provider down' });
+    expect(e).toMatchObject({ state: 'failed', failedStage: 'transcribe', attempts: 1, retriable: true, errorText: 'The provider could not complete the request.' });
     await w.go({ passes: 4 });
     e = getEntry(w.journal(), 'Inbox/a.md')!;
     expect(e).toMatchObject({ state: 'failed', attempts: 3, retriable: false });
@@ -424,6 +424,43 @@ describe('final-gate regressions (processor)', () => {
     w.deps.vault.referrersOf = () => ['Private/note.md'];
     await runJobs(w.deps, scan, { cancelled: () => false }, 10);
     expect(w.calls.transcribe).toEqual([]);
+  });
+});
+
+describe('a failure shows a friendly sentence, never the raw provider answer', () => {
+  it('keeps the provider JSON out of the journal', async () => {
+    const w = world();
+    w.set.transcribe = async () => err('API error (500): {"error":{"message":"boom","request_id":"req_9"}}');
+    w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
+    w.addMedia('Inbox/x.mp3', MP3);
+    await w.go({ passes: 1 });
+    const e = getEntry(w.journal(), 'Inbox/a.md')!;
+    expect(e.state).toBe('failed');
+    expect(e.errorText).toBe('The provider could not be reached or had a problem. This is often temporary.');
+    expect(JSON.stringify(w.journal())).not.toContain('req_9');
+  });
+
+  it('a capture whose attachment has not arrived waits for it, says so, and the reason clears once it is there', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'Some words about the plan ![[late.mp3]]', []);
+    w.deps.vault.resolveAttachments = () => ({ resolved: [], unresolvedMedia: ['late.mp3'] });
+    await w.go({ passes: 1 });
+    expect(getEntry(w.journal(), 'Inbox/a.md')).toMatchObject({ state: 'waiting_for_stable', waitReason: 'attachment' });
+    // the file arrives: the reason is gone and the capture settles
+    w.addMedia('Inbox/late.mp3', MP3);
+    w.deps.vault.resolveAttachments = () => ({ resolved: ['Inbox/late.mp3'], unresolvedMedia: [] });
+    await w.go({ passes: 3 });
+    const e = getEntry(w.journal(), 'Inbox/a.md')!;
+    expect(e.waitReason).toBeUndefined();
+    expect(['ready', 'processing', 'awaiting_review', 'accepted', 'organised']).toContain(e.state);
+  });
+
+  it('the fallback title keeps the clock time the user wrote', async () => {
+    const w = world();
+    w.set.classify = async () => ok({});
+    w.addNote('Inbox/d.md', 'Call Dana at 14:30 about the kickoff plan please');
+    await w.go({ passes: 2 });
+    expect(getEntry(w.journal(), 'Inbox/d.md')?.proposal?.title).toBe('Call Dana at 14.30 about the');
   });
 });
 

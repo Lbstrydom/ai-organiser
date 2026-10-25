@@ -77,8 +77,39 @@ describe('why a capture is waiting, failed or set aside', () => {
   });
 });
 
+describe('waiting that never ends, and waiting that does', () => {
+  it('a capture whose attachment has not arrived says so and shows no countdown', () => {
+    const j = upsertEntry(emptyJournal(), mk('Inbox/m.md', 'waiting_for_stable', { waitReason: 'attachment' }));
+    const row = buildQueue(j, 5000, { stabilityMs: 8000 })[0];
+    expect(row.waitingForAttachment).toBe(true);
+    expect(row.settleSeconds).toBeUndefined();
+    const plain = buildQueue(upsertEntry(emptyJournal(), mk('Inbox/s.md', 'waiting_for_stable')), 5000, { stabilityMs: 8000 })[0];
+    expect(plain.waitingForAttachment).toBe(false);
+    expect(plain.settleSeconds).toBeDefined();
+  });
+
+  it('a capture changed while it was reviewed counts as needing the user, not as waiting', () => {
+    const j = upsertEntry(emptyJournal(), mk('Inbox/e.md', 'waiting_for_stable', { needsConfirm: true }));
+    expect(queueCounts(j)).toMatchObject({ toReview: 1, waiting: 0, settling: 0 });
+  });
+
+  it('settling rows come before ready ones, so the seconds left stay visible under a long list', () => {
+    let j = emptyJournal();
+    for (let i = 0; i < 5; i++) j = upsertEntry(j, mk(`Inbox/r${i}.md`, 'ready'));
+    j = upsertEntry(j, mk('Inbox/s.md', 'waiting_for_stable'));
+    expect(buildQueue(j, 5000)[0].id).toBe('Inbox/s.md');
+  });
+});
+
 describe('status bar text', () => {
   const t = en.captureInbox;
+  it('does not add ready and settling captures together: ready ones need Process now, settling ones nothing', () => {
+    const split = { statusReady: '{count} ready to process', statusSettling: '{count} settling', statusWorking: '{count} working' };
+    expect(statusText({ toReview: 0, waiting: 9, ready: 8, settling: 1 }, { ...t, ...split })).toBe('8 ready to process · 1 settling');
+    expect(statusText({ toReview: 1, waiting: 4, ready: 1, settling: 1 }, { ...t, ...split })).toBe('1 capture to review · 1 ready to process · 1 settling · 2 working');
+    expect(statusText({ toReview: 0, waiting: 3 }, t)).toBe('3 waiting');
+  });
+
   it('counts failed captures, which need the user', () => {
     expect(statusText({ toReview: 2, waiting: 0, failed: 1 }, t)).toBe('2 captures to review · 1 failed');
     expect(statusText({ toReview: 0, waiting: 0, failed: 1 }, t)).toBe('1 failed');

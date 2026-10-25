@@ -8,6 +8,7 @@ import type AIOrganiserPlugin from '../../main';
 import type { CaptureController } from '../../services/captureInbox/captureController';
 import { buildQueue, formatAge, processedCount, queueCounts, skippedSummary, splitQueue, type QueueRow } from '../../services/captureInbox/captureQueueModel';
 import { plural } from '../../utils/plural';
+import { endSentence } from '../../services/captureInbox/providerErrorText';
 
 /** Skipped captures listed one by one; the rest are counted. */
 const MAX_SKIPPED_SHOWN = 8;
@@ -15,6 +16,7 @@ const MAX_SKIPPED_SHOWN = 8;
 export class CaptureInboxQueueModal extends Modal {
     private unsubscribe: (() => void) | null = null;
     private showProcessed = false;
+    private tick: number | null = null;
 
     constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly ctl: CaptureController) {
         super(app);
@@ -24,7 +26,21 @@ export class CaptureInboxQueueModal extends Modal {
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.addClass('ai-organiser-capture-queue');
         this.unsubscribe = this.ctl.store.subscribe(() => this.draw());
+        // The seconds left count down while the window is open, without waiting for a journal change.
+        this.tick = window.setInterval(() => this.tickCountdown(), 1000);
         this.draw();
+    }
+
+    /** Rewrite only the seconds-left text. The window is drawn again only when a row on screen stops counting; a row that starts is a journal change and draws itself. */
+    private tickCountdown(): void {
+        const shown = this.contentEl.querySelectorAll('[data-settle]');
+        if (shown.length === 0) return;
+        const t = this.plugin.t.captureInbox;
+        const counting = new Map(buildQueue(this.ctl.store.get(), Date.now(), { stabilityMs: this.ctl.stabilityMs() }).filter((r) => r.settleSeconds !== undefined).map((r) => [r.id, r]));
+        for (const el of Array.from(shown)) {
+            if (!counting.has(el.getAttribute('data-settle') ?? '')) { this.draw(); return; }
+        }
+        shown.forEach((el) => el.setText(t.settleLine.replace('{seconds}', String(Math.max(1, counting.get(el.getAttribute('data-settle') ?? '')?.settleSeconds ?? 1)))));
     }
 
     private label(row: QueueRow): string {
@@ -39,9 +55,10 @@ export class CaptureInboxQueueModal extends Modal {
         const t = this.plugin.t.captureInbox;
         if (row.state === 'failed') {
             const help = row.failedStage ? t.failedHelp[row.failedStage] : '';
-            return [row.errorText, help].filter(Boolean).join(' ') || null;
+            return [row.errorText, help].filter((x): x is string => !!x).map(endSentence).join(' ') || null;
         }
         if (row.audioNotTranscribed) return t.audioNotTranscribed;
+        if (row.waitingForAttachment) return t.waitingAttachment;
         if (row.settleSeconds !== undefined) return t.settleLine.replace('{seconds}', String(Math.max(1, row.settleSeconds)));
         return null;
     }
@@ -53,7 +70,10 @@ export class CaptureInboxQueueModal extends Modal {
         text.createDiv({ text: row.title, cls: 'ai-organiser-capture-row-title' });
         text.createDiv({ text: `${this.label(row)} · ${formatAge(row.ageMs)}`, cls: 'ai-organiser-capture-row-meta' });
         const detail = this.detail(row);
-        if (detail) text.createDiv({ text: detail, cls: 'ai-organiser-capture-row-meta' });
+        if (detail) {
+            const line = text.createDiv({ text: detail, cls: 'ai-organiser-capture-row-meta' });
+            if (row.settleSeconds !== undefined) line.setAttribute('data-settle', row.id);
+        }
         const actions = item.createDiv({ cls: 'ai-organiser-capture-row-actions' });
         if (row.reviewable) new ButtonComponent(actions).setButtonText(t.rowReview).setCta().onClick(() => { this.close(); this.ctl.openReview(row.id); });
         if (row.retriable) new ButtonComponent(actions).setButtonText(t.rowRetry).onClick(() => { void this.ctl.retry(row.id); });
@@ -117,6 +137,8 @@ export class CaptureInboxQueueModal extends Modal {
     }
 
     onClose(): void {
+        if (this.tick !== null) window.clearInterval(this.tick);
+        this.tick = null;
         this.unsubscribe?.();
         this.unsubscribe = null;
         this.contentEl.empty();

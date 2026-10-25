@@ -6,6 +6,7 @@
  * and its limits. Nothing is saved until Finish, and a failed save puts everything back.
  */
 import { Notice, Setting } from 'obsidian';
+import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
 import { sweepPolicy } from '../../services/inboxSweep/sweepCommit';
@@ -88,7 +89,9 @@ export function openCaptureInboxSetup(plugin: AIOrganiserPlugin, onDone?: () => 
                     const since = s.captureSince > 0 ? s.captureSince : Date.now();
                     const folders = draft.inbox;
                     const older = plugin.app.vault.getMarkdownFiles().filter((f) => f.stat.ctime < since && folders.some((folder) => f.path.startsWith(folder.replace(/\/+$/, '') + '/'))).length;
-                    box.setText(c.previewResult.replace('{captures}', String(allowed)).replace('{kept}', String(kept)).replace('{older}', String(older)));
+                    // A protected folder inside the inbox is not an error: it is skipped on its own, and the wizard says so.
+                    const inside = s.protectedFolders.map(normalisePath).filter((p) => p !== '' && folders.some((f) => { const i = normalisePath(f); return p !== i && isInsideOrEqual(p, i); }));
+                    box.setText(c.previewResult.replace('{captures}', String(allowed)).replace('{kept}', String(kept)).replace('{older}', String(older)) + (inside.length > 0 ? ' ' + c.protectedInside.replace('{folders}', inside.join(', ')) : ''));
                 },
             },
         ],

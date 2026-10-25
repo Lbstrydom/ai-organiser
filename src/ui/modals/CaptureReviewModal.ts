@@ -13,6 +13,7 @@ import { getEntry } from '../../services/captureInbox/captureJournal';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
+import { endSentence } from '../../services/captureInbox/providerErrorText';
 import type { CaptureEntry, CaptureProposal } from '../../services/captureInbox/captureTypes';
 
 const parseTags = (text: string): string[] => text.split(/[,\n]+/).map((t) => t.trim().replace(/^#/, '')).filter(Boolean);
@@ -59,7 +60,7 @@ export class CaptureReviewModal extends Modal {
 
         const message = contentEl.createDiv({ cls: 'ai-organiser-capture-message', attr: { role: 'status' } });
         if (entry.state === 'failed') {
-            const detail = [entry.errorText, entry.attempts > 0 ? plural('{attempts} attempt[s] made.', entry.attempts, 'attempts') : ''].filter(Boolean).join(' ');
+            const detail = [entry.errorText ? endSentence(entry.errorText) : '', entry.attempts > 0 ? plural('{attempts} attempt[s] made.', entry.attempts, 'attempts') : ''].filter(Boolean).join(' ');
             message.setText(t.failedLine.replace('{stage}', entry.failedStage ?? '').replace('{detail}', detail).trim());
             if (entry.failedStage) contentEl.createEl('p', { text: t.failedHelp[entry.failedStage] });
             this.button(contentEl, t.rowRetry, () => this.run(() => this.ctl.retry(this.id)));
@@ -160,8 +161,9 @@ export class CaptureReviewModal extends Modal {
         contentEl.createEl('h3', { text: t.reviewHeadingTasks });
         contentEl.createEl('p', { text: t.sweepExplain });
         if (!this.ctl.sweepAvailable()) {
-            contentEl.createEl('p', { text: t.sweepOff, cls: 'ai-organiser-capture-reason' });
-            if (this.ctl.sweepFeatureOn()) this.button(contentEl, t.sweepSetupButton, () => { this.close(); this.ctl.openSweepSetup(); });
+            const on = this.ctl.sweepFeatureOn();
+            contentEl.createEl('p', { text: on ? t.sweepNotSetUp : t.sweepOff, cls: 'ai-organiser-capture-reason' });
+            if (on) this.button(contentEl, t.sweepSetupButton, () => { this.close(); this.ctl.openSweepSetup(); });
         } else {
             const sweepCap = Math.max(this.plugin.settings.sweepMaxChars, 20_000);
             if (`${entry.noteText ?? ''}${entry.text ?? ''}`.length > sweepCap) contentEl.createEl('p', { text: t.sweepLongWarning, cls: 'ai-organiser-capture-warning' });
