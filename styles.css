@@ -186,7 +186,8 @@
 .ai-organiser-modal-content {
     text-align: center;
     padding: var(--size-4-4);
-    min-width: 450px;
+    /* Never wider than the screen: a fixed 450px clipped the confirmation text on a phone. */
+    min-width: min(450px, 100%);
 }
 
 .ai-organiser-modal-title {

@@ -906,6 +906,8 @@ export interface Translations {
             markCaughtUpButton: string;
             caughtUpOk: string;
             caughtUpNoop: string;
+            caughtUpOkNone: string;
+            markCaughtUpConfirm: string;
             caughtUpDisabled: string;
             caughtUpError: string;
             retentionDays: string;
@@ -1880,6 +1882,10 @@ export interface Translations {
             caughtUp: string;             // "You are caught up through {date}."
             expiring: string;             // "{dates} will be removed ..."
             unheardTitle: string;
+            unheardBodyDone: string;
+            waitingEpisodeLine: string;
+            waitingGenerateHint: string;
+            includeAgainNote: string;
             unheardBody: string;          // "{range}. Listen to it first, or generate another anyway."
             openEpisode: string;
             markListened: string;
