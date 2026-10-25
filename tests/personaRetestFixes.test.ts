@@ -112,7 +112,7 @@ describe('F1: a settling capture matures on its own', () => {
     // Observed at T; the window ends at T + 8000.
     const arm = (endedSince: number) => { (rt as unknown as { armSettleRescan(n?: number): void }).armSettleRescan(endedSince); return vi.getTimerCount(); };
     w.tick(9000); // the window is over now
-    expect(arm(Infinity)).toBe(0); // it ended before any run: held back for another reason, so no re-scan
+    expect(arm(Infinity)).toBe(0); // nothing was under way when it ended: held back for another reason, so no re-scan
     expect(arm(50_000_000 + 1000)).toBe(1); // a run started at T + 1 s was still busy when it ended: due now
     rt.dispose();
   });

@@ -193,6 +193,7 @@ export class CaptureRuntime {
             return null;
         }
         this.begin('refresh');
+        const startedAt = this.deps.now();
         try {
             const scanned = await this.scan();
             if (!scanned.ok) {
@@ -207,7 +208,8 @@ export class CaptureRuntime {
             logger.warn('CaptureInbox', 'Refresh failed', e);
             return null;
         } finally {
-            this.armSettleRescan();
+            // A window that ended while this look was under way was judged just before it ended: due again now.
+            this.armSettleRescan(startedAt);
             this.setIdle();
             this.replayHint();
         }
