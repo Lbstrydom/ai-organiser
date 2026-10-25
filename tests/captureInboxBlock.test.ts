@@ -3,7 +3,7 @@ import {
   applyAccept, computeFingerprint, findCaptureBlock, normaliseForFingerprint, renderCaptureBlock, stripCaptureInsertions,
   type BlockContent,
 } from '../src/services/captureInbox/enrichmentBlock';
-import { readCaptureId, setCaptureKeys, stripCaptureKeys } from '../src/services/captureInbox/frontmatterKey';
+import { readCaptureId, readCaptureStatus, setCaptureKeys, setCaptureStatus, stripCaptureKeys } from '../src/services/captureInbox/frontmatterKey';
 
 const content: BlockContent = {
   machineText: 'Remind me to call the plumber.',
@@ -249,5 +249,53 @@ describe('capture id in the note', () => {
       if (r.ok) expect(readCaptureId(r.value.text)).toBe(id);
     }
     expect(readCaptureId("---\ncapture-id: 'it''s: odd'\n---\nx")).toBe("it's: odd");
+  });
+});
+
+describe('setCaptureStatus (the one status change the plugin makes)', () => {
+  const keyed = (body: string, eol = '\n') => {
+    const r = setCaptureKeys(body, { id: 'Inbox/a.md', status: 'accepted-text' });
+    if (!r.ok) throw new Error(r.error);
+    return r.value.text.replaceAll('\n', eol);
+  };
+
+  it('changes the value on the plugin\'s own line and nothing else, and reads it back', () => {
+    const text = keyed('---\ntags: [a]\n---\nBody\n');
+    const set = setCaptureStatus(text, 'processed');
+    expect(set).toEqual({ ok: true, value: text.replace('accepted-text', 'processed') });
+    expect(readCaptureStatus(text)).toBe('accepted-text');
+    expect(readCaptureStatus((set as { value: string }).value)).toBe('processed');
+    // the exact inverse restores the bytes
+    const back = setCaptureStatus((set as { value: string }).value, 'accepted-text');
+    expect(back).toEqual({ ok: true, value: text });
+  });
+
+  it('keeps Windows line endings and leaves the strip untouched by the value', () => {
+    const text = keyed('---\ntags: [a]\n---\nBody\n', '\r\n');
+    const set = setCaptureStatus(text, 'processed');
+    expect(set.ok && set.value).toBe(text.replace('accepted-text', 'processed'));
+    const stripped = stripCaptureKeys((set as { value: string }).value, { frontmatterCreated: false });
+    expect(stripped).toBe(stripCaptureKeys(text, { frontmatterCreated: false }));
+  });
+
+  it('replaces only the value: an inline comment after it stays', () => {
+    const text = '---\ncapture-id: x\ncapture-status: accepted-text # waiting on Dana\n---\nBody\n';
+    expect(setCaptureStatus(text, 'processed')).toEqual({ ok: true, value: text.replace('accepted-text', 'processed') });
+  });
+
+  it('keeps a comment after an empty status value', () => {
+    const text = '---\ncapture-id: x\ncapture-status: # waiting on Dana\n---\nBody\n';
+    expect(setCaptureStatus(text, 'processed')).toEqual({ ok: true, value: text.replace('capture-status: #', 'capture-status: processed #') });
+  });
+
+  it('refuses a status value that spans several lines instead of leaving half of it behind', () => {
+    const folded = '---\ncapture-id: x\ncapture-status: >-\n  accepted\n  text\ntags: [a]\n---\nBody\n';
+    expect(setCaptureStatus(folded, 'processed')).toEqual({ ok: false, error: 'capture-status-missing' });
+  });
+
+  it('refuses a note that has no capture-status line (it never adds a key)', () => {
+    expect(setCaptureStatus('---\ntags: [a]\n---\nBody\n', 'processed')).toEqual({ ok: false, error: 'capture-status-missing' });
+    expect(setCaptureStatus('No frontmatter\n', 'processed')).toEqual({ ok: false, error: 'capture-status-missing' });
+    expect(readCaptureStatus('No frontmatter\n')).toBeNull();
   });
 });

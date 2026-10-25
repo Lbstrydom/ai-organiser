@@ -18,6 +18,8 @@ export interface QueueRow {
     reviewable: boolean;
     retriable: boolean;
     skippable: boolean;
+    /** Marked processed: hidden unless asked for, so its Undo stays reachable */
+    processed: boolean;
 }
 
 /** Entries the user can still act on or is waiting for; finished work is not listed. */
@@ -26,7 +28,7 @@ const LISTED: ReadonlySet<CaptureState> = new Set([
 ]);
 
 /** Awaiting review first, then problems, then what is still moving. */
-const ORDER: Record<string, number> = { awaiting_review: 0, failed: 1, accept_pending_write: 2, accepted: 3, processing: 4, ready: 5, waiting_for_stable: 6, new: 7 };
+const ORDER: Record<string, number> = { awaiting_review: 0, failed: 1, accept_pending_write: 2, accepted: 3, organised: 3, processing: 4, ready: 5, waiting_for_stable: 6, new: 7 };
 
 export function rowTitle(entry: CaptureEntry): string {
     const path = entry.companionPath ?? entry.id;
@@ -34,9 +36,19 @@ export function rowTitle(entry: CaptureEntry): string {
     return name.replace(/\.[^.]+$/, '') || name;
 }
 
-export function buildQueue(journal: CaptureJournal, now: number): QueueRow[] {
+/** An organised note whose original still sits in the inbox: listed until the user marks it processed. */
+const stillInInbox = (e: CaptureEntry): boolean => e.state === 'organised' && e.processedAt === undefined;
+
+const isProcessed = (e: CaptureEntry): boolean => (e.state === 'accepted' || e.state === 'organised') && e.processedAt !== undefined;
+
+/** Captures the user marked processed (their rows come back with `includeProcessed`, so the mark can be undone). */
+export function processedCount(journal: CaptureJournal): number {
+    return Object.values(journal.entries).filter(isProcessed).length;
+}
+
+export function buildQueue(journal: CaptureJournal, now: number, opts: { includeProcessed?: boolean } = {}): QueueRow[] {
     return Object.values(journal.entries)
-        .filter((e) => LISTED.has(e.state))
+        .filter((e) => (isProcessed(e) ? !!opts.includeProcessed : LISTED.has(e.state) || stillInInbox(e)))
         .map((e): QueueRow => ({
             id: e.id,
             title: rowTitle(e),
@@ -47,11 +59,12 @@ export function buildQueue(journal: CaptureJournal, now: number): QueueRow[] {
             attempts: e.attempts,
             needsConfirm: !!e.needsConfirm,
             // A capture edited while it was being reviewed waits for "Process again", which lives in the review window.
-            reviewable: e.state === 'awaiting_review' || e.state === 'accepted' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
+            reviewable: e.state === 'awaiting_review' || e.state === 'accepted' || e.state === 'organised' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
             retriable: e.state === 'failed',
+            processed: isProcessed(e),
             skippable: e.state === 'awaiting_review' || e.state === 'failed' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
         }))
-        .sort((a, b) => (ORDER[a.state] ?? 9) - (ORDER[b.state] ?? 9) || a.ageMs - b.ageMs);
+        .sort((a, b) => Number(a.processed) - Number(b.processed) || (ORDER[a.state] ?? 9) - (ORDER[b.state] ?? 9) || a.ageMs - b.ageMs);
 }
 
 export interface QueueCounts {

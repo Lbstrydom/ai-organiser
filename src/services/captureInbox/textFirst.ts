@@ -6,7 +6,7 @@
 import { CAPTURE_BLOCK_END, CAPTURE_BLOCK_START } from './captureTypes';
 import type { CaptureSource, SkipReason } from './captureTypes';
 
-const FRONTMATTER = /^---\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
+const FRONTMATTER = /^---[ \t]*\r?\n(?:[\s\S]*?\r?\n)?(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/;
 /** A run of letters or digits is a word; each Han, Hiragana or Katakana character counts as one (no spaces in those scripts). */
 const WORD = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]|(?:(?![\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}])[\p{L}\p{N}])+/gu;
 /** Notes longer than this are not read for words: bounded work on a hostile or pasted note. */
@@ -28,10 +28,44 @@ function stripNoise(text: string): string {
 const squash = (s: string): string => s.replace(/\s+/g, ' ').trim().toLowerCase();
 
 /**
- * The words the user actually wrote: frontmatter, the plugin block, embeds, links, bare URLs,
- * dates and clock times, and a heading that merely repeats the file name are not text.
+ * What the user wrote, as typed: only what is not theirs is removed (frontmatter, the plugin block, a heading that
+ * merely repeats the file name) and the blank lines around it. Links, URLs, dates, clock times, indentation and line endings stay. This is the text that is shown, held and copied
+ * into a note; it is never fed to a prompt or a word count (use {@link usableText} for those).
+ */
+export function userText(body: string, fileName: string): string {
+    let text = body.replace(FRONTMATTER, '');
+    const start = text.indexOf(CAPTURE_BLOCK_START);
+    const end = text.indexOf(CAPTURE_BLOCK_END);
+    if (start !== -1 && end > start) text = text.slice(0, start) + text.slice(end + CAPTURE_BLOCK_END.length);
+    // Only a HEADING that repeats the file name goes (a transport adds it); every other line, its indentation and its line endings stay as typed.
+    // Compared exactly (case and spacing aside): a heading that differs in a date or a link is the user's own words.
+    const nameKey = squash(fileName.replace(/\.[^.]+$/, ''));
+    let fence: { char: string; len: number } | null = null;
+    const kept = nameKey ? (text.match(/[^\n]*\n|[^\n]+$/g) ?? []).filter((line) => {
+        // A heading shown inside a code fence is the user's example, not a transport's title line.
+        const opener = /^\s{0,3}(`{3,}|~{3,})(.*)$/.exec(line.replace(/\r?\n$/, ''));
+        if (opener) {
+            // A fence closes only on the same character, at least as long, with nothing after it.
+            if (fence === null) fence = { char: opener[1][0], len: opener[1].length };
+            else if (opener[1][0] === fence.char && opener[1].length >= fence.len && opener[2].trim() === '') fence = null;
+            return true;
+        }
+        if (fence !== null) return true;
+        return !(/^\s{0,3}#+\s/.test(line) && squash(line.replace(/^\s*#+\s*/, '')) === nameKey);
+    }) : [text];
+    // Blank lines around the text are not text; trailing spaces on the last line stay (they can be a Markdown line break).
+    return kept.join('').replace(/^(?:[ \t]*\r?\n)+/, '').replace(/(?:\r?\n[ \t]*)+$/, '');
+}
+
+/**
+ * The words the user actually wrote, for COUNTING and for prompts only: frontmatter, the plugin block, embeds, links,
+ * bare URLs, dates and clock times, and a heading that merely repeats the file name are not text. Never written back to a note.
  */
 export function usableText(body: string, fileName: string): string {
+    return ownText(body, fileName, stripNoise);
+}
+
+function ownText(body: string, fileName: string, keep: (line: string) => string): string {
     let text = body.slice(0, MAX_SCAN_CHARS).replace(FRONTMATTER, '');
     const start = text.indexOf(CAPTURE_BLOCK_START);
     const end = text.indexOf(CAPTURE_BLOCK_END);
@@ -40,7 +74,7 @@ export function usableText(body: string, fileName: string): string {
     return text
         .split(/\r?\n/)
         .filter((line) => !(nameKey && squash(stripNoise(line.replace(/^#+\s*/, ''))) === nameKey))
-        .map(stripNoise)
+        .map(keep)
         .join('\n')
         .trim();
 }

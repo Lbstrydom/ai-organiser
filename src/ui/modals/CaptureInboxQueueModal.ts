@@ -6,11 +6,12 @@
 import { App, ButtonComponent, Modal } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import type { CaptureController } from '../../services/captureInbox/captureController';
-import { buildQueue, formatAge, queueCounts, type QueueRow } from '../../services/captureInbox/captureQueueModel';
+import { buildQueue, formatAge, processedCount, queueCounts, type QueueRow } from '../../services/captureInbox/captureQueueModel';
 import { plural } from '../../utils/plural';
 
 export class CaptureInboxQueueModal extends Modal {
     private unsubscribe: (() => void) | null = null;
+    private showProcessed = false;
 
     constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly ctl: CaptureController) {
         super(app);
@@ -25,6 +26,7 @@ export class CaptureInboxQueueModal extends Modal {
 
     private label(row: QueueRow): string {
         const t = this.plugin.t.captureInbox;
+        if (row.processed) return t.rowProcessed;
         const state = t.stateLabels[row.state].replace('{stage}', row.failedStage ?? '');
         return row.source ? `${state} · ${t.sourceLabels[row.source]}` : state;
     }
@@ -35,7 +37,8 @@ export class CaptureInboxQueueModal extends Modal {
         contentEl.empty();
         contentEl.createEl('h2', { text: t.queueTitle });
         const journal = this.ctl.store.get();
-        const rows = buildQueue(journal, Date.now());
+        const rows = buildQueue(journal, Date.now(), { includeProcessed: this.showProcessed });
+        const processedTotal = processedCount(journal);
         const counts = queueCounts(journal);
 
         if (rows.length === 0) {
@@ -58,6 +61,11 @@ export class CaptureInboxQueueModal extends Modal {
         if (counts.waiting > 0) contentEl.createEl('p', { text: plural(t.waitingNote, counts.waiting), cls: 'ai-organiser-capture-reason' });
 
         const footer = contentEl.createDiv('ai-organiser-modal-buttons');
+        if (processedTotal > 0) {
+            new ButtonComponent(footer)
+                .setButtonText(this.showProcessed ? t.hideProcessed : t.showProcessed.replace('{n}', String(processedTotal)))
+                .onClick(() => { this.showProcessed = !this.showProcessed; this.draw(); });
+        }
         new ButtonComponent(footer).setButtonText(t.processNow).setCta().onClick(() => { this.close(); void this.ctl.processNow(); });
         new ButtonComponent(footer).setButtonText(t.close).onClick(() => this.close());
     }

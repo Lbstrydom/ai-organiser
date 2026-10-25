@@ -87,7 +87,7 @@ export interface CaptureEntry {
     source?: CaptureSource;
     /** Held machine text (transcript / digitised), until the user accepts (at most MAX_HELD_CHARS) */
     text?: string;
-    /** The text the user wrote in the note (held for the review and for the organised note; at most MAX_HELD_CHARS) */
+    /** The text the user wrote in the note, as typed (held for the review preview, at most MAX_HELD_CHARS; the organised note copies the live note) */
     noteText?: string;
     proposal?: CaptureProposal;
     inserted?: InsertedSpans;
@@ -107,6 +107,8 @@ export interface CaptureEntry {
     observed?: Record<string, FileObservation>;
     /** The organise intent: journalled before the new note is created */
     organise?: { targetPath: string; createdPath?: string };
+    /** The user marked this capture processed (the note's `capture-status` says so too): when. Cleared by Undo. */
+    processedAt?: number;
     createdAt: number;
     updatedAt: number;
 }
@@ -166,6 +168,8 @@ export const MAX_HELD_CHARS = 50_000;
 export const CAPTURE_ID_KEY = 'capture-id';
 export const CAPTURE_STATUS_KEY = 'capture-status';
 export const CAPTURE_STATUS_ACCEPTED = 'accepted-text';
+/** Set by the user's explicit "Mark as processed"; the one value the plugin writes over its own status. */
+export const CAPTURE_STATUS_PROCESSED = 'processed';
 export const CAPTURE_BLOCK_START = '<!-- aio:capture -->';
 export const CAPTURE_BLOCK_END = '<!-- /aio:capture -->';
 

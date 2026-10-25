@@ -427,6 +427,24 @@ describe('final-gate regressions (processor)', () => {
   });
 });
 
+describe('the capture keeps the user\'s text intact', () => {
+  const EXAMPLE = 'Call Dana at 14:30 on 2026-10-30 about the room, spec is at https://example.com/spec and see [[Project Zephyr migration]] for the plan.';
+
+  it('holds the note text exactly as written; only the prompt gets the stripped words', async () => {
+    const w = world();
+    w.addNote('Inbox/d.md', EXAMPLE);
+    await w.go({ passes: 2 });
+    const e = Object.values(w.journal().entries)[0];
+    expect(e.state).toBe('awaiting_review');
+    expect(e.noteText).toBe(EXAMPLE);
+    const prompt = JSON.stringify(w.calls.classify[0]);
+    expect(prompt).toContain('Call Dana at');
+    expect(prompt).not.toContain('https://example.com/spec');
+    expect(prompt).not.toContain('Project Zephyr migration');
+    expect(prompt).not.toContain('14:30');
+  });
+});
+
 describe('an unreadable file is a result, not a crash', () => {
   it('an attachment that cannot be read fails the capture as retriable and sends nothing', async () => {
     const w = world();

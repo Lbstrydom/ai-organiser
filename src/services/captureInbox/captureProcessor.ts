@@ -23,7 +23,7 @@ import { checkSignature, extensionOf } from './mediaSignature';
 import { machineTextExclusion, pathExclusion } from './capturePolicy';
 import { CAPTURE_FILE_MISSING, type ScanOutcome, type ScannedCapture, type CaptureVaultPort } from './captureScanner';
 import { assess, observationsChanged, type StatResult } from './stabilityTracker';
-import { planSources, usableText } from './textFirst';
+import { planSources, usableText, userText } from './textFirst';
 import type { JournalAccess } from './captureWriter';
 import {
     MAX_ATTEMPTS,
@@ -388,7 +388,8 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
             }
         }
         const machineText = machine.join('\n\n').slice(0, MAX_HELD_CHARS);
-        const noteText = plan.useNoteText ? usableText(cap.text, basename(id)).slice(0, MAX_HELD_CHARS) : '';
+        // Held, shown and copied as the user wrote it; only the prompt below gets the stripped words.
+        const noteText = plan.useNoteText ? userText(cap.text, basename(id)).slice(0, MAX_HELD_CHARS) : '';
         if (machineText === '' && noteText === '') throw new Skip('nothing-to-process');
 
         // Persist the paid-for text now (write-ahead for the classify stage), then classify.
@@ -402,7 +403,8 @@ async function processOne(deps: CaptureDeps, id: string, cap: ScannedCapture, ct
         const taxonomy = await deps.taxonomyPrompt();
         const beforeTagging = await stillAllowed(deps, cap, machineText);
         if (beforeTagging) throw new Skip(beforeTagging);
-        const proposal = await classify(deps, cap, `${noteText}\n\n${machineText}`.trim(), config, taxonomy);
+        const promptNote = plan.useNoteText ? usableText(cap.text, basename(id)).slice(0, MAX_HELD_CHARS) : '';
+        const proposal = await classify(deps, cap, `${promptNote}\n\n${machineText}`.trim(), config, taxonomy);
         checkCancel();
 
         await deps.journal.mutate((j) => {

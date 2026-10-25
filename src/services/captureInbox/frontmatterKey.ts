@@ -105,6 +105,56 @@ export function readCaptureId(text: string): string | null {
     }
 }
 
+/** The plugin's own `capture-status` value, or null when the note has none. */
+export function readCaptureStatus(text: string): string | null {
+    const region = findFrontmatter(text);
+    if (region === null || region === 'unclosed') return null;
+    try {
+        const parsed: unknown = yaml.load(text.slice(region.bodyStart, region.closerStart));
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
+        const value = (parsed as Record<string, unknown>)[CAPTURE_STATUS_KEY];
+        return typeof value === 'string' ? value : null;
+    } catch {
+        return null;
+    }
+}
+
+/**
+ * Change the value of the plugin's own `capture-status` line and nothing else (same line, same ending). Refused when the
+ * note has no such line: it never adds a key, so it cannot touch a note the plugin did not write to.
+ */
+export function setCaptureStatus(text: string, status: string): Result<string> {
+    const region = findFrontmatter(text);
+    if (region === null || region === 'unclosed') return err('capture-status-missing');
+    const body = text.slice(region.bodyStart, region.closerStart);
+    let replaced = false;
+    const lines = (body.match(/[^\n]*\n|[^\n]+$/g) ?? []).map((l) => {
+        const bare = l.replace(/\r?\n$/, '');
+        if (replaced || !keyLine(CAPTURE_STATUS_KEY).test(bare)) return l;
+        replaced = true;
+        // Only the value is replaced: an inline comment or spacing the user added after it stays.
+        const parts = /^(capture-status:)([ \t]*)("[^"]*"|'[^']*'|[^\s#]+)?(.*)$/.exec(bare);
+        if (!parts) return `${CAPTURE_STATUS_KEY}: ${scalar(status)}${l.slice(bare.length)}`;
+        const [, key, gap, value, rest] = parts;
+        // An empty value followed by a comment keeps the comment, separated by a space.
+        const tail = value === undefined && rest !== '' ? ` ${rest}` : rest;
+        return `${key}${gap === '' ? ' ' : gap}${scalar(status)}${tail}${l.slice(bare.length)}`;
+    });
+    if (!replaced) return err('capture-status-missing');
+    const next = text.slice(0, region.bodyStart) + lines.join('') + text.slice(region.closerStart);
+    // The line is rewritten only if that changes the value and nothing else (a multi-line value would not survive a one-line rewrite).
+    try {
+        const before = yaml.load(body) as Record<string, unknown> | null;
+        const after = yaml.load(lines.join('')) as Record<string, unknown> | null;
+        if (!before || !after || after[CAPTURE_STATUS_KEY] !== status) return err('capture-status-missing');
+        // Same keys, in the same order: nothing was folded into or out of the status value.
+        if (Object.keys(before).join('\u0000') !== Object.keys(after).join('\u0000')) return err('capture-status-missing');
+    } catch {
+        return err('capture-status-missing');
+    }
+    return ok(next);
+}
+
 /** The exact inverse of {@link setCaptureKeys}. */
 export function stripCaptureKeys(text: string, opts: { frontmatterCreated: boolean }): string {
     const region = findFrontmatter(text);

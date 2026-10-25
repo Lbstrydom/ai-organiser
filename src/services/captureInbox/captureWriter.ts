@@ -1,5 +1,5 @@
 /**
- * The only code that writes anything on behalf of the capture feature. Three actions, each its own
+ * The only code that writes anything on behalf of the capture feature. Four actions, each its own
  * explicit consequence:
  *
  *   1. `acceptCapture`        - on Accept: the plugin block + two frontmatter keys in the capture note
@@ -8,8 +8,11 @@
  *   2. `createOrganisedNote`  - a NEW note in an allowed folder with a back-link. The original is never
  *                               moved, renamed or edited by this action.
  *   3. `skipCapture`          - no write at all; the journal remembers the decision.
+ *   4. `setCaptureProcessed`  - the user's explicit Mark as processed (and Undo): the value of the plugin's own
+ *                               `capture-status` line, and nothing else.
  *
- * The original is touched at most once, by insertion only, and only after the user accepted.
+ * The original is touched by insertion only, and only after the user accepted; the one later change is the value
+ * of the status line the plugin itself inserted, and only when the user chooses it.
  */
 import { TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
@@ -30,8 +33,9 @@ import {
 } from './enrichmentBlock';
 import { checkDestination, machineTextExclusion, pathExclusion } from './capturePolicy';
 import { sanitiseTitle, uniquePath } from './titleSanitiser';
-import { readCaptureId } from './frontmatterKey';
-import type { CaptureConfig, CaptureEntry, CaptureJournal, CaptureProposal, InsertedSpans } from './captureTypes';
+import { readCaptureId, readCaptureStatus, setCaptureStatus } from './frontmatterKey';
+import { userText } from './textFirst';
+import { CAPTURE_STATUS_ACCEPTED, CAPTURE_STATUS_PROCESSED, type CaptureConfig, type CaptureEntry, type CaptureJournal, type CaptureProposal, type InsertedSpans } from './captureTypes';
 
 export const ORGANISED_FROM_KEY = 'capture-from';
 
@@ -271,9 +275,14 @@ function yamlList(items: readonly string[]): string {
     return `[${items.map((t) => JSON.stringify(t)).join(', ')}]`;
 }
 
+const basenameOf = (path: string): string => path.slice(path.lastIndexOf('/') + 1);
+
 /** The text of the organised note: what the user wrote, then the accepted machine text. */
-export function organisedBody(entry: CaptureEntry): string {
-    return [entry.noteText?.trim(), entry.text?.trim()].filter((p): p is string => !!p).join('\n\n');
+export function organisedBody(entry: CaptureEntry, liveNote?: string): string {
+    // The user's text is copied from the note itself as it is NOW (the held copy is only the review preview: it is cut at the held limit and an older build stored it stripped).
+    const mine = liveNote !== undefined ? userText(liveNote, basenameOf(entry.id)) : entry.noteText;
+    // The user's text is joined as it is; only the machine text is tidied.
+    return [mine, entry.text?.trim()].filter((p): p is string => !!p).join('\n\n');
 }
 
 /**
@@ -326,7 +335,7 @@ async function organiseLocked(deps: WriterDeps, id: string, edits: OrganiseEdits
         ...(tags.length > 0 ? [`tags: ${yamlList(tags)}`] : []),
         '---',
         '',
-        organisedBody(entry),
+        organisedBody(entry, entry.hasNote === false ? undefined : sourceText),
         '',
         `Source: [[${source}]]`,
         '',
@@ -354,6 +363,55 @@ async function skipLocked(deps: WriterDeps, id: string): Promise<Result<void>> {
     const waitingForConfirm = entry.state === 'waiting_for_stable' && !!entry.needsConfirm;
     if (entry.state !== 'awaiting_review' && entry.state !== 'failed' && !waitingForConfirm) return err('capture-changed');
     await deps.journal.mutate((j) => finish(bump(j, 'rejected'), entry.id, 'skipped_by_user', deps.now()));
+    return ok(undefined);
+}
+
+/** The note that carries this capture's `capture-status`: the original, or the companion note of a bare media capture. */
+export function processedTarget(entry: CaptureEntry): string {
+    // After Accept the entry's id IS the note that carries the status (a bare media capture is re-keyed to its companion note, which follows renames).
+    return entry.id;
+}
+
+/**
+ * The user's explicit "Mark as processed" (and its Undo). The one change is the value of the plugin's own
+ * `capture-status` line on the note that already carries it; no text is touched and nothing is moved, renamed or
+ * deleted. Undo writes back the value Accept wrote, so the round trip is exact. Idempotent.
+ */
+export async function setCaptureProcessed(deps: WriterDeps, id: string, processed: boolean): Promise<Result<void>> {
+    return exclusive(id, err<void>('capture-busy'), () => processedLocked(deps, id, processed), err<void>('capture-write-failed'));
+}
+
+async function processedLocked(deps: WriterDeps, id: string, processed: boolean): Promise<Result<void>> {
+    const entry = getEntry(deps.journal.get(), id);
+    if (!entry || (entry.state !== 'accepted' && entry.state !== 'organised')) return err('capture-changed');
+    const path = processedTarget(entry);
+    const uid = uidOf(entry);
+    const current = await deps.port.readNote(path);
+    if (current === null || readCaptureId(current) !== uid) return err('capture-changed');
+    // The note may have been kept out since Accept: a kept-out note is not edited, even to change one property.
+    // Judged like the organised note's source: Accept may have added up to the machine-text cap to a note that was inside the plain cap.
+    if (machineTextExclusion(path, current, deps.policy())) return err('capture-source-excluded');
+    const status = processed ? CAPTURE_STATUS_PROCESSED : CAPTURE_STATUS_ACCEPTED;
+    if (readCaptureStatus(current) !== status) {
+        const written = await deps.port.editNote(path, current, (live) => {
+            if (readCaptureId(live) !== uid) return err('capture-changed');
+            const next = setCaptureStatus(live, status);
+            return next.ok ? ok({ content: next.value }) : err('capture-changed');
+        });
+        if (!written.ok) {
+            logger.warn('CaptureInbox', `Status change refused for ${path}: ${written.error}`);
+            return err(written.error === 'protected-path' ? 'capture-write-failed' : written.error);
+        }
+    }
+    // Repeating the same choice changes nothing durable.
+    if ((entry.processedAt !== undefined) === processed) return ok(undefined);
+    const recorded = await deps.journal.mutate((j) => {
+        const e = getEntry(j, id);
+        return e ? upsertEntry(j, { ...e, processedAt: processed ? deps.now() : undefined, updatedAt: deps.now() }) : j;
+    });
+    // A saved journal is not proof the entry was updated: it may have been pruned meanwhile.
+    const after = getEntry(deps.journal.get(), id);
+    if (!recorded.ok || !after || (after.processedAt !== undefined) !== processed) return err('capture-write-failed');
     return ok(undefined);
 }
 

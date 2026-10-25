@@ -15,6 +15,10 @@ export interface CaptureController {
     accept(id: string, edits: AcceptEdits): Promise<boolean>;
     /** Create the organised note. Returns its path, or null when it was not created. */
     organise(id: string, edits: OrganiseEdits): Promise<string | null>;
+    /** Preview, then mark the original processed (one property on the note; nothing moves). True when it was marked. */
+    markProcessed(id: string): Promise<boolean>;
+    /** Put the status back as Accept wrote it. True when it was restored. */
+    unmarkProcessed(id: string): Promise<boolean>;
     skip(id: string): Promise<void>;
     retry(id: string): Promise<void>;
     /** Confirm processing an edited capture again. */

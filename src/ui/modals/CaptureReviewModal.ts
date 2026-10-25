@@ -150,6 +150,22 @@ export class CaptureReviewModal extends Modal {
             }
         }
 
+        // 4. Inbox: the original is never moved or deleted; the user may mark it processed (previewed, undoable).
+        if (accepted) {
+            contentEl.createEl('h3', { text: t.reviewHeadingInbox });
+            if (entry.processedAt !== undefined) {
+                contentEl.createEl('p', { text: t.processedLine });
+                this.button(contentEl, t.undoProcessed, () => this.run(async () => {
+                    if (await this.ctl.unmarkProcessed(this.id)) new Notice(t.unmarkedNotice, 4000);
+                }));
+            } else {
+                contentEl.createEl('p', { text: t.inboxExplain });
+                this.button(contentEl, t.markProcessed, () => this.run(async () => {
+                    if (await this.ctl.markProcessed(this.id)) new Notice(t.markedProcessedNotice, 4000);
+                }));
+            }
+        }
+
         this.footer(contentEl, !accepted);
     }
 

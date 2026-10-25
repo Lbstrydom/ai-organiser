@@ -4,7 +4,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { statusText } from '../src/ui/components/CaptureInboxStatusBar';
-import { buildQueue, formatAge, queueCounts, rowTitle } from '../src/services/captureInbox/captureQueueModel';
+import { buildQueue, formatAge, processedCount, queueCounts, rowTitle } from '../src/services/captureInbox/captureQueueModel';
 import { activitySummary } from '../src/ui/settings/CaptureInboxSettingsSection';
 import { upsertEntry } from '../src/services/captureInbox/captureJournal';
 import { MAX_AWAITING_REVIEW, emptyCounters, emptyJournal, type CaptureEntry } from '../src/services/captureInbox/captureTypes';
@@ -36,7 +36,27 @@ describe('queue rows', () => {
     j = upsertEntry(j, mk('Inbox/o.md', 'organised'));
     j = upsertEntry(j, mk('Inbox/s.md', 'skipped'));
     const rows = buildQueue(j, 10_000);
-    expect(rows.map((r) => r.id)).toEqual(['Inbox/r.md', 'Inbox/f.md', 'Inbox/w.md']);
+    // an organised capture whose original still sits in the inbox stays listed until the user marks it processed
+    expect(rows.map((r) => r.id)).toEqual(['Inbox/r.md', 'Inbox/f.md', 'Inbox/o.md', 'Inbox/w.md']);
+    expect(rows.find((r) => r.id === 'Inbox/o.md')).toMatchObject({ reviewable: true, skippable: false });
+  });
+
+  it('marked rows come back on request, last, so the mark can be undone', () => {
+    let j = emptyJournal();
+    j = upsertEntry(j, mk('Inbox/o.md', 'organised', { processedAt: 5 }));
+    j = upsertEntry(j, mk('Inbox/b.md', 'accepted'));
+    expect(processedCount(j)).toBe(1);
+    const rows = buildQueue(j, 10_000, { includeProcessed: true });
+    expect(rows.map((r) => [r.id, r.processed])).toEqual([['Inbox/b.md', false], ['Inbox/o.md', true]]);
+    expect(rows[1]).toMatchObject({ reviewable: true });
+  });
+
+  it('a capture marked processed drops out of the queue', () => {
+    let j = emptyJournal();
+    j = upsertEntry(j, mk('Inbox/o.md', 'organised', { processedAt: 5 }));
+    j = upsertEntry(j, mk('Inbox/a.md', 'accepted', { processedAt: 5 }));
+    j = upsertEntry(j, mk('Inbox/b.md', 'accepted'));
+    expect(buildQueue(j, 10_000).map((r) => r.id)).toEqual(['Inbox/b.md']);
   });
 
   it('offers only the actions that fit the state', () => {
