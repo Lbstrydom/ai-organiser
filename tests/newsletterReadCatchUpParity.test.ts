@@ -12,7 +12,7 @@ const summarizeText = vi.hoisted(() => vi.fn());
 vi.mock('../src/services/llmFacade', () => ({ summarizeText, pluginContext: (p: unknown) => p }));
 vi.mock('../src/services/azure/endpointResolver', () => ({ isAzureMode: () => false }));
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { createCatchUpPorts } from '../src/services/newsletter/catchUp/catchUpRuntime';
 import type { CatchUpPlan } from '../src/services/newsletter/catchUp/catchUpTypes';
@@ -74,9 +74,14 @@ const plan = (): CatchUpPlan => ({
 });
 
 beforeEach(() => {
+    // The code under test reads the real clock for "today"; the fixtures are dated, so pin it (Date only) or the test depends on the day it runs.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(2026, 9, 23, 12, 0, 0));
     summarizeText.mockReset();
     summarizeText.mockResolvedValue({ success: true, content: 'A spoken script.' });
 });
+
+afterEach(() => { vi.useRealTimers(); });
 
 describe('catch-up recall ignores the read store', () => {
     it('the catch-up prompt is byte-identical with and without a populated read store, in every read mode', async () => {
