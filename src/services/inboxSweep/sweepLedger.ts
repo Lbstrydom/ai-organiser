@@ -31,6 +31,98 @@ export interface ApprovedTask {
     state: TaskState;
     /** Stable code when the last export attempt failed */
     error?: string;
+    /** Item identity (see `itemKeys`); absent on tasks approved before item identity existed */
+    keys?: string[];
+}
+
+// ─── Item identity ──────────────────────────────────────────────────────────
+// The ledger above is per NOTE. When a note changes it is read again and every item in it is proposed
+// again, so the items already approved from it must be recognisable: otherwise ticking them writes the
+// same task into the report and the export a second time.
+
+/** Source path -> the identity keys of the items already reported from it. */
+export type ReportedItems = Record<string, string[]>;
+
+export const MAX_REPORTED_KEYS_PER_NOTE = 300;
+const MAX_KEY_CHARS = 160;
+
+/** Letters and digits only, lower case, single spaces: stable across punctuation, case and spacing edits. */
+export function normaliseItemText(text: string): string {
+    return text.normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, MAX_KEY_CHARS).trim();
+}
+
+/**
+ * The identity of one proposed item: the quote it came from (stable while that line of the note is
+ * unchanged), the model's wording, and the user's edited wording. Any of them matching a known key for
+ * the same note means the item was reported before.
+ */
+export function itemKeys(parts: { text: string; evidence: string; edited?: string }): string[] {
+    const keys = [
+        `e:${normaliseItemText(parts.evidence)}`,
+        `t:${normaliseItemText(parts.text)}`,
+        ...(parts.edited !== undefined ? [`t:${normaliseItemText(parts.edited)}`] : []),
+    ].filter((k) => k.length > 2);
+    return [...new Set(keys)];
+}
+
+const KIND_PREFIX = /^(?:waiting|project|someday):\s*/i;
+
+/** Keys for a task recorded before keys existed: its stored text, without the kind prefix and a trailing "(who)". */
+export function legacyTaskKeys(text: string): string[] {
+    const body = text.replace(KIND_PREFIX, '');
+    const withoutWho = body.replace(/\s*\([^()]*\)\s*$/, '');
+    return [...new Set([normaliseItemText(body), normaliseItemText(withoutWho)].filter(Boolean).map((k) => `t:${k}`))];
+}
+
+const keysOfTask = (t: ApprovedTask): string[] => (t.keys && t.keys.length > 0 ? t.keys : legacyTaskKeys(t.text));
+
+/** Everything known to have been reported from one note: the stored keys plus whatever the approval records still hold. */
+export function reportedKeysFor(path: string, stored: ReportedItems, records: readonly ApprovalRecord[]): Set<string> {
+    const known = new Set<string>(stored[path] ?? []);
+    for (const record of records) {
+        for (const task of record.tasks) {
+            if (task.sourcePath !== path || task.state === 'failed') continue;
+            for (const key of keysOfTask(task)) known.add(key);
+        }
+    }
+    return known;
+}
+
+export function isReportedItem(known: ReadonlySet<string>, keys: readonly string[]): boolean {
+    return keys.some((k) => known.has(k));
+}
+
+/** Step 3b companion: remember the items of a record whose report section is written. Pure. */
+export function recordReportedItems(stored: ReportedItems, record: ApprovalRecord): ReportedItems {
+    const next: ReportedItems = { ...stored };
+    for (const task of record.tasks) {
+        if (task.state === 'failed') continue;
+        const merged = [...new Set([...(next[task.sourcePath] ?? []), ...keysOfTask(task)])];
+        next[task.sourcePath] = merged.slice(-MAX_REPORTED_KEYS_PER_NOTE);
+    }
+    return next;
+}
+
+/** Drop tasks that were already reported from their note, or repeat inside this batch. Tasks without keys pass. */
+export function dropAlreadyReported<T extends { sourcePath: string; keys?: string[] }>(
+    tasks: readonly T[],
+    stored: ReportedItems,
+    records: readonly ApprovalRecord[],
+): { kept: T[]; dropped: number } {
+    const knownByPath = new Map<string, Set<string>>();
+    const kept: T[] = [];
+    for (const task of tasks) {
+        if (!task.keys || task.keys.length === 0) { kept.push(task); continue; }
+        let known = knownByPath.get(task.sourcePath);
+        if (!known) {
+            known = reportedKeysFor(task.sourcePath, stored, records);
+            knownByPath.set(task.sourcePath, known);
+        }
+        if (isReportedItem(known, task.keys)) continue;
+        kept.push(task);
+        for (const key of task.keys) known.add(key);
+    }
+    return { kept, dropped: tasks.length - kept.length };
 }
 
 export interface Disposition {
@@ -155,6 +247,18 @@ export function renameLedger(ledger: SweepLedger, oldPath: string, newPath: stri
         out[next] = entry;
     }
     return { ledger: out, changed };
+}
+
+/** The same remap for the reported-item keys. */
+export function renameReportedItems(items: ReportedItems, oldPath: string, newPath: string): { items: ReportedItems; changed: boolean } {
+    const out: ReportedItems = {};
+    let changed = false;
+    for (const [key, keys] of Object.entries(items)) {
+        const next = remap(key, oldPath, newPath);
+        if (next !== key) changed = true;
+        out[next] = [...new Set([...(out[next] ?? []), ...keys])].slice(-MAX_REPORTED_KEYS_PER_NOTE);
+    }
+    return { items: out, changed };
 }
 
 /** The same remap for the source paths inside open approval records. */

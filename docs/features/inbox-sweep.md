@@ -25,14 +25,15 @@ Reads the notes in the folders you choose and proposes next actions, waiting-for
 
 - Excluded text never reaches the provider; a test spies on the model call.
 - A note is offered again only when its content hash changed. Ledger keys follow renames (`rename` listener in `inboxSweepCommands.ts`).
+- **An item is never added twice.** When a changed note is read again every item in it is proposed again, so each approved item carries identity keys (`itemKeys` in `sweepLedger.ts`: the quote it came from, the model's wording and the edited wording, normalised) that are remembered per source note (`sweepReportedItems`, at most 300 per note, written in the same save as the ledger and rolled back with it, moved by the rename listener; tasks recorded by 1.1.1 or earlier are recognised from their stored text). `runSweep` flags a proposal whose keys are known; the review shows it disabled as "Already in your sweep report" and a note with nothing new defaults to "swept"; `commitReview` also drops any task already reported from its note (or repeated in the batch) before anything is persisted, so neither the report nor the Google Tasks export can receive a duplicate. Limits: matching is per note (the same task in two notes is two items), and a task the user deleted from the report by hand is not offered again.
 - Source notes are never modified. The report note is written with `applyNoteEdit` (no review modal because the review window is the gate), created only after `validateReportPath` and a writability check.
 - A failure after the approval record is saved leaves it saved: the next sweep or "Send approved tasks" finishes the record before doing anything else.
 - No keep-out rule and no explicit "Nothing to keep out" means no sweep (`sweep-keepout-required`).
 
 ## Settings
 
-`sweepInboxFolders`, `sweepExcludedFolders`, `sweepExcludedTags`, `sweepExcludedProperties`, `sweepExcludedTerms`, `sweepNothingToExclude`, `sweepReportPath`, `sweepMaxNotes` (20), `sweepMaxChars` (12 000), `sweepLedger`, `sweepApprovals`; `tasksScriptUrl`, `tasksListId`, `tasksListName`, `tasksLastTest`. The Tasks secret is in SecretStorage (`ai-organiser-google-tasks-secret`), created when the setup script is first copied.
+`sweepInboxFolders`, `sweepExcludedFolders`, `sweepExcludedTags`, `sweepExcludedProperties`, `sweepExcludedTerms`, `sweepNothingToExclude`, `sweepReportPath`, `sweepMaxNotes` (20), `sweepMaxChars` (12 000), `sweepLedger`, `sweepApprovals`, `sweepReportedItems`; `tasksScriptUrl`, `tasksListId`, `tasksListName`, `tasksLastTest`. The Tasks secret is in SecretStorage (`ai-organiser-google-tasks-secret`), created when the setup script is first copied.
 
 ## Tests
 
-`sweepGuard`, `sweepService`, `sweepReport`, `sweepLedger`, `sweepCommit`, `tasksScriptTemplate` (including the script run against a fake Tasks service), `tasksExportService`, `inboxSweepSetup`, `inboxSweepOffPath`.
+`sweepGuard`, `sweepService`, `sweepReport`, `sweepLedger`, `sweepCommit`, `sweepReoffer`, `sweepReviewReported`, `tasksScriptTemplate` (including the script run against a fake Tasks service), `tasksExportService`, `inboxSweepSetup`, `inboxSweepOffPath`.

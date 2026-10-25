@@ -12,6 +12,7 @@ import type { NoteProposals } from '../../services/inboxSweep/sweepService';
 import type { SweepItem, SweepItemKind } from '../../services/prompts/sweepPrompts';
 import type { CommitInput } from '../../services/inboxSweep/sweepCommit';
 import { newTaskId } from '../../services/inboxSweep/sweepCommit';
+import { itemKeys } from '../../services/inboxSweep/sweepLedger';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
 
@@ -19,6 +20,8 @@ interface Row {
     note: NoteProposals;
     item: SweepItem;
     checked: boolean;
+    /** Already added to the sweep report from this note: shown, but cannot be added again */
+    reported: boolean;
     text: string;
     context: string;
 }
@@ -39,14 +42,18 @@ export class InboxSweepReviewModal extends Modal {
         super(app);
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.addClass('ai-organiser-modal-content');
-        this.rows = notes.flatMap((note) => note.items.map((item) => ({ note, item, checked: false, text: item.text, context: item.context })));
+        this.rows = notes.flatMap((note) => note.items.map((item, i) => ({ note, item, checked: false, reported: note.reported?.[i] === true, text: item.text, context: item.context })));
     }
 
     private get t() { return this.plugin.t.inboxSweep; }
 
     private isSwept(note: NoteProposals): boolean {
         const chosen = this.sweptChoice.get(note.path);
-        return chosen ?? this.rows.some((r) => r.note === note && r.checked);
+        if (chosen !== undefined) return chosen;
+        const rows = this.rows.filter((r) => r.note === note);
+        // Nothing new here and something already added: the note has nothing left to offer, so it counts as swept.
+        if (rows.length > 0 && rows.every((r) => r.reported)) return true;
+        return rows.some((r) => r.checked);
     }
 
     onOpen(): void {
@@ -66,14 +73,18 @@ export class InboxSweepReviewModal extends Modal {
         if (note.truncated) box.createEl('p', { text: t.truncatedNote, cls: 'setting-item-description' });
         if (note.dropped > 0) box.createEl('p', { text: plural(t.droppedNote, note.dropped), cls: 'setting-item-description' });
         if (note.items.length === 0) box.createEl('p', { text: t.noProposals, cls: 'setting-item-description' });
+        const noteRows = this.rows.filter((r) => r.note === note);
+        if (noteRows.length > 0 && noteRows.every((r) => r.reported)) box.createEl('p', { text: t.allAlreadyAdded, cls: 'setting-item-description' });
 
         for (const row of this.rows.filter((r) => r.note === note)) {
             const line = box.createDiv({ cls: 'ai-organiser-sweep-item' });
             const check = line.createEl('input', { type: 'checkbox', attr: { 'aria-label': t.includeItem } });
             check.checked = row.checked;
+            check.disabled = row.reported;
             this.cleanups.push(listen(check, 'change', () => { row.checked = check.checked; this.renderFooter(); }));
             const text = line.createEl('input', { type: 'text', value: row.text, attr: { 'aria-label': t.itemText } });
             text.addClass('ai-organiser-sweep-text');
+            text.disabled = row.reported;
             this.cleanups.push(listen(text, 'input', () => { row.text = text.value; this.renderFooter(); }));
             if (row.item.kind === 'next_action') {
                 const ctx = line.createEl('select', { attr: { 'aria-label': t.itemContext } });
@@ -85,6 +96,7 @@ export class InboxSweepReviewModal extends Modal {
             } else {
                 line.createSpan({ text: t.kindLabels[row.item.kind], cls: 'setting-item-description' });
             }
+            if (row.reported) line.createSpan({ text: t.alreadyAdded, cls: 'setting-item-description ai-organiser-sweep-reported' });
             line.createDiv({ text: `“${row.item.evidence}”`, cls: 'setting-item-description ai-organiser-sweep-evidence' });
         }
 
@@ -98,7 +110,7 @@ export class InboxSweepReviewModal extends Modal {
     }
 
     private selected(): Row[] {
-        return this.rows.filter((r) => r.checked && r.text.trim() !== '');
+        return this.rows.filter((r) => r.checked && !r.reported && r.text.trim() !== '');
     }
 
     private renderFooter(): void {
@@ -122,6 +134,7 @@ export class InboxSweepReviewModal extends Modal {
             context: r.item.kind === 'next_action' ? r.context : '',
             sourcePath: r.note.path,
             sourceHash: r.note.contentHash,
+            keys: itemKeys({ text: r.item.text, evidence: r.item.evidence, edited: r.text.trim() }),
         }));
         const dispositions = this.notes.map((note) => ({ sourcePath: note.path, sourceHash: note.contentHash, markSwept: this.isSwept(note) }));
         this.settled = true;

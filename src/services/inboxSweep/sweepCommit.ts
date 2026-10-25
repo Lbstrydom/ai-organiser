@@ -24,10 +24,12 @@ import { buildSnapshot } from './noteSnapshot';
 import { guardSnapshot, policyRevisionOf, type SweepPolicy } from './sweepGuard';
 import {
     applyDispositions,
+    dropAlreadyReported,
     markReported,
     newApproval,
     pendingApprovals,
     pruneApprovals,
+    recordReportedItems,
     type ApprovalRecord,
     type Disposition,
 } from './sweepLedger';
@@ -169,12 +171,14 @@ async function writeSection(plugin: AIOrganiserPlugin, record: ApprovalRecord): 
 // ─── The four steps ─────────────────────────────────────────────────────────
 
 export interface CommitInput {
-    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string }>;
+    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string; keys?: string[] }>;
     dispositions: readonly Disposition[];
 }
 
 export interface CommitOutcome {
     record: ApprovalRecord;
+    /** Approved tasks left out because the same item was already added from that note (or repeated in the batch) */
+    duplicates?: number;
     /** Set when a step stopped; the record is saved and a later run can finish it */
     stoppedAt?: 'persist' | 'report' | 'ledger';
     error?: string;
@@ -195,7 +199,15 @@ async function commitReviewGuarded(plugin: AIOrganiserPlugin, input: CommitInput
     }
 }
 
-async function commitReviewUnsafe(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
+async function commitReviewUnsafe(plugin: AIOrganiserPlugin, rawInput: CommitInput): Promise<CommitOutcome> {
+    // An item already added from its note is never added twice: not to the report, not to the export.
+    const { kept, dropped } = dropAlreadyReported(rawInput.tasks, plugin.settings.sweepReportedItems, plugin.settings.sweepApprovals);
+    const input: CommitInput = { ...rawInput, tasks: kept };
+    const out = await commitFiltered(plugin, input);
+    return dropped > 0 ? { ...out, duplicates: dropped } : out;
+}
+
+async function commitFiltered(plugin: AIOrganiserPlugin, input: CommitInput): Promise<CommitOutcome> {
     const path = validateReportPath(plugin.settings.sweepReportPath, plugin.settings.protectedFolders);
     const runId = newRunId();
     let record = newApproval({
@@ -247,9 +259,15 @@ async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): P
             stage = 'ledger';
             const next = { ...record, ledgerDone: true };
             const ledgerBefore = plugin.settings.sweepLedger;
+            const itemsBefore = plugin.settings.sweepReportedItems;
             plugin.settings.sweepLedger = applyDispositions(ledgerBefore, record, new Date().toISOString());
+            plugin.settings.sweepReportedItems = recordReportedItems(itemsBefore, record);
             const saved = await saveRecord(plugin, next);
-            if (!saved.ok) { plugin.settings.sweepLedger = ledgerBefore; return { record, stoppedAt: 'ledger', error: saved.error }; }
+            if (!saved.ok) {
+                plugin.settings.sweepLedger = ledgerBefore;
+                plugin.settings.sweepReportedItems = itemsBefore;
+                return { record, stoppedAt: 'ledger', error: saved.error };
+            }
             record = next;
         }
         return { record };
