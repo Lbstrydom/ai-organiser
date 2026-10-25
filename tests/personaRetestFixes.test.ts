@@ -103,6 +103,20 @@ describe('F1: a settling capture matures on its own', () => {
     rt.dispose();
   });
 
+  it('a window that ended while a run was busy is looked at again; one that ended before the run is not (no loop)', async () => {
+    vi.useFakeTimers();
+    const w = world('Remember to water the plants');
+    const rt = new CaptureRuntime(w.deps);
+    await rt.refresh();
+    vi.clearAllTimers();
+    // Observed at T; the window ends at T + 8000.
+    const arm = (endedSince: number) => { (rt as unknown as { armSettleRescan(n?: number): void }).armSettleRescan(endedSince); return vi.getTimerCount(); };
+    w.tick(9000); // the window is over now
+    expect(arm(Infinity)).toBe(0); // it ended before any run: held back for another reason, so no re-scan
+    expect(arm(50_000_000 + 1000)).toBe(1); // a run started at T + 1 s was still busy when it ended: due now
+    rt.dispose();
+  });
+
   it('settleRemainingMs is the exact figure behind the seconds shown', () => {
     const e = mk('Inbox/s.md', 'waiting_for_stable', { observed: { 'Inbox/s.md': { size: 5, mtime: 1, at: 100_000 } } });
     expect(settleRemainingMs(e, 103_000, 8000)).toBe(5000);

@@ -132,7 +132,7 @@ export class CaptureRuntime {
      * only a picture and a capture waits for "Process now". Only windows still running arm it, so a capture held back
      * for another reason (a missing completion marker, an empty note) never makes a re-scan loop.
      */
-    private armSettleRescan(): void {
+    private armSettleRescan(endedSince = Infinity): void {
         this.clearSettleTimer();
         if (!this.usable()) return;
         const now = this.deps.now();
@@ -141,7 +141,11 @@ export class CaptureRuntime {
         for (const entry of Object.values(this.deps.journal.get().entries)) {
             if (entry.state !== 'waiting_for_stable' || entry.needsConfirm || entry.waitReason === 'empty' || entry.waitReason === 'attachment') continue;
             const left = settleRemainingMs(entry, now, stabilityMs);
-            if (left > 0) soonest = Math.min(soonest, left);
+            if (left > 0) { soonest = Math.min(soonest, left); continue; }
+            // A window that ended while a run was busy was never looked at again: due now. One that ended earlier is held back for another reason.
+            const seen = Object.values(entry.observed ?? {});
+            const end = (seen.length > 0 ? Math.max(...seen.map((o) => o.at)) : now) + stabilityMs;
+            if (end >= endedSince) soonest = 0;
         }
         if (!Number.isFinite(soonest)) return;
         this.settleTimer = window.setTimeout(() => {
@@ -224,6 +228,7 @@ export class CaptureRuntime {
         }
         this.begin('run');
         this.cancelFlag = false;
+        const startedAt = deps.now();
         try {
             // "Process all existing" is a manual choice; an automatic run never widens its own scope.
             const scanned = await this.scan(opts.trigger === 'manual' ? opts.includeExisting : false);
@@ -241,7 +246,7 @@ export class CaptureRuntime {
             logger.error('CaptureInbox', 'Run failed', e);
             return null;
         } finally {
-            this.armSettleRescan();
+            this.armSettleRescan(startedAt);
             this.setIdle();
             this.replayHint();
         }
