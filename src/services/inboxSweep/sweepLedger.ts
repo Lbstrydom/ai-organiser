@@ -43,8 +43,11 @@ export interface ApprovedTask {
 /** Source path -> the identity keys of the items already reported from it. */
 export type ReportedItems = Record<string, string[]>;
 
-export const MAX_REPORTED_KEYS_PER_NOTE = 300;
-const MAX_KEY_CHARS = 160;
+/** Keys kept per note. Each approved item adds one or two, so this holds several hundred items. */
+export const MAX_REPORTED_KEYS_PER_NOTE = 500;
+const MAX_KEY_CHARS = 400;
+/** Matches the longest text (300) and quote (400) the sweep accepts, so long items never collapse onto a shared prefix. */
+const KEY_SEPARATOR = '|';
 
 /** Letters and digits only, lower case, single spaces: stable across punctuation, case and spacing edits. */
 export function normaliseItemText(text: string): string {
@@ -52,59 +55,91 @@ export function normaliseItemText(text: string): string {
 }
 
 /**
- * The identity of one proposed item: the quote it came from (stable while that line of the note is
- * unchanged), the model's wording, and the user's edited wording. Any of them matching a known key for
- * the same note means the item was reported before.
+ * The identity of one proposed item, as `<quote>|<wording>` pairs (normalised): one for the model's wording
+ * and one for the user's edited wording. The quote alone never identifies an item (a sentence can hold two
+ * commitments); see `isReportedItem`.
  */
 export function itemKeys(parts: { text: string; evidence: string; edited?: string }): string[] {
-    const keys = [
-        `e:${normaliseItemText(parts.evidence)}`,
-        `t:${normaliseItemText(parts.text)}`,
-        ...(parts.edited !== undefined ? [`t:${normaliseItemText(parts.edited)}`] : []),
-    ].filter((k) => k.length > 2);
-    return [...new Set(keys)];
+    const quote = normaliseItemText(parts.evidence);
+    const wordings = [parts.text, ...(parts.edited !== undefined ? [parts.edited] : [])].map(normaliseItemText).filter(Boolean);
+    return [...new Set(wordings.map((w) => `${quote}${KEY_SEPARATOR}${w}`))];
 }
 
 const KIND_PREFIX = /^(?:waiting|project|someday):\s*/i;
 
-/** Keys for a task recorded before keys existed: its stored text, without the kind prefix and a trailing "(who)". */
+/** Keys for a task recorded before keys existed: its stored text (no quote is known), without the kind prefix and a trailing "(who)". */
 export function legacyTaskKeys(text: string): string[] {
     const body = text.replace(KIND_PREFIX, '');
     const withoutWho = body.replace(/\s*\([^()]*\)\s*$/, '');
-    return [...new Set([normaliseItemText(body), normaliseItemText(withoutWho)].filter(Boolean).map((k) => `t:${k}`))];
+    return [...new Set([normaliseItemText(body), normaliseItemText(withoutWho)].filter(Boolean).map((w) => `${KEY_SEPARATOR}${w}`))];
 }
 
 const keysOfTask = (t: ApprovedTask): string[] => (t.keys && t.keys.length > 0 ? t.keys : legacyTaskKeys(t.text));
 
-/** Everything known to have been reported from one note: the stored keys plus whatever the approval records still hold. */
+/**
+ * Everything known to have been reported from one note: the stored keys plus whatever the approval records
+ * still hold. A task whose EXPORT failed is still in the report, so it counts.
+ */
 export function reportedKeysFor(path: string, stored: ReportedItems, records: readonly ApprovalRecord[]): Set<string> {
     const known = new Set<string>(stored[path] ?? []);
     for (const record of records) {
         for (const task of record.tasks) {
-            if (task.sourcePath !== path || task.state === 'failed') continue;
+            if (task.sourcePath !== path) continue;
             for (const key of keysOfTask(task)) known.add(key);
         }
     }
     return known;
 }
 
+function splitKey(key: string): [string, string] {
+    const at = key.indexOf(KEY_SEPARATOR);
+    return at === -1 ? ['', key] : [key.slice(0, at), key.slice(at + 1)];
+}
+
+/** Word overlap (Jaccard) of two normalised texts. */
+function overlap(a: string, b: string): number {
+    const left = new Set(a.split(' ').filter(Boolean));
+    const right = new Set(b.split(' ').filter(Boolean));
+    if (left.size === 0 || right.size === 0) return 0;
+    let both = 0;
+    for (const w of left) if (right.has(w)) both++;
+    return both / (left.size + right.size - both);
+}
+
+/** Two items from one note are the same item when their wording is the same, or they quote the same line AND say about the same thing. */
+const SAME_QUOTE_MIN_OVERLAP = 0.5;
+
+/**
+ * Was this item reported before? Same wording, or the same quoted line with similar wording (the model
+ * reworded it). The same line with different wording is a different commitment ("Call Dana" and "Book the
+ * venue" from one sentence), so it is not a match.
+ */
 export function isReportedItem(known: ReadonlySet<string>, keys: readonly string[]): boolean {
-    return keys.some((k) => known.has(k));
+    if (known.size === 0 || keys.length === 0) return false;
+    const pairs = [...known].map(splitKey);
+    return keys.some((key) => {
+        const [quote, wording] = splitKey(key);
+        return pairs.some(([knownQuote, knownWording]) =>
+            (wording !== '' && knownWording === wording)
+            || (quote !== '' && knownQuote === quote && overlap(wording, knownWording) >= SAME_QUOTE_MIN_OVERLAP));
+    });
 }
 
 /** Step 3b companion: remember the items of a record whose report section is written. Pure. */
 export function recordReportedItems(stored: ReportedItems, record: ApprovalRecord): ReportedItems {
     const next: ReportedItems = { ...stored };
     for (const task of record.tasks) {
-        if (task.state === 'failed') continue;
         const merged = [...new Set([...(next[task.sourcePath] ?? []), ...keysOfTask(task)])];
         next[task.sourcePath] = merged.slice(-MAX_REPORTED_KEYS_PER_NOTE);
     }
     return next;
 }
 
-/** Drop tasks that were already reported from their note, or repeat inside this batch. Tasks without keys pass. */
-export function dropAlreadyReported<T extends { sourcePath: string; keys?: string[] }>(
+/**
+ * Drop tasks that were already reported from their note, or repeat inside this batch. A task without keys is
+ * judged by its text, so the guarantee holds for any caller, not only the review modal.
+ */
+export function dropAlreadyReported<T extends { sourcePath: string; text: string; keys?: string[] }>(
     tasks: readonly T[],
     stored: ReportedItems,
     records: readonly ApprovalRecord[],
@@ -112,15 +147,16 @@ export function dropAlreadyReported<T extends { sourcePath: string; keys?: strin
     const knownByPath = new Map<string, Set<string>>();
     const kept: T[] = [];
     for (const task of tasks) {
-        if (!task.keys || task.keys.length === 0) { kept.push(task); continue; }
+        const keys = task.keys && task.keys.length > 0 ? task.keys : legacyTaskKeys(task.text);
         let known = knownByPath.get(task.sourcePath);
         if (!known) {
             known = reportedKeysFor(task.sourcePath, stored, records);
             knownByPath.set(task.sourcePath, known);
         }
-        if (isReportedItem(known, task.keys)) continue;
-        kept.push(task);
-        for (const key of task.keys) known.add(key);
+        const repeat = isReportedItem(known, keys);
+        // Every wording seen in this batch counts for the rest of it, kept or not.
+        for (const key of keys) known.add(key);
+        if (!repeat) kept.push(task);
     }
     return { kept, dropped: tasks.length - kept.length };
 }

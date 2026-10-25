@@ -18,6 +18,7 @@ vi.mock('../src/services/noteEdit/applyNoteEdit', () => ({
 
 import {
 	dropAlreadyReported,
+	isReportedItem,
 	itemKeys,
 	legacyTaskKeys,
 	MAX_REPORTED_KEYS_PER_NOTE,
@@ -44,32 +45,55 @@ describe('item identity keys', () => {
 		expect(normaliseItemText('É déjà vu')).toBe('é déjà vu');
 	});
 
-	it('keys follow the quote, the model wording and the edited wording', () => {
+	it('are quote|wording pairs, one per wording (model and edited)', () => {
 		const keys = itemKeys({ text: 'Draft the migration plan', evidence: 'I need to draft the migration plan', edited: 'Draft migration plan v2' });
-		expect(keys).toEqual(['e:i need to draft the migration plan', 't:draft the migration plan', 't:draft migration plan v2']);
+		expect(keys).toEqual(['i need to draft the migration plan|draft the migration plan', 'i need to draft the migration plan|draft migration plan v2']);
 	});
 
-	it('an edited text equal to the model text adds no duplicate key, and empty parts are dropped', () => {
-		expect(itemKeys({ text: 'A b', evidence: 'x y', edited: 'a b' })).toEqual(['e:x y', 't:a b']);
+	it('an edited text equal to the model text adds no duplicate key, and empty wordings are dropped', () => {
+		expect(itemKeys({ text: 'A b', evidence: 'x y', edited: 'a b' })).toEqual(['x y|a b']);
 		expect(itemKeys({ text: '!!!', evidence: '...' })).toEqual([]);
 	});
 
-	it('the same item is recognised after the model rewords it (same quote) or quotes another span (same wording)', () => {
-		const first = itemKeys({ text: 'Draft the migration plan', evidence: 'I need to draft the migration plan' });
-		const reworded = itemKeys({ text: 'Write the migration plan', evidence: 'I need to draft the migration plan' });
-		const requoted = itemKeys({ text: 'Draft the migration plan', evidence: 'draft the migration plan' });
-		const known = new Set(first);
-		expect(reworded.some((k) => known.has(k))).toBe(true);
-		expect(requoted.some((k) => known.has(k))).toBe(true);
-		expect(itemKeys({ text: 'Book the venue', evidence: 'book the venue' }).some((k) => known.has(k))).toBe(false);
+	it('long texts keep their whole identity (no shared-prefix collapse at 160 characters)', () => {
+		const prefix = 'prepare the quarterly review pack for the board including '.repeat(4);
+		const a = itemKeys({ text: prefix + 'revenue', evidence: 'q' });
+		const b = itemKeys({ text: prefix + 'headcount', evidence: 'q2' });
+		expect(prefix.length).toBeGreaterThan(160);
+		expect(isReportedItem(new Set(a), b)).toBe(false);
+		expect(isReportedItem(new Set(a), a)).toBe(true);
+	});
+});
+
+describe('isReportedItem', () => {
+	const known = new Set(itemKeys({ text: 'Draft the migration plan', evidence: 'I need to draft the migration plan' }));
+
+	it('same wording matches whatever the quote', () => {
+		expect(isReportedItem(known, itemKeys({ text: 'Draft the migration plan!', evidence: 'something else' }))).toBe(true);
+	});
+
+	it('the same quote with reworded but similar text matches (the model reworded it)', () => {
+		expect(isReportedItem(known, itemKeys({ text: 'Write the migration plan', evidence: 'I need to draft the migration plan' }))).toBe(true);
+	});
+
+	it('the same quote with a different commitment does NOT match (one sentence, two tasks)', () => {
+		const both = 'Call Dana and book the venue';
+		const first = new Set(itemKeys({ text: 'Call Dana', evidence: both }));
+		expect(isReportedItem(first, itemKeys({ text: 'Book the venue', evidence: both }))).toBe(false);
+		expect(isReportedItem(first, itemKeys({ text: 'Call Dana', evidence: both }))).toBe(true);
+	});
+
+	it('a different quote with different wording does not match, and nothing known means nothing matches', () => {
+		expect(isReportedItem(known, itemKeys({ text: 'Book the venue', evidence: 'book the venue' }))).toBe(false);
+		expect(isReportedItem(new Set(), itemKeys({ text: 'x y', evidence: 'x y' }))).toBe(false);
 	});
 });
 
 describe('legacy keys (tasks reported before keys existed)', () => {
-	it('drop the kind prefix and a trailing (who)', () => {
-		expect(legacyTaskKeys('Waiting: Priya to send the revised SOW (Priya)')).toEqual(['t:priya to send the revised sow priya', 't:priya to send the revised sow']);
-		expect(legacyTaskKeys('Someday: Look at a data catalogue tool')).toEqual(['t:look at a data catalogue tool']);
-		expect(legacyTaskKeys('Draft the migration plan')).toEqual(['t:draft the migration plan']);
+	it('are wording-only and drop the kind prefix and a trailing (who)', () => {
+		expect(legacyTaskKeys('Waiting: Priya to send the revised SOW (Priya)')).toEqual(['|priya to send the revised sow priya', '|priya to send the revised sow']);
+		expect(legacyTaskKeys('Someday: Look at a data catalogue tool')).toEqual(['|look at a data catalogue tool']);
+		expect(legacyTaskKeys('Draft the migration plan')).toEqual(['|draft the migration plan']);
 	});
 });
 
@@ -88,47 +112,70 @@ describe('reportedKeysFor / recordReportedItems / dropAlreadyReported', () => {
 	it('unions stored keys, the keys of open records and the text of keyless legacy tasks, per note', () => {
 		const rec = record([
 			{ n: 1, text: 'Waiting: Priya to send SOW', path: 'Inbox/a.md' },
-			{ n: 2, text: 'X', path: 'Inbox/a.md', keys: ['e:from record'] },
+			{ n: 2, text: 'X', path: 'Inbox/a.md', keys: ['q|from record'] },
 			{ n: 3, text: 'Other note task', path: 'Inbox/b.md' },
-			{ n: 4, text: 'Failed one', path: 'Inbox/a.md', state: 'failed' },
 		]);
-		const known = reportedKeysFor('Inbox/a.md', { 'Inbox/a.md': ['e:stored'] }, [rec]);
-		expect([...known].sort()).toEqual(['e:from record', 'e:stored', 't:priya to send sow']);
+		const known = reportedKeysFor('Inbox/a.md', { 'Inbox/a.md': ['q|stored'] }, [rec]);
+		expect([...known].sort()).toEqual(['q|from record', 'q|stored', '|priya to send sow']);
+	});
+
+	it('a task whose EXPORT failed is still in the report, so it still counts as reported', () => {
+		const rec = record([{ n: 1, text: 'Call Dana', keys: ['q|call dana'], state: 'failed' }]);
+		expect(reportedKeysFor('Inbox/a.md', {}, [rec]).has('q|call dana')).toBe(true);
+		expect(recordReportedItems({}, rec)['Inbox/a.md']).toEqual(['q|call dana']);
+		expect(dropAlreadyReported([{ sourcePath: 'Inbox/a.md', text: 'Call Dana', keys: ['q|call dana'] }], {}, [rec]).dropped).toBe(1);
 	});
 
 	it('records the items of a record, keeps order, caps the list and does not mutate the input', () => {
-		const stored = { 'Inbox/a.md': ['e:old'] };
-		const next = recordReportedItems(stored, record([{ n: 1, text: 'T', keys: ['e:new', 'e:old'] }]));
-		expect(next['Inbox/a.md']).toEqual(['e:old', 'e:new']);
-		expect(stored['Inbox/a.md']).toEqual(['e:old']);
-		const many = record(Array.from({ length: MAX_REPORTED_KEYS_PER_NOTE + 20 }, (_, i) => ({ n: i, text: 'T', keys: [`e:k${i}`] })));
+		const stored = { 'Inbox/a.md': ['q|old'] };
+		const next = recordReportedItems(stored, record([{ n: 1, text: 'T', keys: ['q|new', 'q|old'] }]));
+		expect(next['Inbox/a.md']).toEqual(['q|old', 'q|new']);
+		expect(stored['Inbox/a.md']).toEqual(['q|old']);
+		const many = record(Array.from({ length: MAX_REPORTED_KEYS_PER_NOTE + 20 }, (_, i) => ({ n: i, text: 'T', keys: [`q|k${i}`] })));
 		const capped = recordReportedItems({}, many)['Inbox/a.md'];
 		expect(capped).toHaveLength(MAX_REPORTED_KEYS_PER_NOTE);
-		expect(capped[capped.length - 1]).toBe(`e:k${MAX_REPORTED_KEYS_PER_NOTE + 19}`);
+		expect(capped[capped.length - 1]).toBe(`q|k${MAX_REPORTED_KEYS_PER_NOTE + 19}`);
 	});
 
-	it('does not remember a task whose export failed', () => {
-		expect(recordReportedItems({}, record([{ n: 1, text: 'T', keys: ['e:x'], state: 'failed' }]))).toEqual({});
-	});
-
-	it('drops tasks already reported from their note and repeats inside the batch, keeps new and keyless ones', () => {
+	it('drops tasks already reported from their note and repeats inside the batch, keeps new ones', () => {
 		const tasks = [
-			{ sourcePath: 'Inbox/a.md', keys: ['e:known'], n: 1 },
-			{ sourcePath: 'Inbox/b.md', keys: ['e:known'], n: 2 }, // same key, different note: new
-			{ sourcePath: 'Inbox/a.md', keys: ['e:fresh'], n: 3 },
-			{ sourcePath: 'Inbox/a.md', keys: ['e:fresh', 't:x'], n: 4 }, // repeats the previous one
-			{ sourcePath: 'Inbox/a.md', n: 5 }, // no keys: passes
+			{ sourcePath: 'Inbox/a.md', text: 'Known', keys: ['q|known'], n: 1 },
+			{ sourcePath: 'Inbox/b.md', text: 'Known', keys: ['q|known'], n: 2 }, // same key, different note: new
+			{ sourcePath: 'Inbox/a.md', text: 'Fresh', keys: ['q|fresh'], n: 3 },
+			{ sourcePath: 'Inbox/a.md', text: 'Fresh', keys: ['q|fresh', 'q|fresh again'], n: 4 }, // repeats the previous one
 		];
-		const { kept, dropped } = dropAlreadyReported(tasks, { 'Inbox/a.md': ['e:known'] }, []);
-		expect(kept.map((t) => t.n)).toEqual([2, 3, 5]);
+		const { kept, dropped } = dropAlreadyReported(tasks, { 'Inbox/a.md': ['q|known'] }, []);
+		expect(kept.map((t) => t.n)).toEqual([2, 3]);
+		expect(dropped).toBe(2);
+	});
+
+	it('distinct commitments from one quoted sentence are all kept, in the batch and against what is known', () => {
+		const q = 'call dana and book the venue';
+		const tasks = [
+			{ sourcePath: 'Inbox/a.md', text: 'Call Dana', keys: [`${q}|call dana`], n: 1 },
+			{ sourcePath: 'Inbox/a.md', text: 'Book the venue', keys: [`${q}|book the venue`], n: 2 },
+		];
+		expect(dropAlreadyReported(tasks, {}, []).kept.map((t) => t.n)).toEqual([1, 2]);
+		expect(dropAlreadyReported([tasks[1]], { 'Inbox/a.md': [`${q}|call dana`] }, []).kept.map((t) => t.n)).toEqual([2]);
+	});
+
+	it('a task without keys is judged by its text, so the guarantee holds for callers that skip the modal', () => {
+		const rec = record([{ n: 1, text: 'Waiting: Priya to send the revised SOW (Priya)' }]);
+		const tasks = [
+			{ sourcePath: 'Inbox/a.md', text: 'Waiting: Priya to send the revised SOW', n: 1 },
+			{ sourcePath: 'Inbox/a.md', text: 'Book the venue', n: 2 },
+			{ sourcePath: 'Inbox/a.md', text: 'Book the venue', n: 3 },
+		];
+		const { kept, dropped } = dropAlreadyReported(tasks, {}, [rec]);
+		expect(kept.map((t) => t.n)).toEqual([2]);
 		expect(dropped).toBe(2);
 	});
 
 	it('renaming a note moves its keys with it', () => {
-		const out = renameReportedItems({ 'Inbox/a.md': ['e:x'], 'Inbox/sub/b.md': ['e:y'] }, 'Inbox', 'Archive');
+		const out = renameReportedItems({ 'Inbox/a.md': ['q|x'], 'Inbox/sub/b.md': ['q|y'] }, 'Inbox', 'Archive');
 		expect(out.changed).toBe(true);
-		expect(out.items).toEqual({ 'Archive/a.md': ['e:x'], 'Archive/sub/b.md': ['e:y'] });
-		expect(renameReportedItems({ 'Elsewhere/a.md': ['e:x'] }, 'Inbox', 'Archive').changed).toBe(false);
+		expect(out.items).toEqual({ 'Archive/a.md': ['q|x'], 'Archive/sub/b.md': ['q|y'] });
+		expect(renameReportedItems({ 'Elsewhere/a.md': ['q|x'] }, 'Inbox', 'Archive').changed).toBe(false);
 	});
 });
 
@@ -206,7 +253,7 @@ describe('commitReview with item identity', () => {
 	it('records the keys of what it reports', async () => {
 		const h = makePlugin();
 		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
-		expect(h.settings.sweepReportedItems['Inbox/a.md']).toEqual(expect.arrayContaining(['e:i need to draft the migration plan', 't:draft the migration plan']));
+		expect(h.settings.sweepReportedItems['Inbox/a.md']).toEqual(['i need to draft the migration plan|draft the migration plan']);
 	});
 
 	it('a second commit of the same items writes no second report line and creates no task', async () => {
@@ -248,6 +295,24 @@ describe('commitReview with item identity', () => {
 		});
 		expect(out.duplicates).toBe(2);
 		expect(out.record.tasks.map((t) => t.text)).toEqual(['New thing']);
+	});
+
+	it('a caller that passes no keys cannot bypass the guard: the task text is checked', async () => {
+		const h = makePlugin();
+		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
+		const out = await commitReview(h.plugin, { tasks: [{ id: id(2), text: 'Draft the migration plan', context: '', sourcePath: 'Inbox/a.md', sourceHash: 'h2' }], dispositions: [] });
+		expect(out.duplicates).toBe(1);
+		expect(lines(h.vault.get('Inbox sweep report.md')!)).toHaveLength(1);
+	});
+
+	it('two commitments from one quoted sentence are both added, and a re-sweep drops only the pair already added', async () => {
+		const h = makePlugin();
+		const q = 'Call Dana and book the venue';
+		await commitReview(h.plugin, { tasks: [task(1, 'Call Dana', q), task(2, 'Book the venue', q)], dispositions: [] });
+		expect(lines(h.vault.get('Inbox sweep report.md')!)).toHaveLength(2);
+		const again = await commitReview(h.plugin, { tasks: [task(3, 'Call Dana', q), task(4, 'Book the venue', q), task(5, 'Send the invite', q)], dispositions: [] });
+		expect(again.duplicates).toBe(2);
+		expect(again.record.tasks.map((t) => t.text)).toEqual(['Send the invite']);
 	});
 
 	it('restores the ledger AND the keys when the ledger step cannot be saved', async () => {

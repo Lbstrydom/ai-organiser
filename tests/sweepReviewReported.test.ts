@@ -76,9 +76,16 @@ describe('InboxSweepReviewModal with items already reported', () => {
 		const boxes = checkboxes(el);
 		boxes[0].checked = true; // bypassing the disabled state
 		boxes[0].dispatchEvent(new Event('change', { bubbles: true }));
-		expect(primary(el).textContent).not.toBe(en.inboxSweep.addButton.replace('{count}', '1'));
+		// Alone it adds nothing: the button stays a disabled "Mark reviewed".
+		expect(primary(el).disabled).toBe(true);
+		expect(primary(el).textContent).toBe(en.inboxSweep.markReviewedButton);
+		// With the new item also ticked, only the new item is submitted.
+		boxes[1].checked = true;
+		boxes[1].dispatchEvent(new Event('change', { bubbles: true }));
+		expect(primary(el).textContent).toBe(en.inboxSweep.addButton.replace('{count}', '1'));
 		primary(el).click();
-		expect(results[0]?.tasks ?? []).toEqual([]);
+		expect(results).toHaveLength(1);
+		expect(results[0]!.tasks.map((t) => t.text)).toEqual(['Call Dana']);
 	});
 
 	it('a note whose items are all already added says so and defaults to swept, so it stops coming back', () => {

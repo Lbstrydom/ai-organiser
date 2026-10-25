@@ -1793,7 +1793,7 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
     const reported: ReportedItems = {};
     if (old.sweepReportedItems && typeof old.sweepReportedItems === 'object' && !Array.isArray(old.sweepReportedItems)) {
         for (const [path, keys] of Object.entries(old.sweepReportedItems as Record<string, unknown>)) {
-            if (Array.isArray(keys)) reported[path] = keys.filter((k): k is string => typeof k === 'string').slice(-300);
+            if (Array.isArray(keys)) reported[path] = keys.filter((k): k is string => typeof k === 'string').slice(-500);
         }
     }
     old.sweepReportedItems = reported;

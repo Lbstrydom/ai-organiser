@@ -53,7 +53,7 @@ export class InboxSweepReviewModal extends Modal {
         const rows = this.rows.filter((r) => r.note === note);
         // Nothing new here and something already added: the note has nothing left to offer, so it counts as swept.
         if (rows.length > 0 && rows.every((r) => r.reported)) return true;
-        return rows.some((r) => r.checked);
+        return rows.some((r) => r.checked && !r.reported);
     }
 
     onOpen(): void {
