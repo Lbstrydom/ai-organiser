@@ -17,7 +17,10 @@ import { isFeatureEnabled } from '../services/featureService';
 import { evaluateSetup, toFolderSet } from '../core/setupState';
 import { isAzureMode } from '../services/azure/endpointResolver';
 import { logger } from '../utils/logger';
-import { getEntry, heldPaths, rekeyTree, upsertEntry } from '../services/captureInbox/captureJournal';
+import { forgetSkip, getEntry, heldPaths, rekeyTree, upsertEntry } from '../services/captureInbox/captureJournal';
+import { queueCounts, settleSeconds } from '../services/captureInbox/captureQueueModel';
+import type { ScanOutcome } from '../services/captureInbox/captureScanner';
+import { plural } from '../utils/plural';
 import { buildCaptureFolderContext } from '../services/captureInbox/captureClassify';
 import { captureBlocker, remapSharedScope } from '../services/captureInbox/captureConfig';
 import type { CaptureController } from '../services/captureInbox/captureController';
@@ -26,15 +29,16 @@ import { CaptureJournalStore } from '../services/captureInbox/captureJournalStor
 import { processAgain, retryCapture } from '../services/captureInbox/captureProcessor';
 import { CaptureRuntime } from '../services/captureInbox/captureRuntime';
 import { acceptCapture, createOrganisedNote, processedTarget, setCaptureProcessed, skipCapture, type AcceptEdits, type OrganiseEdits } from '../services/captureInbox/captureWriter';
+import { selectForRun } from '../services/captureInbox/runSelection';
 import { clearHeldMirror, setCaptureActive, setCaptureCorrupt, setHeldMirror } from '../services/captureInbox/heldMirror';
 import { estimateCost, formatEstimate } from '../services/captureInbox/costEstimate';
 import { CaptureInboxStatusBar } from '../ui/components/CaptureInboxStatusBar';
 import { CaptureInboxQueueModal } from '../ui/modals/CaptureInboxQueueModal';
 import { CaptureReviewModal } from '../ui/modals/CaptureReviewModal';
-import { CaptureRunConfirmModal, type RunConfirmResult } from '../ui/modals/CaptureRunConfirmModal';
+import { CaptureRunConfirmModal, type RunConfirmResult, type RunEstimate } from '../ui/modals/CaptureRunConfirmModal';
 import { openCaptureInboxSetup } from '../ui/modals/CaptureInboxSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
-import { runInboxSweep, sweepBlocker } from './inboxSweepCommands';
+import { openInboxSweepSetup, runInboxSweep, sweepBlocker } from './inboxSweepCommands';
 
 const controllers = new WeakMap<Plugin, CaptureController>();
 const corruptStores = new WeakMap<Plugin, CaptureJournalStore>();
@@ -92,29 +96,43 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
         async processNow() {
             const blocker = captureBlocker(plugin.settings, !!plugin.llmService);
             if (blocker) { guidance(plugin, blocker); return; }
-            if (runtime.isRunning()) { new Notice(t.alreadyRunning, 5000); return; }
+            if (runtime.activity() === 'run' || runtime.activity() === 'recover') { new Notice(t.alreadyRunning, 5000); return; }
             if (!deps.isVisible()) { new Notice(t.notVisible, 6000); return; }
+            // A look at the inbox that a file event started is not a run: wait for it instead of refusing.
+            if (runtime.isRunning()) await runtime.whenIdle();
             const scan = await runtime.refresh();
-            if (!scan) { if (runtime.isRunning()) new Notice(t.alreadyRunning, 5000); return; }
+            if (!scan) { new Notice(runtime.isRunning() ? t.alreadyRunning : t.scanFailed, 6000); return; }
+            const config = deps.config();
             const journal = store.get();
-            const open = scan.captures.filter((c) => {
-                const e = getEntry(journal, c.id);
-                return !e || e.state === 'waiting_for_stable' || e.state === 'ready' || (e.state === 'failed' && !!e.retriable);
-            });
-            if (open.length === 0 && scan.olderIgnored === 0) { new Notice(t.nothingToProcess, 6000); return; }
-            const audioBytes = open.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'audio').reduce((m, a) => m + a.size, 0), 0);
-            const images = open.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'image').length, 0);
-            const audioMB = audioBytes / (1024 * 1024);
-            // Audio and images go to the transcription and vision providers, which are not the local text model.
-            const sendsMedia = audioBytes > 0 || images > 0;
-            const provider = isAzureMode(plugin.settings) ? 'azure' : plugin.settings.serviceType === 'local' && !sendsMedia ? 'local' : 'cloud';
-            const answer = await confirmRun(plugin, {
-                captures: open.length,
-                audioMB,
-                images,
-                older: scan.olderIgnored,
-                cost: formatEstimate(estimateCost({ captures: open.length, audioMB, images }), provider),
-            });
+            const settling = queueCounts(journal).settling;
+            // What a run would really send: captures that are settled (or, for the existing notes the box adds, old enough to need no settling), at most one run's worth.
+            const estimateOf = (s: ScanOutcome): RunEstimate => {
+                const { sent, later } = selectForRun(s.captures, (id) => getEntry(journal, id)?.state, config.maxPerRun);
+                const audioBytes = sent.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'audio').reduce((m, a) => m + a.size, 0), 0);
+                const images = sent.reduce((n, c) => n + c.attachments.filter((a) => a.kind === 'image').length, 0);
+                const audioMB = audioBytes / (1024 * 1024);
+                // Audio and images go to the transcription and vision providers, which are not the local text model.
+                const sendsMedia = audioBytes > 0 || images > 0;
+                const provider = isAzureMode(plugin.settings) ? 'azure' : plugin.settings.serviceType === 'local' && !sendsMedia ? 'local' : 'cloud';
+                return { ids: sent.map((c) => c.id), captures: sent.length, later, audioMB, images, cost: formatEstimate(estimateCost({ captures: sent.length, audioMB, images }), provider) };
+            };
+            const base = estimateOf(scan);
+            if (base.captures === 0 && scan.olderIgnored === 0) {
+                if (settling > 0) {
+                    const seconds = Math.min(...Object.values(journal.entries).filter((e) => e.state === 'waiting_for_stable' && !e.needsConfirm).map((e) => settleSeconds(e, Date.now(), config.stabilityMs)));
+                    new Notice(plural(t.nothingReadySettling, settling).replace('{count}', String(settling)).replace('{seconds}', String(Math.max(1, Number.isFinite(seconds) ? seconds : 1))), 8000);
+                } else new Notice(t.nothingToProcess, 6000);
+                return;
+            }
+            // The box on the confirmation changes the answer, so the answer is worked out for both choices before it is shown.
+            let withExisting = base;
+            if (scan.olderIgnored > 0) {
+                const previewed = await runtime.preview(true);
+                // Without it the box would promise a number nobody worked out: stop rather than guess.
+                if (!previewed.ok) { new Notice(t.scanFailed, 6000); return; }
+                withExisting = estimateOf(previewed.value);
+            }
+            const answer = await confirmRun(plugin, { base, withExisting, cap: config.maxPerRun, older: scan.olderIgnored, settling });
             if (!answer.confirmed) return;
             if (plugin.settings.captureConfirmedAt === '') {
                 plugin.settings.captureConfirmedAt = new Date().toISOString();
@@ -122,10 +140,24 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             }
             const working = cancellableNotice(t.working, plugin.t.modals.cancel, () => { runtime.cancel(); new Notice(t.cancelledNotice, 6000); });
             try {
-                const result = await runtime.runOnce({ trigger: 'manual', includeExisting: answer.includeExisting });
+                // The run is limited to the captures the confirmation listed: what it said will be sent is all that is sent.
+                const allowIds = new Set((answer.includeExisting ? withExisting : base).ids);
+                const knownSkips = new Set(Object.keys(store.get().tombstones));
+                const result = await runtime.runOnce({ trigger: 'manual', includeExisting: answer.includeExisting, allowIds });
                 if (!result) { new Notice(t.alreadyRunning, 5000); return; }
                 const s = result.summary;
-                new Notice(t.summaryNotice.replace('{processed}', String(s.processed)).replace('{review}', String(s.awaitingReview)).replace('{failed}', String(s.failed)).replace('{skipped}', String(s.skipped)), 7000);
+                // Captures set aside by the scan itself (too large, unsupported...) are part of "skipped" too.
+                // Only skips this run recorded: kept-out notes are listed again by every scan and are counted in the queue, not here.
+                const skipped = s.skipped + result.scan.skipped.filter((k) => k.reason !== 'excluded' && !knownSkips.has(k.id)).length;
+                const after = queueCounts(store.get());
+                const lines = [
+                    t.summaryNotice.replace('{processed}', String(s.processed)).replace('{review}', String(s.awaitingReview)).replace('{failed}', String(s.failed)).replace('{skipped}', String(skipped)),
+                    // What is left, so a capped run never looks like the end.
+                    after.ready > 0 ? plural(t.runLeftover, after.ready).replace('{count}', String(after.ready)) : '',
+                    after.settling > 0 ? plural(t.runSettling, after.settling).replace('{count}', String(after.settling)) : '',
+                    skipped > 0 ? t.runSkipped : '',
+                ].filter(Boolean);
+                new Notice(lines.join(' '), 9000);
                 if (s.backpressure) new Notice(t.backpressureNote, 7000);
             } finally {
                 working.hide();
@@ -166,7 +198,19 @@ function makeController(plugin: AIOrganiserPlugin, store: CaptureJournalStore, r
             if (!res.ok) guidance(plugin, res.error);
         },
 
-        async retry(id) { await retryCapture(deps, id); },
+        async retry(id) {
+            if (await retryCapture(deps, id)) new Notice(t.retryNotice, 6000);
+        },
+
+        async retrySkipped(id) {
+            await store.mutate((j) => forgetSkip(j, id));
+            await runtime.refresh();
+            new Notice(t.skipRetryNotice, 7000);
+        },
+
+        stabilityMs() { return deps.config().stabilityMs; },
+        sweepFeatureOn() { return isFeatureEnabled(plugin.settings, 'inbox-sweep'); },
+        openSweepSetup() { openInboxSweepSetup(plugin); },
         async processAgain(id) {
             if (!(await confirmText(plugin, t.processAgain, t.processAgainConfirm))) return;
             await processAgain(deps, id);

@@ -61,6 +61,7 @@ export class CaptureReviewModal extends Modal {
         if (entry.state === 'failed') {
             const detail = [entry.errorText, entry.attempts > 0 ? plural('{attempts} attempt[s] made.', entry.attempts, 'attempts') : ''].filter(Boolean).join(' ');
             message.setText(t.failedLine.replace('{stage}', entry.failedStage ?? '').replace('{detail}', detail).trim());
+            if (entry.failedStage) contentEl.createEl('p', { text: t.failedHelp[entry.failedStage] });
             this.button(contentEl, t.rowRetry, () => this.run(() => this.ctl.retry(this.id)));
             this.footer(contentEl);
             return;
@@ -106,6 +107,7 @@ export class CaptureReviewModal extends Modal {
             if (ok) new Notice(t.acceptedNotice, 4000);
         }), true);
         if (accepted) acceptBtn.setDisabled(true);
+        contentEl.createDiv({ cls: 'ai-organiser-capture-reason', text: t.acceptExplain });
 
         // 2. Organise
         // Both later consequences wait for Accept: nothing is written to your note as a side effect of another button.
@@ -115,7 +117,13 @@ export class CaptureReviewModal extends Modal {
         void titleInput;
         this.field(contentEl, t.tagsLabel, 'ai-organiser-capture-tags', this.edits.tags ?? (entry.proposal?.tags ?? []).join(', '), (v) => { this.edits.tags = v; });
         const folders = this.ctl.folderOptions();
-        const currentFolder = this.edits.folder !== undefined ? this.edits.folder : entry.proposal?.folder ?? null;
+        const offered = new Set(folders);
+        // A folder that is no longer offered (kept out or protected since) counts as no folder: the select shows none, and so does the button.
+        const folderNow = (): string | null => {
+            const chosen = this.edits.folder !== undefined ? this.edits.folder : entry.proposal?.folder ?? null;
+            return chosen !== null && offered.has(chosen) ? chosen : null;
+        };
+        const currentFolder = folderNow();
         contentEl.createEl('label', { text: t.folderLabel, attr: { for: 'ai-organiser-capture-folder' } });
         const select = contentEl.createEl('select', { attr: { id: 'ai-organiser-capture-folder' } });
         select.createEl('option', { text: t.noFolder, attr: { value: '' } });
@@ -126,13 +134,26 @@ export class CaptureReviewModal extends Modal {
         }
         this.cleanups.push(listen(select, 'change', () => { this.edits.folder = select.value === '' ? null : select.value; }));
         const createBtn = this.button(contentEl, t.createNote.replace('{folder}', currentFolder ?? '…'), () => this.run(async () => {
-            const path = await this.ctl.organise(this.id, { title: this.edits.title ?? undefined, tags: this.edits.tags === null ? undefined : parseTags(this.edits.tags), folder: this.edits.folder });
+            const path = await this.ctl.organise(this.id, { title: this.edits.title ?? undefined, tags: this.edits.tags === null ? undefined : parseTags(this.edits.tags), folder: folderNow() });
             if (path) new Notice(t.organisedNotice.replace('{path}', path), 5000);
         }));
-        if (entry.state === 'organised') createBtn.setDisabled(true);
-        if (needsAccept) {
-            createBtn.setDisabled(true);
-            contentEl.createDiv({ cls: 'ai-organiser-capture-reason', text: t.needsAcceptFirst });
+        contentEl.createDiv({ cls: 'ai-organiser-capture-reason', text: t.createExplain });
+        const noFolderNote = contentEl.createDiv({ cls: 'ai-organiser-capture-reason', text: t.noFolderToCreate });
+        // Nothing can be created without a folder: say so instead of failing after the click.
+        const syncCreate = (): void => {
+            const folder = folderNow();
+            const blocked = needsAccept || entry.state === 'organised' || !folder;
+            createBtn.setDisabled(blocked);
+            createBtn.setButtonText(t.createNote.replace('{folder}', folder ?? '…'));
+            noFolderNote.toggle(!needsAccept && entry.state !== 'organised' && !folder);
+        };
+        syncCreate();
+        this.cleanups.push(listen(select, 'change', syncCreate));
+        if (needsAccept) contentEl.createDiv({ cls: 'ai-organiser-capture-reason', text: t.needsAcceptFirst });
+        const createdPath = entry.organise?.createdPath;
+        if (entry.state === 'organised' && createdPath) {
+            contentEl.createDiv({ cls: 'ai-organiser-capture-reason', text: t.createdLine.replace('{path}', createdPath) });
+            this.button(contentEl, t.openNewNote, () => this.ctl.openNote(createdPath));
         }
 
         // 3. Tasks (the existing inbox sweep)
@@ -140,6 +161,7 @@ export class CaptureReviewModal extends Modal {
         contentEl.createEl('p', { text: t.sweepExplain });
         if (!this.ctl.sweepAvailable()) {
             contentEl.createEl('p', { text: t.sweepOff, cls: 'ai-organiser-capture-reason' });
+            if (this.ctl.sweepFeatureOn()) this.button(contentEl, t.sweepSetupButton, () => { this.close(); this.ctl.openSweepSetup(); });
         } else {
             const sweepCap = Math.max(this.plugin.settings.sweepMaxChars, 20_000);
             if (`${entry.noteText ?? ''}${entry.text ?? ''}`.length > sweepCap) contentEl.createEl('p', { text: t.sweepLongWarning, cls: 'ai-organiser-capture-warning' });

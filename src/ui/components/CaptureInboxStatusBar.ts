@@ -14,12 +14,14 @@ const COALESCE_MS = 500;
 
 /** The text shown for a queue snapshot, or null when the item should be hidden. Pure. */
 export function statusText(
-    counts: { toReview: number; waiting: number },
-    t: { statusReview: string; statusWaiting: string },
+    counts: { toReview: number; waiting: number; failed?: number },
+    t: { statusReview: string; statusWaiting: string; statusFailed?: string },
 ): string | null {
-    if (counts.toReview === 0 && counts.waiting === 0) return null;
+    const failed = counts.failed ?? 0;
+    if (counts.toReview === 0 && counts.waiting === 0 && failed === 0) return null;
     const parts: string[] = [];
     if (counts.toReview > 0) parts.push(plural(t.statusReview, counts.toReview));
+    if (failed > 0 && t.statusFailed) parts.push(t.statusFailed.replace('{count}', String(failed)));
     if (counts.waiting > 0) parts.push(t.statusWaiting.replace('{count}', String(counts.waiting)));
     return parts.join(' · ');
 }

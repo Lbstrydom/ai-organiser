@@ -4,7 +4,7 @@ vi.stubGlobal('window', globalThis);
 
 import { runJobs, syncEntries, retryCapture, processAgain, type CaptureDeps, type ProcessorPort } from '../src/services/captureInbox/captureProcessor';
 import { scanInbox, type CaptureVaultPort, type ScanOutcome, type VaultFileInfo } from '../src/services/captureInbox/captureScanner';
-import { getEntry, upsertEntry } from '../src/services/captureInbox/captureJournal';
+import { forgetSkip, getEntry, upsertEntry } from '../src/services/captureInbox/captureJournal';
 import { ok, err, type Result } from '../src/core/result';
 import { sha256Hex } from '../src/services/attachmentDuplicateService';
 import { MAX_AWAITING_REVIEW, emptyJournal, type CaptureConfig, type CaptureJournal } from '../src/services/captureInbox/captureTypes';
@@ -424,6 +424,25 @@ describe('final-gate regressions (processor)', () => {
     w.deps.vault.referrersOf = () => ['Private/note.md'];
     await runJobs(w.deps, scan, { cancelled: () => false }, 10);
     expect(w.calls.transcribe).toEqual([]);
+  });
+});
+
+describe('skipped captures are remembered with their reason and can be looked at again', () => {
+  it('an oversized or unsupported file leaves a tombstone that names why, and Try again re-offers it', async () => {
+    const w = world();
+    w.set.config = { ...w.set.config, maxAttachmentBytes: 100 };
+    w.addMedia('Inbox/big.mp3', MP3, 500);
+    await w.go({ passes: 1 });
+    expect(w.journal().tombstones['Inbox/big.mp3']).toMatchObject({ state: 'skipped', reason: 'too-large' });
+    // nothing is offered while it is skipped ...
+    await w.go({ passes: 1 });
+    expect(Object.keys(w.journal().entries)).toEqual([]);
+    // ... until the limit is raised and the user asks again
+    w.set.config = { ...w.set.config, maxAttachmentBytes: 10_000 };
+    w.deps.journal.mutate((j) => forgetSkip(j, 'Inbox/big.mp3'));
+    await w.go({ passes: 1 });
+    expect(w.journal().tombstones['Inbox/big.mp3']).toBeUndefined();
+    expect(w.journal().entries['Inbox/big.mp3']).toBeDefined();
   });
 });
 

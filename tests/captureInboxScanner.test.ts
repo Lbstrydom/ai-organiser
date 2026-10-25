@@ -192,6 +192,14 @@ describe('scanInbox', () => {
     expect(read).toEqual(['Inbox/ok.m4a']);
   });
 
+  it('a note in a protected subfolder of the inbox is skipped on its own; its neighbours are still captured', async () => {
+    const files = [f('Inbox/Shielded/a.md'), f('Inbox/b.md')];
+    const { p } = port(files, { 'Inbox/Shielded/a.md': 'secret words here now', 'Inbox/b.md': 'typed words here now' });
+    const r = await scanOk(p, deps({ policy: { ...policy, protectedFolders: ['Inbox/Shielded'] } }));
+    expect(r.captures.map((c) => c.id)).toEqual(['Inbox/b.md']);
+    expect(r.skipped).toEqual([{ id: 'Inbox/Shielded/a.md', reason: 'excluded' }]);
+  });
+
   it('a failing vault read is a scan error, never a rejection', async () => {
     const { p } = port([f('Inbox/n.md')], {});
     p.listFiles = () => { throw new Error('index is rebuilding'); };

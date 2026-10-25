@@ -121,6 +121,8 @@ export interface CaptureTombstone {
     policyRevision?: string;
     state: 'accepted' | 'organised' | 'skipped' | 'skipped_by_user';
     at: number;
+    /** Why a skipped capture was set aside (shown in the queue so the user knows what to do) */
+    reason?: SkipReason;
 }
 
 export interface CaptureCounters {

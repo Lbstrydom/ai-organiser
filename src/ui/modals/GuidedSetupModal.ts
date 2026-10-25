@@ -34,6 +34,7 @@ export class GuidedSetupModal extends Modal {
     private cleanups: (() => void)[] = [];
     private errorEl: HTMLElement | null = null;
     private busy = false;
+    private closed = false;
 
     constructor(
         app: App,
@@ -63,6 +64,9 @@ export class GuidedSetupModal extends Modal {
         });
 
         const body = contentEl.createDiv({ cls: 'ai-organiser-setup-body' });
+        // A message about the step stays only until the user changes something on it: Next checks again.
+        const clearError = (): void => { this.errorEl?.setText(''); };
+        this.cleanups.push(listen(body, 'input', clearError), listen(body, 'change', clearError), listen(body, 'click', clearError));
         let renderFailed = false;
         try {
             await step.render(body);
@@ -72,6 +76,8 @@ export class GuidedSetupModal extends Modal {
             logger.error('Setup', 'Step failed to render', e);
         }
 
+        // The window may have been closed while a slow step (a preview) was drawing: add nothing to a closed window.
+        if (this.closed) return;
         this.errorEl = contentEl.createDiv({ cls: 'ai-organiser-setup-error', attr: { role: 'alert' } });
         if (renderFailed) this.showError('validation-failed');
 
@@ -127,6 +133,7 @@ export class GuidedSetupModal extends Modal {
     }
 
     onClose(): void {
+        this.closed = true;
         if (!this.flow.isFinished && !this.flow.isFinishing) {
             this.flow.cancel();
             this.opts.onCancel?.();

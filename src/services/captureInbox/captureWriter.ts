@@ -176,7 +176,7 @@ async function acceptNote(deps: WriterDeps, entry: CaptureEntry, content: BlockC
     if (await deps.isSwept(id, current)) return backToReview(deps, id, 'capture-swept');
     const excluded = exclusionReason(id, current, policy) ?? machineTextExclusion(id, content.machineText, policy);
     if (excluded) {
-        await deps.journal.mutate((j) => finish(bumpBucket(j, 'skipped', 'excluded'), id, 'skipped', deps.now()));
+        await deps.journal.mutate((j) => finish(bumpBucket(j, 'skipped', 'excluded'), id, 'skipped', deps.now(), undefined, 'excluded'));
         return err('capture-changed');
     }
     // Predict the insertion now so a crash between the write and the journal update can still strip it.
@@ -219,7 +219,7 @@ async function acceptBareMedia(deps: WriterDeps, entry: CaptureEntry, content: B
     }
     const excluded = machineTextExclusion(id, content.machineText, policy);
     if (excluded) {
-        await deps.journal.mutate((j) => finish(bumpBucket(j, 'skipped', 'excluded'), id, 'skipped', deps.now()));
+        await deps.journal.mutate((j) => finish(bumpBucket(j, 'skipped', 'excluded'), id, 'skipped', deps.now(), undefined, 'excluded'));
         return err('capture-changed');
     }
     // Crash recovery: a companion for this capture may already exist. A file that merely sits at the
