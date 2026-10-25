@@ -96,14 +96,84 @@ describe('Find embeds results layout', () => {
 		expect(names(el)).toEqual(['big recording.m4a', 'other recording.m4a', 'medium.pdf', 'small.png']);
 	});
 
-	it('counts the orphans in the type chips and filters them by type', () => {
+	it('counts the orphans in the type chips and shows only the picked type', () => {
 		const { el } = open(result());
 		const chips = () => Array.from(el.querySelectorAll('.ai-organiser-embed-scan-chip')) as HTMLElement[];
 		const labels = chips().map((c) => c.textContent);
 		expect(labels).toContain('Audio (4)');
 		expect(labels).toContain('Image (1)');
 		chips().find((c) => c.textContent === 'Audio (4)')!.click();
-		expect(names(el)).toEqual(['medium.pdf', 'small.png']);
+		expect(names(el)).toEqual(['big recording.m4a', 'other recording.m4a']);
+	});
+
+	it('starts with no chip picked and everything shown; a picked chip is marked, and picking it again clears the filter', () => {
+		const { el } = open(result());
+		const chips = () => Array.from(el.querySelectorAll('.ai-organiser-embed-scan-chip')) as HTMLElement[];
+		expect(chips().every((c) => c.getAttribute('aria-checked') === 'false' && !c.classList.contains('active'))).toBe(true);
+		expect(names(el)).toHaveLength(4);
+		const audio = () => chips().find((c) => c.textContent === 'Audio (4)')!;
+		audio().click();
+		expect(audio().getAttribute('aria-checked')).toBe('true');
+		expect(audio().classList.contains('active')).toBe(true);
+		expect(names(el)).toHaveLength(2);
+		audio().click();
+		expect(audio().getAttribute('aria-checked')).toBe('false');
+		expect(names(el)).toHaveLength(4);
+	});
+
+	it('picking two chips shows both types (a choice of types, not a hiding switch)', () => {
+		const { el } = open(result());
+		const chips = () => Array.from(el.querySelectorAll('.ai-organiser-embed-scan-chip')) as HTMLElement[];
+		chips().find((c) => c.textContent === 'Audio (4)')!.click();
+		chips().find((c) => c.textContent === 'PDF (1)')!.click();
+		expect(names(el).sort()).toEqual(['big recording.m4a', 'medium.pdf', 'other recording.m4a']);
+	});
+
+	it('the summary and the Showing line describe the same files as the lists', () => {
+		const { el } = open(result());
+		const summary = el.querySelector('.ai-organiser-embed-scan-summary')!.textContent;
+		// 2 in use + 4 not used = 6 files; size is over both lists (30+40 MB in use, 1+120+30+60 MB not used)
+		expect(summary).toBe('10 notes and canvases scanned · 6 files found · 2 in use · 4 not used by any note · 281.0 MB total');
+		expect(el.querySelector('.ai-organiser-embed-scan-status')!.textContent).toContain('Showing 6 of 6');
+	});
+
+	it('Showing N of M follows the filters across the orphan list and the in-use files', () => {
+		const { el } = open(result());
+		const status = () => el.querySelector('.ai-organiser-embed-scan-status')!.textContent;
+		const input = el.querySelector('.ai-organiser-embed-scan-search-input') as HTMLInputElement;
+		input.value = 'recording';
+		input.dispatchEvent(new Event('input'));
+		expect(names(el)).toHaveLength(2);
+		expect(status()).toContain('Showing 2 of 6');
+		input.value = 'used 1';
+		input.dispatchEvent(new Event('input'));
+		expect(names(el)).toHaveLength(0);
+		expect(status()).toContain('Showing 1 of 6');
+		input.value = 'zzz';
+		input.dispatchEvent(new Event('input'));
+		expect(status()).toContain('Showing 0 of 6');
+	});
+
+	it('counts canvases among the scanned notes, and does not count links to missing files as found files', () => {
+		const missing: EmbedTarget = { file: null, path: 'gone.pdf', type: 'pdf', sizeBytes: 0, references: target('x.m4a', 1).references };
+		const { el } = open(result({ notesScanned: 3, canvasesScanned: 2, possiblyOrphaned: [], targets: [target('Rec/a.m4a', 1), missing] }));
+		const summary = el.querySelector('.ai-organiser-embed-scan-summary')!.textContent;
+		expect(summary).toContain('5 notes and canvases scanned');
+		expect(summary).toContain('1 file found');
+		expect(summary).not.toContain('not used');
+		expect(el.querySelector('.ai-organiser-embed-scan-status')!.textContent).toContain('Showing 1 of 1');
+	});
+
+	it('"Used by N" counts notes, not how many times one note links the file', () => {
+		const note = createTFile('Notes/a.md');
+		const f = file('Rec/twice.m4a', 5);
+		const twice: EmbedTarget = {
+			file: f, path: f.path, type: 'audio', sizeBytes: f.stat.size,
+			references: [1, 2].map((n) => ({ sourceFile: note, lineNumber: n, isEmbedded: true, originalText: '![[twice.m4a]]' })),
+		};
+		const { el } = open(result({ possiblyOrphaned: [], targets: [twice] }));
+		expect(el.textContent).toContain('Used by 1 note or canvas');
+		expect(el.textContent).not.toContain('Used by 2');
 	});
 
 	it('searches the orphans by name', () => {

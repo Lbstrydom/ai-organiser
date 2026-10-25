@@ -109,6 +109,10 @@ export function renderKeptPanel(
             }
         }
 
+        for (const note of card.notes) {
+            if (note === 'links-not-removable') el.createDiv({ cls: 'ai-organiser-embed-scan-kept-note', text: es.keptLinksNotRemovable });
+        }
+
         if (card.fileActions.length > 0) {
             const actions = el.createDiv({ cls: 'ai-organiser-embed-scan-kept-actions' });
             for (const action of card.fileActions) {

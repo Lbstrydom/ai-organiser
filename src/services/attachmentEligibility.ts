@@ -24,6 +24,7 @@ import { listAllReferrerFiles } from './referrerSet';
 import {
     buildCandidateIndex,
     collectOccurrences,
+    obsidianTargetsFor,
     type CoverageFailure,
     type StoredOccurrence,
 } from './embedScanService';
@@ -129,6 +130,12 @@ export interface AttachmentVaultPort {
     readText(path: string): Promise<string | null>;
     /** Resolve link text from a referrer to a vault path, or null. */
     resolveLink(linktext: string, sourcePath: string): string | null;
+    /**
+     * What Obsidian's own link index resolved from a referrer (attachments only, notes excluded), with the
+     * 1-based line when it says where. A floor under the text reader: anything listed here is a reference.
+     * Optional: a host without a link index adds nothing.
+     */
+    obsidianTargets?(referrerPath: string): Array<{ target: string; line: number }>;
     /** Vault paths a link text could mean (for ambiguity). */
     candidatesFor(linktext: string): string[];
     identity(path: string): FileIdentity | null;
@@ -240,12 +247,16 @@ async function buildEligibility(
     const ambiguous = new Set<string>();
     const sameName = new Map<string, string[][]>();
     const ambiguityDone = new Set<string>();
+    const seenPairs = new Set<string>();
     for (const occ of occurrences) {
-        const target =
+        const resolveText = (text: string): string | null =>
             occ.kind === 'canvas'
-                ? (port.identity(occ.linktext)?.path ?? port.resolveLink(occ.linktext, occ.referrerPath))
-                : port.resolveLink(occ.linktext, occ.referrerPath);
+                ? (port.identity(text)?.path ?? port.resolveLink(text, occ.referrerPath))
+                : port.resolveLink(text, occ.referrerPath);
+        // The decoded spelling first, then the one as written (a file may literally be named with a "%41").
+        const target = resolveText(occ.linktext) ?? (occ.rawLinktext ? resolveText(occ.rawLinktext) : null);
         if (target) {
+            seenPairs.add(`${occ.referrerPath}\u0000${target}`);
             counts.set(target, (counts.get(target) ?? 0) + 1);
             const list = refsByTarget.get(target) ?? [];
             list.push({
@@ -256,11 +267,14 @@ async function buildEligibility(
             });
             refsByTarget.set(target, list);
         }
-        // Which files a link text could mean depends on the text alone, so work it out once per distinct text.
-        if (occ.kind === 'markdown' && !ambiguityDone.has(occ.linktext)) {
-            ambiguityDone.add(occ.linktext);
-            const candidates = port.candidatesFor(occ.linktext);
-            if (candidates.length > 1) {
+        // Which files a link text could mean depends on the text alone (and on whether it resolved), so work it
+        // out once per distinct text. A link that resolves to nothing but names an existing file keeps that file.
+        const ambiguityKey = `${occ.linktext}\u0000${occ.rawLinktext ?? ''}\u0000${target === null}`;
+        if (occ.kind === 'markdown' && !occ.fromGraph && !ambiguityDone.has(ambiguityKey)) {
+            ambiguityDone.add(ambiguityKey);
+            const named = port.candidatesFor(occ.linktext);
+            const candidates = occ.rawLinktext ? [...new Set([...named, ...port.candidatesFor(occ.rawLinktext)])] : named;
+            if (named.length > 1 || (target === null && candidates.length >= 1)) {
                 // One shared group per distinct link text; each file's "other files" are derived from it on demand.
                 for (const c of candidates) {
                     ambiguous.add(c);
@@ -269,6 +283,18 @@ async function buildEligibility(
                     sameName.set(c, groups);
                 }
             }
+        }
+    }
+
+    // Obsidian's own index is a floor: a file it resolves from any referrer is referenced, whatever the text reader found.
+    for (const info of referrers) {
+        for (const g of port.obsidianTargets?.(info.path) ?? []) {
+            if (seenPairs.has(`${info.path}\u0000${g.target}`)) continue;
+            seenPairs.add(`${info.path}\u0000${g.target}`);
+            counts.set(g.target, (counts.get(g.target) ?? 0) + 1);
+            const list = refsByTarget.get(g.target) ?? [];
+            list.push({ path: info.path, extension: info.extension, lineNumber: g.line, linktext: g.target });
+            refsByTarget.set(g.target, list);
         }
     }
 
@@ -333,6 +359,7 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
             }
         },
         resolveLink: (linktext, sourcePath) => app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null,
+        obsidianTargets: (referrerPath) => obsidianTargetsFor(app, referrerPath).map((g) => ({ target: g.target, line: g.line })),
         candidatesFor,
         identity: (path) => {
             const file = app.vault.getAbstractFileByPath(path);

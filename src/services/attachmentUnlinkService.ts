@@ -61,11 +61,11 @@ export function isLinkRemovalEnabled(settings: Pick<AIOrganiserSettings, 'attach
 }
 
 const WIKI_FULL = /^\[\[([^\]|]+)(?:\|([^\]]*))?\]\]$/;
-const MD_LINK_FULL = /^\[([^\]]+)\]\(([^)]+)\)$/;
 const LIST_MARKER_ONLY = /^[ \t>]*(?:(?:[-*+]|\d{1,9}[.)])[ \t]*(?:\[[ xX]\][ \t]*)?)$/;
 
 /** What replaces one reference: nothing for an embed, its visible text for a link. */
-function replacementFor(originalText: string): string {
+function replacementFor(hit: { originalText: string; label?: string }): string {
+    const originalText = hit.originalText;
     if (originalText.startsWith('![')) return '';
     const wiki = originalText.match(WIKI_FULL);
     if (wiki) {
@@ -73,8 +73,8 @@ function replacementFor(originalText: string): string {
         const target = normalizeEmbedPath(wiki[1]);
         return target.split('/').pop() ?? target;
     }
-    const md = originalText.match(MD_LINK_FULL);
-    if (md) return md[1];
+    // A markdown link: the label the destination reader saw (the destination may hold parentheses or spaces).
+    if (hit.label !== undefined) return hit.label;
     return '';
 }
 
@@ -159,7 +159,11 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         const hits = extractReferenceSpansFromLine(line, i + 1).filter((ref) => {
             if (isExternalUrl(ref.path)) return false;
             const linktext = normalizeEmbedPath(ref.path);
-            return linktext !== '' && resolve(linktext, notePath) === filePath;
+            if (linktext === '') return false;
+            if (resolve(linktext, notePath) === filePath) return true;
+            // The destination as written, when decoding changed it (a file may literally be named with a "%41").
+            const rawText = ref.rawPath === undefined ? '' : normalizeEmbedPath(ref.rawPath);
+            return rawText !== '' && rawText !== linktext && resolve(rawText, notePath) === filePath;
         });
         if (hits.length === 0) continue;
         if (mask[i]) { outsideBody = true; continue; }
@@ -170,7 +174,7 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
         // Rewrite by position (last first), so identical text elsewhere on the line is never touched.
         let edited = line;
         for (const hit of [...live].sort((a, b) => b.start - a.start)) {
-            edited = edited.slice(0, hit.start) + replacementFor(hit.originalText) + edited.slice(hit.end);
+            edited = edited.slice(0, hit.start) + replacementFor(hit) + edited.slice(hit.end);
         }
         // A line the removal emptied (or left as a bare list marker) goes, unless that would orphan the
         // list item's own continuation or children.

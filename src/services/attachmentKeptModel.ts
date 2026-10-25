@@ -41,6 +41,8 @@ export interface KeptCard {
     entries: KeptEntry[];
     /** Actions for the file as a whole (remove the links and delete, scan again) */
     fileActions: KeptAction[];
+    /** Things to say about the file as a whole */
+    notes: Array<'links-not-removable'>;
 }
 
 export interface KeptContext {
@@ -56,13 +58,24 @@ function assertNever(reason: never): never {
     throw new Error(`Unhandled reason: ${String(reason)}`);
 }
 
+export interface DescribeKeptOptions {
+    /**
+     * Whether every link to the file can be removed automatically (a plan exists for each referring note).
+     * False when a link sits in the note properties or a code block, or the index knows a link the text does not
+     * show. Absent means "not checked": the action is offered and the click re-checks.
+     */
+    linksRemovable?: boolean;
+}
+
 export function describeKept(
     file: { path: string; name: string; sizeBytes: number },
     eligibility: Eligibility,
     ctx: KeptContext,
+    opts: DescribeKeptOptions = {},
 ): KeptCard {
     const entries: KeptEntry[] = [];
     const fileActions: KeptAction[] = [];
+    const notes: KeptCard['notes'] = [];
     const blockers = eligibility.blockers;
     const referrers = blockers?.referrers ?? [];
     const addFileAction = (action: KeptAction): void => {
@@ -125,8 +138,11 @@ export function describeKept(
         onlyReferenced &&
         referrers.length > 0 &&
         referrers.every((r) => r.extension === 'md' && !isProtectedPath(ctx.protectedFolders, r.path));
-    if (removable && ctx.linkRemoval === 'on') addFileAction({ kind: 'remove-link-and-delete' });
-    if (removable && ctx.linkRemoval === 'off') addFileAction({ kind: 'enable-link-removal' });
+    // Offer only what can succeed: when a link cannot be edited automatically, say so instead of offering the button.
+    const offerable = removable && opts.linksRemovable !== false;
+    if (removable && opts.linksRemovable === false && ctx.linkRemoval !== 'unavailable') notes.push('links-not-removable');
+    if (offerable && ctx.linkRemoval === 'on') addFileAction({ kind: 'remove-link-and-delete' });
+    if (offerable && ctx.linkRemoval === 'off') addFileAction({ kind: 'enable-link-removal' });
 
-    return { path: file.path, name: file.name, sizeBytes: file.sizeBytes, entries, fileActions };
+    return { path: file.path, name: file.name, sizeBytes: file.sizeBytes, entries, fileActions, notes };
 }

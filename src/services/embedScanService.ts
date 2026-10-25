@@ -49,7 +49,11 @@ export interface StoredOccurrence {
     kind: 'markdown' | 'canvas';
     /** The normalised link text (markdown) or the canvas node's file path */
     linktext: string;
+    /** The destination as written when it was percent-decoded to `linktext`; either spelling may be the real file name */
+    rawLinktext?: string;
     lineNumber: number;
+    /** Known only from Obsidian's own link index (the text reader found nothing); `linktext` is the target's full path */
+    fromGraph?: true;
 }
 
 /** A referrer that could not be read, so its references are unknown. */
@@ -165,26 +169,93 @@ export function normalizeEmbedPath(raw: string): string {
 
 // ─── Regex patterns for reference detection ──────────────────────────────────
 
-/** Matches `![alt](url)` — markdown embed */
-const MARKDOWN_EMBED_RE = /!\[([^\]]*)\]\(([^)]+)\)/g;
 /** Matches `![[file]]` or `![[file|alt]]` — wiki embed */
 const WIKI_EMBED_RE = /!\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
-/** Matches `[text](url)` but NOT preceded by `!` — markdown link */
-const MARKDOWN_LINK_RE = /(?<!!)\[([^\]]+)\]\(([^)]+)\)/g;
 /** Matches `[[file]]` or `[[file|display]]` but NOT preceded by `!` — wiki link */
 const WIKI_LINK_RE = /(?<!!)\[\[([^\]|]+)(?:\|[^\]]*)?\]\]/g;
+/** Where a markdown link or image starts: `[label](` or `![label](`. The destination itself is read by `readMarkdownDestination`. */
+const MARKDOWN_OPEN_RE = /(!?)\[([^\]]*)\]\(/g;
 
 export interface RawReference {
+    /** The link target as Obsidian would resolve it: percent-decoded and without `<...>` for a markdown link, as written for a wikilink */
     path: string;
     lineNumber: number;
     isEmbedded: boolean;
     originalText: string;
+    /** The destination as written, only when decoding changed it */
+    rawPath?: string;
 }
 
 /** A reference together with where it sits in the line (`start` inclusive, `end` exclusive). */
 export interface RawReferenceSpan extends RawReference {
     start: number;
     end: number;
+    /** The visible text of a markdown link (`[label](...)`); absent for wikilinks */
+    label?: string;
+}
+
+/** A markdown destination read from `(`: the text inside `<...>` or the plain run, and where the closing `)` ends. */
+interface ReadDestination {
+    raw: string;
+    end: number;
+}
+
+const isBlank = (c: string | undefined): boolean => c === ' ' || c === '\t';
+
+/**
+ * Read the destination of a markdown link or image starting right after its `(`, the way CommonMark and
+ * Obsidian do: `<...>` may hold spaces and parentheses, a plain destination may hold balanced parentheses
+ * and backslash escapes, and an optional title may follow. Null when the text is not a well-formed link
+ * (the caller then falls back to the old capture, which can only find more references, never fewer).
+ */
+function readMarkdownDestination(line: string, from: number): ReadDestination | null {
+    let i = from;
+    while (isBlank(line[i])) i++;
+    let raw: string;
+    if (line[i] === '<') {
+        const close = line.indexOf('>', i + 1);
+        if (close < 0) return null;
+        raw = line.slice(i + 1, close);
+        i = close + 1;
+    } else {
+        const begin = i;
+        let depth = 0;
+        while (i < line.length) {
+            const c = line[i];
+            if (c === '\\' && i + 1 < line.length) { i += 2; continue; }
+            if (isBlank(c)) break;
+            if (c === '(') depth++;
+            else if (c === ')') { if (depth === 0) break; depth--; }
+            i++;
+        }
+        if (i === begin) return null;
+        // A backslash before punctuation is an escape (`\(` is a literal parenthesis).
+        raw = line.slice(begin, i).replaceAll(/\\([!-/:-@[-`{-~])/g, '$1');
+    }
+    while (isBlank(line[i])) i++;
+    const quote = line[i];
+    if (quote === '"' || quote === "'") {
+        const close = line.indexOf(quote, i + 1);
+        if (close < 0) return null;
+        i = close + 1;
+        while (isBlank(line[i])) i++;
+    } else if (quote === '(') {
+        const close = line.indexOf(')', i + 1);
+        if (close < 0) return null;
+        i = close + 1;
+        while (isBlank(line[i])) i++;
+    }
+    if (line[i] !== ')') return null;
+    return { raw, end: i + 1 };
+}
+
+/** Percent-decode a markdown destination like Obsidian does; text that is not valid percent-encoding stays as written. */
+export function decodeMarkdownDestination(raw: string): string {
+    try {
+        return decodeURIComponent(raw);
+    } catch {
+        return raw;
+    }
 }
 
 /**
@@ -198,13 +269,39 @@ export function extractReferenceSpansFromLine(line: string, lineNumber: number):
         refs.push({ path, lineNumber, isEmbedded, originalText: match[0], start, end: start + match[0].length });
     };
 
-    for (const match of line.matchAll(MARKDOWN_EMBED_RE)) add(match, match[2], true);
-    for (const match of line.matchAll(WIKI_EMBED_RE)) add(match, match[1], true);
-    for (const match of line.matchAll(MARKDOWN_LINK_RE)) {
-        // Exclude if preceded by `!` (already captured as embed)
-        if (match.index !== undefined && match.index > 0 && line[match.index - 1] === '!') continue;
-        add(match, match[2], false);
+    // Markdown links and images: read the destination properly (angle brackets, parentheses, titles, %-encoding).
+    const markdownEmbeds: RawReferenceSpan[] = [];
+    const markdownLinks: RawReferenceSpan[] = [];
+    for (const open of line.matchAll(MARKDOWN_OPEN_RE)) {
+        const start = open.index ?? 0;
+        const isEmbedded = open[1] === '!';
+        const label = open[2];
+        if (!isEmbedded && label === '') continue; // `[](x)` is not a link
+        const afterOpen = start + open[0].length;
+        const read = readMarkdownDestination(line, afterOpen);
+        let rawPath: string;
+        let end: number;
+        if (read) {
+            rawPath = read.raw;
+            end = read.end;
+        } else {
+            // Not well formed: keep what the original capture found, so nothing that was a reference stops being one.
+            const legacy = /^[^)]+\)/.exec(line.slice(afterOpen));
+            if (!legacy) continue;
+            rawPath = legacy[0].slice(0, -1);
+            end = afterOpen + legacy[0].length;
+        }
+        const path = decodeMarkdownDestination(rawPath);
+        const span: RawReferenceSpan = {
+            path, lineNumber, isEmbedded, originalText: line.slice(start, end), start, end, label,
+            ...(path !== rawPath ? { rawPath } : {}),
+        };
+        (isEmbedded ? markdownEmbeds : markdownLinks).push(span);
     }
+
+    refs.push(...markdownEmbeds);
+    for (const match of line.matchAll(WIKI_EMBED_RE)) add(match, match[1], true);
+    refs.push(...markdownLinks);
     for (const match of line.matchAll(WIKI_LINK_RE)) {
         if (match.index !== undefined && match.index > 0 && line[match.index - 1] === '!') continue;
         add(match, match[1], false);
@@ -218,7 +315,7 @@ export function extractReferenceSpansFromLine(line: string, lineNumber: number):
  * Does NOT deduplicate — returns every occurrence.
  */
 export function extractReferencesFromLine(line: string, lineNumber: number): RawReference[] {
-    return extractReferenceSpansFromLine(line, lineNumber).map(({ start: _start, end: _end, ...ref }) => ref);
+    return extractReferenceSpansFromLine(line, lineNumber).map(({ start: _start, end: _end, label: _label, ...ref }) => ref);
 }
 
 /**
@@ -285,6 +382,13 @@ export function parseCanvasTextNodes(text: string): string[] {
     return out;
 }
 
+/** `{ rawLinktext }` when decoding the destination changed the link text, so a file literally named with the raw spelling still resolves. */
+function rawLinktextOf(raw: RawReference, normalized: string): { rawLinktext?: string } {
+    if (raw.rawPath === undefined) return {};
+    const rawNormalized = normalizeEmbedPath(raw.rawPath);
+    return rawNormalized !== '' && rawNormalized !== normalized ? { rawLinktext: rawNormalized } : {};
+}
+
 /** True when the path has a non-markdown extension (a link to a note has none or `.md`). */
 function pointsAtNonMarkdown(normalized: string): boolean {
     const ext = getExtensionFromPath(normalized);
@@ -319,7 +423,7 @@ export function collectOccurrences(
                 if (!normalized || !pointsAtNonMarkdown(normalized)) continue;
                 // A link inside a text node follows Markdown link rules (relative to the canvas), not the
                 // vault-path rule of a file node, so it is recorded as a markdown-style reference.
-                const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, lineNumber: 0 };
+                const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, ...rawLinktextOf(raw, normalized), lineNumber: 0 };
                 occurrences.push(occ);
                 embedded.set(occ, { path: normalized, lineNumber: 0, isEmbedded: raw.isEmbedded, originalText: 'canvas text node' });
             }
@@ -332,7 +436,7 @@ export function collectOccurrences(
             if (isExternalUrl(raw.path)) continue;
             const normalized = normalizeEmbedPath(raw.path);
             if (!normalized || !pointsAtNonMarkdown(normalized)) continue;
-            const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, lineNumber: raw.lineNumber };
+            const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, ...rawLinktextOf(raw, normalized), lineNumber: raw.lineNumber };
             occurrences.push(occ);
             embedded.set(occ, raw);
         }
@@ -362,6 +466,59 @@ export function buildCandidateIndex(paths: Iterable<string>): (linktext: string)
             return pl === lower || pl.endsWith('/' + lower);
         });
     };
+}
+
+// ─── Obsidian's own link index ───────────────────────────────────────────────
+
+/** A file Obsidian's link index says a note or canvas points at. */
+export interface GraphTarget {
+    /** Full vault path of the target */
+    target: string;
+    /** 1-based line of the link in a note when the index says where; 0 otherwise */
+    line: number;
+    embedded: boolean;
+    /** The link as written, when known */
+    original?: string;
+}
+
+interface CachedLink { link: string; original: string; position: { start: { line: number } } }
+
+/**
+ * What Obsidian's metadata cache resolved from one note or canvas: the files it links or embeds (notes
+ * excluded). The cache is the authority on how links are written (percent-encoding, angle brackets,
+ * relative paths, aliases, subpaths), so it is used as a floor next to the text reader. A host without
+ * `resolvedLinks` or `getFileCache` simply yields nothing for the missing part.
+ */
+export function obsidianTargetsFor(app: App, referrerPath: string): GraphTarget[] {
+    const cache = app.metadataCache as unknown as {
+        resolvedLinks?: Record<string, Record<string, number>>;
+        getFileCache?: (file: TFile) => { links?: CachedLink[]; embeds?: CachedLink[] } | null;
+    };
+    const resolved = cache.resolvedLinks?.[referrerPath];
+    if (!resolved) return [];
+    const file = app.vault.getAbstractFileByPath(referrerPath);
+    let entries: Array<{ link: CachedLink; embedded: boolean }> = [];
+    try {
+        const fc = file instanceof TFile ? cache.getFileCache?.(file) ?? null : null;
+        entries = [
+            ...(fc?.embeds ?? []).map((link) => ({ link, embedded: true })),
+            ...(fc?.links ?? []).map((link) => ({ link, embedded: false })),
+        ];
+    } catch {
+        entries = [];
+    }
+    const out: GraphTarget[] = [];
+    for (const [target, count] of Object.entries(resolved)) {
+        if (!(count > 0) || target.toLowerCase().endsWith('.md')) continue;
+        let hit: { link: CachedLink; embedded: boolean } | undefined;
+        try {
+            hit = entries.find(({ link }) => app.metadataCache.getFirstLinkpathDest(normalizeEmbedPath(link.link), referrerPath)?.path === target);
+        } catch {
+            hit = undefined;
+        }
+        out.push({ target, line: hit ? hit.link.position.start.line + 1 : 0, embedded: hit?.embedded ?? false, original: hit?.link.original });
+    }
+    return out;
 }
 
 // ─── Core scanning logic ─────────────────────────────────────────────────────
@@ -420,14 +577,16 @@ export async function scanNotes(
             const raw = collected.embedded.get(occ)!;
             const normalized = occ.linktext;
 
-            // Resolve to a vault file. A canvas node holds a vault-relative path.
-            let resolved: TFile | null;
-            if (occ.kind === 'canvas') {
-                const direct = app.vault.getAbstractFileByPath(normalized);
-                resolved = direct instanceof TFile ? direct : app.metadataCache.getFirstLinkpathDest(normalized, sourceFile.path);
-            } else {
-                resolved = app.metadataCache.getFirstLinkpathDest(normalized, sourceFile.path);
-            }
+            // Resolve to a vault file. A canvas node holds a vault-relative path. A decoded markdown destination
+            // is tried first, then the spelling as written (a file may literally be named with a "%41").
+            const resolveText = (text: string): TFile | null => {
+                if (occ.kind === 'canvas') {
+                    const direct = app.vault.getAbstractFileByPath(text);
+                    return direct instanceof TFile ? direct : app.metadataCache.getFirstLinkpathDest(text, sourceFile.path);
+                }
+                return app.metadataCache.getFirstLinkpathDest(text, sourceFile.path);
+            };
+            const resolved: TFile | null = resolveText(normalized) ?? (occ.rawLinktext ? resolveText(occ.rawLinktext) : null);
 
             // Skip markdown files — we only care about binary/embed assets
             if (resolved && resolved.extension === 'md') continue;
@@ -436,8 +595,11 @@ export async function scanNotes(
             occurrences.push(occ);
 
             const candidates = candidatesFor(normalized);
-            const isAmbiguous = occ.kind === 'markdown' && candidates.length > 1;
-            if (isAmbiguous) for (const c of candidates) ambiguous.add(c);
+            // A link that resolves to nothing but names an existing file is not proof that file is unused:
+            // keep every file it could have meant (fails closed when the reader and Obsidian disagree).
+            const named = occ.rawLinktext ? [...new Set([...candidates, ...candidatesFor(occ.rawLinktext)])] : candidates;
+            const isAmbiguous = occ.kind === 'markdown' && (candidates.length > 1 || (resolved === null && named.length >= 1));
+            if (isAmbiguous) for (const c of named) ambiguous.add(c);
 
             const mapKey = resolved ? resolved.path : normalized.toLowerCase();
 
@@ -463,6 +625,25 @@ export async function scanNotes(
                 originalText: occ.kind === 'canvas' ? `canvas node ${raw.originalText}` : raw.originalText,
                 kind: occ.kind,
                 nodeId: occ.kind === 'canvas' ? raw.originalText : undefined,
+            });
+        }
+
+        // Obsidian's own link index is a floor: whatever it resolves to a file counts as a reference, even when the
+        // text reader above did not see it. Only pairs the text reader missed are added.
+        for (const g of obsidianTargetsFor(app, sourceFile.path)) {
+            const file = app.vault.getAbstractFileByPath(g.target);
+            if (!(file instanceof TFile) || file.extension === 'md') continue;
+            let target = targetMap.get(file.path);
+            if (target?.references.some((r) => r.sourceFile.path === sourceFile.path)) continue;
+            const kind = isCanvas ? 'canvas' : 'markdown';
+            occurrences.push({ referrerPath: sourceFile.path, kind, linktext: file.path, lineNumber: g.line, fromGraph: true });
+            if (!target) {
+                target = { file, path: file.path, type: classifyExtension(`.${file.extension}`), sizeBytes: file.stat?.size ?? 0, references: [] };
+                targetMap.set(file.path, target);
+            }
+            target.references.push({
+                sourceFile, lineNumber: g.line, isEmbedded: g.embedded,
+                originalText: g.original ?? file.path, kind,
             });
         }
 

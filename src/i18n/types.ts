@@ -3702,6 +3702,7 @@ export interface Translations {
         scannedNotes: string;
         totalFiles: string;
         summaryUnused: string;
+        summaryInUse: string;
         totalSize: string;
         showingResults: string;
         noResults: string;
@@ -3786,6 +3787,7 @@ export interface Translations {
         keptReasonsTitle: string;
         keptPanelLabel: string;
         keptIntro: string;
+        keptLinksNotRemovable: string;
         keptUsedIn: string;
         keptUsedInCanvas: string;
         keptUsedInUnknown: string;
