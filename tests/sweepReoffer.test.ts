@@ -76,6 +76,14 @@ describe('titles without letters or digits', () => {
 		expect(legacyTaskKeys('📞')).toEqual(['|📞']);
 	});
 
+	it('never contain the key separator, so a key always splits where it was joined', () => {
+		expect(normaliseItemText('📞|🚗')).toBe('📞 🚗');
+		const keys = itemKeys({ text: '📞|🚗', evidence: '🚗|📞' });
+		expect(keys).toEqual(['🚗 📞|📞 🚗']);
+		expect(isReportedItem(new Set(keys), keys)).toBe(true);
+		expect(isReportedItem(new Set(keys), itemKeys({ text: '📞', evidence: '🚗 📞' }))).toBe(false);
+	});
+
 	it('a second symbol-only task from the same note is blocked at the commit, keys or not', () => {
 		const rec = record([{ n: 1, text: '📞' }]);
 		const out = dropAlreadyReported([{ sourcePath: 'Inbox/a.md', text: '📞' }], {}, [rec]);

@@ -56,7 +56,8 @@ export function normaliseItemText(text: string): string {
     const written = text.slice(0, MAX_KEY_CHARS).normalize('NFKC').toLowerCase();
     const words = written.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
     // A title with no letters or digits (an emoji, a symbol) still has an identity: the symbols themselves.
-    return words !== '' ? words : written.replace(/\s+/g, ' ').trim();
+    // (Never the key separator: a key is `<quote>|<wording>` and is split at its first `|`.)
+    return words !== '' ? words : written.replace(/[\s|]+/g, ' ').trim();
 }
 
 /**
