@@ -55,6 +55,8 @@ describe('InboxSweepReviewModal with items already reported', () => {
 		expect(rows[0].textContent).toContain(en.inboxSweep.alreadyAdded);
 		expect(rows[1].textContent).not.toContain(en.inboxSweep.alreadyAdded);
 		expect((rows[0].querySelector('input[type="text"]') as HTMLInputElement).disabled).toBe(true);
+		expect((rows[0].querySelector('select') as HTMLSelectElement).disabled).toBe(true);
+		expect((rows[1].querySelector('select') as HTMLSelectElement).disabled).toBe(false);
 	});
 
 	it('an item that only looks like one already added is shown with a note but can still be added', () => {

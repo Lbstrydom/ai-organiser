@@ -169,10 +169,10 @@ export function dropAlreadyReported<T extends { sourcePath: string; text: string
             known = reportedKeysFor(task.sourcePath, stored, records);
             knownByPath.set(task.sourcePath, known);
         }
-        const repeat = isReportedItem(known, keys);
-        // Every wording seen in this batch counts for the rest of it, kept or not.
+        if (isReportedItem(known, keys)) continue;
+        // Only what will be reported counts for the rest of the batch: a dropped task adds nothing to the state.
         for (const key of keys) known.add(key);
-        if (!repeat) kept.push(task);
+        kept.push(task);
     }
     return { kept, dropped: tasks.length - kept.length };
 }

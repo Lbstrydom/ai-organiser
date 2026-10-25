@@ -90,6 +90,7 @@ export class InboxSweepReviewModal extends Modal {
             this.cleanups.push(listen(text, 'input', () => { row.text = text.value; this.renderFooter(); }));
             if (row.item.kind === 'next_action') {
                 const ctx = line.createEl('select', { attr: { 'aria-label': t.itemContext } });
+                ctx.disabled = row.reported;
                 for (const c of ['', ...(VALID_GTD_CONTEXTS as readonly string[])]) {
                     const o = ctx.createEl('option', { text: c || t.noContext, value: c });
                     if (c === row.context) o.selected = true;

@@ -160,6 +160,15 @@ describe('reportedKeysFor / recordReportedItems / dropAlreadyReported', () => {
 		expect(dropped).toBe(2);
 	});
 
+	it('a dropped task adds nothing to the batch: its other wording does not block a later, different task', () => {
+		const tasks = [
+			{ sourcePath: 'Inbox/a.md', text: 'Known', keys: ['q|known', 'q|renamed by the user'], n: 1 }, // dropped: exact match on the first key
+			{ sourcePath: 'Inbox/a.md', text: 'Renamed by the user', keys: ['other quote|renamed by the user'], n: 2 },
+		];
+		const { kept } = dropAlreadyReported(tasks, { 'Inbox/a.md': ['q|known'] }, []);
+		expect(kept.map((t) => t.n)).toEqual([2]);
+	});
+
 	it('distinct commitments from one quoted sentence are all kept, in the batch and against what is known', () => {
 		const q = 'call dana and book the venue';
 		const tasks = [
@@ -352,6 +361,19 @@ describe('commitReview with item identity', () => {
 		};
 		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
 		expect(h.settings.sweepReportedItems).toEqual({ 'Archive/a.md': ['q|renamed'] });
+	});
+
+	it('a failed ledger save does not overwrite a ledger a rename remapped meanwhile', async () => {
+		const h = makePlugin();
+		let calls = 0;
+		const original = (h.plugin as unknown as { saveSettings: () => Promise<void> }).saveSettings;
+		(h.plugin as unknown as { saveSettings: () => Promise<void> }).saveSettings = async () => {
+			calls++;
+			if (calls === 3) { h.settings.sweepLedger = { 'Archive/a.md': { sha256: 'x', sweptAt: 't', runId: 'r' } }; throw new Error('disk full'); }
+			await original();
+		};
+		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [{ sourcePath: 'Inbox/a.md', sourceHash: 'h', markSwept: true }] });
+		expect(Object.keys(h.settings.sweepLedger)).toEqual(['Archive/a.md']);
 	});
 
 	it('restores the ledger AND the keys when the ledger step cannot be saved', async () => {
