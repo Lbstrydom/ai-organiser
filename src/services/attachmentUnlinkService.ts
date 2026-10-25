@@ -160,10 +160,12 @@ export function planLinkRemoval(text: string, filePath: string, notePath: string
             if (isExternalUrl(ref.path)) return false;
             const linktext = normalizeEmbedPath(ref.path);
             if (linktext === '') return false;
-            if (resolve(linktext, notePath) === filePath) return true;
-            // The destination as written, when decoding changed it (a file may literally be named with a "%41").
+            // The decoded spelling first; the one as written only when the decoded one names nothing (a file may
+            // literally be named with a "%41"). The same rule the scan and the re-check use, so a link that
+            // resolves to another file is never treated as a link to this one.
             const rawText = ref.rawPath === undefined ? '' : normalizeEmbedPath(ref.rawPath);
-            return rawText !== '' && rawText !== linktext && resolve(rawText, notePath) === filePath;
+            const hit = resolve(linktext, notePath) ?? (rawText !== '' && rawText !== linktext ? resolve(rawText, notePath) : null);
+            return hit === filePath;
         });
         if (hits.length === 0) continue;
         if (mask[i]) { outsideBody = true; continue; }

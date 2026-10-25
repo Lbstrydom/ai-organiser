@@ -135,7 +135,7 @@ export interface AttachmentVaultPort {
      * 1-based line when it says where. A floor under the text reader: anything listed here is a reference.
      * Optional: a host without a link index adds nothing.
      */
-    obsidianTargets?(referrerPath: string): Array<{ target: string; line: number }>;
+    obsidianTargets?(referrerPath: string, skip?: (target: string) => boolean): Array<{ target: string; line: number }>;
     /** Vault paths a link text could mean (for ambiguity). */
     candidatesFor(linktext: string): string[];
     identity(path: string): FileIdentity | null;
@@ -272,9 +272,9 @@ async function buildEligibility(
         const ambiguityKey = `${occ.linktext}\u0000${occ.rawLinktext ?? ''}\u0000${target === null}`;
         if (occ.kind === 'markdown' && !occ.fromGraph && !ambiguityDone.has(ambiguityKey)) {
             ambiguityDone.add(ambiguityKey);
-            const named = port.candidatesFor(occ.linktext);
-            const candidates = occ.rawLinktext ? [...new Set([...named, ...port.candidatesFor(occ.rawLinktext)])] : named;
-            if (named.length > 1 || (target === null && candidates.length >= 1)) {
+            const decodedNamed = port.candidatesFor(occ.linktext);
+            const candidates = occ.rawLinktext ? [...new Set([...decodedNamed, ...port.candidatesFor(occ.rawLinktext)])] : decodedNamed;
+            if (candidates.length > 1 || (target === null && candidates.length >= 1)) {
                 // One shared group per distinct link text; each file's "other files" are derived from it on demand.
                 for (const c of candidates) {
                     ambiguous.add(c);
@@ -288,7 +288,7 @@ async function buildEligibility(
 
     // Obsidian's own index is a floor: a file it resolves from any referrer is referenced, whatever the text reader found.
     for (const info of referrers) {
-        for (const g of port.obsidianTargets?.(info.path) ?? []) {
+        for (const g of port.obsidianTargets?.(info.path, (target) => seenPairs.has(`${info.path}\u0000${target}`)) ?? []) {
             if (seenPairs.has(`${info.path}\u0000${g.target}`)) continue;
             seenPairs.add(`${info.path}\u0000${g.target}`);
             counts.set(g.target, (counts.get(g.target) ?? 0) + 1);
@@ -359,7 +359,7 @@ export function createAppVaultPort(app: App): AttachmentVaultPort {
             }
         },
         resolveLink: (linktext, sourcePath) => app.metadataCache.getFirstLinkpathDest(linktext, sourcePath)?.path ?? null,
-        obsidianTargets: (referrerPath) => obsidianTargetsFor(app, referrerPath).map((g) => ({ target: g.target, line: g.line })),
+        obsidianTargets: (referrerPath, skip) => obsidianTargetsFor(app, referrerPath, skip).map((g) => ({ target: g.target, line: g.line })),
         candidatesFor,
         identity: (path) => {
             const file = app.vault.getAbstractFileByPath(path);

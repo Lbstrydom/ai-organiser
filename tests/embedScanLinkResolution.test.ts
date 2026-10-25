@@ -10,6 +10,7 @@ import {
 	extractReferenceSpansFromLine,
 	collectOccurrences,
 	scanNotes,
+	obsidianTargetsFor,
 } from '../src/services/embedScanService';
 import { revalidate, EMPTY_CHANGES, createAppVaultPort, type AttachmentVaultPort } from '../src/services/attachmentEligibility';
 import { planLinkRemoval } from '../src/services/attachmentUnlinkService';
@@ -259,6 +260,80 @@ describe('the delete-time re-check sees the same links', () => {
 		const port = createAppVaultPort(v.app as never);
 		expect(port.obsidianTargets?.('n.md')).toEqual([{ target: 'Attachments/my file.pdf', line: 3 }]);
 		expect(port.obsidianTargets?.('missing.md')).toEqual([]);
+	});
+});
+
+describe('audit follow-ups: ambiguity over both spellings, removal matching, nested text, encoded delimiters', () => {
+	it('two files named with the raw spelling make a link ambiguous in the scan (union of both spellings)', async () => {
+		const v = makeFakeApp({ 'One/%41.pdf': { size: 5 }, 'Two/%41.pdf': { size: 6 }, 'n.md': '[report](%41.pdf)' });
+		const r = await scanNotes(v.app as never, [v.files.get('n.md')!] as never, { includeOrphans: true });
+		expect(r.ambiguousPaths?.sort()).toEqual(['One/%41.pdf', 'Two/%41.pdf']);
+	});
+
+	it('and in the delete re-check', async () => {
+		const port: AttachmentVaultPort = {
+			isResolved: () => true, waitResolved: async () => true,
+			listReferrers: () => [{ path: 'n.md', extension: 'md', mtime: 5000 }],
+			readText: async () => '[report](%41.pdf)',
+			resolveLink: (l) => (l === '%41.pdf' ? 'One/%41.pdf' : null),
+			candidatesFor: (l) => (l === '%41.pdf' ? ['One/%41.pdf', 'Two/%41.pdf'] : []),
+			identity: (p) => ({ path: p, size: 10, mtime: 1 }),
+		};
+		const res = await revalidate(port, { files: [{ path: 'Two/%41.pdf', size: 10, mtime: 1 }], scanStartedAt: 1000, occurrences: [], changes: EMPTY_CHANGES, protectedFolders: [] });
+		expect(res.ok && res.value.get('Two/%41.pdf')!.reasons).toContain('ambiguous-reference');
+	});
+
+	it('removal never takes a link that resolves to another file for a link to this one', () => {
+		const text = '![x](a%41.png)\n';
+		// the decoded spelling "aA.png" resolves to Files/aA.png; the raw one would name Files/a%41.png
+		const resolve = (l: string) => (l === 'aA.png' ? 'Files/aA.png' : l === 'a%41.png' ? 'Files/a%41.png' : null);
+		expect(planLinkRemoval(text, 'Files/a%41.png', 'n.md', resolve).status).toBe('nothing');
+		expect(planLinkRemoval(text, 'Files/aA.png', 'n.md', resolve).status).toBe('ok');
+	});
+
+	it('removal still falls back to the raw spelling when the decoded one names nothing', () => {
+		const text = '![x](a%41.png)\n';
+		const resolve = (l: string) => (l === 'a%41.png' ? 'Files/a%41.png' : null);
+		expect(planLinkRemoval(text, 'Files/a%41.png', 'n.md', resolve).status).toBe('ok');
+	});
+
+	it('a link-looking text inside an angle-bracket destination is part of that destination', () => {
+		const refs = extractReferencesFromLine('![a](<x [y](z.png) w.png>)', 1);
+		expect(refs.map((r) => r.path)).toEqual(['x [y](z.png) w.png']);
+	});
+
+	it('an image inside a link label is still found as before', () => {
+		const paths2 = extractReferencesFromLine('[![alt](a.png)](b.pdf)', 1).map((r) => r.path);
+		expect(paths2).toContain('a.png');
+	});
+
+	it('a percent-encoded # or ? in a file name keeps the occurrence (the name as written is the text)', () => {
+		const { occurrences } = collectOccurrences('n.md', 'md', '[x](a%23b.pdf) ![y](c%3Fd.png)');
+		expect(occurrences.map((o) => o.linktext).sort()).toEqual(['a%23b.pdf', 'c%3Fd.png']);
+	});
+
+	it('and a file literally named that way is counted as referenced', async () => {
+		const v = makeFakeApp({ 'Attachments/a%23b.pdf': { size: 5 }, 'n.md': '[x](a%23b.pdf)' });
+		const r = await scanNotes(v.app as never, [v.files.get('n.md')!] as never, { includeOrphans: true });
+		expect(r.possiblyOrphaned).toEqual([]);
+		expect(r.targets).toHaveLength(1);
+	});
+
+	it('the graph lookup resolves each cached link once, and skips targets the text reader already found', () => {
+		const calls: string[] = [];
+		const v = makeFakeApp(
+			{ 'Files/a.pdf': { size: 1 }, 'Files/b.pdf': { size: 1 }, 'n.md': 'x' },
+			{ resolvedLinks: { 'n.md': { 'Files/a.pdf': 1, 'Files/b.pdf': 1, 'other.md': 1 } }, fileCache: { 'n.md': { links: Array.from({ length: 50 }, (_, i) => ({ link: i === 49 ? 'Files/b.pdf' : `Files/a.pdf`, original: '[[x]]', position: { start: { line: i } } })) } } },
+		);
+		const base = v.app.metadataCache.getFirstLinkpathDest;
+		v.app.metadataCache.getFirstLinkpathDest = ((l: string, s: string) => { calls.push(l); return base(l, s); }) as never;
+		const all = obsidianTargetsFor(v.app as never, 'n.md');
+		expect(all.map((g) => g.target).sort()).toEqual(['Files/a.pdf', 'Files/b.pdf']);
+		expect(all.find((g) => g.target === 'Files/a.pdf')!.line).toBe(1);
+		expect(all.find((g) => g.target === 'Files/b.pdf')!.line).toBe(50);
+		expect(calls.length).toBeLessThanOrEqual(50); // not 50 x targets
+		calls.length = 0;
+		expect(obsidianTargetsFor(v.app as never, 'n.md', (t) => t === 'Files/a.pdf').map((g) => g.target)).toEqual(['Files/b.pdf']);
 	});
 });
 

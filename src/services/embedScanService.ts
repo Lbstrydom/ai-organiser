@@ -272,8 +272,11 @@ export function extractReferenceSpansFromLine(line: string, lineNumber: number):
     // Markdown links and images: read the destination properly (angle brackets, parentheses, titles, %-encoding).
     const markdownEmbeds: RawReferenceSpan[] = [];
     const markdownLinks: RawReferenceSpan[] = [];
+    // Destinations already read: text inside one (an angle-bracket path that happens to contain `[x](y)`) is not a link.
+    const readDestinations: Array<[number, number]> = [];
     for (const open of line.matchAll(MARKDOWN_OPEN_RE)) {
         const start = open.index ?? 0;
+        if (readDestinations.some(([from, to]) => start >= from && start < to)) continue;
         const isEmbedded = open[1] === '!';
         const label = open[2];
         if (!isEmbedded && label === '') continue; // `[](x)` is not a link
@@ -284,6 +287,7 @@ export function extractReferenceSpansFromLine(line: string, lineNumber: number):
         if (read) {
             rawPath = read.raw;
             end = read.end;
+            readDestinations.push([afterOpen, end]);
         } else {
             // Not well formed: keep what the original capture found, so nothing that was a reference stops being one.
             const legacy = /^[^)]+\)/.exec(line.slice(afterOpen));
@@ -435,8 +439,14 @@ export function collectOccurrences(
         for (const raw of extractReferencesFromLine(lines[i], i + 1)) {
             if (isExternalUrl(raw.path)) continue;
             const normalized = normalizeEmbedPath(raw.path);
-            if (!normalized || !pointsAtNonMarkdown(normalized)) continue;
-            const occ: StoredOccurrence = { referrerPath, kind: 'markdown', linktext: normalized, ...rawLinktextOf(raw, normalized), lineNumber: raw.lineNumber };
+            const alt = rawLinktextOf(raw, normalized);
+            // A decoded "%23" or "%3F" turns into "#" or "?", which would cut the name short: then the spelling as written is the text.
+            const decodedPoints = normalized !== '' && pointsAtNonMarkdown(normalized);
+            const rawPoints = alt.rawLinktext !== undefined && pointsAtNonMarkdown(alt.rawLinktext);
+            if (!decodedPoints && !rawPoints) continue;
+            const occ: StoredOccurrence = decodedPoints
+                ? { referrerPath, kind: 'markdown', linktext: normalized, ...alt, lineNumber: raw.lineNumber }
+                : { referrerPath, kind: 'markdown', linktext: alt.rawLinktext!, lineNumber: raw.lineNumber };
             occurrences.push(occ);
             embedded.set(occ, raw);
         }
@@ -489,36 +499,37 @@ interface CachedLink { link: string; original: string; position: { start: { line
  * relative paths, aliases, subpaths), so it is used as a floor next to the text reader. A host without
  * `resolvedLinks` or `getFileCache` simply yields nothing for the missing part.
  */
-export function obsidianTargetsFor(app: App, referrerPath: string): GraphTarget[] {
+export function obsidianTargetsFor(app: App, referrerPath: string, skip?: (target: string) => boolean): GraphTarget[] {
     const cache = app.metadataCache as unknown as {
         resolvedLinks?: Record<string, Record<string, number>>;
         getFileCache?: (file: TFile) => { links?: CachedLink[]; embeds?: CachedLink[] } | null;
     };
     const resolved = cache.resolvedLinks?.[referrerPath];
     if (!resolved) return [];
-    const file = app.vault.getAbstractFileByPath(referrerPath);
-    let entries: Array<{ link: CachedLink; embedded: boolean }> = [];
+    const wanted = Object.entries(resolved).filter(([target, count]) => count > 0 && !target.toLowerCase().endsWith('.md') && !skip?.(target));
+    if (wanted.length === 0) return [];
+    // Where each target is linked: resolve every cached link once (not once per target), first occurrence wins.
+    const where = new Map<string, { link: CachedLink; embedded: boolean }>();
     try {
+        const file = app.vault.getAbstractFileByPath(referrerPath);
         const fc = file instanceof TFile ? cache.getFileCache?.(file) ?? null : null;
-        entries = [
+        const entries = [
             ...(fc?.embeds ?? []).map((link) => ({ link, embedded: true })),
             ...(fc?.links ?? []).map((link) => ({ link, embedded: false })),
         ];
-    } catch {
-        entries = [];
-    }
-    const out: GraphTarget[] = [];
-    for (const [target, count] of Object.entries(resolved)) {
-        if (!(count > 0) || target.toLowerCase().endsWith('.md')) continue;
-        let hit: { link: CachedLink; embedded: boolean } | undefined;
-        try {
-            hit = entries.find(({ link }) => app.metadataCache.getFirstLinkpathDest(normalizeEmbedPath(link.link), referrerPath)?.path === target);
-        } catch {
-            hit = undefined;
+        const needed = new Set(wanted.map(([target]) => target));
+        for (const entry of entries) {
+            if (where.size >= needed.size) break;
+            const dest = app.metadataCache.getFirstLinkpathDest(normalizeEmbedPath(entry.link.link), referrerPath)?.path;
+            if (dest !== undefined && needed.has(dest) && !where.has(dest)) where.set(dest, entry);
         }
-        out.push({ target, line: hit ? hit.link.position.start.line + 1 : 0, embedded: hit?.embedded ?? false, original: hit?.link.original });
+    } catch {
+        // the cache could not say where: the targets still count, with no line
     }
-    return out;
+    return wanted.map(([target]) => {
+        const hit = where.get(target);
+        return { target, line: hit ? hit.link.position.start.line + 1 : 0, embedded: hit?.embedded ?? false, original: hit?.link.original };
+    });
 }
 
 // ─── Core scanning logic ─────────────────────────────────────────────────────
@@ -598,7 +609,7 @@ export async function scanNotes(
             // A link that resolves to nothing but names an existing file is not proof that file is unused:
             // keep every file it could have meant (fails closed when the reader and Obsidian disagree).
             const named = occ.rawLinktext ? [...new Set([...candidates, ...candidatesFor(occ.rawLinktext)])] : candidates;
-            const isAmbiguous = occ.kind === 'markdown' && (candidates.length > 1 || (resolved === null && named.length >= 1));
+            const isAmbiguous = occ.kind === 'markdown' && (named.length > 1 || (resolved === null && named.length >= 1));
             if (isAmbiguous) for (const c of named) ambiguous.add(c);
 
             const mapKey = resolved ? resolved.path : normalized.toLowerCase();
@@ -630,7 +641,8 @@ export async function scanNotes(
 
         // Obsidian's own link index is a floor: whatever it resolves to a file counts as a reference, even when the
         // text reader above did not see it. Only pairs the text reader missed are added.
-        for (const g of obsidianTargetsFor(app, sourceFile.path)) {
+        const alreadyFound = (target: string): boolean => targetMap.get(target)?.references.some((r) => r.sourceFile.path === sourceFile.path) === true;
+        for (const g of obsidianTargetsFor(app, sourceFile.path, alreadyFound)) {
             const file = app.vault.getAbstractFileByPath(g.target);
             if (!(file instanceof TFile) || file.extension === 'md') continue;
             let target = targetMap.get(file.path);
