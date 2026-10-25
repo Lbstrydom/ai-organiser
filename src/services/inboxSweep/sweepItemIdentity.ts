@@ -85,12 +85,17 @@ function overlap(a: string, b: string): number {
 /** Same quoted line and at least this much shared wording: probably the model's rewording of an item already added. */
 const SAME_QUOTE_MIN_OVERLAP = 0.5;
 
+/** The same task reworded in the note (so its quoted line differs) is still probably the same item: wording that close is flagged too. */
+const REWORDED_MIN_OVERLAP = 0.75;
+const REWORDED_MIN_WORDS = 3;
+
 /**
  * How does a proposed item relate to what was reported from its note?
  *  - `exact`: the same wording. It is the same item, and it is never added twice.
  *  - `similar`: the same quoted line with similar but different wording. Probably the model's rewording,
  *    possibly a second commitment in one sentence ("Send the invoice to Alice and to Bob"), so the user
  *    is told and decides.
+ *    The same close wording under a different quoted line (the user reworded the line in the note) is `similar` too.
  *  - null: not seen before.
  */
 export function reportedMatch(known: ReadonlySet<string>, keys: readonly string[]): 'exact' | 'similar' | null {
@@ -102,6 +107,7 @@ export function reportedMatch(known: ReadonlySet<string>, keys: readonly string[
         for (const [knownQuote, knownWording] of pairs) {
             if (wording !== '' && knownWording === wording) return 'exact';
             if (quote !== '' && knownQuote === quote && overlap(wording, knownWording) >= SAME_QUOTE_MIN_OVERLAP) similar = true;
+            else if (wording.split(' ').length >= REWORDED_MIN_WORDS && knownWording.split(' ').length >= REWORDED_MIN_WORDS && overlap(wording, knownWording) >= REWORDED_MIN_OVERLAP) similar = true;
         }
     }
     return similar ? 'similar' : null;

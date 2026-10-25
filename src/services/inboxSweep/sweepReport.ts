@@ -124,14 +124,34 @@ export function findSection(text: string, runId: string): SectionState {
     return { state: 'ok', ids, start: starts[0], end: end + endMarker.length };
 }
 
+const SWEEP_HEADING = /^## Sweep (\d{4}-\d{2}-\d{2})(?: \((\d+)\))?\s*$/;
+
+/** A second section on the same day would repeat the heading "Sweep <date>": number it, so the report's headings stay distinct. */
+function numberRepeatedHeading(text: string, section: string): string {
+    const lines = section.split('\n');
+    const at = lines.findIndex((l) => SWEEP_HEADING.test(l));
+    if (at === -1) return section;
+    const day = SWEEP_HEADING.exec(lines[at])?.[1];
+    // The next free number: one past the highest already used that day (an unnumbered heading counts as 1), so edited or sparse numbering never repeats one.
+    let highest = 0;
+    for (const l of text.split('\n')) {
+        const m = SWEEP_HEADING.exec(l);
+        if (m && m[1] === day) highest = Math.max(highest, m[2] ? Number(m[2]) : 1);
+    }
+    if (highest === 0) return section;
+    lines[at] = `## Sweep ${day} (${highest + 1})`;
+    return lines.join('\n');
+}
+
 /** Append a section to the report text, or leave it unchanged when this run's section is already there. */
 export function appendSection(text: string, runId: string, section: string): Result<string> {
     const found = findSection(text, runId);
     if (found.state === 'conflict') return err('marker-conflict');
     if (found.state === 'ok') return ok(text);
+    const numbered = numberRepeatedHeading(text, section);
     // Only separators are added; the user's own text is kept as it is.
     const sep = text === '' || /\n\r?\n$/.test(text) ? '' : text.endsWith('\n') ? '\n' : '\n\n';
-    const composed = `${text}${sep}${section}\n`;
+    const composed = `${text}${sep}${numbered}\n`;
     // The result must read back as exactly this run's section (an unclosed fence in the note would hide it).
     const check = findSection(composed, runId);
     return check.state === 'ok' ? ok(composed) : err('marker-conflict');

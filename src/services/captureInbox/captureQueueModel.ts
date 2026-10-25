@@ -28,6 +28,10 @@ export interface QueueRow {
     audioNotTranscribed: boolean;
     /** Settling because a file it refers to has not arrived (no countdown applies) */
     waitingForAttachment: boolean;
+    /** An empty note with no attachment: no countdown applies, writing in the note is what moves it on */
+    waitingForText: boolean;
+    /** The tagging step failed, so the proposal is only a title taken from the text */
+    taggingFailed: boolean;
 }
 
 /** Entries the user can still act on or is waiting for; finished work is not listed. */
@@ -59,9 +63,14 @@ export function processedCount(journal: CaptureJournal): number {
  * newest change any of its files was last seen to make. Never negative.
  */
 export function settleSeconds(entry: Pick<CaptureEntry, 'observed'>, now: number, stabilityMs: number): number {
+    return Math.ceil(settleRemainingMs(entry, now, stabilityMs) / 1000);
+}
+
+/** Milliseconds until the settling window ends (never negative): the exact figure behind `settleSeconds`, used to time the re-scan. */
+export function settleRemainingMs(entry: Pick<CaptureEntry, 'observed'>, now: number, stabilityMs: number): number {
     const seen = Object.values(entry.observed ?? {});
     const since = seen.length > 0 ? Math.max(...seen.map((o) => o.at)) : now;
-    return Math.max(0, Math.ceil((stabilityMs - (now - since)) / 1000));
+    return Math.max(0, stabilityMs - (now - since));
 }
 
 export function buildQueue(journal: CaptureJournal, now: number, opts: { includeProcessed?: boolean; stabilityMs?: number } = {}): QueueRow[] {
@@ -80,8 +89,10 @@ export function buildQueue(journal: CaptureJournal, now: number, opts: { include
             reviewable: e.state === 'awaiting_review' || e.state === 'accepted' || e.state === 'organised' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
             retriable: e.state === 'failed',
             processed: isProcessed(e),
-            settleSeconds: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'attachment' && opts.stabilityMs !== undefined ? settleSeconds(e, now, opts.stabilityMs) : undefined,
+            settleSeconds: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'attachment' && e.waitReason !== 'empty' && opts.stabilityMs !== undefined && settleRemainingMs(e, now, opts.stabilityMs) > 0 ? settleSeconds(e, now, opts.stabilityMs) : undefined,
             waitingForAttachment: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason === 'attachment',
+            waitingForText: e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason === 'empty',
+            taggingFailed: e.state === 'awaiting_review' && !!e.taggingFailed,
             errorText: e.state === 'failed' ? e.errorText : undefined,
             audioNotTranscribed: e.state === 'awaiting_review' && e.source === 'note-text' && (e.attachments ?? []).some((a) => a.kind === 'audio'),
             skippable: e.state === 'awaiting_review' || e.state === 'failed' || (e.state === 'waiting_for_stable' && !!e.needsConfirm),
@@ -121,9 +132,10 @@ export function queueCounts(journal: CaptureJournal): QueueCounts {
     return {
         toReview: entries.filter((e) => e.state === 'awaiting_review' || (e.state === 'waiting_for_stable' && !!e.needsConfirm)).length,
         failed: entries.filter((e) => e.state === 'failed').length,
-        settling: entries.filter((e) => e.state === 'waiting_for_stable' && !e.needsConfirm || e.state === 'new').length,
+        // An empty note is not syncing: it is counted in the queue, but is neither "settling" nor "on its way".
+        settling: entries.filter((e) => (e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'empty') || e.state === 'new').length,
         ready: entries.filter((e) => e.state === 'ready').length,
-        waiting: entries.filter((e) => e.state === 'new' || (e.state === 'waiting_for_stable' && !e.needsConfirm) || e.state === 'ready' || e.state === 'processing').length,
+        waiting: entries.filter((e) => e.state === 'new' || (e.state === 'waiting_for_stable' && !e.needsConfirm && e.waitReason !== 'empty') || e.state === 'ready' || e.state === 'processing').length,
         backpressure: awaitingCount(journal) >= MAX_AWAITING_REVIEW,
     };
 }

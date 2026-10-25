@@ -81,6 +81,7 @@ export const GUIDANCE_CODES = [
     'capture-no-provider',
     'capture-source-excluded',
     'capture-journal-corrupt',
+    'capture-tagging-failed',
     'tasks-no-list',
     'tasks-not-ready',
     'script-tasks-off',
@@ -178,6 +179,14 @@ export function isGuidanceCode(code: string): code is GuidanceCode {
 /** Resolve a code (known or not) to its guidance. Unknown codes get the generic fallback. */
 export function describeError(t: Translations, code: string): GuidanceEntry {
     return isGuidanceCode(code) ? t.guidance[code] : t.guidance.unknown;
+}
+
+/**
+ * The same guidance for a message shown inside a guided setup window. Some next steps end with "If you are not in the setup,
+ * choose Set up ...": true on a Notice, absurd inside the setup, so that sentence is dropped there.
+ */
+export function formatGuidanceInSetup(entry: GuidanceEntry): string {
+    return `${entry.message} ${entry.nextStep.replace(/\s*If you are not in the setup, [^.]*\./, '')}`.trim();
 }
 
 /** The single string a Notice shows: what happened, then what to do. */

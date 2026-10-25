@@ -271,7 +271,7 @@ describe('one at a time, cancel, failure and backpressure', () => {
     expect(e.proposal).toBeUndefined();
   });
 
-  it('records the failed stage, counts attempts, stops retrying after three, and Retry resets', async () => {
+  it('records the failed stage and stays failed until the user presses Retry; Retry resets (F11)', async () => {
     const w = world();
     w.set.transcribe = async () => err('provider down');
     w.addNote('Inbox/a.md', '![[x.mp3]]', ['Inbox/x.mp3']);
@@ -279,14 +279,37 @@ describe('one at a time, cancel, failure and backpressure', () => {
     await w.go({ passes: 1 });
     let e = getEntry(w.journal(), 'Inbox/a.md')!;
     expect(e).toMatchObject({ state: 'failed', failedStage: 'transcribe', attempts: 1, retriable: true, errorText: 'The provider could not complete the request.' });
+    // Later looks at the inbox (a restart, a re-scan) never turn a failed capture back into "ready" on their own.
+    const callsBefore = w.calls.transcribe.length;
     await w.go({ passes: 4 });
     e = getEntry(w.journal(), 'Inbox/a.md')!;
-    expect(e).toMatchObject({ state: 'failed', attempts: 3, retriable: false });
-    const callsBefore = w.calls.transcribe.length;
-    await w.go({ passes: 2 });
+    expect(e).toMatchObject({ state: 'failed', attempts: 1, failedStage: 'transcribe' });
     expect(w.calls.transcribe.length).toBe(callsBefore);
     expect(await retryCapture(w.deps, 'Inbox/a.md')).toBe(true);
     expect(getEntry(w.journal(), 'Inbox/a.md')).toMatchObject({ state: 'ready', attempts: 0 });
+  });
+
+  it('a failing tagging call is recorded, so the review can say so (F2)', async () => {
+    const w = world();
+    w.set.classify = async () => err('model down');
+    w.addNote('Inbox/a.md', 'Remember to water the plants on Friday', []);
+    await w.go();
+    expect(getEntry(w.journal(), 'Inbox/a.md')).toMatchObject({ state: 'awaiting_review', taggingFailed: true });
+  });
+
+  it('a tagging call that works leaves no failure mark (F2)', async () => {
+    const w = world();
+    w.addNote('Inbox/a.md', 'Remember to water the plants on Friday', []);
+    await w.go();
+    expect(getEntry(w.journal(), 'Inbox/a.md')!.taggingFailed).toBeUndefined();
+  });
+
+  it('an empty note waits for text instead of settling forever (F1)', async () => {
+    const w = world();
+    w.addNote('Inbox/empty.md', '', []);
+    await w.go({ passes: 3 });
+    const e = getEntry(w.journal(), 'Inbox/empty.md');
+    expect(e).toMatchObject({ state: 'waiting_for_stable', waitReason: 'empty' });
   });
 
   it('a failing tagging call degrades to a reviewable proposal instead of failing the capture', async () => {

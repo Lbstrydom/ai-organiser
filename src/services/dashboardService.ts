@@ -245,7 +245,7 @@ export class DashboardService {
             // Create dashboard file
             await this.app.vault.create(filePath, content);
 
-            new Notice(`Dashboard created: ${fullFileName}`);
+            new Notice(`Dashboard created: ${fullFileName} in ${options.folder.path || '/'}`);
             return true;
 
         } catch (error) {

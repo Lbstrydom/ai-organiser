@@ -168,16 +168,10 @@ export class DashboardCreationModal extends Modal {
             return;
         }
 
-        const success = await this.dashboardService.createDashboard({
+        // The service shows the one notice (created, already there, or failed): a second one here would repeat it.
+        await this.dashboardService.createDashboard({
             template: templates[0].name,
             folder: this.targetFolder
         });
-
-        if (success) {
-            new Notice(
-                (this.plugin.t.modals.dashboardCreation.created || 'Dashboard created in {folder}')
-                    .replace('{folder}', this.targetFolder.path || '/')
-            );
-        }
     }
 }

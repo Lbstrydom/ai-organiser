@@ -67,6 +67,15 @@ export function captureBlocker(s: BlockerSettings, hasProvider: boolean): string
     return null;
 }
 
+/**
+ * True once the user has deliberately started using the capture inbox: the guided setup was finished, or a manual run was confirmed.
+ * Turning the feature on is not that. Until then the capture inbox neither watches the inbox in the background nor holds any note
+ * back from the sweep, so enabling the feature changes nothing the user did not choose.
+ */
+export function captureSetupConfirmed(s: Pick<AIOrganiserSettings, 'featureSetupCompletedAt' | 'captureConfirmedAt'>): boolean {
+    return !!s.featureSetupCompletedAt?.['capture-inbox'] || !!s.captureConfirmedAt;
+}
+
 export interface SharedScopePatch {
     sweepInboxFolders: string[];
     sweepExcludedFolders: string[];
