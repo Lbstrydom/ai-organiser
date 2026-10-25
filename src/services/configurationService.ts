@@ -486,8 +486,10 @@ Focus on:
 ];
 
 // Default Bases dashboard templates
-// Note: Bases uses 'filters:' (plural) with and/or/not operators
-// Property names use property.propname syntax for custom properties
+// Native Bases schema: top-level 'filters:' (plural, a string or an and/or/not group) and a 'views:' list
+// whose table view lists its columns under 'order:'. A bare name is a note property (status, summary);
+// file properties are file.name, file.tags, file.ctime. (The older name + columns + property.<name>
+// dialect is converted when a dashboard is created, so existing config files keep working.)
 // Folder filtering uses file.inFolder("path") - includes subfolders recursively
 // Keep templates minimal - users can add more via config file
 export const DEFAULT_BASES_TEMPLATES: BasesTemplate[] = [
@@ -496,17 +498,17 @@ export const DEFAULT_BASES_TEMPLATES: BasesTemplate[] = [
         description: 'All AI-processed notes in this folder',
         fileName: 'Notes Dashboard.base',
         category: 'default',
-        content: `---
-name: Notes Dashboard
-description: AI-processed notes with summaries and metadata
-filters: 'property.status == "processed"'
-columns:
-  - property.name
-  - property.summary
-  - property.persona
-  - property.type
-  - property.tags
-  - property.processed`
+        content: `filters: 'status == "processed"'
+views:
+  - type: table
+    name: Notes Dashboard
+    order:
+      - file.name
+      - summary
+      - persona
+      - type
+      - tags
+      - processed`
     }
 ];
 
@@ -1774,27 +1776,17 @@ ${templateSections}
 ## Creating Custom Templates
 
 To add your own template, create a new section following the format above.
-The YAML content follows Obsidian Bases format with filters, columns, sorting, and grouping.
+The YAML content follows the Obsidian Bases format: a \`filters\` entry and a \`views\` list whose table view lists its columns under \`order\`.
 
-### Available Fields
+### Properties
 
-- \`name\` - Note file name
-- \`tags\` - Note tags
-- \`created\` - Creation date
-- \`{summary}\` - AI-generated summary
-- \`{status}\` - Processing status (pending/processed/error)
-- \`{type}\` - Content type (note/research/meeting/project/reference)
-- \`{processed}\` - Processing timestamp
-- \`{source}\` - Source type (url/pdf/youtube/audio)
-- \`{source_url}\` - Original source URL
-- \`{persona}\` - Summary persona used
-- \`{model}\` - AI model used
+- Use a property name as it is written in the note's properties, for example \`status\`, \`summary\`, \`persona\`, \`type\`, \`processed\`, \`source\`, \`source_url\`, \`model\`.
+- File properties: \`file.name\`, \`file.tags\`, \`file.ctime\`, \`file.mtime\`.
 
-### Filter Operators
+### Filters
 
-- \`exists\` - Field has any value
-- \`equals\` - Field equals specific value
-- \`contains\` - Field contains substring
+- \`status == "processed"\` compares a property; \`file.hasTag("project")\` checks a tag; \`file.inFolder("Folder")\` limits to a folder.
+- Combine filters with \`and:\`, \`or:\` and \`not:\` lists.
 `;
     }
 

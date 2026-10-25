@@ -61,7 +61,7 @@ describe('DashboardService', () => {
 
     describe('Folder Filter Injection (via createDashboard)', () => {
         it('skips filter injection for root folder', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, '/');
 
             const success = await service.createDashboard({ template: 'Test Template', folder });
@@ -71,7 +71,7 @@ describe('DashboardService', () => {
         });
 
         it('combines with existing simple filters using AND', async () => {
-            const template = `---\nname: Test\nfilters: 'file.extension = "md"'\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nfilters: 'file.extension = "md"'\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Projects/Alpha');
 
             await service.createDashboard({ template: 'Test Template', folder });
@@ -82,7 +82,7 @@ describe('DashboardService', () => {
         });
 
         it('inserts folder filter into structured and: filters', async () => {
-            const template = `---\nname: Test\nfilters:\n  and:\n    - 'status = "active"'\n    - 'priority > 0'\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nfilters:\n  and:\n    - 'status = "active"'\n    - 'priority > 0'\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Tasks');
 
             await service.createDashboard({ template: 'Test Template', folder });
@@ -94,17 +94,17 @@ describe('DashboardService', () => {
         });
 
         it('adds filters when none exist', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Documents');
 
             await service.createDashboard({ template: 'Test Template', folder });
 
             expect(createdContent).toContain(`filters: 'file.inFolder("Documents")'`);
-            expect(createdContent.indexOf('filters:')).toBeLessThan(createdContent.indexOf('columns:'));
+            expect(createdContent.indexOf('filters:')).toBeLessThan(createdContent.indexOf('views:'));
         });
 
         it('escapes quotes in folder paths', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Folder "With" Quotes');
 
             await service.createDashboard({ template: 'Test Template', folder });
@@ -115,7 +115,7 @@ describe('DashboardService', () => {
 
     describe('File Naming Behavior', () => {
         it('adds .base extension when missing', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Dashboards', 'template');
 
             await service.createDashboard({ template: 'Test Template', folder });
@@ -124,7 +124,7 @@ describe('DashboardService', () => {
         });
 
         it('does not duplicate .base extension', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Dashboards', 'template.base');
 
             await service.createDashboard({ template: 'Test Template', folder });
@@ -134,7 +134,7 @@ describe('DashboardService', () => {
         });
 
         it('appends .base for uppercase extensions (documented behavior)', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Dashboards', 'template.BASE');
 
             await service.createDashboard({ template: 'Test Template', folder });
@@ -145,7 +145,7 @@ describe('DashboardService', () => {
 
     describe('Existing file handling', () => {
         it('returns false when dashboard already exists', async () => {
-            const template = `---\nname: Test\ncolumns:\n  - file.name`;
+            const template = `---\nname: Test\nviews:\n  - type: table\n    name: T\n    order:\n      - file.name`;
             const { service, folder } = setupService(template, 'Dashboards');
             const expectedPath = `${folder.path}/template.base`;
 

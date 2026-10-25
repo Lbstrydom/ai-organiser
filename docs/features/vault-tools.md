@@ -79,7 +79,8 @@ The Bases integration enables structured metadata and dashboard generation for s
 
 **Templates** ([src/services/configurationService.ts](../../src/services/configurationService.ts))
 - Single "Notes Dashboard" template for simplicity
-- YAML structure with `filters:` (plural), `columns:`, optional `sorting:`
+- Native Bases schema: `filters:` (plural; a string or an `and`/`or`/`not` group) and a `views:` list whose table view lists its columns under `order:`; a bare name is a note property (`status`), file properties are `file.name`, `file.tags`, `file.ctime`. Obsidian 1.15 ignores a top-level `columns:` and does not know `property.<name>` (a dashboard written that way opens with 0 results and a file-name column only)
+- `toNativeBase` converts the older template dialect (`name` + `columns`, `property.<name>`; still what existing users have in `bases-templates.md`) when a dashboard is created, so no config migration is needed; a template that already has `views:` is written unchanged
 - Folder filtering automatically applied via `file.inFolder()` function
 
 **Dashboard Service** ([src/services/dashboardService.ts](../../src/services/dashboardService.ts))
