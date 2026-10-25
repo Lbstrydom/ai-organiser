@@ -53,7 +53,10 @@ const KEY_SEPARATOR = '|';
 export function normaliseItemText(text: string): string {
     // The cap is on the text as written (the report cuts a task at 300 characters of it), BEFORE normalising:
     // normalising can lengthen text (NFKC expands ligatures), and cutting after it would merge distinct items.
-    return text.slice(0, MAX_KEY_CHARS).normalize('NFKC').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    const written = text.slice(0, MAX_KEY_CHARS).normalize('NFKC').toLowerCase();
+    const words = written.replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    // A title with no letters or digits (an emoji, a symbol) still has an identity: the symbols themselves.
+    return words !== '' ? words : written.replace(/\s+/g, ' ').trim();
 }
 
 /**

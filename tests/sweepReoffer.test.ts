@@ -26,6 +26,7 @@ import {
 	normaliseItemText,
 	newApproval,
 	recordReportedItems,
+	renameApprovals,
 	renameReportedItems,
 	reportedKeysFor,
 	type ApprovalRecord,
@@ -53,7 +54,7 @@ describe('item identity keys', () => {
 
 	it('an edited text equal to the model text adds no duplicate key, and empty wordings are dropped', () => {
 		expect(itemKeys({ text: 'A b', evidence: 'x y', edited: 'a b' })).toEqual(['x y|a b']);
-		expect(itemKeys({ text: '!!!', evidence: '...' })).toEqual([]);
+		expect(itemKeys({ text: '   ', evidence: '  ' })).toEqual([]);
 	});
 
 	it('long texts keep their whole identity (no shared-prefix collapse at 160 characters)', () => {
@@ -63,6 +64,22 @@ describe('item identity keys', () => {
 		expect(prefix.length).toBeGreaterThan(160);
 		expect(isReportedItem(new Set(a), b)).toBe(false);
 		expect(isReportedItem(new Set(a), a)).toBe(true);
+	});
+});
+
+describe('titles without letters or digits', () => {
+	it('keep an identity: the symbols themselves', () => {
+		expect(normaliseItemText('📞')).toBe('📞');
+		const first = new Set(itemKeys({ text: '📞', evidence: 'q' }));
+		expect(isReportedItem(first, itemKeys({ text: '📞', evidence: 'other' }))).toBe(true);
+		expect(isReportedItem(first, itemKeys({ text: '🚗', evidence: 'q' }))).toBe(false);
+		expect(legacyTaskKeys('📞')).toEqual(['|📞']);
+	});
+
+	it('a second symbol-only task from the same note is blocked at the commit, keys or not', () => {
+		const rec = record([{ n: 1, text: '📞' }]);
+		const out = dropAlreadyReported([{ sourcePath: 'Inbox/a.md', text: '📞' }], {}, [rec]);
+		expect(out.dropped).toBe(1);
 	});
 });
 
@@ -372,6 +389,36 @@ describe('commitReview with item identity', () => {
 		};
 		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
 		expect(h.settings.sweepReportedItems).toEqual({ 'Archive/a.md': ['q|renamed'] });
+	});
+
+	it('a note renamed while the commit is in flight: keys and ledger land under the new path', async () => {
+		const h = makePlugin();
+		let calls = 0;
+		const original = (h.plugin as unknown as { saveSettings: () => Promise<void> }).saveSettings;
+		(h.plugin as unknown as { saveSettings: () => Promise<void> }).saveSettings = async () => {
+			calls++;
+			if (calls === 2) { // the report is written and reported: the vault renames Inbox -> Archive now
+				h.settings.sweepApprovals = renameApprovals(h.settings.sweepApprovals, 'Inbox', 'Archive').records;
+			}
+			await original();
+		};
+		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [{ sourcePath: 'Inbox/a.md', sourceHash: 'h', markSwept: true }] });
+		expect(Object.keys(h.settings.sweepReportedItems)).toEqual(['Archive/a.md']);
+		expect(Object.keys(h.settings.sweepLedger)).toEqual(['Archive/a.md']);
+		expect(h.settings.sweepApprovals[0].tasks[0].sourcePath).toBe('Archive/a.md');
+	});
+
+	it('a note renamed while the report note is being written keeps its new path in the saved record', async () => {
+		const h = makePlugin();
+		const vaultApi = (h.plugin as unknown as { app: { vault: { create: (p: string, c: string) => Promise<void> } } }).app.vault;
+		const create = vaultApi.create;
+		vaultApi.create = async (p, c) => {
+			h.settings.sweepApprovals = renameApprovals(h.settings.sweepApprovals, 'Inbox', 'Archive').records;
+			await create(p, c);
+		};
+		await commitReview(h.plugin, { tasks: [task(1, 'Draft the migration plan', 'I need to draft the migration plan')], dispositions: [] });
+		expect(h.settings.sweepApprovals[0].tasks[0].sourcePath).toBe('Archive/a.md');
+		expect(Object.keys(h.settings.sweepReportedItems)).toEqual(['Archive/a.md']);
 	});
 
 	it('a failed ledger save does not overwrite a ledger a rename remapped meanwhile', async () => {

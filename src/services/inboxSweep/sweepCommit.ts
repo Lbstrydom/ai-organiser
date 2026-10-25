@@ -237,6 +237,9 @@ export function finishRecord(plugin: AIOrganiserPlugin, start: ApprovalRecord): 
 
 async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): Promise<CommitOutcome> {
     let record = start;
+    // The step awaits (the note write, the saves): a rename in that window remaps the stored record, so each step
+    // works from the stored record as it is NOW, not from the copy this call started with.
+    const live = (r: ApprovalRecord): ApprovalRecord => plugin.settings.sweepApprovals.find((x) => x.runId === r.runId) ?? r;
     let stage: 'report' | 'ledger' = 'report';
     try {
         if (!record.reportDone) {
@@ -250,13 +253,14 @@ async function finishUnsafe(plugin: AIOrganiserPlugin, start: ApprovalRecord): P
                 const written = await writeSection(plugin, record);
                 if (!written.ok) return { record, stoppedAt: 'report', error: written.error };
             }
-            const next = markReported(record);
+            const next = markReported(live(record));
             const saved = await saveRecord(plugin, next);
             if (!saved.ok) return { record, stoppedAt: 'report', error: saved.error };
             record = next;
         }
         if (!record.ledgerDone) {
             stage = 'ledger';
+            record = live(record);
             const next = { ...record, ledgerDone: true };
             const ledgerBefore = plugin.settings.sweepLedger;
             const itemsBefore = plugin.settings.sweepReportedItems;
