@@ -26,10 +26,21 @@ columns:
   - property.tags
   - property.processed`;
 
-const load = (text: string) => yaml.load(text) as Record<string, any>;
+interface BaseDoc {
+    filters?: unknown;
+    columns?: unknown;
+    name?: unknown;
+    description?: unknown;
+    note?: unknown;
+    properties?: unknown;
+    views: { type: string; name: string; order: string[] }[];
+}
+type ServiceArgs = ConstructorParameters<typeof DashboardService>;
+
+const load = (text: string) => yaml.load(text) as BaseDoc;
 
 /** What a Bases view needs to show anything at all. */
-function expectNative(doc: Record<string, any>): void {
+function expectNative(doc: BaseDoc): void {
     expect(doc.columns).toBeUndefined();
     expect(Array.isArray(doc.views)).toBe(true);
     expect(doc.views[0].type).toBe('table');
@@ -97,14 +108,24 @@ describe('toNativeBase', () => {
         expect(doc.note).toBe('line one\n---\nline two\n');
     });
 
-    it('refuses a YAML alias cycle, a shared alias and absurd nesting instead of expanding them', () => {
+    it('converts ordinary reuse of a small YAML alias (each use becomes its own copy)', () => {
+        const shared = 'name: T\nfilters:\n  and:\n    - &a\n      or:\n        - \'property.x == 1\'\n    - *a\ncolumns:\n  - file.name\n';
+        const out = toNativeBase(shared);
+        expect(out).not.toMatch(/[&*]ref_|&a|\*a/);
+        expect(load(out).filters).toEqual({ and: [{ or: ['x == 1'] }, { or: ['x == 1'] }] });
+    });
+
+    it('refuses a YAML alias cycle, an alias fan-out and absurd nesting instead of expanding them', () => {
         const cycle = 'name: T\nfilters: &f\n  and:\n    - *f\ncolumns:\n  - file.name\n';
-        expect(() => toNativeBase(cycle)).toThrow(/nest too deeply or reuse a YAML alias/);
-        const shared = 'name: T\nfilters:\n  and:\n    - &a\n      or:\n        - x\n    - *a\ncolumns:\n  - file.name\n';
-        expect(() => toNativeBase(shared)).toThrow(/reuse a YAML alias/);
+        expect(() => toNativeBase(cycle)).toThrow(/cannot be converted/);
+        // Each level lists the previous one twice: 12 levels expand to 2^12 nodes.
+        const levels = ['&l0 {and: [x]}'];
+        for (let i = 1; i < 12; i++) levels.push(`&l${i} {and: [*l${i - 1}, *l${i - 1}]}`);
+        const bomb = ['name: T', 'defs:', ...levels.map((l) => `  - ${l}`), 'filters: *l11', 'columns:', '  - file.name'].join('\n');
+        expect(() => toNativeBase(bomb)).toThrow(/cannot be converted/);
         let deep = "'x'";
         for (let i = 0; i < 40; i++) deep = `{and: [${deep}]}`;
-        expect(() => toNativeBase(`name: T\nfilters: ${deep}\ncolumns:\n  - file.name\n`)).toThrow(/nest too deeply/);
+        expect(() => toNativeBase(`name: T\nfilters: ${deep}\ncolumns:\n  - file.name\n`)).toThrow(/cannot be converted/);
     });
 
     it('rewrites nested and/or/not groups', () => {
@@ -148,8 +169,8 @@ describe('dashboards are created in the native schema', () => {
         const plugin = {
             configService: { getBasesTemplateByName: vi.fn().mockResolvedValue(template) },
             basesService: { isBasesEnabled: vi.fn().mockReturnValue(false) },
-        } as any;
-        return { service: new DashboardService(app as any, plugin), folder: createTFolder(folderPath), created: () => created };
+        } as unknown as ServiceArgs[1];
+        return { service: new DashboardService(app as unknown as ServiceArgs[0], plugin), folder: createTFolder(folderPath), created: () => created };
     }
 
     it.each([['legacy template on disk', LEGACY_DEFAULT], ['new default template', DEFAULT_BASES_TEMPLATES[0].content]])(

@@ -71,19 +71,26 @@ function rewriteFilterText(expression: string): string {
         .join('');
 }
 
+/** Most filter nodes a template may expand to (a shared YAML alias counts once per use). */
+const MAX_FILTER_NODES = 2000;
+
 /**
- * Convert a filter tree. YAML aliases can turn it into a cycle or an exponentially shared graph, so a
- * node reached twice, or nesting beyond MAX_FILTER_DEPTH, is refused instead of expanded.
+ * Convert a filter tree. A node that contains itself (a YAML alias cycle), nesting beyond
+ * MAX_FILTER_DEPTH, or an alias fan-out that expands past MAX_FILTER_NODES is refused instead of
+ * expanded; ordinary reuse of a small alias converts (each use becomes its own copy).
  */
-function nativeFilter(node: unknown, seen: Set<object> = new Set(), depth = 0): unknown {
+function nativeFilter(node: unknown, path: Set<object> = new Set(), budget = { nodes: 0 }, depth = 0): unknown {
     if (typeof node === 'string') return rewriteFilterText(node);
     if (typeof node !== 'object' || node === null) return node;
-    if (depth > MAX_FILTER_DEPTH || seen.has(node)) {
-        throw new Error('Dashboard template cannot be converted: its filters nest too deeply or reuse a YAML alias');
+    if (depth > MAX_FILTER_DEPTH || path.has(node) || ++budget.nodes > MAX_FILTER_NODES) {
+        throw new Error('Dashboard template cannot be converted: its filters nest too deeply, repeat themselves or expand too far');
     }
-    seen.add(node);
-    if (Array.isArray(node)) return node.map((child) => nativeFilter(child, seen, depth + 1));
-    return Object.fromEntries(Object.entries(node).map(([key, value]) => [key, nativeFilter(value, seen, depth + 1)]));
+    path.add(node);
+    const out = Array.isArray(node)
+        ? node.map((child) => nativeFilter(child, path, budget, depth + 1))
+        : Object.fromEntries(Object.entries(node).map(([key, value]) => [key, nativeFilter(value, path, budget, depth + 1)]));
+    path.delete(node);
+    return out;
 }
 
 /** A document written with front-matter style fences: the text between the first two `---` lines (the whole text when there is no closing fence). */
