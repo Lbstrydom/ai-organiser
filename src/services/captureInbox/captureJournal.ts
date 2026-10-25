@@ -8,6 +8,7 @@ import {
     CaptureJournal,
     CaptureState,
     CaptureTombstone,
+    SkipReason,
     MAX_ATTEMPTS,
     MAX_AWAITING_REVIEW,
     emptyJournal,
@@ -106,13 +107,25 @@ export function heldPaths(journal: CaptureJournal): string[] {
  * Convert a finished capture to a tombstone (no text). `accepted` and `organised` ignore later
  * edits; `skipped` and `skipped_by_user` are re-offered only when the fingerprint changes.
  */
-export function finish(journal: CaptureJournal, id: string, state: TombstoneState, now: number, policyRevision?: string): CaptureJournal {
+export function finish(journal: CaptureJournal, id: string, state: TombstoneState, now: number, policyRevision?: string, reason?: SkipReason): CaptureJournal {
     const entry = journal.entries[id];
     const fingerprintHash = entry?.fingerprint ?? journal.tombstones[id]?.fingerprintHash ?? '';
     const { [id]: _dropped, ...rest } = journal.entries;
     void _dropped;
-    const tombstones = pruneTombstones({ ...journal.tombstones, [id]: { id, fingerprintHash, state, at: now, ...(policyRevision ? { policyRevision } : {}) } });
+    const tombstones = pruneTombstones({ ...journal.tombstones, [id]: { id, fingerprintHash, state, at: now, ...(policyRevision ? { policyRevision } : {}), ...(reason ? { reason } : {}) } });
     return { ...journal, entries: rest, tombstones };
+}
+
+/**
+ * The user asks for a skipped capture to be looked at again (a limit was raised, a feature turned on, a file replaced):
+ * its tombstone is dropped, so the next scan judges it afresh. Only a skip is forgotten; a finished capture never is.
+ */
+export function forgetSkip(journal: CaptureJournal, id: string): CaptureJournal {
+    const t = journal.tombstones[id];
+    if (!t || t.state !== 'skipped') return journal;
+    const { [id]: _dropped, ...rest } = journal.tombstones;
+    void _dropped;
+    return { ...journal, tombstones: rest };
 }
 
 function pruneTombstones(tombstones: Record<string, CaptureTombstone>): Record<string, CaptureTombstone> {

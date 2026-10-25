@@ -12,7 +12,7 @@
  * The runtime takes an injected `isEnabled()`, so turning the feature off makes every entry point a
  * no-op without needing a main.ts edit.
  */
-import type { Result } from '../../core/result';
+import { err, type Result } from '../../core/result';
 import { logger } from '../../utils/logger';
 import { reconcile } from './captureJournal';
 import { runJobs, syncEntries, type CaptureDeps, type RunSummary } from './captureProcessor';
@@ -40,6 +40,8 @@ export interface RunOptions {
     trigger: RunTrigger;
     /** "Process all existing": ignore the setup cutoff for this run */
     includeExisting?: boolean;
+    /** Only these captures may be sent: what the user confirmed. Anything else that became ready meanwhile waits for the next run. */
+    allowIds?: ReadonlySet<string>;
 }
 
 export interface RunResult {
@@ -49,8 +51,12 @@ export interface RunResult {
 
 const yieldTick = (): Promise<void> => new Promise((resolve) => window.setTimeout(resolve, 0));
 
+export type RuntimeActivity = 'idle' | 'refresh' | 'run' | 'recover';
+
 export class CaptureRuntime {
     private running = false;
+    private kind: RuntimeActivity = 'idle';
+    private idleWaiters: Array<() => void> = [];
     private cancelFlag = false;
     private hintTimer: number | null = null;
     private lastAutoRun = 0;
@@ -62,6 +68,42 @@ export class CaptureRuntime {
 
     isRunning(): boolean {
         return this.running;
+    }
+
+    /** What is happening now: a look at the inbox (no provider is called) is not a processing run. */
+    activity(): RuntimeActivity {
+        return this.running ? this.kind : 'idle';
+    }
+
+    /** Resolves when nothing is running (at once if nothing is). */
+    whenIdle(): Promise<void> {
+        if (!this.running) return Promise.resolve();
+        return new Promise((resolve) => this.idleWaiters.push(resolve));
+    }
+
+    private begin(kind: RuntimeActivity): void {
+        this.running = true;
+        this.kind = kind;
+    }
+
+    private setIdle(): void {
+        this.running = false;
+        this.kind = 'idle';
+        const waiters = this.idleWaiters;
+        this.idleWaiters = [];
+        for (const resolve of waiters) resolve();
+    }
+
+    /** A read-only look at what the inbox holds, optionally ignoring the setup cutoff. Writes and sends nothing. */
+    async preview(includeExisting: boolean): Promise<Result<ScanOutcome>> {
+        try {
+            if (!this.usable()) return err('capture-unavailable');
+            return await this.scan(includeExisting);
+        } catch (e) {
+            // The settings and the journal are read before the scan starts: a failure there is a failed look, not a rejection.
+            logger.warn('CaptureInbox', 'Preview failed', e);
+            return err('capture-scan-failed');
+        }
     }
 
     cancel(): void {
@@ -113,7 +155,7 @@ export class CaptureRuntime {
             this.hintPending = true;
             return null;
         }
-        this.running = true;
+        this.begin('refresh');
         try {
             const scanned = await this.scan();
             if (!scanned.ok) {
@@ -128,7 +170,7 @@ export class CaptureRuntime {
             logger.warn('CaptureInbox', 'Refresh failed', e);
             return null;
         } finally {
-            this.running = false;
+            this.setIdle();
             this.replayHint();
         }
     }
@@ -146,7 +188,7 @@ export class CaptureRuntime {
             if (deps.now() - this.lastAutoRun < MIN_AUTO_INTERVAL_MS) return null;
             this.lastAutoRun = deps.now();
         }
-        this.running = true;
+        this.begin('run');
         this.cancelFlag = false;
         try {
             // "Process all existing" is a manual choice; an automatic run never widens its own scope.
@@ -159,13 +201,13 @@ export class CaptureRuntime {
             await syncEntries(deps, scan);
             await yieldTick();
             const limit = opts.trigger === 'auto' ? Math.min(config.onOpenMaxPerRun, config.maxPerRun) : config.maxPerRun;
-            const summary = await runJobs(deps, scan, { cancelled: () => this.cancelFlag }, limit);
+            const summary = await runJobs(deps, scan, { cancelled: () => this.cancelFlag }, limit, opts.allowIds);
             return { summary, scan };
         } catch (e) {
             logger.error('CaptureInbox', 'Run failed', e);
             return null;
         } finally {
-            this.running = false;
+            this.setIdle();
             this.replayHint();
         }
     }
@@ -178,7 +220,7 @@ export class CaptureRuntime {
         const { deps } = this;
         // Recovery shares the mutex: a run in flight must not have its `processing` entries failed under it.
         if (!this.usable() || this.running) return;
-        this.running = true;
+        this.begin('recover');
         try {
             const probes = new Map<string, boolean | undefined>();
             const completedBare: Array<{ id: string; path: string }> = [];
@@ -219,7 +261,8 @@ export class CaptureRuntime {
             }
             if (retry.length > 0) await retryPendingWrites(deps.writer, retry);
         } finally {
-            this.running = false;
+            this.setIdle();
+            this.replayHint();
         }
     }
 }

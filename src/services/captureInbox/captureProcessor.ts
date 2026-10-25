@@ -154,7 +154,7 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
                 hard.push((j) => {
                     const live = getEntry(j, skip.id);
                     if (!live || ['processing', 'accept_pending_write', 'accepted', 'organised'].includes(live.state)) return j;
-                    return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'excluded'), skip.id, 'skipped', now, revision);
+                    return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'excluded'), skip.id, 'skipped', now, revision, 'excluded');
                 });
             }
             continue;
@@ -162,7 +162,7 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
         const tomb = snapshot.tombstones[skip.id];
         if (tomb && tomb.state === 'skipped' && tomb.policyRevision === revision) continue;
         // Counted once per policy revision, never held, never written.
-        hard.push((j) => finish(bumpBucket(upsertEntry(j, newEntry(skip.id, '', now, { state: 'skipped', skipReason: skip.reason })), 'skipped', skip.reason), skip.id, 'skipped', now, revision));
+        hard.push((j) => finish(bumpBucket(upsertEntry(j, newEntry(skip.id, '', now, { state: 'skipped', skipReason: skip.reason })), 'skipped', skip.reason), skip.id, 'skipped', now, revision, skip.reason));
     }
 
     for (const cap of scan.captures) {
@@ -179,7 +179,7 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
             hard.push((j) => {
                 const live = getEntry(j, cap.id);
                 if (!live || live.state === 'processing' || live.state === 'accept_pending_write') return j;
-                return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'attachment-missing'), cap.id, 'skipped', now);
+                return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'attachment-missing'), cap.id, 'skipped', now, undefined, 'attachment-missing');
             });
             continue;
         }
@@ -230,7 +230,7 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
         hard.push((j) => {
             const live = getEntry(j, entry.id);
             if (!live || !['new', 'waiting_for_stable', 'ready', 'awaiting_review', 'failed'].includes(live.state)) return j;
-            return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'nothing-to-process'), entry.id, 'skipped', now, revision);
+            return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'nothing-to-process'), entry.id, 'skipped', now, revision, 'nothing-to-process');
         });
     }
 
@@ -256,11 +256,12 @@ async function markStage(deps: CaptureDeps, id: string, stage: CaptureStage, sta
  * Process the entries that are `ready`, one at a time, until the limit, a cancel, or the review
  * backlog is full. Never throws.
  */
-export async function runJobs(deps: CaptureDeps, scan: ScanOutcome, ctl: RunControl, limit: number): Promise<RunSummary> {
+export async function runJobs(deps: CaptureDeps, scan: ScanOutcome, ctl: RunControl, limit: number, allow?: ReadonlySet<string>): Promise<RunSummary> {
     const summary: RunSummary = { processed: 0, awaitingReview: 0, failed: 0, skipped: 0, waiting: 0, backpressure: false };
     const byId = new Map(scan.captures.map((c) => [c.id, c]));
     const ready = Object.values(deps.journal.get().entries)
-        .filter((e) => e.state === 'ready' && byId.has(e.id))
+        // `allow`: a manual run handles exactly the captures the confirmation listed; one that matured since is left for the next run.
+        .filter((e) => e.state === 'ready' && byId.has(e.id) && (allow === undefined || allow.has(e.id)))
         .sort((a, b) => a.createdAt - b.createdAt);
     for (const entry of ready) {
         if (summary.processed >= limit || ctl.cancelled() || !deps.isEnabled()) break;
@@ -454,7 +455,7 @@ async function handleFailure(deps: CaptureDeps, id: string, error: unknown): Pro
             const e = getEntry(j, id);
             if (!e) return j;
             // Nothing is persisted for a skipped capture: not the text, not a proposal.
-            return finish(bumpBucket(upsertEntry(j, { ...e, text: undefined, noteText: undefined, proposal: undefined, skipReason: error.reason }), 'skipped', error.reason), id, 'skipped', now, revision);
+            return finish(bumpBucket(upsertEntry(j, { ...e, text: undefined, noteText: undefined, proposal: undefined, skipReason: error.reason }), 'skipped', error.reason), id, 'skipped', now, revision, error.reason);
         });
         return 'skipped';
     }

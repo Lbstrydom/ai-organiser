@@ -21,7 +21,7 @@ import { pluginContext, summarizeText } from '../services/llmFacade';
 import { validateScriptUrl } from '../services/appsScriptClient';
 import { logger } from '../utils/logger';
 import { estimateSweep, runSweep, type NoteProposals, type SweepDeps } from '../services/inboxSweep/sweepService';
-import { commitReview, repairApprovals, sendApproved, sweepPolicy, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
+import { commitReview, heldInboxCount, repairApprovals, sendApproved, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
 import { freezeHeldMirror, isCaptureActive, isCaptureCorrupt, isHeldMirrorLoaded, unfreezeHeldMirror } from '../services/captureInbox/heldMirror';
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
 import { renameReportedItems, reportedKeysFor } from '../services/inboxSweep/sweepItemIdentity';
@@ -134,7 +134,9 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         const estimated = await estimateSweep(deps, limits);
         if (!estimated.ok) { guidanceNotice(plugin, estimated.error); return; }
         const estimate = estimated.value;
-        if (estimate.notes === 0) { new Notice(t.nothingToSweep, 6000); return; }
+        // The held set is frozen for this run, so this is the number the run really leaves out for review.
+        const held = heldInboxCount(plugin);
+        if (estimate.notes === 0) { new Notice(held > 0 ? plural(t.nothingToSweepHeld, held, 'held').replace('{held}', String(held)) : t.nothingToSweep, 9000); return; }
         const cloud = plugin.settings.serviceType === 'cloud';
         const body = [
             plural(t.confirmBody, estimate.notes, 'notes').replace('{chars}', estimate.chars.toLocaleString()),
@@ -152,8 +154,10 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         }
         if (!result.ok) { new Notice(result.error === 'cancelled' ? t.cancelledNotice : formatGuidance(describeError(plugin.t, result.error)), 6000); return; }
         const r = result.value;
-        const kept = Object.values(r.excluded).reduce((a, b) => a + (b ?? 0), 0);
-        new Notice(plural(t.summaryNotice, r.notes.length, 'notes').replace('{kept}', String(kept)).replace('{failed}', String(r.failed)), 6000);
+        // Held captures are counted as left out by the guard; they are reported as what they are.
+        const kept = Math.max(0, Object.values(r.excluded).reduce((a, b) => a + (b ?? 0), 0) - held);
+        const heldLine = held > 0 ? ` ${plural(t.summaryHeld, held, 'held').replace('{held}', String(held))}` : '';
+        new Notice(`${plural(t.summaryNotice, r.notes.length, 'notes').replace('{kept}', String(kept)).replace('{failed}', String(r.failed))}${heldLine}`, 7000);
         if (r.notes.length === 0) return;
         await review(plugin, r.notes);
     } catch (e) {
@@ -272,8 +276,10 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
                     el.createEl('p', { text: c.previewHelp });
                     const box = el.createDiv({ attr: { role: 'status' } });
                     box.setText(c.previewWorking);
-                    const { allowed, kept } = await previewScope(plugin, draft, sweepPolicy(plugin));
-                    box.setText(c.previewResult.replace('{allowed}', String(allowed)).replace('{kept}', String(kept)));
+                    // Judged under the policy a run uses, so captures held for review are not counted as notes the sweep would read.
+                    const { allowed, kept } = await previewScope(plugin, draft, sweepRunPolicy(plugin));
+                    const held = Math.min(heldInboxCount(plugin, draft.inbox), kept);
+                    box.setText(plural(c.previewResult, allowed, 'allowed').replace('{allowed}', String(allowed)).replace('{kept}', String(kept - held)) + (held > 0 ? ` ${plural(c.previewHeld, held, 'held').replace('{held}', String(held))}` : ''));
                 },
             },
         ],

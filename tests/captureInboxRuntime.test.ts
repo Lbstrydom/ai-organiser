@@ -81,6 +81,64 @@ describe('CaptureRuntime', () => {
     expect(await rt.refresh()).not.toBeNull();
   });
 
+  it('a look at the inbox is not a run: activity says which, and whenIdle waits for the look instead of refusing', async () => {
+    const s = setup();
+    const rt = new CaptureRuntime(s.deps);
+    expect(rt.activity()).toBe('idle');
+    const looking = rt.refresh();
+    expect(rt.activity()).toBe('refresh');
+    let idle = false;
+    const waited = rt.whenIdle().then(() => { idle = true; });
+    await looking;
+    await waited;
+    expect(idle).toBe(true);
+    expect(rt.activity()).toBe('idle');
+    await rt.whenIdle();
+    s.tick(10_000);
+    let during = '';
+    s.transcribe.mockImplementation(async () => { during = rt.activity(); return ok('spoken words'); });
+    await rt.runOnce({ trigger: 'manual' });
+    expect(during).toBe('run');
+  });
+
+  it('a preview that cannot read the inbox says so, and an unusable runtime is told apart', async () => {
+    const s = setup();
+    const rt = new CaptureRuntime(s.deps);
+    s.deps.vault.listFiles = () => { throw new Error('index is rebuilding'); };
+    expect(await rt.preview(true)).toEqual({ ok: false, error: 'capture-scan-failed' });
+    const broken = setup();
+    broken.deps.config = () => { throw new Error('settings unreadable'); };
+    expect(await new CaptureRuntime(broken.deps).preview(false)).toEqual({ ok: false, error: 'capture-scan-failed' });
+    const off = setup({ enabled: () => false });
+    expect(await new CaptureRuntime(off.deps).preview(false)).toEqual({ ok: false, error: 'capture-unavailable' });
+  });
+
+  it('a run sends only the captures it was told to: one that matured since the confirmation waits for the next run', async () => {
+    const s = setup();
+    const rt = new CaptureRuntime(s.deps);
+    await rt.refresh();
+    s.tick(10_000);
+    // nothing was confirmed: nothing is sent, however ready it has become
+    const none = await rt.runOnce({ trigger: 'manual', allowIds: new Set() });
+    expect(none?.summary.processed).toBe(0);
+    expect(s.transcribe).not.toHaveBeenCalled();
+    // the confirmed capture is sent
+    const some = await rt.runOnce({ trigger: 'manual', allowIds: new Set(['Inbox/a.md']) });
+    expect(some?.summary.processed).toBe(1);
+    expect(s.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('a preview scans without recording or sending anything', async () => {
+    const s = setup();
+    const rt = new CaptureRuntime(s.deps);
+    const before = s.journal();
+    const scan = await rt.preview(true);
+    expect(scan.ok && scan.value.captures.length).toBeGreaterThan(0);
+    expect(s.journal()).toBe(before);
+    expect(s.transcribe).not.toHaveBeenCalled();
+    expect(rt.activity()).toBe('idle');
+  });
+
   it('is a no-op when the feature is off or Obsidian is not visible', async () => {
     const off = setup({ enabled: () => false });
     expect(await new CaptureRuntime(off.deps).runOnce({ trigger: 'manual' })).toBeNull();

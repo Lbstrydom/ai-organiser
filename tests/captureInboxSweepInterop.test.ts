@@ -4,7 +4,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
-import { sweepPolicy, sweepRunPolicy } from '../src/services/inboxSweep/sweepCommit';
+import { heldInboxCount, sweepPolicy, sweepRunPolicy } from '../src/services/inboxSweep/sweepCommit';
 import { sweepBlocker } from '../src/commands/inboxSweepCommands';
 import { exclusionReason } from '../src/services/inboxSweep/sweepGuard';
 import { clearHeldMirror, freezeHeldMirror, heldMirrorPaths, isHeldMirrorLoaded, setCaptureActive, setCaptureCorrupt, setHeldMirror, unfreezeHeldMirror } from '../src/services/captureInbox/heldMirror';
@@ -28,6 +28,20 @@ describe('sweep and capture inbox interplay', () => {
     expect(exclusionReason('Inbox/held.md', 'some text', policy)).toBe('folder');
     expect(exclusionReason('Inbox/other.md', 'some text', policy)).toBeNull();
     expect(exclusionReason('Inbox/held.md.bak', 'some text', policy)).toBeNull();
+  });
+
+  it('counts the captures held for review inside the sweep inbox, so the sweep can say so instead of "kept out"', () => {
+    const p = plugin(true);
+    expect(heldInboxCount(p as never)).toBe(0);
+    // held bare media (a voice memo with no note yet) is not a note the sweep left out
+    setHeldMirror(['Inbox/a.md', 'Inbox/sub/b.md', 'Elsewhere/c.md', 'Inbox/memo.m4a']);
+    expect(heldInboxCount(p as never)).toBe(2);
+    // the preview judges the folders being drafted, not the saved ones
+    expect(heldInboxCount(p as never, ['Elsewhere'])).toBe(1);
+    expect(heldInboxCount(p as never, [])).toBe(0);
+    expect(heldInboxCount(plugin(false) as never)).toBe(0);
+    clearHeldMirror();
+    expect(heldInboxCount(plugin(true) as never)).toBe(0);
   });
 
   it('the capture feature judges its own captures with the base policy, so it still sees them', () => {

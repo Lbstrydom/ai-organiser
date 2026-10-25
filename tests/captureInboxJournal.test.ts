@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     addAlias, alreadyHandled, awaitingCount, bump, bumpBucket, canStartProcessing, decodeJournal, finish,
-    getEntry, heldPaths, pruneFinished, reconcile, rekey, upsertEntry,
+    forgetSkip, getEntry, heldPaths, pruneFinished, reconcile, rekey, upsertEntry,
 } from '../src/services/captureInbox/captureJournal';
 import { MAX_ATTEMPTS, MAX_AWAITING_REVIEW, emptyJournal } from '../src/services/captureInbox/captureTypes';
 import type { CaptureEntry, CaptureState } from '../src/services/captureInbox/captureTypes';
@@ -216,5 +216,19 @@ describe('pruneFinished keeps unmarked organised captures reachable', () => {
         let j = emptyJournal();
         for (let i = 0; i < 30; i++) j = upsertEntry(j, mk(`Inbox/a${i}.md`, 'accepted', { updatedAt: 1000 + i }));
         expect(Object.keys(pruneFinished(j, 9999).entries)).toHaveLength(30);
+    });
+});
+
+describe('skip reasons survive as tombstones, and a skip can be looked at again', () => {
+    it('finish records the reason; forgetSkip drops only a skip, never a finished capture', () => {
+        let j = upsertEntry(emptyJournal(), mk('Inbox/a.m4a', 'ready'));
+        j = finish(j, 'Inbox/a.m4a', 'skipped', 5, 'rev', 'too-large');
+        expect(j.tombstones['Inbox/a.m4a']).toMatchObject({ state: 'skipped', reason: 'too-large', policyRevision: 'rev' });
+        const again = forgetSkip(j, 'Inbox/a.m4a');
+        expect(again.tombstones['Inbox/a.m4a']).toBeUndefined();
+        expect(forgetSkip(again, 'Inbox/a.m4a')).toBe(again);
+        let done = upsertEntry(emptyJournal(), mk('Inbox/b.md', 'accepted'));
+        done = finish(done, 'Inbox/b.md', 'accepted', 5);
+        expect(forgetSkip(done, 'Inbox/b.md')).toBe(done);
     });
 });

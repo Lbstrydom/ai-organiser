@@ -28,6 +28,11 @@ describe('setup validation', () => {
     expect(codes(['Sweep/x'], '')).toContain('inbox-output-root');
   });
 
+  it('a protected folder INSIDE the inbox does not block the inbox: only that subfolder is skipped', () => {
+    expect(codes(['Inbox'], 'Areas', ['Inbox/Shielded'])).toEqual([]);
+    expect(codes(['Inbox'], 'Areas', ['Inbox/Shielded']).includes('inbox-protected')).toBe(false);
+  });
+
   it('flags a destination root that is protected, an output root, or inside an inbox folder', () => {
     expect(codes(['Inbox'], 'Protected/Out')).toContain('destination-protected');
     expect(codes(['Inbox'], 'AI Organiser/Reports/x')).toContain('destination-output-root');

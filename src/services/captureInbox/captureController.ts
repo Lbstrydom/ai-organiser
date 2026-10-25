@@ -20,6 +20,14 @@ export interface CaptureController {
     /** Put the status back as Accept wrote it. True when it was restored. */
     unmarkProcessed(id: string): Promise<boolean>;
     skip(id: string): Promise<void>;
+    /** Ask for a skipped capture to be looked at again (a limit was raised, a feature turned on, a file replaced). */
+    retrySkipped(id: string): Promise<void>;
+    /** How long a capture must stay unchanged before it counts as settled, in ms. */
+    stabilityMs(): number;
+    /** The inbox sweep feature is on (it may still need setup). */
+    sweepFeatureOn(): boolean;
+    /** Open the inbox sweep setup. */
+    openSweepSetup(): void;
     retry(id: string): Promise<void>;
     /** Confirm processing an edited capture again. */
     processAgain(id: string): Promise<void>;

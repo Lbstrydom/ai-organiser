@@ -26,8 +26,8 @@ export interface SetupProblem {
 }
 
 /**
- * Setup validation. The inbox must not be (or sit inside, or contain) a protected folder or a plugin
- * output root; the destination root must not be protected, a plugin output root, or inside an inbox
+ * Setup validation. The inbox must not be (or sit inside) a protected folder, and must not be, sit inside or contain a plugin
+ * output root (a protected folder inside the inbox is skipped on its own); the destination root must not be protected, a plugin output root, or inside an inbox
  * folder (the sweep would then read the organised notes).
  */
 export function validateCaptureSetup(
@@ -44,7 +44,9 @@ export function validateCaptureSetup(
     const roots = outputRoots.map(normalisePath).filter((p) => p !== '');
     const overlaps = (a: string, b: string): boolean => isInsideOrEqual(a, b) || isInsideOrEqual(b, a);
     for (const inbox of inboxes) {
-        if (protectedList.some((p) => overlaps(inbox, p))) problems.push({ code: 'inbox-protected', path: inbox });
+        // Only an inbox that IS or sits INSIDE a protected folder is a problem. A protected folder inside the inbox is skipped
+        // item by item (every path is judged), so it must not stop the whole inbox.
+        if (protectedList.some((p) => isInsideOrEqual(inbox, p))) problems.push({ code: 'inbox-protected', path: inbox });
         if (roots.some((r) => overlaps(inbox, r))) problems.push({ code: 'inbox-output-root', path: inbox });
     }
     const dest = normalisePath(destinationRoot);

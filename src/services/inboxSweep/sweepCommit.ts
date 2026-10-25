@@ -15,7 +15,7 @@ import { TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
-import { assertWritable } from '../../core/protectedPaths';
+import { assertWritable, isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { isFeatureEnabled } from '../featureService';
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
 import { validateScriptUrl } from '../appsScriptClient';
@@ -71,6 +71,17 @@ export function sweepRunPolicy(plugin: AIOrganiserPlugin): SweepPolicy {
     if (!isCaptureActive()) return base;
     if (!isHeldMirrorLoaded()) return { ...base, excludedFolders: [...base.excludedFolders, ...plugin.settings.sweepInboxFolders] };
     return withHeldPaths(base, heldMirrorPaths());
+}
+
+/**
+ * How many notes in the sweep's inbox folders the capture inbox is holding for review. They are kept out of the sweep until
+ * the user accepts them, which is not the same as the user's keep-out rules, so the sweep says so. 0 with the feature off.
+ */
+export function heldInboxCount(plugin: AIOrganiserPlugin, folders: readonly string[] = plugin.settings.sweepInboxFolders): number {
+    if (!isCaptureActive() || !isHeldMirrorLoaded()) return 0;
+    const inbox = folders.map(normalisePath).filter((p) => p !== '');
+    // Only notes: the sweep never reads a bare audio or image file, so a held one is not a note it left out.
+    return heldMirrorPaths().filter((p) => p.toLowerCase().endsWith('.md') && inbox.some((i) => isInsideOrEqual(normalisePath(p), i))).length;
 }
 
 export function newRunId(): string {

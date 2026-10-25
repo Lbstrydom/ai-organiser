@@ -5,7 +5,7 @@
  * those two steps are the same code the sweep's wizard uses. Capture adds the destination for organised notes
  * and its limits. Nothing is saved until Finish, and a failed save puts everything back.
  */
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
 import { sweepPolicy } from '../../services/inboxSweep/sweepCommit';
@@ -111,7 +111,7 @@ export function openCaptureInboxSetup(plugin: AIOrganiserPlugin, onDone?: () => 
                     captureSince: s.captureSince > 0 ? s.captureSince : Date.now(),
                 },
                 { id: 'capture-inbox', value: new Date().toISOString() },
-            ).then((r) => { if (r.ok) onDone?.(); return r; });
+            ).then((r) => { if (r.ok) { new Notice(c.setupDone, 10000); onDone?.(); } return r; });
         },
     }).open();
 }

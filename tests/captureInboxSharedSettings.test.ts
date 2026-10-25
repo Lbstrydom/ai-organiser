@@ -28,6 +28,12 @@ describe('captureBlocker (the shared fail-closed rule, with the sweep off)', () 
     expect(captureBlocker(ready() as never, true)).toBeNull();
   });
 
+  it('a protected folder INSIDE the inbox does not stop the run (only that subfolder is skipped); a protected inbox still does', () => {
+    expect(captureBlocker(ready({ protectedFolders: ['Inbox/Shielded'] }) as never, true)).toBeNull();
+    expect(captureBlocker(ready({ protectedFolders: ['Inbox'] }) as never, true)).toBe('capture-inbox-invalid');
+    expect(captureBlocker(ready({ sweepInboxFolders: ['Inbox/Sub'], protectedFolders: ['Inbox'] }) as never, true)).toBe('capture-inbox-invalid');
+  });
+
   it('refuses a property rule that cannot be read, a protected or plugin-owned inbox, a bad destination, and a missing provider', () => {
     expect(captureBlocker(ready({ sweepExcludedProperties: ['nope'] }) as never, true)).toBe('sweep-property-invalid');
     expect(captureBlocker(ready({ sweepInboxFolders: ['Vault/Private'], protectedFolders: ['Vault'] }) as never, true)).toBe('capture-inbox-invalid');
