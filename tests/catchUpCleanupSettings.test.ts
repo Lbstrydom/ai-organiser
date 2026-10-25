@@ -58,7 +58,7 @@ describe('cleanup strings', () => {
     const m = getTranslations('en').settings.newsletter.catchUp;
 
     it('exist, carry their placeholders, and say what stays and what goes', () => {
-        expect(m.cleanupDays).toBe('Remove audio of heard episodes after (days)');
+        expect(m.cleanupDays).toBe('Remove audio of listened catch-up episodes after (days)');
         expect(m.cleanupDaysDesc).toMatch(/trash/);
         expect(m.cleanupDaysDesc).toMatch(/note and transcript stay/);
         expect(m.cleanupDaysDesc).toMatch(/never touched/);

@@ -6,10 +6,11 @@
 import type { Translations } from '../../../i18n/types';
 import { effectiveLookbackDays } from './catchUpCoverage';
 
-/** "3 days · 12 newsletters" / "One day · One newsletter". */
+/** "3 days · 12 newsletters" / "1 day · 1 newsletter"; the days alone when no newsletter is counted (never "0 newsletters"). */
 export function formatPendingSummary(t: Translations, days: number, newsletters: number): string {
     const m = t.modals.newsletterCatchUp;
     const d = (days === 1 ? m.daysOne : m.daysMany).replace('{n}', String(days));
+    if (newsletters === 0) return d;
     const n = (newsletters === 1 ? m.newslettersOne : m.newslettersMany).replace('{n}', String(newsletters));
     return m.pendingSummary.replace('{days}', d).replace('{newsletters}', n);
 }
@@ -45,6 +46,12 @@ export function formatDateList(t: Translations, dates: readonly string[], max = 
 /** True when the dates are consecutive calendar days, so "A to B" does not hide a gap. */
 export function isContiguous(dates: readonly string[]): boolean {
     return dates.length < 2 || datesBetween(dates[0], dates[dates.length - 1]).length === dates.length;
+}
+
+/** True when both lists hold exactly the same dates, whatever their order. */
+export function sameDays(a: readonly string[], b: readonly string[]): boolean {
+    const set = new Set(b);
+    return new Set(a).size === set.size && a.every((d) => set.has(d));
 }
 
 /** Every calendar date from `from` to `to`, inclusive. */

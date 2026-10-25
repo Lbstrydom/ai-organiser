@@ -26,6 +26,27 @@ describe('describeKept', () => {
 		expect(describeKept(file, e, ctx({ linkRemoval: 'unavailable' })).fileActions).toEqual([]);
 	});
 
+	it('offers nothing and says why when the links cannot be removed automatically', () => {
+		const e = elig(['still-referenced'], { referrers: [noteRef('A.md')], sameNameFiles: [], unreadable: [] }, 1);
+		const on = describeKept(file, e, ctx(), { linksRemovable: false });
+		expect(on.fileActions).toEqual([]);
+		expect(on.notes).toEqual(['links-not-removable']);
+		const off = describeKept(file, e, ctx({ linkRemoval: 'off' }), { linksRemovable: false });
+		expect(off.fileActions).toEqual([]);
+		expect(off.notes).toEqual(['links-not-removable']);
+		// removal unavailable on this host: nothing to explain either
+		expect(describeKept(file, e, ctx({ linkRemoval: 'unavailable' }), { linksRemovable: false }).notes).toEqual([]);
+	});
+
+	it('an unchecked or removable card behaves as before and carries no note', () => {
+		const e = elig(['still-referenced'], { referrers: [noteRef('A.md')], sameNameFiles: [], unreadable: [] }, 1);
+		for (const opts of [{}, { linksRemovable: true }, { linksRemovable: undefined }]) {
+			const card = describeKept(file, e, ctx(), opts);
+			expect(card.fileActions).toEqual([{ kind: 'remove-link-and-delete' }]);
+			expect(card.notes).toEqual([]);
+		}
+	});
+
 	it('never offers removal for a canvas referrer (open it instead)', () => {
 		const card = describeKept(file, elig(['still-referenced'], { referrers: [{ path: 'Board.canvas', extension: 'canvas', lineNumber: 0, linktext: 'x' }], sameNameFiles: [], unreadable: [] }, 1), ctx());
 		expect(card.entries[0].actions).toEqual([{ kind: 'open-canvas', path: 'Board.canvas' }]);

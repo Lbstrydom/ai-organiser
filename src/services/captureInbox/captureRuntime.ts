@@ -12,10 +12,11 @@
  * The runtime takes an injected `isEnabled()`, so turning the feature off makes every entry point a
  * no-op without needing a main.ts edit.
  */
+import type { Result } from '../../core/result';
 import { logger } from '../../utils/logger';
 import { reconcile } from './captureJournal';
 import { runJobs, syncEntries, type CaptureDeps, type RunSummary } from './captureProcessor';
-import { scanInbox, type ScanOutcome } from './captureScanner';
+import { CAPTURE_FILE_MISSING, scanInbox, type ScanOutcome } from './captureScanner';
 import { finishBareAccept, noteHasBlockFor, retryPendingWrites, type WriterDeps } from './captureWriter';
 
 /** Automatic runs are spaced at least this far apart. */
@@ -94,7 +95,7 @@ export class CaptureRuntime {
         }, HINT_DEBOUNCE_MS);
     }
 
-    private scan(includeExisting?: boolean): Promise<ScanOutcome> {
+    private scan(includeExisting?: boolean): Promise<Result<ScanOutcome>> {
         const { deps } = this;
         return scanInbox(deps.vault, {
             config: deps.config(),
@@ -114,7 +115,12 @@ export class CaptureRuntime {
         }
         this.running = true;
         try {
-            const scan = await this.scan();
+            const scanned = await this.scan();
+            if (!scanned.ok) {
+                logger.warn('CaptureInbox', `Refresh skipped (${scanned.error})`);
+                return null;
+            }
+            const scan = scanned.value;
             // A hint is not proof that a sync finished: an old mtime does not count as stable here.
             await syncEntries(this.deps, scan, { trustMtime: false });
             return scan;
@@ -144,7 +150,12 @@ export class CaptureRuntime {
         this.cancelFlag = false;
         try {
             // "Process all existing" is a manual choice; an automatic run never widens its own scope.
-            const scan = await this.scan(opts.trigger === 'manual' ? opts.includeExisting : false);
+            const scanned = await this.scan(opts.trigger === 'manual' ? opts.includeExisting : false);
+            if (!scanned.ok) {
+                logger.error('CaptureInbox', `Run skipped (${scanned.error})`);
+                return null;
+            }
+            const scan = scanned.value;
             await syncEntries(deps, scan);
             await yieldTick();
             const limit = opts.trigger === 'auto' ? Math.min(config.onOpenMaxPerRun, config.maxPerRun) : config.maxPerRun;
@@ -182,23 +193,30 @@ export class CaptureRuntime {
                     probes.set(entry.id, false);
                     continue;
                 }
-                try {
-                    const present = noteHasBlockFor(await deps.vault.readText(path), uid);
-                    probes.set(entry.id, present);
-                    if (present && entry.hasNote === false) completedBare.push({ id: entry.id, path });
-                } catch {
-                    probes.set(entry.id, undefined);
+                const read = await deps.vault.readText(path);
+                if (!read.ok) {
+                    // A note that is gone has no block: the write is retried and, finding no note, goes back to review. A read that merely failed is undecided, so reconcile leaves it for a later start.
+                    probes.set(entry.id, read.error === CAPTURE_FILE_MISSING ? false : undefined);
+                    continue;
                 }
+                const present = noteHasBlockFor(read.value, uid);
+                probes.set(entry.id, present);
+                if (present && entry.hasNote === false) completedBare.push({ id: entry.id, path });
             }
             // A bare-media Accept that reached the companion note must also complete its journal half, or the
             // companion would be offered as a brand new capture.
             for (const done of completedBare) await finishBareAccept(deps.writer, done.id, done.path, 'none');
             let retry: string[] = [];
-            await deps.journal.mutate((journal) => {
+            const reconciled = await deps.journal.mutate((journal) => {
                 const result = reconcile(journal, (id) => probes.get(id), deps.now());
                 retry = result.retryWrites;
                 return result.journal;
             });
+            if (!reconciled.ok) {
+                // Nothing was recorded, so nothing is retried: the next start decides again from the same journal.
+                logger.warn('CaptureInbox', `Recovery could not update the journal (${reconciled.error})`);
+                return;
+            }
             if (retry.length > 0) await retryPendingWrites(deps.writer, retry);
         } finally {
             this.running = false;

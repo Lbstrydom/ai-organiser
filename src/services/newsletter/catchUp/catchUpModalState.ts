@@ -95,6 +95,8 @@ export type ModalView =
         from: string;
         to: string;
         days: number;
+        /** Superseded daily audio of the unfinished episode's days, so the person's tidy choice survives a failed run. */
+        tidy: TidyPlan | null;
     })
     | (Common & {
         kind: 'pending';
@@ -114,6 +116,13 @@ export type ModalView =
     | (Common & { kind: 'caught-up'; through: string })
     | (Common & { kind: 'gap'; lastEpisodeTo: string })
     | (Common & { kind: 'unresolved-only'; unresolvedDates: string[] });
+
+/** The part of a tidy plan that belongs to the given days, or null when none of it does. */
+export function tidyForDays(tidy: TidyPlan | null, dates: readonly string[]): TidyPlan | null {
+    const files = tidy?.files.filter((f) => dates.includes(f.date)) ?? [];
+    if (files.length === 0) return null;
+    return { files, bytes: files.reduce((n, f) => n + f.bytes, 0), days: [...new Set(files.map((f) => f.date))].sort() };
+}
 
 export interface ModalInput {
     availability: Availability;
@@ -156,6 +165,7 @@ export function deriveModalView(input: ModalInput): ModalView {
             from: f.from,
             to: f.to,
             days: f.entries.length,
+            tidy: tidyForDays(snapshot.tidy, f.entries.filter((e) => e.kind === 'full').map((e) => e.date)),
         };
     }
 

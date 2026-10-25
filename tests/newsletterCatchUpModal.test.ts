@@ -649,7 +649,7 @@ describe('tidying the superseded daily audio', () => {
     it('offers a checkbox, ON by default, naming how many files and how much space', async () => {
         snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', tidy });
         const { root } = await open();
-        expect(root.textContent).toContain('Also remove the daily audio for these days (2 files, 1.0 MB)');
+        expect(root.textContent).toContain('Also remove the daily audio these days replace (2 files, 1.0 MB)');
         expect(box(root)!.type).toBe('checkbox');
         expect(box(root)!.checked).toBe(true);
         expect(root.querySelector('.ai-organiser-catchup-tidy label input')).toBeTruthy();
@@ -746,7 +746,7 @@ describe('tidying the superseded daily audio', () => {
         const { root } = await open();
         click(root, 'Replace my unheard episode with one fresh catch-up covering everything');
         await vi.waitFor(() => expect(buttons(root)).toContain('Replace and generate'));
-        expect(root.textContent).toContain('Also remove the daily audio for these days (2 files, 1.0 MB)');
+        expect(root.textContent).toContain('Also remove the daily audio these days replace (2 files, 1.0 MB)');
         click(root, 'Replace and generate');
         await vi.waitFor(() => expect(runDailyAudioTidy).toHaveBeenCalledTimes(1));
         await vi.waitFor(() => expect(root.textContent).toContain('The old episode is in your trash. Removed the daily audio for 2 days'));
@@ -915,7 +915,7 @@ describe('left-out days are described honestly', () => {
         snapshotRef.value = pendingSnap({ noBriefDates: ['2026-10-20'] });
         const { root } = await open();
         expect(root.textContent).toContain('No newsletters stored for 2026-10-19.');
-        expect(root.textContent).toContain('The newsletters for 2026-10-20 have no daily brief yet, so there is nothing to turn into audio.');
+        expect(root.textContent).toContain('The newsletters for 2026-10-20 have no usable daily brief, so there is nothing to turn into audio.');
         expect(root.textContent).not.toContain('No newsletters stored for 2026-10-19, 2026-10-20');
     });
 
@@ -923,7 +923,7 @@ describe('left-out days are described honestly', () => {
         snapshotRef.value = pendingSnap();
         const { root } = await open();
         expect(root.textContent).toContain('No newsletters stored for 2026-10-19, 2026-10-20.');
-        expect(root.textContent).not.toContain('no daily brief yet');
+        expect(root.textContent).not.toContain('no usable daily brief');
     });
 
     it('neither note appears once you are caught up (nothing to explain)', async () => {
@@ -935,7 +935,7 @@ describe('left-out days are described honestly', () => {
         const { root } = await open();
         expect(root.textContent).toContain('You are caught up');
         expect(root.textContent).not.toContain('No newsletters stored');
-        expect(root.textContent).not.toContain('no daily brief yet');
+        expect(root.textContent).not.toContain('no usable daily brief');
     });
 
     it('Include again says what it does', async () => {
@@ -973,5 +973,168 @@ describe('progress and failure wording for the voice step', () => {
         expect(root.textContent).toContain('voice service may be busy');
         expect(root.textContent).toContain('resume in a few minutes');
         expect(root.textContent).not.toContain('catchup-tts-failed');
+    });
+});
+
+// Persona-test fixes (catch-up window, 2026-10-25).
+describe('the screen after an episode is made', () => {
+    const replaceButton = (root: HTMLElement) => buttons(root).filter((b) => /^Replace my/.test(b ?? ''));
+
+    // A1: the result screen offered Replace (pointless: the same audio again, ~$0.23) and two Include-again buttons.
+    it('offers no Replace when nothing is pending: it would only remake the same audio', async () => {
+        const ep = episode('e1', '2026-10-21', '2026-10-23');
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up', unheard: [ep], latestEpisode: ep });
+        const { root } = await open();
+        expect(replaceButton(root)).toEqual([]);
+        expect(root.textContent).toContain('Listen to it, or mark it listened.');
+        expect(root.textContent).not.toContain('generate another one anyway');
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Open to listen', 'Mark listened']));
+    });
+
+    it('still offers Replace when days are pending (that is when swapping is meaningful)', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')] });
+        const { root } = await open();
+        expect(replaceButton(root)).toHaveLength(1);
+        expect(root.textContent).toContain('generate another one anyway');
+    });
+
+    it('offers no Replace in the gap and unresolved states either', async () => {
+        const ep = episode('e1', '2026-10-05', '2026-10-10');
+        snapshotRef.value = snapshot({ state: 'gap', unheard: [ep], latestEpisode: ep });
+        expect(replaceButton((await open()).root)).toEqual([]);
+        snapshotRef.value = snapshot({
+            state: 'unresolved-only', unheard: [ep], latestEpisode: ep,
+            pending: { entries: [], unresolved: [{ date: '2026-10-22', reason: 'unitemisable' }], noStoredDates: [], coveredDates: [], openDates: [] },
+        });
+        expect(replaceButton((await open()).root)).toEqual([]);
+    });
+
+    // A3: two buttons that did the same thing.
+    it('one "include again" button when the last episode covers the whole window', async () => {
+        const ep = episode('e1', '2026-10-21', '2026-10-23');
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up', latestEpisode: ep });
+        const { root } = await open();
+        expect(buttons(root)).toContain('Include all 3 days again');
+        expect(buttons(root)).not.toContain('Include again…');
+        expect(root.textContent).not.toContain('Include again makes another');
+    });
+
+    it('both stay when the last episode covers only part of the window', async () => {
+        const ep = episode('e1', '2026-10-22', '2026-10-23');
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up', latestEpisode: ep });
+        const { root } = await open();
+        expect(buttons(root)).toEqual(expect.arrayContaining(['Include all 3 days again', 'Include again…']));
+        expect(root.textContent).toContain('Include again makes another episode for the days of your last one.');
+    });
+
+    it('Open to listen comes first in the footer, before the include buttons', async () => {
+        const ep = episode('e1', '2026-10-22', '2026-10-23');
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up', latestEpisode: ep });
+        const { root } = await open();
+        const footer = Array.from(root.querySelectorAll('.ai-organiser-catchup-actions')).at(-1)!;
+        expect(Array.from(footer.querySelectorAll('button')).map((b) => b.textContent)).toEqual(['Open to listen', 'Include all 3 days again', 'Include again…', 'Close']);
+    });
+
+    // A8: "Include again" quietly piled up a second unheard episode.
+    it('says how to swap instead when days are re-included while an unheard episode exists', async () => {
+        const ep = episode('e1', '2026-10-22', '2026-10-23');
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22', '2026-10-23'], state: 'caught-up', unheard: [ep], latestEpisode: ep });
+        const { root } = await open();
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22', '2026-10-23']), state: 'pending', unheard: [ep] });
+        click(root, 'Include all 3 days again');
+        await vi.waitFor(() => expect(root.textContent).toContain('use Replace to swap it instead'));
+        expect(replaceButton(root)).toHaveLength(1);
+    });
+
+    it('does not say it when nothing is unheard', async () => {
+        snapshotRef.value = snapshot({ window: ['2026-10-21', '2026-10-22'], state: 'caught-up', latestEpisode: episode('e1', '2026-10-21', '2026-10-22') });
+        const { root } = await open();
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-21', '2026-10-22']), state: 'pending' });
+        click(root, 'Include all 2 days again');
+        await vi.waitFor(() => expect(buttons(root)).toContain('Generate'));
+        expect(root.textContent).not.toContain('use Replace to swap it instead');
+    });
+});
+
+describe('the waiting card', () => {
+    // A4: a bare date range, and no word on what Generate does while waiting.
+    it('labels the episode and says Generate still works', async () => {
+        snapshotRef.value = snapshot({ plan: plan(['2026-10-22', '2026-10-23']), state: 'pending', unheard: [episode('e1', '2026-10-19', '2026-10-21')], autoPendingDays: 2 });
+        const { root } = await open(plugin({ newsletterAudioMode: 'smart-daily' }));
+        expect(root.querySelector('.ai-organiser-catchup-waiting-episode')?.textContent).toBe('Unheard episode: 2026-10-19 → 2026-10-21');
+        expect(root.textContent).toContain('Generate still works: it makes an episode now and does not wait.');
+        expect(buttons(root)).toContain('Generate');
+    });
+});
+
+describe('summary of pending days', () => {
+    // A9
+    it('does not claim "0 newsletters" for a day with none', async () => {
+        snapshotRef.value = snapshot({ plan: { ...plan(['2026-10-23']), entries: [entry('2026-10-23', 0)] }, state: 'pending' });
+        const { root } = await open();
+        expect(root.textContent).toContain('1 day pending');
+        expect(root.textContent).not.toContain('0 newsletters');
+    });
+});
+
+describe('Resume keeps the tidy choice (persona A2)', () => {
+    const tidyFile = (d: string) => ({ date: d, name: `brief-${d}-abcd1234.mp3`, path: `R/${d}/brief-${d}-abcd1234.mp3`, bytes: 524288, mtime: 1, narratedRev: null, digestPath: `R/Digest ${d}.md`, briefHash: 'aa' });
+    const tidy = { files: [tidyFile('2026-10-21'), tidyFile('2026-10-22')], bytes: 1048576, days: ['2026-10-21', '2026-10-22'] };
+    const record = {
+        version: 1, opId: 'op', phase: 'scripted', script: 's', scriptIdentity: 'i', outputRoot: 'R', capMinutes: 15, createdAt: 1,
+        frozen: { entries: [{ date: '2026-10-21', kind: 'full', coverage: { kind: 'whole' } }, { date: '2026-10-22', kind: 'full', coverage: { kind: 'whole' } }], from: '2026-10-21', to: '2026-10-22', sources: 4, titles: [] },
+    };
+    const done = { ok: true, value: { opId: 'op-9', notePath: 'Catch-up/N.md', audioPath: 'A.mp3', minutes: 12, from: '2026-10-21', to: '2026-10-22', days: 2, sources: 4, created: true } };
+    const box = (root: HTMLElement) => root.querySelector('.ai-organiser-catchup-tidy input') as HTMLInputElement | null;
+
+    beforeEach(() => {
+        runDailyAudioTidy.mockReset();
+        resumeCatchUp.mockReset();
+        resumeCatchUp.mockResolvedValue(done);
+        opRef.value = { kind: 'scripted', record };
+        snapshotRef.value = snapshot({ tidy });
+    });
+
+    it('shows the checkbox, ticked, on the resume screen', async () => {
+        const { root } = await open();
+        expect(box(root)!.checked).toBe(true);
+        expect(root.textContent).toContain('Also remove the daily audio these days replace (2 files, 1.0 MB)');
+    });
+
+    it('removes the consented daily audio only AFTER the resumed episode is saved', async () => {
+        runDailyAudioTidy.mockResolvedValue({ ok: true, value: { kind: 'done', report: { removedFiles: 2, removedBytes: 1048576, daysDone: ['2026-10-21', '2026-10-22'], skipped: [], halted: null } } });
+        const { root } = await open();
+        click(root, 'Resume');
+        await vi.waitFor(() => expect(runDailyAudioTidy).toHaveBeenCalledTimes(1));
+        expect(resumeCatchUp.mock.invocationCallOrder[0]).toBeLessThan(runDailyAudioTidy.mock.invocationCallOrder[0]);
+        expect(runDailyAudioTidy.mock.calls[0][1]).toEqual({ files: tidy.files, episodeId: 'op-9' });
+        await vi.waitFor(() => expect(root.textContent).toContain('Removed the daily audio for 2 days (1.0 MB).'));
+    });
+
+    it('unticked means nothing is removed', async () => {
+        const { root } = await open();
+        const b = box(root)!;
+        b.checked = false;
+        b.dispatchEvent(new Event('change'));
+        click(root, 'Resume');
+        await vi.waitFor(() => expect(root.textContent).toContain('Episode ready'));
+        expect(runDailyAudioTidy).not.toHaveBeenCalled();
+    });
+
+    it('a failed resume never tidies', async () => {
+        resumeCatchUp.mockResolvedValue({ ok: false, error: 'catchup-tts-failed' });
+        const { root } = await open();
+        click(root, 'Resume');
+        await flush(); await flush();
+        expect(runDailyAudioTidy).not.toHaveBeenCalled();
+    });
+
+    it('is absent when there is no daily audio to tidy, and while confirming a discard', async () => {
+        snapshotRef.value = snapshot({ tidy: null });
+        expect(box((await open()).root)).toBeNull();
+        snapshotRef.value = snapshot({ tidy });
+        const { root } = await open();
+        click(root, 'Discard');
+        expect(box(root)).toBeNull();
     });
 });

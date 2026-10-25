@@ -25,7 +25,7 @@ function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed
   const files = new Map<string, { size: number; text?: string }>();
   const transcribe = vi.fn(async (): Promise<Result<string>> => ok('spoken words'));
   const classify = vi.fn(async () => ok({ tags: ['a'], suggestedTitle: 'T' }));
-  const access = { get: () => journal, mutate: async (fn: (j: CaptureJournal) => CaptureJournal) => (journal = fn(journal)), mutateLazy: (fn: (j: CaptureJournal) => CaptureJournal) => { journal = fn(journal); } };
+  const access = { get: () => journal, mutate: async (fn: (j: CaptureJournal) => CaptureJournal) => ok((journal = fn(journal))), mutateLazy: (fn: (j: CaptureJournal) => CaptureJournal) => { journal = fn(journal); return ok(undefined); } };
   const writerPort: WriterPort = {
     readNote: async (p) => files.get(p)?.text ?? null,
     editNote: async (p, _b, recompute) => { const r = recompute(files.get(p)!.text!); if (!r.ok) return err<void>(r.error); files.get(p)!.text = r.value.content; return ok(undefined); },
@@ -36,13 +36,13 @@ function setup(over: { enabled?: () => boolean; visible?: () => boolean; allowed
   const writer: WriterDeps = { port: writerPort, journal: access, config: () => config, policy: () => policy, isSwept: async () => false, protectedFolders: () => [], outputRoots: () => [], now: () => clock };
   const deps: RuntimeDeps = {
     journal: access, config: () => config, policy: () => policy, now: () => clock,
-    port: { readBytes: async () => new Uint8Array([0x49, 0x44, 0x33, 4]), stat: async (p) => { const f = files.get(p); return f ? { size: f.size, mtime: 1 } : null; }, exists: (p) => files.has(p) },
+    port: { readBytes: async () => ok(new Uint8Array([0x49, 0x44, 0x33, 4])), stat: async (p) => { const f = files.get(p); return f ? { size: f.size, mtime: 1 } : null; }, exists: (p) => files.has(p) },
     vault: {
       listFiles: () => [...files].map(([path, f]) => ({ path, extension: path.split('.').pop()!, ctime: 1, mtime: 1, size: f.size })),
-      readText: async (p) => files.get(p)?.text ?? '',
+      readText: async (p) => { const f = files.get(p); return f ? ok(f.text ?? '') : err('capture-file-missing'); },
       resolveAttachments: (p) => ({ resolved: p === 'Inbox/a.md' ? ['Inbox/a.mp3'] : [], unresolvedMedia: [] }),
       referrersOf: () => [],
-      digestOf: async () => sha256Hex(new Uint8Array([0x49, 0x44, 0x33, 4]).buffer),
+      digestOf: async () => ok(await sha256Hex(new Uint8Array([0x49, 0x44, 0x33, 4]).buffer)),
     },
     isSwept: async () => false, isEnabled: over.enabled ?? (() => true),
     digitisationEnabled: () => true, transcribe, digitise: async () => ok('x'), classify,
@@ -65,6 +65,20 @@ describe('CaptureRuntime', () => {
     const r = await rt.runOnce({ trigger: 'manual' });
     expect(r?.summary.awaitingReview).toBe(1);
     expect(s.transcribe).toHaveBeenCalledTimes(1);
+  });
+
+  it('a failed scan is not a run: no provider call, the next run starts afresh', async () => {
+    const s = setup();
+    const list = s.deps.vault.listFiles;
+    s.deps.vault.listFiles = () => { throw new Error('index is rebuilding'); };
+    const rt = new CaptureRuntime(s.deps);
+    expect(await rt.refresh()).toBeNull();
+    expect(await rt.runOnce({ trigger: 'manual' })).toBeNull();
+    expect(rt.isRunning()).toBe(false);
+    expect(s.transcribe).not.toHaveBeenCalled();
+    s.deps.vault.listFiles = list;
+    s.tick(10_000);
+    expect(await rt.refresh()).not.toBeNull();
   });
 
   it('is a no-op when the feature is off or Obsidian is not visible', async () => {
@@ -172,6 +186,20 @@ describe('recovery after a crash', () => {
     await new CaptureRuntime(s.deps).recoverOnStart();
     expect(s.files.get('Inbox/n.md')!.text).toBe(before);
     expect(getEntry(s.journal(), 'Inbox/n.md')?.state).toBe('accepted');
+  });
+
+  it('an Accept whose note was deleted meanwhile goes back to review instead of staying pending forever', async () => {
+    const { s } = await pending(true);
+    s.files.delete('Inbox/n.md');
+    await new CaptureRuntime(s.deps).recoverOnStart();
+    expect(getEntry(s.journal(), 'Inbox/n.md')?.state).not.toBe('accept_pending_write');
+  });
+
+  it('an Accept whose note could not be read right now stays pending: undecided, retried at the next start', async () => {
+    const { s } = await pending(true);
+    s.deps.vault.readText = async () => err('capture-read-failed');
+    await new CaptureRuntime(s.deps).recoverOnStart();
+    expect(getEntry(s.journal(), 'Inbox/n.md')?.state).toBe('accept_pending_write');
   });
 
   it('an Accept that never reached the note is retried once, and only that write', async () => {

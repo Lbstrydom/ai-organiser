@@ -9,6 +9,7 @@ import type AIOrganiserPlugin from '../main';
 import type { CaughtUpOutcome } from '../services/newsletter/newsletterMemoryTypes';
 import { isFeatureEnabled } from '../services/featureService';
 import { logger } from '../utils/logger';
+import { plural } from '../utils/plural';
 import { noticeWithSettingsLink } from '../utils/noticeUtils';
 import type { NewsletterFetchResult } from '../services/newsletter/newsletterTypes';
 import { NewsletterService, getBriefDateStr, extractDigestDate, digestBucketForPath } from '../services/newsletter/newsletterService';
@@ -127,10 +128,14 @@ export function formatCaughtUpOutcome(
 ): string {
     switch (outcome.kind) {
         case 'ok':
-            return (nl?.caughtUpOk || 'Caught up through {through} — {buckets} day(s), {stories} stories')
-                .replace('{through}', outcome.through)
-                .replace('{buckets}', String(outcome.buckets))
-                .replace('{stories}', String(outcome.stories));
+            // Plain words, not counters: the person asked to be "caught up", not for a bucket count.
+            return plural(
+                (outcome.stories === 0
+                    ? nl?.caughtUpOkNone || 'Every story through {through} was already known.'
+                    : nl?.caughtUpOk || 'Marked {stories} stor[y|ies] through {through} as already known.'),
+                outcome.stories,
+                'stories',
+            ).replace('{through}', outcome.through);
         case 'noop':
             return nl?.caughtUpNoop || 'Already up to date — nothing to mark';
         case 'disabled':
@@ -163,6 +168,8 @@ export async function runMarkCaughtUp(plugin: AIOrganiserPlugin): Promise<void> 
     if (markingCaughtUp) return;
     markingCaughtUp = true;
     try {
+        // It cannot be undone and silences stories in every later brief, so it is never one click.
+        if (!await plugin.showConfirmationDialog(nl?.markCaughtUpConfirm || 'Mark every earlier story as already known?')) return;
         await markCaughtUpInner(plugin, nl);
     } finally {
         markingCaughtUp = false;
