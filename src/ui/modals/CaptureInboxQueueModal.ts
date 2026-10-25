@@ -31,16 +31,16 @@ export class CaptureInboxQueueModal extends Modal {
         this.draw();
     }
 
-    /** Rewrite only the seconds-left text; if the rows on screen no longer match, draw the window again. */
+    /** Rewrite only the seconds-left text. The window is drawn again only when a row on screen stops counting; a row that starts is a journal change and draws itself. */
     private tickCountdown(): void {
-        const t = this.plugin.t.captureInbox;
-        const counting = buildQueue(this.ctl.store.get(), Date.now(), { stabilityMs: this.ctl.stabilityMs() }).filter((r) => r.settleSeconds !== undefined);
         const shown = this.contentEl.querySelectorAll('[data-settle]');
-        if (counting.length === 0 && shown.length === 0) return;
-        const byId = new Map<string, HTMLElement>();
-        shown.forEach((el) => byId.set(el.getAttribute('data-settle') ?? '', el as HTMLElement));
-        if (counting.length !== byId.size || counting.some((r) => !byId.has(r.id))) { this.draw(); return; }
-        for (const r of counting) byId.get(r.id)?.setText(t.settleLine.replace('{seconds}', String(Math.max(1, r.settleSeconds ?? 1))));
+        if (shown.length === 0) return;
+        const t = this.plugin.t.captureInbox;
+        const counting = new Map(buildQueue(this.ctl.store.get(), Date.now(), { stabilityMs: this.ctl.stabilityMs() }).filter((r) => r.settleSeconds !== undefined).map((r) => [r.id, r]));
+        for (const el of Array.from(shown)) {
+            if (!counting.has(el.getAttribute('data-settle') ?? '')) { this.draw(); return; }
+        }
+        shown.forEach((el) => el.setText(t.settleLine.replace('{seconds}', String(Math.max(1, counting.get(el.getAttribute('data-settle') ?? '')?.settleSeconds ?? 1)))));
     }
 
     private label(row: QueueRow): string {

@@ -452,7 +452,7 @@ describe('a failure shows a friendly sentence, never the raw provider answer', (
     await w.go({ passes: 3 });
     const e = getEntry(w.journal(), 'Inbox/a.md')!;
     expect(e.waitReason).toBeUndefined();
-    expect(e.state).not.toBe('waiting_for_stable');
+    expect(['ready', 'processing', 'awaiting_review', 'accepted', 'organised']).toContain(e.state);
   });
 
   it('the fallback title keeps the clock time the user wrote', async () => {
