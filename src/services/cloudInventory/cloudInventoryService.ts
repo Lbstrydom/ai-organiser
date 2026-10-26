@@ -131,7 +131,7 @@ export async function testConnection(opts: {
     const res = await callScript<{ scriptVersion?: number; rootsHash?: string; folder?: { name?: string } | null }>({
         url: opts.url,
         secret: opts.secret,
-        body: { op: 'ping', folderId: opts.folderId ?? null },
+        body: { op: 'ping', module: 'inventory', folderId: opts.folderId ?? null },
         transport: opts.transport,
         maxAttempts: 2,
     });

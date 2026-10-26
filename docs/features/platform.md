@@ -293,3 +293,20 @@ Manage       ← Recurring + admin: Kindle, Newsletter, recording, dashboards,
 **Backward-compat search**: Each leaf optionally declares `legacyHomes: string[]` (e.g. `'active-note-export'`); the helper auto-derives legacy aliases (`'active note'`, `'export'`) so users who learned the old taxonomy still find moved commands.
 
 **Command Picker Architecture**: Custom `Modal` (not FuzzySuggestModal) with inline tree expansion. Pure view-model logic in `commandPickerViewModel.ts` (`buildVisibleItems`, `flattenSingleChildGroups`, `buildSearchResults` with explicit canonical-placement reduce). Browse mode = expandable tree; search mode = flat deduplicated results via `prepareFuzzySearch()`. 38 unique commands surfaced (41 picker rows including 3 cross-listings). All commands have i18n descriptions shown on highlight.
+
+## Process view
+
+`src/ui/views/ProcessView.ts` (a workspace view, command **Open Process**) lists what is waiting for the person, grouped by owner. It
+exists only while `capture-inbox`, `inbox-sweep` or `ai-workspaces` is on (`processViewActive`; registered as a view and as a command
+from `registerCommands`, not through a per-feature registrar); with none on, nothing is registered.
+
+- **Read-only projection** (`src/services/process/processProjection.ts`): one adapter per owner, each returning `Result`. A failing adapter
+  shows its own group as "could not load" and nothing else. Groups: captures to review (the capture queue model's own rows), AI
+  hand-backs with items still pending or failed (the hand-back journal; a hand-back with only deliverables left, or whose note is gone, is
+  not listed), and held tasks (failed or routed-with-error tasks in the sweep record; a terminal conflict is not listed). The view keeps no
+  state of its own. Rows beyond 50 per group are counted, never dropped silently.
+- **Rows open the owner's window**: a capture row runs Review captures, a held row runs Send tasks to Google, a hand-back row reads the note
+  and opens the hand-back review (`openHandbackReview`, the same function the command uses).
+- **Refresh**: on show, on capture-journal change (debounced 300 ms) and by button.
+- **Shared row**: `src/ui/components/ActionRow.ts`. Not built in this version: the hand-back and sweep reviews using the same row component,
+  filing and agenda groups, the status-bar item opening Process, and the operation-index "interrupted" group.

@@ -34,7 +34,7 @@ interface Endpoint {
 }
 
 export async function pingTasksScript(endpoint: Endpoint): Promise<Result<TasksPing>> {
-    const res = await callScript<{ scriptVersion?: unknown; approvedListId?: unknown; listHash?: unknown; approvedListIds?: unknown; capabilities?: unknown }>({ ...endpoint, body: { op: 'ping' }, maxAttempts: 2 });
+    const res = await callScript<{ scriptVersion?: unknown; approvedListId?: unknown; listHash?: unknown; approvedListIds?: unknown; capabilities?: unknown }>({ ...endpoint, body: { op: 'ping', module: 'tasks' }, maxAttempts: 2 });
     if (!res.ok) return err(res.error);
     const v = res.value;
     if (typeof v.scriptVersion !== 'number' || typeof v.listHash !== 'string') return err('script-bad-response');

@@ -34,7 +34,10 @@ import { registerAgentConnectorCommands } from './agentConnectorCommands';
 import { registerGoogleTasksCommands, registerInboxSweepCommands } from './inboxSweepCommands';
 import { registerCaptureInboxCommands } from './captureInboxCommands';
 import { registerProjectCommands } from './projectCommands';
+import { registerGoogleScriptCommands } from './googleScriptCommands';
 import { registerAiWorkspaceCommands } from './aiWorkspaceCommands';
+import { registerProcessCommands } from './processCommands';
+import { processViewActive } from '../services/process/processGate';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -85,7 +88,7 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     'agent-connectors': [registerAgentConnectorCommands],
     'inbox-sweep': [registerInboxSweepCommands],
     'capture-inbox': [registerCaptureInboxCommands],
-    'google-tasks-export': [registerGoogleTasksCommands, registerProjectCommands],
+    'google-tasks-export': [registerGoogleTasksCommands, registerProjectCommands, registerGoogleScriptCommands],
     'ai-workspaces': [registerAiWorkspaceCommands],
 };
 
@@ -96,6 +99,8 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
  * per-item contributions gate inline — Gemini-G2).
  */
 export function registerCommands(plugin: AIOrganiserPlugin) {
+    // The Process view exists while any feature that feeds it is on.
+    if (processViewActive(plugin.settings)) registerProcessCommands(plugin);
     for (const [id, fns] of Object.entries(REGISTER_BY_FEATURE) as [FeatureId, RegisterFn[]][]) {
         if (!isFeatureEnabled(plugin.settings, id)) continue;
         for (const fn of fns) fn(plugin);
