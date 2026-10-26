@@ -24,13 +24,14 @@ describe('buildIrSystemPrompt', () => {
         expect(buildIrSystemPrompt({ outputLanguage: 'French' })).toContain('French');
     });
 
-    it('#3/#4: guides chart axisLabel/source + restrained emphasis', () => {
+    it('#3/#4: guides chart axisLabel/source + a real subhead instead of a bold paragraph', () => {
         const p = buildIrSystemPrompt();
         expect(p).toContain('axisLabel');
         expect(p).toContain('source');
-        expect(p.toLowerCase()).toContain('emphasis');
-        // emphasis guidance warns against bolding a whole passage
-        expect(p.toLowerCase()).toMatch(/whole|multi-line|single short/);
+        // a sub-headline is its own block now; emphasis is no longer how it is authored
+        expect(p).toContain('"kind": "subhead"');
+        expect(p).toContain('not as an emphasised paragraph');
+        expect(p).not.toContain('"emphasis"?: boolean');
     });
 
     it('enforces an exact slide count when targetLength is given', () => {

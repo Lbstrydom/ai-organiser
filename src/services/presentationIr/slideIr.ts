@@ -69,6 +69,17 @@ const paragraphBlock = z.object({
     emphasis: z.boolean().optional(),
 }).strict();
 
+/** A real sub-headline / kicker: the short lead-in line under a title or above a
+ *  group of content. Replaces "a bold paragraph" as the way to say "this is a
+ *  sub-heading" — a paragraph's `emphasis` stays for old decks but is not how a
+ *  subhead is authored any more. */
+// Unlike the other blocks, a subhead STRIPS unknown keys instead of rejecting them: a model
+// that carries over `emphasis` from the old paragraph habit must not fail the whole deck.
+const subheadBlock = z.object({
+    kind: z.literal('subhead'),
+    text,
+}).strip();
+
 const bulletsBlock = z.object({
     kind: z.literal('bullets'),
     items: z.array(text).min(1).max(MAX_BLOCKS_PER_SLIDE),
@@ -186,6 +197,7 @@ const LEAF_MEMBERS = [
     headingBlock, paragraphBlock, bulletsBlock, statGridBlock, barChartBlock,
     processFlowBlock, tableBlock, imageBlock, svgBlock, calloutBlock,
     captionBlock, customBlock, waterfallBlock, lineChartBlock, pyramidBlock,
+    subheadBlock,
 ] as const;
 
 export const LeafBlockSchema = z.discriminatedUnion('kind', LEAF_MEMBERS);
@@ -202,6 +214,26 @@ export const SlideTypeSchema = z.union([
     z.literal('title'), z.literal('section'), z.literal('content'), z.literal('closing'),
 ]);
 
+/** Slide-level provenance / qualifier lines (`sources`, `footnotes`). They DEGRADE
+ *  instead of rejecting: a non-array or empty value becomes absent, non-string and
+ *  blank entries are dropped, over-long lines are truncated and the list is capped,
+ *  so one bad field never fails the whole deck (the repair retry would reproduce it). */
+export const MAX_SLIDE_SOURCES = 6;
+export const MAX_SLIDE_FOOTNOTES = 4;
+const MAX_FOOTER_LINE = 200;
+function footerLines(max: number) {
+    return z.unknown().transform((value): string[] | undefined => {
+        if (!Array.isArray(value)) return undefined;
+        const lines = value
+            .filter((v): v is string => typeof v === 'string')
+            .map((v) => v.replace(/\s+/g, ' ').trim())
+            .filter((v) => v.length > 0)
+            .map((v) => (v.length > MAX_FOOTER_LINE ? `${v.slice(0, MAX_FOOTER_LINE - 1).trimEnd()}…` : v))
+            .slice(0, max);
+        return lines.length > 0 ? lines : undefined;
+    }).optional();
+}
+
 export const SlideIrSchema = z.object({
     id: z.string().min(1).max(64),
     type: SlideTypeSchema,
@@ -212,6 +244,14 @@ export const SlideIrSchema = z.object({
     background: z.string().regex(HEX_COLOR, 'background must be a 6-digit hex').optional(),
     blocks: z.array(BlockSchema).max(MAX_BLOCKS_PER_SLIDE),
     notes: z.string().max(8_192).optional(),
+    /** Where this slide's figures come from — bare origins ("IEA, 2024"), rendered by
+     *  both renderers as one "Source: …" footer line. Filled by the storyboard
+     *  translator for slides that show numbers with cited evidence; `deckSourceGaps` (slideFooter.ts)
+     *  reports chart/stat slides that still have none. Never invented. */
+    sources: footerLines(MAX_SLIDE_SOURCES),
+    /** Qualifying notes ("Excludes one-off items"), rendered as footer lines above
+     *  the source line. Authors write the marker themselves if they use one. */
+    footnotes: footerLines(MAX_SLIDE_FOOTNOTES),
     /** Provenance (Cluster C, Gemini-G3) — OPTIONAL so the legacy generation path
      *  (which never emits them) still strict-parses. The consultant translator sets
      *  them so renderers can surface the action title and audits/repair can trace a

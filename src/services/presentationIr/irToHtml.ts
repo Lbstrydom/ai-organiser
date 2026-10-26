@@ -28,12 +28,15 @@ import { SLIDE_W, SLIDE_H, COL_GAP, CONTENT_WIDTH } from './irLayout';
 import { resolvePresentationIcon } from './iconRegistry';
 import { renderIconSvgMarkup } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
+import { slideFooterLines, DEFAULT_SOURCE_LABEL } from './slideFooter';
 import { sanitizeExportTheme, serializeCssFontFamily } from './themeSafe';
 
 export interface RenderHtmlOptions {
     /** Localised label for a slide that fails to render (caller injects via
      *  plugin.t — the renderer stays Obsidian-free). Default English. */
     placeholderLabel?: string;
+    /** Localised word printed before a slide's sources ("Source"). Default English. */
+    sourceLabel?: string;
 }
 
 /** Inline vector icon (resolved symmetrically with PPTX). Empty string when the
@@ -66,6 +69,7 @@ export function renderDeckToHtml(deck: SlideDeckIr, rawTheme: ExportTheme, opts:
     // renderers must agree on what a renderable deck is).
     if (!deck || !Array.isArray(deck.slides) || deck.slides.length === 0) return err('empty-deck');
     const placeholderLabel = opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL;
+    const sourceLabel = opts.sourceLabel ?? DEFAULT_SOURCE_LABEL;
     try {
         const notices: FidelityNotice[] = [];
         // D2 — validate the theme ONCE at the boundary; every downstream colour/
@@ -80,7 +84,7 @@ export function renderDeckToHtml(deck: SlideDeckIr, rawTheme: ExportTheme, opts:
         const sections = deck.slides
             .map((slide, i) => {
                 try {
-                    const html = renderSlide(slide, i, theme, notices);
+                    const html = renderSlide(slide, i, theme, notices, sourceLabel);
                     builtCount++;
                     return html;
                 } catch (e) {
@@ -115,7 +119,7 @@ function slideOpen(index: number, inlineExtra: string): string {
     return `<section data-slide data-slide-index="${index}" class="slide" style="${base}${inlineExtra}">`;
 }
 
-function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices: FidelityNotice[]): string {
+function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices: FidelityNotice[], sourceLabel: string): string {
     const font = cssFont(theme);
     const parts: string[] = [];
 
@@ -151,11 +155,22 @@ function renderSlide(slide: SlideIr, index: number, theme: ExportTheme, notices:
         parts.push(`<div style="flex:1;margin-top:36px;display:flex;flex-direction:column;justify-content:safe center;gap:${inToPx(IR_RENDER_SPEC.geometry.blockGapIn)}px;min-height:0;">`);
         for (const block of slide.blocks) parts.push(renderBlockSafe(block, index, theme, notices));
         parts.push('</div>');
+        parts.push(footerHtml(slide, theme, bodyColor, sourceLabel));
     }
 
     if (slide.notes) parts.push(`<aside class="speaker-notes" style="display:none;">${esc(slide.notes)}</aside>`);
     parts.push('</section>');
     return parts.join('\n');
+}
+
+/** Footnotes + the source line, printed under the content (one line each). Same
+ *  text as PPTX via `slideFooterLines`; only properties the sanitizer already allows. */
+function footerHtml(slide: SlideIr, theme: ExportTheme, bodyColor: string, sourceLabel: string): string {
+    const lines = slideFooterLines(slide, sourceLabel);
+    if (lines.length === 0) return '';
+    const px = ptToPx(IR_RENDER_SPEC.font.footerLinePt(theme));
+    const rows = lines.map(l => `<div style="font-size:${px}px;line-height:1.3;color:${bodyColor};opacity:0.65;">${esc(l)}</div>`).join('');
+    return `<div class="ir-footer" style="margin-top:${inToPx(IR_RENDER_SPEC.geometry.footer.gapIn)}px;">${rows}</div>`;
 }
 
 // ── Cluster C visual renderers (2×2 / harvey-rating / waterfall / line / pyramid) ──
@@ -278,6 +293,8 @@ function renderBlock(block: Block, slideIndex: number, theme: ExportTheme, notic
         }
         case 'paragraph':
             return `<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.paragraphPt(theme))}px;line-height:1.45;color:${body};margin:0;">${block.emphasis ? `<strong style="color:${primary};">${esc(block.text)}</strong>` : esc(block.text)}</p>`;
+        case 'subhead':
+            return `<p style="font-size:${ptToPx(IR_RENDER_SPEC.font.subheadPt(theme))}px;font-weight:700;line-height:1.3;color:${primary};margin:0;">${esc(block.text)}</p>`;
         case 'bullets': {
             const tag = block.ordered ? 'ol' : 'ul';
             const items = block.items.map(it => `<li style="font-size:${ptToPx(IR_RENDER_SPEC.font.paragraphPt(theme))}px;line-height:1.4;color:${body};margin-bottom:14px;">${esc(stripBulletPrefix(it))}</li>`).join('');
