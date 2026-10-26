@@ -1378,6 +1378,7 @@ export interface Translations {
         editAiWorkspace: string;
         copyAiInstructions: string;
         createContextPack: string;
+        reviewAiHandback: string;
         reviewCaptures: string;
         setupCaptureInbox: string;
         sendTasksToGoogle: string;
@@ -4336,6 +4337,33 @@ export interface Translations {
     googleScript: {
         copiedTasks: string;
         copiedBoth: string;
+    },
+    handback: {
+        title: string;
+        close: string;
+        cancel: string;
+        apply: string;
+        malformedIntro: string;
+        malformedReasons: Record<'no-section' | 'no-header' | 'conflicting-project' | 'project-id-invalid', string>;
+        projectName: string;
+        chooseProject: string;
+        noCandidate: string;
+        notChosen: string;
+        whyId: string;
+        whyReason: Record<'id' | 'mapping' | 'workspace-chat' | 'title' | 'folder', string>;
+        rejected: Record<'unknown-id' | 'duplicate-id' | 'stale-mapping', string>;
+        rememberName: string;
+        sections: Record<'decisions' | 'actions' | 'deliverables' | 'questions', string>;
+        itemDone: string;
+        longItem: string;
+        deliverableNote: string;
+        moreItems: string;
+        warnings: string;
+        chooseFirst: string;
+        nothingTicked: string;
+        appliedNotice: string;
+        noHandoffHere: string;
+        openNoteFirst: string;
     };
     integrationStatus: {
         title: string;

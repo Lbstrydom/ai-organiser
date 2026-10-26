@@ -800,7 +800,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             return { early: `${stage.value.storylineMarkdown}\n\n---\n\n${t.storylineReadyInChat}` };
         }
         // auto-build: storyboard → IR directly (no markdown round-trip).
-        return buildDeckFromStoryboard(stage.value.storyboard);
+        return buildDeckFromStoryboard(stage.value.storyboard, catalog);
     }
 
     /**
@@ -820,7 +820,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             // BUILD from the IN-MEMORY storyboard (no file dependency — can't break
             // if a note was moved/deleted). Write a .md provenance copy (best-effort;
             // the build still succeeds if the copy fails). generateIr commits the deck.
-            const deck = buildDeckFromStoryboard(pending.storyboard);
+            const deck = buildDeckFromStoryboard(pending.storyboard, pending.catalog);
             if (!deck.ok) return err(t.storylineBuildFailed.replace('{error}', deck.error));
             await this.saveStorylineNote(r.ctx, pending).catch((e) =>
                 logger.warn('Presentation', `[storyline] provenance copy failed: ${e instanceof Error ? e.message : String(e)}`));
@@ -1345,7 +1345,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         const pending = this.pendingStoryline;
         if (!pending) { callbacks.notify(t.storylineNoteRequired); return; }
         if (this.run.isLocked()) { callbacks.notify(t.presentationBusy); return; }
-        const deck = buildDeckFromStoryboard(pending.storyboard);
+        const deck = buildDeckFromStoryboard(pending.storyboard, pending.catalog);
         if (!deck.ok) { callbacks.notify(t.storylineBuildFailed.replace('{error}', deck.error)); return; }
         this.run.begin(() => { /* deterministic build — no thinking sink */ }, t);
         try {

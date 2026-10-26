@@ -29,8 +29,23 @@ write exists. It adds `ai-workspaces` as a consumer of the project service (`pro
 - **Revoking cannot retract an upload.** The settings say so; removing a folder only stops future packs including it.
 - The Area comes from the project note's `area` property (a link), never from folders.
 
+## Hand-back (markdown `## Handoff`)
+
+Command **Review AI hand-back** on the open note. Gate: `ai-workspaces` AND `capture-inbox` enabled (either off: no command, nothing changes). In this version it is command-driven; routing a capture-inbox file to the review automatically, Office files, `captureDocuments` and the "Read it anyway" fallback extraction are not built.
+
+| Part | File | What it is |
+|---|---|---|
+| Parser | `handoffParser.ts` | Grammar v1, deterministic, no provider call. First `Handoff` heading (level 1-3, outside code); `Project ID:` / `Chat project: name (app)`; Decisions / Next actions / Deliverables / Questions. Template placeholders echoed back are ignored. Nothing is silently truncated: items over 500 characters are flagged, items past 50 per section are counted (`more`). Malformed (no section, no header, conflicting or invalid id) returns reasons, never a guess. Item ids are `sha256(handbackId + section + text + ordinal)` computed by the plugin. |
+| Matching | `handoffMatch.ts` | An id that resolves to exactly one project is exact; an unknown or duplicated id is rejected with no default. Otherwise scored from the remembered mapping (`aiWorkspaceChatMap`, key `<app>:<name>`), workspace chat names, title/file name, folder; pre-selected only with score >= 0.6 and a margin of >= 0.25. No semantic search yet. |
+| Journal | `handbackJournal.ts` | `aiHandbacks[id]`: items frozen on first review; `pending / applying / applied / declined / failed`; an applied item is final; an `applying` item goes back to `pending` at start-up and is checked against its receipt. |
+| Note edits | `handoffNoteEdit.ts` | Decisions and questions are added under `## Decisions` / `## Open questions` as one reviewed edit; each line carries `<!-- aio:handoff id=… -->`, so a replay adds nothing. |
+| Service | `handbackService.ts` | `prepareHandback` (freeze + suggest) and `applyHandback`. Next actions become rows in the **sweep review** (same lists, dates, contexts; the project already linked); a stated `(due: …)` only pre-fills the date. Sweep item identity prevents duplicates on re-processing. |
+| Review | `HandbackReviewModal.ts` | Project suggestion with the reason, one toggle per item (nothing ticked for you), deliverables listed but not filed. |
+
+Not written: stamping the project id into the hand-back note's frontmatter (the journal and the mapping carry it).
+
 ## Not in this slice
 
 The read-only connector tool `get_workspace_pack`, the signed share-policy publication and the `aiShareRequireOptIn` toggle for
 the connector and vault map are a later change. `aiShareRequireOptIn` exists in the schema (default false, part of the policy
-revision) but has no settings row yet, because nothing reads it. Hand-back of the `## Handoff` section is the next slice.
+revision) but has no settings row yet, because nothing reads it. 

@@ -7,6 +7,8 @@ import { FEATURE_REGISTRY, type FeatureId } from './features';
 import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
 import { isFeatureEnabled } from '../services/featureService';
 import { normaliseShareFolders } from '../services/aiWorkspaces/aiShareScope';
+import { normaliseHandbacks, type HandbackRecord } from '../services/aiWorkspaces/handbackJournal';
+import { normaliseChatMap } from '../services/aiWorkspaces/handoffMatch';
 import { normaliseWorkspaces, type WorkspaceRecord } from '../services/aiWorkspaces/workspaceRecord';
 import { normaliseParaRoots, type ParaRoot } from '../services/projects/paraRoots';
 import { isValidDue, normaliseRoutingRules, normaliseTasksLists, type RoutingRule, type TasksListConfig } from '../services/inboxSweep/tasksRouting';
@@ -458,6 +460,10 @@ export interface AIOrganiserSettings {
     aiWorkspacePackFolder: string;
     /** Workspace records by project or Area id (chat projects, context sources, packs made). */
     aiWorkspaces: Record<string, WorkspaceRecord>;
+    /** Remembered `<app>:<chat project name>` -> project id, so the next hand-back from that chat project matches exactly. */
+    aiWorkspaceChatMap: Record<string, string>;
+    /** The hand-back journal: items frozen on first review, each with its state. */
+    aiHandbacks: Record<string, HandbackRecord>;
     /** Allow the optional "add or update the instructions block" write (default off) */
     agentInstructionsWrite: boolean;
     /** The note that holds the instructions block */
@@ -1083,6 +1089,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aiShareRequireOptIn: false,
     aiWorkspacePackFolder: 'AI-Organiser/Workspace packs',
     aiWorkspaces: {},
+    aiWorkspaceChatMap: {},
+    aiHandbacks: {},
     agentInstructionsWrite: false,
     agentInstructionsPath: 'AGENTS.md',
     agentConnectorFolder: '',
@@ -1690,6 +1698,8 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
     old.aiShareRequireOptIn = old.aiShareRequireOptIn === true;
     old.aiWorkspacePackFolder = typeof old.aiWorkspacePackFolder === 'string' && old.aiWorkspacePackFolder.trim() !== '' ? old.aiWorkspacePackFolder.trim() : d.aiWorkspacePackFolder;
     old.aiWorkspaces = normaliseWorkspaces(old.aiWorkspaces);
+    old.aiWorkspaceChatMap = normaliseChatMap(old.aiWorkspaceChatMap);
+    old.aiHandbacks = normaliseHandbacks(old.aiHandbacks);
 
     old.cloudInventoryScriptUrl = typeof old.cloudInventoryScriptUrl === 'string' ? old.cloudInventoryScriptUrl.trim() : '';
     const pairs = Array.isArray(old.cloudInventoryPairs) ? old.cloudInventoryPairs : [];

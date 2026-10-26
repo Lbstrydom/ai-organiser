@@ -12,7 +12,7 @@ import { ok, err } from '../../core/result';
 import type { LLMFacadeContext } from '../llmFacade';
 import { summarizeText } from '../llmFacade';
 import { logger } from '../../utils/logger';
-import { IR_SCHEMA_VERSION } from './slideIr';
+import { IR_SCHEMA_VERSION, MAX_SLIDE_SOURCES } from './slideIr';
 import type { SlideDeckIr, SlideIr, Block } from './slideIr';
 import { validateDeckIr } from './slideIr';
 import type { ConsultantStoryboard, EvidenceSpan, StoryboardSlide, VisualData } from './consultantStoryboard';
@@ -316,7 +316,70 @@ export function visualDataToBlock(v: VisualData): Block | null {
     }
 }
 
-function slideToIr(slide: StoryboardSlide): SlideIr {
+/** True when a catalog `source_ref` names a real origin (a URL or a file/note path). The
+ *  active-note placeholder and a raw web-search query are labels, not origins, and are never cited. */
+function isCitableSourceRef(ref: string): boolean {
+    const raw = ref.trim();
+    if (/^https?:\/\//i.test(raw)) return true;
+    // Catalog refs for notes/files are vault paths WITH an extension; a typed web-search query
+    // (even one containing a slash, "EV/EBITDA forecast 2024") has none.
+    return /\.[A-Za-z][A-Za-z0-9]{0,9}$/.test(raw);
+}
+
+/** Numbers a reader would take as figures: 2+ digits, decimals, percents, currency, magnitudes —
+ *  not "Q3", "3 priorities" or a single digit. */
+const FIGURE_IN_TEXT = /\d{2,}|\d[.,]\d|\d\s?%|[€$£]\s?\d|\d\s?(?:k|m|mn|bn|b|million|billion|thousand)\b/i;
+/** A number followed by an upper-case ISO currency code ("5 EUR bn") — case-sensitive so "3 and" is not one. */
+const FIGURE_WITH_CURRENCY_CODE = /\d\s?(?:EUR|USD|GBP|JPY|CHF|CNY|AUD|CAD|SEK|NOK|DKK|INR|PLN|ZAR)\b/;
+const showsFigure = (t: string): boolean => FIGURE_IN_TEXT.test(t) || FIGURE_WITH_CURRENCY_CODE.test(t);
+
+/** A short, readable origin for a catalog `source_ref` (a vault path or a URL):
+ *  the note name without folders/extension, or the site's host. Never invents text. */
+export function formatSourceRef(ref: string): string {
+    const raw = ref.trim();
+    if (/^https?:\/\//i.test(raw)) {
+        try { return new URL(raw).hostname.replace(/^www\./i, '') || raw; } catch { return raw; }
+    }
+    const last = raw.split(/[\\/]/).filter(Boolean).pop() ?? raw;
+    return last.replace(/\.(md|markdown|txt|pdf|docx?|pptx?|xlsx?|csv|html?)$/i, '') || raw;
+}
+
+/** Every evidence id the slide's visual quotes a value from. */
+function visualEvidenceIds(v: VisualData): string[] {
+    switch (v.type) {
+        case 'line': return v.series.flatMap((sr) => sr.points.map((p) => p.evidence_span_id));
+        case 'waterfall': return [v.base.evidence_span_id, ...v.deltas.map((d) => d.evidence_span_id)];
+        case 'bar': return v.items.map((i) => i.evidence_span_id);
+        case '2x2': return v.items.flatMap((i) => (i.evidence_span_id ? [i.evidence_span_id] : []));
+        case 'harvey': return v.rows.flatMap((r) => (r.evidence_span_id ? [r.evidence_span_id] : []));
+        case 'table': return v.rows.flatMap((r) => r.cells.flatMap((c) => (c.evidence_span_id ? [c.evidence_span_id] : [])));
+        default: return [];
+    }
+}
+
+/**
+ * The slide's `sources`: the distinct origins of the evidence it cites, when the slide
+ * SHOWS numbers (a numeric visual, or a digit in the title / supporting line). Only
+ * spans that exist in the catalog count — a dangling id never becomes a source — and
+ * nothing is added when there is no catalog (e.g. a deck rebuilt from a saved note).
+ */
+function slideSources(slide: StoryboardSlide, catalog: readonly EvidenceSpan[]): string[] {
+    if (catalog.length === 0) return [];
+    const ids = [...slide.evidence_span_ids, ...visualEvidenceIds(slide.visual_data)];
+    const numeric = visualEvidenceIds(slide.visual_data).length > 0 || showsFigure(slide.action_title) || showsFigure(slide.core_message);
+    if (!numeric || ids.length === 0) return [];
+    const byId = new Map(catalog.map((c) => [c.id, c.source_ref] as const));
+    const out: string[] = [];
+    for (const id of ids) {
+        const ref = byId.get(id);
+        if (!ref || !isCitableSourceRef(ref)) continue;
+        const name = formatSourceRef(ref);
+        if (name && !out.includes(name)) out.push(name);
+    }
+    return out.slice(0, MAX_SLIDE_SOURCES);
+}
+
+function slideToIr(slide: StoryboardSlide, catalog: readonly EvidenceSpan[]): SlideIr {
     const blocks: Block[] = [];
     // Supporting line first (Gestalt: title carries the message, body supports).
     if (slide.core_message && slide.core_message !== slide.action_title) {
@@ -326,7 +389,8 @@ function slideToIr(slide: StoryboardSlide): SlideIr {
     if (visual) blocks.push(visual);
     // Provenance (Cluster C): renderers can surface the action title; audits/repair
     // trace a rendered slide back to its storyboard origin.
-    return { id: slide.id, type: 'content', title: slide.action_title, blocks, action_title: slide.action_title, storyboard_slide_id: slide.id };
+    const sources = slideSources(slide, catalog);
+    return { id: slide.id, type: 'content', title: slide.action_title, blocks, ...(sources.length > 0 ? { sources } : {}), action_title: slide.action_title, storyboard_slide_id: slide.id };
 }
 
 /**
@@ -335,13 +399,13 @@ function slideToIr(slide: StoryboardSlide): SlideIr {
  * Returns `Result` — `validateDeckIr` is the final gate (so a malformed mapping
  * surfaces as an err, never a broken render).
  */
-export function translateStoryboardToIr(storyboard: ConsultantStoryboard): Result<SlideDeckIr> {
+export function translateStoryboardToIr(storyboard: ConsultantStoryboard, catalog: readonly EvidenceSpan[] = []): Result<SlideDeckIr> {
     // Pick a title-slide id that can't collide with a storyboard slide id (audit M4).
     const usedIds = new Set(storyboard.slides.map((s) => s.id));
     let titleId = 'title';
     for (let n = 1; usedIds.has(titleId); n++) titleId = `title_${n}`;
     const titleSlide: SlideIr = { id: titleId, type: 'title', title: storyboard.thesis, blocks: [] };
-    const content = storyboard.slides.map(slideToIr);
+    const content = storyboard.slides.map((sl) => slideToIr(sl, catalog));
     const deck: SlideDeckIr = { schemaVersion: IR_SCHEMA_VERSION, slides: [titleSlide, ...content] };
     return validateDeckIr(deck);
 }

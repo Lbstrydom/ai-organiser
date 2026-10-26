@@ -107,6 +107,10 @@ export const IR_RENDER_SPEC = {
         // role is for shrink-to-fit values (e.g. stat values via `fontFloor`),
         // not for body copy, so applying it here would wrongly inflate paragraphs.
         paragraphPt: (t: ExportTheme): number => t.fontSize,
+        // The kicker / sub-headline: one step above body copy, bold, primary colour.
+        subheadPt: (t: ExportTheme): number => t.fontSize + 2,
+        // Footnote + source lines print at the footer role (floored like `footerPt`).
+        footerLinePt: (t: ExportTheme): number => clampFixedFont(t, 'footer', 10),
         captionPt: (t: ExportTheme): number => clampFixedFont(t, 'caption', t.fontSize - 2),
         tablePt: (t: ExportTheme): number => clampFixedFont(t, 'table', Math.max(9, t.fontSize - 3)),
     },
@@ -124,6 +128,9 @@ export const IR_RENDER_SPEC = {
         blockGapIn: 0.12,
         bulletIndentIn: 0.3,
         colSubGapIn: 0.1,
+        /** Footnote/source footer: gap above it, and the clear space left below it
+         *  (inches). PPTX reserves the footer's height out of the content zone. */
+        footer: { gapIn: 0.12, bandClearIn: 0.08, maxIn: 1.5 },
         /** Width-relative media height caps — `box.w(in) * aspect` (PPTX) /
          *  `inToPx(availWidthIn * aspect)` (HTML), so full-width media match. */
         media: { imageAspect: 0.5, svgAspect: 0.45 },
