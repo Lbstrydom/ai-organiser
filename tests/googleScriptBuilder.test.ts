@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { buildTasksScript } from '../src/services/inboxSweep/tasksScriptTemplate';
-import { MAX_STATUS_ITEMS, TASKS_V2_CAPABILITIES, approvedListsHashOf, buildTasksScriptV2, tasksModuleConfig, tasksScriptChoice } from '../src/services/googleScript/googleScriptBuilder';
+import { MAX_STATUS_ITEMS, STATUS_BUDGET_MS, TASKS_V2_CAPABILITIES, approvedListsHashOf, buildTasksScriptV2, tasksModuleConfig, tasksScriptChoice } from '../src/services/googleScript/googleScriptBuilder';
 
 describe('standalone v1 text is unchanged (pinned by a stored copy)', () => {
   it('matches the stored operational and setup scripts byte for byte', () => {
@@ -49,6 +49,9 @@ describe('buildTasksScriptV2 text', () => {
       expect(v2, must).toContain(must);
     }
     expect(MAX_STATUS_ITEMS).toBe(100);
+    // the limits in the script come from the same constants
+    expect(v2).toContain(`TASKS_STATUS_MAX_ITEMS = ${MAX_STATUS_ITEMS};`);
+    expect(v2).toContain(`TASKS_STATUS_BUDGET_MS = ${STATUS_BUDGET_MS};`);
   });
 
   it('escapes hostile values so config cannot break out of its string', () => {

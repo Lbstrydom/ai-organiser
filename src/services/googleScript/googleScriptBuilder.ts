@@ -48,8 +48,8 @@ export function tasksModuleConfig(config: TasksModuleConfig): Record<string, unk
 const TASKS_MODULE_FUNCTIONS = String.raw`
 var TASKS_MAX_ITEMS = 25;
 var TASKS_BUDGET_MS = 240000;
-var TASKS_STATUS_MAX_ITEMS = 100;
-var TASKS_STATUS_BUDGET_MS = 60000;
+var TASKS_STATUS_MAX_ITEMS = __STATUS_MAX_ITEMS__;
+var TASKS_STATUS_BUDGET_MS = __STATUS_BUDGET_MS__;
 var TASKS_ID_PATTERN = /^aio-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 var TASKS_MARKER = /(?:^|\n)\[aio:(aio-[0-9a-f-]{36})\]\s*$/;
 
@@ -235,7 +235,7 @@ export function buildTasksScriptV2(config: TasksModuleConfig): string {
         'function fail_(code, message) {',
         '  return out_({ ok: false, error: { code: code, message: message } });',
         '}',
-        TASKS_MODULE_FUNCTIONS,
+        TASKS_MODULE_FUNCTIONS.replace('__STATUS_MAX_ITEMS__', String(MAX_STATUS_ITEMS)).replace('__STATUS_BUDGET_MS__', String(STATUS_BUDGET_MS)),
         'function doPost(e) {',
         '  var req;',
         '  try {',

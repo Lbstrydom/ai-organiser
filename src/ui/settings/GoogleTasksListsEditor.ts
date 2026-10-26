@@ -111,6 +111,8 @@ function renderRules(container: HTMLElement, plugin: AIOrganiserPlugin): void {
     // Rows are edited as a draft: a half-filled row is not stored.
     let draft: Array<{ kind: SweepItemKind; context: string; dest: string }> = s.tasksRoutingRules.map((r) => ({ kind: r.kind, context: r.context ?? '', dest: r.destination.type === 'list' ? `list:${r.destination.listId}` : 'report-only' }));
     const commit = (): void => {
+        // A half-typed or invalid context never overwrites the saved rules: the draft keeps it until it is valid.
+        if (draft.some((d) => d.context.trim() !== '' && !/^@[a-z0-9][a-z0-9_-]{0,23}$/.test(d.context.trim()))) return;
         const rules: RoutingRule[] = draft.map((d) => ({
             kind: d.kind,
             ...(d.context.trim() !== '' ? { context: d.context.trim() } : {}),

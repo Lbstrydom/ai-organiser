@@ -236,6 +236,13 @@ describe('audit round 1 guards', () => {
     expect(out.summary.held).toEqual([{ id: id(3), reason: 'tasks-due-missing' }]);
   });
 
+  it('a routed task whose attempt failed is counted as failed, not as waiting', async () => {
+    const h = harness({ routing: routing() }, () => 'error');
+    const out = await exportApproved(record([routed(1, 'main')]), h.deps);
+    expect(out.summary).toMatchObject({ failed: 1, pending: 0, exported: 0 });
+    expect(out.record.tasks[0]).toMatchObject({ state: 'routed', error: 'export-failed' });
+  });
+
   it('a failed freeze checkpoint returns the record as it was durably, with nothing sent', async () => {
     const h = harness({ routing: routing(), persist: async () => err<void>('write-failed') });
     const start = record([routed(1, 'main')]);

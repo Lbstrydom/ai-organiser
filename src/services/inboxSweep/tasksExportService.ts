@@ -246,8 +246,9 @@ function finalise(record: ApprovalRecord, summary: ExportSummary): ExportSummary
     return {
         ...summary,
         exported: record.tasks.filter((t) => t.state === 'exported').length,
-        failed: record.tasks.filter((t) => t.state === 'failed').length,
-        pending: record.tasks.filter((t) => t.state === 'reported' || t.state === 'routed').length,
+        // A routed task stays routed after a failed attempt (only a confirmed result moves it): it is counted as failed, not as waiting.
+        failed: record.tasks.filter((t) => t.state === 'failed' || (t.state === 'routed' && t.error !== undefined)).length,
+        pending: record.tasks.filter((t) => t.state === 'reported' || (t.state === 'routed' && t.error === undefined)).length,
     };
 }
 
