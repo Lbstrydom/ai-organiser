@@ -4,14 +4,16 @@ import { describeError, formatGuidance, isGuidanceCode } from '../../core/friend
 import { isFeatureEnabled } from '../../services/featureService';
 import { getCaptureController } from '../../commands/captureInboxCommands';
 import { handbackActive } from '../../services/aiWorkspaces/handbackService';
-import { capRows, captureItems, handbackItems, heldItems, projectProcess, PROCESS_GROUPS, type ProcessAction, type ProcessAdapter, type ProcessItem } from '../../services/process/processProjection';
+import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
+import { capRows, captureItems, handbackItems, heldItems, newHandbackItems, projectProcess, PROCESS_GROUPS, type ProcessAction, type ProcessAdapter, type ProcessItem } from '../../services/process/processProjection';
 import { ok } from '../../core/result';
 import { openHandbackReview } from '../../commands/aiWorkspaceCommands';
+import { PROCESS_VIEW_TYPE } from './processRefresh';
 import { renderActionRow } from '../components/ActionRow';
 import { plural } from '../../utils/plural';
 import { logger } from '../../utils/logger';
 
-export const PROCESS_VIEW_TYPE = 'ai-organiser-process';
+export { PROCESS_VIEW_TYPE };
 
 /**
  * Process: one list of what is waiting to be clarified, grouped by owner. It reads the owners' state (never keeps its own)
@@ -38,6 +40,8 @@ export class ProcessView extends ItemView {
         const ctl = isFeatureEnabled(this.plugin.settings, 'capture-inbox') ? getCaptureController(this.plugin) : null;
         this.unsubscribe = ctl ? ctl.store.subscribe(() => this.schedule()) : null;
         this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => { if (leaf === this.leaf) this.schedule(); }));
+        // A hand-back note arriving or changing in the inbox shows up without pressing Refresh.
+        this.registerEvent(this.app.metadataCache.on('changed', () => this.schedule()));
         await this.read();
     }
 
@@ -66,10 +70,25 @@ export class ProcessView extends ItemView {
         const out: ProcessAdapter[] = [];
         const ctl = isFeatureEnabled(s, 'capture-inbox') ? getCaptureController(this.plugin) : null;
         if (ctl) out.push({ group: 'captures', read: () => ok(captureItems(ctl.store.get(), Date.now(), ctl.stabilityMs())) });
-        if (handbackActive(this.plugin)) out.push({ group: 'handbacks', read: () => ok(handbackItems(s.aiHandbacks, (p) => this.app.vault.getAbstractFileByPath(p) instanceof TFile)) });
+        if (handbackActive(this.plugin)) out.push({ group: 'handbacks', read: () => ok([...handbackItems(s.aiHandbacks, (p) => this.app.vault.getAbstractFileByPath(p) instanceof TFile), ...newHandbackItems(this.inboxHandbacks(), s.aiHandbacks)]) });
         // Held rows are about the Google export and their Retry is its command, so the group exists only while that export does.
         if (isFeatureEnabled(s, 'google-tasks-export')) out.push({ group: 'held', read: () => ok(heldItems(s.sweepApprovals)) });
         return out;
+    }
+
+    /** Notes in the inbox folders whose headings include a Handoff section (from the metadata cache: no file is read). */
+    private inboxHandbacks(): Array<{ path: string }> {
+        const folders = this.plugin.settings.sweepInboxFolders.map(normalisePath).filter(Boolean);
+        if (folders.length === 0) return [];
+        return this.app.vault.getMarkdownFiles()
+            .filter((f) => folders.some((folder) => isInsideOrEqual(normalisePath(f.path), folder)))
+            .filter((f) => (this.app.metadataCache.getFileCache(f)?.headings ?? []).some((h) => h.level <= 3 && h.heading.trim().toLowerCase() === 'handoff'))
+            .map((f) => ({ path: f.path }));
+    }
+
+    /** Read again now (used when something this view lists has just changed elsewhere). */
+    refresh(): void {
+        this.schedule();
     }
 
     private async read(): Promise<void> {
@@ -92,8 +111,8 @@ export class ProcessView extends ItemView {
         this.release();
         const el = this.contentEl;
         el.empty();
+        // The tab already shows the title; the heading here would say it twice.
         const head = el.createDiv({ cls: 'ai-organiser-process-head' });
-        head.createEl('h3', { text: t.title });
         const refresh = head.createEl('button', { text: t.refresh });
         refresh.addEventListener('click', () => { void this.read(); });
 
@@ -120,7 +139,7 @@ export class ProcessView extends ItemView {
     private row(list: HTMLElement, item: ProcessItem): () => void {
         const t = this.plugin.t.process;
         const label: Record<ProcessAction, string> = { review: t.actions.review, retry: t.actions.retry, open: t.actions.open };
-        const detail = item.group === 'handbacks' && item.detail ? plural(t.handbackWaiting, Number(item.detail)) : item.detail;
+        const detail = item.group === 'handbacks' && item.detail ? (item.detail === 'new' ? t.handbackNew : plural(t.handbackWaiting, Number(item.detail))) : item.detail;
         return renderActionRow(list, {
             title: item.title,
             ...(detail ? { detail } : {}),

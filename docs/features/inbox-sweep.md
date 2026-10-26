@@ -65,3 +65,7 @@ Opt-in on top of the one-list export; with the defaults (`tasksLists: []`, `task
 - **Finish says why.** The wizard blocks Finish until a check passed and shows a wizard-specific guidance code (`tasks-wizard-unchecked`, `-setup`, `-wrong-list`, `-no-list`) rather than "open the setup" from inside the setup. External checks stay actions, not validation gates.
 - **Names, not ids.** `resolveTasksLists` shows the saved `tasksListName` for the main list when its entry has no title.
 - **PARA roots are kept** even when a line says an inbox root is not yet an inbox folder; the folder rows use the shared folder picker.
+
+## AI hand-back notes are skipped
+
+A note with a `## Handoff` section (outside code), an `aio:handoff` marker or `aio-handback: true` is left out of the sweep (`looksLikeHandback`), so its Decisions, Questions and Deliverables lines do not come back as tasks; it has its own review (Review AI hand-back). The run says how many were left out. The guard itself is unchanged, because the hand-back review sends a hand-back's next actions through the sweep with that note as their source.

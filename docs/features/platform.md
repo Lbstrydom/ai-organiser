@@ -302,7 +302,7 @@ from `registerCommands`, not through a per-feature registrar); with none on, not
 
 - **Read-only projection** (`src/services/process/processProjection.ts`): one adapter per owner, each returning `Result`. A failing adapter
   shows its own group as "could not load" and nothing else. Groups: captures to review (the capture queue model's own rows), AI
-  hand-backs with items still pending or failed (the hand-back journal; a hand-back with only deliverables left, or whose note is gone, is
+  hand-backs with items still pending or failed (the hand-back journal, plus notes in the sweep inbox folders that have a Handoff heading and no journal record yet, shown as "Not reviewed yet"; the view re-reads when a note changes and when a review or a send finishes; a hand-back with only deliverables left, or whose note is gone, is
   not listed), and held tasks (failed or routed-with-error tasks in the sweep record; a terminal conflict is not listed). The view keeps no
   state of its own. Rows beyond 50 per group are counted, never dropped silently.
 - **Rows open the owner's window**: a capture row runs Review captures, a held row runs Send tasks to Google, a hand-back row reads the note

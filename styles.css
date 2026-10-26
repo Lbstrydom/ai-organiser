@@ -10479,3 +10479,14 @@
 .ai-organiser-action-row-text { min-width: 0; flex: 1 1 12em; }
 .ai-organiser-action-row-title { font-weight: var(--font-semibold); overflow-wrap: anywhere; }
 .ai-organiser-action-row-buttons { display: flex; flex-wrap: wrap; gap: var(--size-4-1); }
+
+/* Narrow screens: rows of controls wrap instead of pushing the window wider than the screen */
+.ai-organiser-wrap-row { flex-wrap: wrap; }
+.ai-organiser-wrap-row .setting-item-info { flex: 1 1 100%; }
+.ai-organiser-wrap-row .setting-item-control { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; max-width: 100%; min-width: 0; }
+.ai-organiser-wrap-row .setting-item-control input[type="text"],
+.ai-organiser-wrap-row .setting-item-control select { flex: 1 1 8em; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+.ai-organiser-project-picker-button { white-space: normal; height: auto; width: 100%; text-align: left; overflow-wrap: anywhere; }
+.ai-organiser-project-picker-detail { overflow-wrap: anywhere; }
+.ai-organiser-project-picker-list { list-style: none; margin: 0; padding: 0; }
+.ai-organiser-project-picker-search { width: 100%; box-sizing: border-box; }

@@ -31,6 +31,8 @@ export interface LinkPolicy {
     reasonNotShareable: (path: string) => string | null;
     /** Resolve a link target written in `from` to a vault path, or null when it does not resolve */
     resolveLink: (link: string, from: string) => string | null;
+    /** The notes the pack will hold. When given, a link to a shareable note that is not among them says so. */
+    inPack?: ReadonlySet<string>;
 }
 
 export const ATTACHMENT_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|heic|pdf|docx?|pptx?|xlsx?|mp3|m4a|wav|mp4|mov|zip)$/i;
@@ -47,12 +49,34 @@ export function replacementFor(o: LinkOccurrence, from: string, policy: LinkPoli
     // An embed that does not resolve is hidden; a plain link that does not resolve is the person's own text and stays.
     if (resolved === null) return o.embed ? '[not shared]' : o.original;
     if (ATTACHMENT_EXT.test(resolved)) return '[attachment not included]';
-    if (policy.reasonNotShareable(resolved) === null) return o.embed ? label : o.original;
+    if (policy.reasonNotShareable(resolved) === null) {
+        // Shareable but not part of this pack: the reader cannot follow it, and is told so rather than shown a dead link.
+        if (policy.inPack && !policy.inPack.has(resolved)) return o.embed ? '[not in this pack]' : `${label} [not in this pack]`;
+        return o.embed ? label : o.original;
+    }
     return o.embed ? '[not shared]' : `${label} [not shared]`;
 }
 
 /** Link-like markers that must each lie inside some occurrence: `[[`, `![`, `](`. */
 const MARKER = /\[\[|!\[|\]\(/g;
+
+/**
+ * A markdown link or image whose target starts with an explicit web or mail scheme is an external link. Obsidian's cache does not report
+ * those, and they point at nothing in the vault, so they are neither replaced nor counted as links the cache missed. Narrow on purpose:
+ * only a target that begins with http://, https:// or mailto: qualifies; anything else (a path, a relative link, a bare name) stays
+ * subject to the fail-closed check.
+ */
+const EXTERNAL_TARGET = /^\s*<?(?:https?:\/\/|mailto:)/i;
+function isExternalMarker(line: string, at: number): boolean {
+    const marker = line.slice(at, at + 2);
+    if (marker === '](') return EXTERNAL_TARGET.test(line.slice(at + 2));
+    if (marker === '![') {
+        // The label may hold escaped brackets or one level of nested ones: ![Diagram [draft]](https://...)
+        const open = /^!\[(?:\\.|[^[\]\\\n]|\[(?:\\.|[^[\]\\\n])*\])*\]\(/.exec(line.slice(at));
+        return open !== null && EXTERNAL_TARGET.test(line.slice(at + open[0].length));
+    }
+    return false;
+}
 
 /**
  * The text with its links neutralised, or `links-unverified`. `occurrences === null` means the note has no usable cache.
@@ -77,7 +101,7 @@ export function neutraliseByCache(text: string, from: string, occurrences: reado
         MARKER.lastIndex = 0;
         for (let m = MARKER.exec(lines[i]); m !== null; m = MARKER.exec(lines[i])) {
             const at = lineStart + m.index;
-            if (!sorted.some((o) => at >= o.start && at < o.end)) return err('links-unverified');
+            if (!sorted.some((o) => at >= o.start && at < o.end) && !isExternalMarker(lines[i], m.index)) return err('links-unverified');
         }
     }
     let out = text;

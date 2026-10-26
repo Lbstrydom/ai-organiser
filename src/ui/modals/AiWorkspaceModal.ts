@@ -4,6 +4,8 @@ import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { MAX_CHATS, MAX_CONTEXT_SOURCES, validateChatUrl, type ChatApp, type WorkspaceRecord } from '../../services/aiWorkspaces/workspaceRecord';
 import { getWorkspace, saveWorkspace } from '../../services/aiWorkspaces/workspaceService';
 import { logger } from '../../utils/logger';
+import { notShareableReason } from '../../services/aiWorkspaces/aiShareScope';
+import { plural } from '../../utils/plural';
 
 interface DraftChat { id: string; app: ChatApp; name: string; url: string }
 
@@ -44,6 +46,7 @@ export class AiWorkspaceModal extends Modal {
         if (this.chats.length === 0) el.createDiv({ text: t.chatsNone, cls: 'setting-item-description' });
         this.chats.forEach((chat, i) => {
             new Setting(el)
+                .then((row) => row.settingEl.addClass('ai-organiser-wrap-row'))
                 .addDropdown((d) => {
                     d.addOption('claude', t.chatApps.claude).addOption('chatgpt', t.chatApps.chatgpt).setValue(chat.app).onChange((v) => { chat.app = v as ChatApp; });
                     d.selectEl.setAttribute('aria-label', t.chatAppLabel);
@@ -63,6 +66,7 @@ export class AiWorkspaceModal extends Modal {
         el.createDiv({ text: t.sourcesDesc, cls: 'setting-item-description' });
         this.sources.forEach((path, i) => {
             new Setting(el)
+                .then((row) => row.settingEl.addClass('ai-organiser-wrap-row'))
                 .addText((tx) => { tx.setPlaceholder(t.sourcePlaceholder).setValue(path).onChange((v) => { this.sources[i] = v; }); tx.inputEl.setAttribute('aria-label', t.sourcePlaceholder); })
                 .addExtraButton((b) => b.setIcon('trash').setTooltip(t.removeSource).onClick(() => { this.sources.splice(i, 1); this.draw(); }));
         });
@@ -70,7 +74,7 @@ export class AiWorkspaceModal extends Modal {
             new Setting(el).addButton((b) => b.setButtonText(t.addSource).onClick(() => { this.sources.push(''); this.draw(); }));
         }
 
-        new Setting(el).setName(t.releasedName).addToggle((tg) => tg.setValue(this.released).onChange((v) => { this.released = v; }));
+        new Setting(el).setName(t.releasedName).setDesc(t.releasedDesc).addToggle((tg) => tg.setValue(this.released).onChange((v) => { this.released = v; }));
 
         this.problem = el.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', attr: { role: 'status' } });
         new Setting(el)
@@ -92,7 +96,9 @@ export class AiWorkspaceModal extends Modal {
         try {
             const res = await saveWorkspace(this.plugin, { ...current, chats, contextSources: this.sources.map((s) => s.trim()).filter((s) => s !== ''), released: this.released });
             if (!res.ok && res.error !== 'rejected') { new Notice(formatGuidance(describeError(this.plugin.t, res.error)), 9000); return; }
-            new Notice(t.workspaceSavedNotice, 5000);
+            const s = this.plugin.settings;
+            const left = this.sources.map((p) => p.trim()).filter((p) => p !== '' && notShareableReason(p, s, s.aiWorkspacePackFolder) !== null);
+            new Notice(left.length > 0 ? plural(t.sourceOutsideWarning, left.length).replace('{paths}', left.join(', ')) : t.workspaceSavedNotice, left.length > 0 ? 12000 : 5000);
             this.close();
         } catch (e) {
             logger.error('AiWorkspaces', 'Could not save the workspace', e);

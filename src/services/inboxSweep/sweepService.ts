@@ -12,6 +12,7 @@ import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, ty
 import { isSwept, type SweepLedger } from './sweepLedger';
 import { itemKeys, reportedMatch } from './sweepItemIdentity';
 import { logger } from '../../utils/logger';
+import { looksLikeHandback } from '../aiWorkspaces/handoffParser';
 import { DEFAULT_SWEEP_CONTEXTS } from './sweepContexts';
 
 export interface NoteProposals {
@@ -34,6 +35,8 @@ export interface SweepRunResult {
     cancelled: boolean;
     /** The one context set the whole run used: prompt, parser and the review all follow it */
     contexts: readonly string[];
+    /** AI hand-back notes the sweep left alone (they have their own review) */
+    skippedHandbacks?: number;
 }
 
 export interface SweepDeps {
@@ -47,6 +50,8 @@ export interface SweepDeps {
     ledger(): SweepLedger;
     /** The contexts this run offers; read once at its start. Absent: the built-in set. */
     contexts?(): readonly string[];
+    /** True while AI workspaces are on: AI hand-back notes are then left to their own review. Absent: the sweep reads every note, as it always did. */
+    skipHandbacks?(): boolean;
     /** Identity keys of the items already reported from this note (absent: none are known) */
     reportedKeys?(path: string): ReadonlySet<string>;
     /** True when the path is still where the snapshot said it was (a rename mid-run changes it) */
@@ -80,11 +85,16 @@ async function estimateUnguarded(deps: SweepDeps, options: Pick<SweepOptions, 'm
         const policy = deps.policy();
         const snap = await buildSnapshot(path, text, await policyRevisionOf(policy));
         const judged = guardSnapshot(snap, { ...policy, maxNoteChars: Math.max(policy.maxNoteChars, options.maxChars) }, snap.policyRevision);
-        if (!judged.allowed || isSwept(deps.ledger(), path, snap.contentHash)) continue;
+        if (!judged.allowed || isSwept(deps.ledger(), path, snap.contentHash) || isSkippedHandback(deps, text)) continue;
         notes++;
         chars += Math.min(text.length, options.maxChars);
     }
     return { notes, chars };
+}
+
+/** An AI hand-back is left to its own review, but only while AI workspaces are on; otherwise the sweep reads it like any note. */
+function isSkippedHandback(deps: SweepDeps, text: string): boolean {
+    return deps.skipHandbacks?.() === true && looksLikeHandback(text);
 }
 
 /** A policy and its revision that were the same before and after the revision was computed. */
@@ -134,6 +144,8 @@ async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promis
         if (!judged) { out.failed++; continue; }
         if (!judged.result.allowed) { out.excluded[judged.result.reason] = (out.excluded[judged.result.reason] ?? 0) + 1; continue; }
         if (isSwept(deps.ledger(), path, judged.hash)) { out.skippedSwept++; continue; }
+        // An AI hand-back has its own review; its lines must not come back here as tasks.
+        if (isSkippedHandback(deps, judged.result.snapshot.text)) { out.skippedHandbacks = (out.skippedHandbacks ?? 0) + 1; continue; }
 
         // Immediately before the call the policy and the path must be what they were when the note was
         // judged. A snapshot that fails this is captured and judged again, and the NEW snapshot must pass
@@ -151,6 +163,8 @@ async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promis
         }
         if (!guarded) continue;
         if (!verified) { out.excluded.unknown = (out.excluded.unknown ?? 0) + 1; continue; }
+        // The note may have been captured again above; the hand-back rule applies to the text actually about to be sent.
+        if (isSkippedHandback(deps, guarded.text)) { out.skippedHandbacks = (out.skippedHandbacks ?? 0) + 1; continue; }
 
         const { truncated } = promptText(guarded, options.maxChars);
         const answer = await deps.complete(buildSweepPrompt(guarded, options.maxChars, contexts), options.signal);

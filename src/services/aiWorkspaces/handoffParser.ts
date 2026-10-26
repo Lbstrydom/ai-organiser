@@ -9,6 +9,7 @@
  * A hand-back that cannot be read this way is `malformed` with the reasons; nothing is guessed.
  */
 import { nonBodyLines } from '../../utils/markdownRegions';
+import { parseSnapshotMetadata } from '../inboxSweep/noteSnapshot';
 import { isAioId } from '../projects/projectIndex';
 import { isValidDue } from '../inboxSweep/tasksRouting';
 import { HANDOFF_HEADING, HANDOFF_SECTIONS } from './handoffGrammar';
@@ -211,6 +212,25 @@ export function parseHandoff(raw: string, contexts: readonly string[]): HandoffP
         out.reasons.push('no-header');
     }
     return out;
+}
+
+/**
+ * Is this note an AI hand-back, or a note the hand-back review has already written into? Such notes are reviewed with Review AI
+ * hand-back; the sweep leaves them alone so their lines do not come back as tasks. A "## Handoff" heading outside code (level 1-3),
+ * an aio:handoff marker, or the frontmatter flag aio-handback: true.
+ */
+export function looksLikeHandback(text: string): boolean {
+    if (text.includes('<!-- aio:handoff id=')) return true;
+    const normalised = normaliseHandoffText(text);
+    const flag = parseSnapshotMetadata(text).properties['aio-handback'];
+    if (flag !== undefined && flag.some((v) => v.trim().toLowerCase() === 'true')) return true;
+    const lines = normalised.split('\n');
+    const hidden = nonBodyLines(lines);
+    return lines.some((line, i) => {
+        if (hidden[i]) return false;
+        const m = HEADING.exec(line);
+        return m !== null && m[1].length <= 3 && m[2].trim().toLowerCase() === HANDOFF_HEADING.toLowerCase();
+    });
 }
 
 // ─── Item identity ──────────────────────────────────────────────────────────
