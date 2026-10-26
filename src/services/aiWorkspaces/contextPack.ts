@@ -71,7 +71,7 @@ export function neutraliseLinks(text: string, from: string, input: Pick<PackInpu
 
 /** `[text](path)` and `![alt](path)` to vault paths: the same rules as wikilinks. Web and mail addresses and in-page anchors are left as written. */
 function neutraliseMarkdownLinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
-    return text.replace(/(!?)\[([^\]\n]*)\]\(\s*(<[^>\n]*>|[^)\s\n]*)[^)\n]*\)/g, (whole, bang: string, label: string, rawTarget: string) => {
+    return text.replace(/(!?)\[([^\]\n]*)\]\(\s*(<[^>\n]*>|(?:[^()\s\n]|\([^()\s\n]*\))*)[^)\n]*\)/g, (whole, bang: string, label: string, rawTarget: string) => {
         const target = rawTarget.replace(/^<|>$/g, '');
         if (target === '' || target.startsWith('#') || /^(https?:|mailto:)/i.test(target)) return whole;
         let path = target;

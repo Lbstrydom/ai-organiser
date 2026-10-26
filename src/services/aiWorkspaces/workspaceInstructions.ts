@@ -23,9 +23,15 @@ export function sectionUnder(text: string, heading: string): string {
     const lines = bodyWithoutOwned(text).split('\n');
     let level = 0;
     const out: string[] = [];
-    let inFence = false;
+    let fence = '';
     for (const line of lines) {
-        if (/^\s*(```|~~~)/.test(line)) inFence = !inFence;
+        const open = /^\s*(`{3,}|~{3,})/.exec(line);
+        if (open) {
+            // A fence closes only with the delimiter that opened it.
+            if (fence === '') fence = open[1][0];
+            else if (open[1][0] === fence) fence = '';
+        }
+        const inFence = fence !== '' || open !== null;
         const m = inFence ? null : /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (level === 0) {
             if (m && m[2].toLowerCase() === heading.toLowerCase()) level = m[1].length;

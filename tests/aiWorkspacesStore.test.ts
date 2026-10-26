@@ -97,6 +97,14 @@ describe('pack store', () => {
     expect(files.get(first.value.path)?.text).toBe('pack aaaaaaaa1111');
   });
 
+  it('two confirmations at once do not interleave and the newest pack survives', async () => {
+    const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
+    const results = await Promise.all([0, 1, 2, 3, 4, 5, 6, 7].map((i) => writePack(plugin, ID, prepared(`${String(i).padStart(10, '0')}ee`), new Date(2026, 9, 26, 9, i))));
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect([...files.keys()].filter((k) => /pack-/.test(k))).toHaveLength(5);
+    expect([...files.keys()].some((k) => k.includes('-090700-0000000007ee'))).toBe(true);
+  });
+
   it('refuses to write into a protected folder', async () => {
     const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs', protectedFolders: ['Packs'] });
     expect(await writePack(plugin, ID, prepared('bbbbbbbb1111'))).toEqual({ ok: false, error: 'protected-path' });

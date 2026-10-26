@@ -223,3 +223,17 @@ describe('markdown links are neutralised like wikilinks', () => {
     expect(out).toBe('a [not shared] [b](Work/Open.md) [not shared] [attachment not included] [e](https://example.com) [f](#top) g [not shared] h [not shared]');
   });
 });
+
+describe('audit round 2 pins', () => {
+  it('rejects a ChatGPT address with a suffix or an injected link', () => {
+    expect(validateChatUrl('chatgpt', 'https://chatgpt.com/project/x)](https://evil.example')).toBeNull();
+    expect(validateChatUrl('chatgpt', 'https://chatgpt.com/g/g-abc/project/extra')).toBeNull();
+  });
+  it('keeps a link target with parentheses whole', () => {
+    const i = { reasonNotShareable: (p: string) => (p.startsWith('Work/Secret') ? ('outside-allow-list' as const) : null), resolveLink: (l: string) => l };
+    expect(neutraliseLinks('[p](Work/Plan(2026).md) [s](Work/Secret(1).md)', 'x.md', i)).toBe('[p](Work/Plan(2026).md) s [not shared]');
+  });
+  it('a tilde fence is not closed by a backtick fence', () => {
+    expect(sectionUnder('## AI context\n~~~\n```\n## inner\n~~~\nafter\n## B\nz', 'AI context')).toBe('~~~\n```\n## inner\n~~~\nafter');
+  });
+});

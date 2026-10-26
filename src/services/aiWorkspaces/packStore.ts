@@ -39,7 +39,16 @@ async function ensureFolder(plugin: AIOrganiserPlugin, dir: string): Promise<voi
     }
 }
 
-export async function writePack(plugin: AIOrganiserPlugin, aioId: string, prepared: PreparedPack, now: Date = new Date()): Promise<Result<PackEntry>> {
+const queues = new WeakMap<object, Promise<unknown>>();
+
+/** Writes and pruning run one at a time per plugin, so two confirmations cannot interleave their publication and retention. */
+export function writePack(plugin: AIOrganiserPlugin, aioId: string, prepared: PreparedPack, now: Date = new Date()): Promise<Result<PackEntry>> {
+    const run = (queues.get(plugin) ?? Promise.resolve()).then(() => writeOne(plugin, aioId, prepared, now));
+    queues.set(plugin, run.catch(() => undefined));
+    return run;
+}
+
+async function writeOne(plugin: AIOrganiserPlugin, aioId: string, prepared: PreparedPack, now: Date): Promise<Result<PackEntry>> {
     try {
         const root = packFolderPath(plugin.settings.aiWorkspacePackFolder, plugin.settings.protectedFolders);
         if (!root.ok) return err(root.error);
@@ -72,9 +81,10 @@ async function prune(plugin: AIOrganiserPlugin, dir: string, keep: string): Prom
     const folder = plugin.app.vault.getFolderByPath(dir);
     if (!folder) return;
     const packs = folder.children.filter((c): c is TFile => c instanceof TFile && PACK_FILE.test(c.name)).sort((a, b) => a.name.localeCompare(b.name));
-    for (const old of packs.slice(0, Math.max(0, packs.length - MAX_PACKS_KEPT))) {
-        // The pack just written is never the one trashed, whatever its name sorts to.
-        if (old.name === keep || !assertWritable(plugin.settings.protectedFolders, 'delete', old.path).ok) continue;
+    // The pack just written is never a candidate, whatever its name sorts to; the quota counts every pack.
+    const candidates = packs.filter((p) => p.name !== keep);
+    for (const old of candidates.slice(0, Math.max(0, packs.length - MAX_PACKS_KEPT))) {
+        if (!assertWritable(plugin.settings.protectedFolders, 'delete', old.path).ok) continue;
         await plugin.app.fileManager.trashFile(old);
     }
 }

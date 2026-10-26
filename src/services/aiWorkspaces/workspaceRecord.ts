@@ -46,7 +46,7 @@ export function validateChatUrl(app: ChatApp, raw: string): string | null {
     try { url = new URL(raw.trim()); } catch { return null; }
     if (url.protocol !== 'https:' || url.username !== '' || url.password !== '') return null;
     if (app === 'claude' && url.hostname === 'claude.ai' && /^\/project\/[A-Za-z0-9-]+\/?$/.test(url.pathname)) return `https://claude.ai${url.pathname.replace(/\/$/, '')}`;
-    if (app === 'chatgpt' && (url.hostname === 'chatgpt.com' || url.hostname === 'chat.openai.com') && /^\/g\/[A-Za-z0-9._~%-]+(\/project)?\/?$|^\/project\/?/.test(url.pathname)) return `https://${url.hostname}${url.pathname.replace(/\/$/, '')}`;
+    if (app === 'chatgpt' && (url.hostname === 'chatgpt.com' || url.hostname === 'chat.openai.com') && /^\/g\/[A-Za-z0-9-]+(\/project)?\/?$/.test(url.pathname)) return `https://${url.hostname}${url.pathname.replace(/\/$/, '')}`;
     return null;
 }
 
