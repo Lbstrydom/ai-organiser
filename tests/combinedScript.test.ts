@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { buildCombinedScript } from '../src/services/googleScript/combinedScript';
-import { buildTasksScriptV2, TASKS_V2_CAPABILITIES } from '../src/services/googleScript/googleScriptBuilder';
+import { approvedListsHashOf, buildTasksScriptV2, TASKS_V2_CAPABILITIES } from '../src/services/googleScript/googleScriptBuilder';
 import { buildInventoryScript, rootsHashOf } from '../src/services/cloudInventory/scriptTemplate';
 import { normaliseModulePing } from '../src/services/googleScript/modulePing';
 
@@ -18,8 +18,8 @@ describe('standalone scripts are unchanged (pinned by stored copies)', () => {
 });
 
 type FakeTask = { id: string; title: string; notes?: string; status?: string; due?: string };
-interface World { lists: Record<string, FakeTask[]>; props: Record<string, string>; cache: Record<string, string>; parents: Record<string, string[]>; seq: number; driveCalls: number }
-const newWorld = (): World => ({ lists: { LA: [], LB: [] }, props: {}, cache: {}, parents: { ROOT: [], CHILD: ['ROOT'], GRAND: ['CHILD'], OUTSIDE: ['ELSEWHERE'], ELSEWHERE: [] }, seq: 0, driveCalls: 0 });
+interface World { lists: Record<string, FakeTask[]>; props: Record<string, string>; cache: Record<string, string>; parents: Record<string, string[]>; seq: number; driveCalls: number; taskCalls: number }
+const newWorld = (): World => ({ lists: { LA: [], LB: [] }, props: {}, cache: {}, parents: { ROOT: [], CHILD: ['ROOT'], GRAND: ['CHILD'], OUTSIDE: ['ELSEWHERE'], ELSEWHERE: [] }, seq: 0, driveCalls: 0, taskCalls: 0 });
 const exportId = (n: number): string => `aio-${n.toString(16).padStart(8, '0')}-0000-4000-8000-000000000000`;
 
 function call(script: string, world: World, request: unknown, secret = 'S') {
@@ -41,11 +41,11 @@ function call(script: string, world: World, request: unknown, secret = 'S') {
       },
     },
     Tasks: {
-      Tasklists: { list: () => ({ items: Object.keys(world.lists).map((k) => ({ id: k, title: `Title ${k}` })) }) },
+      Tasklists: { list: () => { world.taskCalls++; return ({ items: Object.keys(world.lists).map((k) => ({ id: k, title: `Title ${k}` })) }); } },
       Tasks: {
-        list: (listId: string) => ({ items: world.lists[listId] ?? [] }),
-        insert: (body: { title: string; notes: string; due?: string }, listId: string) => { const t: FakeTask = { id: `t${++world.seq}`, title: body.title, notes: body.notes, due: body.due, status: 'needsAction' }; (world.lists[listId] ??= []).push(t); return t; },
-        get: (listId: string, taskId: string) => { const found = (world.lists[listId] ?? []).find((t) => t.id === taskId); if (!found) throw new Error('Not Found 404'); return found; },
+        list: (listId: string) => { world.taskCalls++; return ({ items: world.lists[listId] ?? [] }); },
+        insert: (body: { title: string; notes: string; due?: string }, listId: string) => { world.taskCalls++; const t: FakeTask = { id: `t${++world.seq}`, title: body.title, notes: body.notes, due: body.due, status: 'needsAction' }; (world.lists[listId] ??= []).push(t); return t; },
+        get: (listId: string, taskId: string) => { world.taskCalls++; const found = (world.lists[listId] ?? []).find((t) => t.id === taskId); if (!found) throw new Error('Not Found 404'); return found; },
       },
     },
   };
@@ -70,7 +70,7 @@ describe('combined script text', () => {
   it('refuses no secret and no module; escapes hostile values', () => {
     expect(() => buildCombinedScript({ secret: ' ', tasks: { approvedListId: 'A', approvedListIds: [] } })).toThrow();
     expect(() => buildCombinedScript({ secret: 's' })).toThrow();
-    const evil = buildCombinedScript({ secret: 'a"b\\c\n// x', tasks: { approvedListId: 'id"]);alert(1);//', approvedListIds: [] }, inventory: { rootFolderIds: ['r"]);alert(2);//'] } });
+    const evil = buildCombinedScript({ secret: 'a"b\\c\n// x', tasks: { approvedListId: 'id"]);alert(1);//', approvedListIds: [] }, inventory: { rootFolderIds: ['rOOt_ok-1'] } });
     expect(() => new Function(evil)).not.toThrow();
     expect(call(evil, newWorld(), { op: 'ping' }, 'a"b\\c\n// x').ok).toBe(true);
   });
@@ -95,10 +95,11 @@ describe('ping: shared, per-module, and understood by the plugin', () => {
     expect(normaliseModulePing('tasks', call(inventoryOnly, newWorld(), { op: 'ping' }))).toBeNull();
   });
 
-  it('module tasks also carries the standalone tasks fields, so the existing client reads it unchanged', () => {
+  it('module tasks also carries the standalone tasks fields, so the existing client reads it unchanged', async () => {
     const out = call(both, newWorld(), { op: 'ping', module: 'tasks' });
     expect(out).toMatchObject({ ok: true, scriptVersion: 2, approvedListId: 'LA', approvedListIds: ['LA', 'LB'], capabilities: [...TASKS_V2_CAPABILITIES] });
-    expect(typeof out.listHash).toBe('string');
+    expect(out.listHash).toBe(crypto.createHash('sha256').update('LA').digest('hex'));
+    expect(out.listsHash).toBe(await approvedListsHashOf(['LA', 'LB']));
     expect(out.modules.inventory).toBeDefined();
   });
 
@@ -107,6 +108,41 @@ describe('ping: shared, per-module, and understood by the plugin', () => {
     expect(out).toMatchObject({ ok: true, scriptVersion: 1, folder: { id: 'GRAND' } });
     expect(out.rootsHash).toBe(await rootsHashOf(['ROOT']));
     expect(call(both, newWorld(), { op: 'ping', module: 'inventory', folderId: 'OUTSIDE' }).folder).toBeNull();
+  });
+});
+
+describe('ping naming a module the script lacks', () => {
+  it('is a module-missing failure, not a generic success; an unknown module is a bad request', () => {
+    expect(call(tasksOnly, newWorld(), { op: 'ping', module: 'inventory' }).error.code).toBe('module-missing');
+    expect(call(inventoryOnly, newWorld(), { op: 'ping', module: 'tasks' }).error.code).toBe('module-missing');
+    expect(call(both, newWorld(), { op: 'ping', module: 'structure' }).error.code).toBe('bad-request');
+    expect(call(tasksOnly, newWorld(), { op: 'ping', module: 'tasks' }).ok).toBe(true);
+  });
+});
+
+describe('Drive ids and the inventory query', () => {
+  it('refuses a root id with characters a Drive id never has', () => {
+    for (const bad of ["x' or name contains '", 'a b', 'a/b', '', "x\\"]) {
+      expect(() => buildCombinedScript({ secret: 's', inventory: { rootFolderIds: [bad] } }), bad).toThrow();
+    }
+    expect(() => buildCombinedScript({ secret: 's', inventory: { rootFolderIds: ['1AbC_d-Ef'] } })).not.toThrow();
+  });
+
+  it('a hostile folder id in a request is refused by approval before any query, and is escaped in the query', () => {
+    const w = newWorld();
+    expect(call(both, w, { op: 'list', folderId: "ROOT' or 'x' in parents or '" }).error.code).toBeDefined();
+    expect(both).toContain(".replace(/'/g, \"\\\\'\")");
+  });
+});
+
+describe('the combined inventory behaves like the standalone one', () => {
+  it('lists the same files and folders and approves the same ids', () => {
+    const standalone = buildInventoryScript({ secret: 'S', rootFolderIds: ['ROOT'] });
+    for (const folderId of ['ROOT', 'CHILD', 'GRAND', 'OUTSIDE']) {
+      const a = call(standalone, newWorld(), { op: 'list', folderId });
+      const b = call(both, newWorld(), { op: 'list', folderId });
+      expect(b, folderId).toEqual(a);
+    }
   });
 });
 
@@ -144,6 +180,8 @@ describe('safety: auth, missing modules, unknown operations', () => {
       expect(call(both, w, { op }, 'wrong').error.code).toBe('auth');
       expect(call(both, w, { op }, '').error.code).toBe('auth');
       expect(w.driveCalls).toBe(0);
+      expect(w.taskCalls).toBe(0);
+      expect(Object.keys(w.props)).toEqual([]);
     }
   });
 
@@ -151,5 +189,24 @@ describe('safety: auth, missing modules, unknown operations', () => {
     expect(call(tasksOnly, newWorld(), { op: 'list', folderId: 'ROOT' }).error.code).toBe('module-missing');
     expect(call(inventoryOnly, newWorld(), { op: 'upsert', listId: 'LA', tasks: [] }).error.code).toBe('module-missing');
     expect(call(both, newWorld(), { op: 'nope' }).error.code).toBe('bad-request');
+  });
+});
+
+describe('which secret the inventory uses', () => {
+  const plugin = (over: { inv: string; tasks: string }, secrets: Record<string, string | undefined>) => ({
+    settings: { cloudInventoryScriptUrl: over.inv, tasksScriptUrl: over.tasks },
+    secretStorageService: { getSecret: async (id: string) => secrets[id] ?? null },
+  }) as never;
+  const T = 'ai-organiser-google-tasks-secret';
+  const I = 'ai-organiser-cloud-inventory-secret';
+
+  it('its own secret while it has its own deployment; the shared one only when both URLs are the same deployment', async () => {
+    const { inventorySecretFor } = await import('../src/services/googleScript/sharedSecret');
+    const url = 'https://script.google.com/macros/s/AKfycbxTEST/exec';
+    expect(await inventorySecretFor(plugin({ inv: 'https://script.google.com/macros/s/OTHER/exec', tasks: url }, { [T]: 't', [I]: 'i' }))).toBe('i');
+    expect(await inventorySecretFor(plugin({ inv: url + '/', tasks: url }, { [T]: 't', [I]: 'i' }))).toBe('t');
+    expect(await inventorySecretFor(plugin({ inv: url, tasks: url }, { [I]: 'i' }))).toBe('i');
+    expect(await inventorySecretFor(plugin({ inv: '', tasks: '' }, { [I]: 'i' }))).toBe('i');
+    expect(await inventorySecretFor(plugin({ inv: '', tasks: '' }, {}))).toBeNull();
   });
 });

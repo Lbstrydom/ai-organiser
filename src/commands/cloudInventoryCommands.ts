@@ -11,6 +11,7 @@ import { logger } from '../utils/logger';
 import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
+import { inventorySecretFor } from '../services/googleScript/sharedSecret';
 import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { DRIVE_FOLDER_ID_PATTERN, type CloudInventoryPair } from '../core/settings';
@@ -43,7 +44,7 @@ function randomSecret(): string {
 
 /** The stored secret, or null when none exists yet. */
 export async function getInventorySecret(plugin: AIOrganiserPlugin): Promise<string | null> {
-    return plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.CLOUD_INVENTORY);
+    return inventorySecretFor(plugin);
 }
 
 /** The stored secret, creating and storing a new one the first time. */

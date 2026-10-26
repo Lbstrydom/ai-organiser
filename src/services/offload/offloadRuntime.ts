@@ -8,7 +8,7 @@
 import { FileSystemAdapter, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
-import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
+import { inventorySecretFor } from '../googleScript/sharedSecret';
 import { assertWritable } from '../../core/protectedPaths';
 import { isFeatureEnabled } from '../featureService';
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
@@ -62,12 +62,7 @@ export function basePath(plugin: AIOrganiserPlugin): string | null {
 async function listFolder(plugin: AIOrganiserPlugin, folderId: string): Promise<Result<RemoteListFile[]>> {
     const url = validateScriptUrl(plugin.settings.cloudInventoryScriptUrl);
     if (!url.ok) return err(url.error);
-    let secret: string | null = null;
-    try {
-        secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.CLOUD_INVENTORY);
-    } catch {
-        secret = null;
-    }
+    const secret = await inventorySecretFor(plugin);
     if (!secret) return err('no-secret');
     const fetchPage = makeFetchPage(url.value, secret);
     const out: RemoteListFile[] = [];

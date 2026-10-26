@@ -4099,7 +4099,7 @@ export const en: Translations = {
         "project-role-conflict": { message: "This note already has a different project role, so nothing was changed.", nextStep: "Open the note and check its aio-role property before adopting it again." },
         "project-frontmatter-unreadable": { message: "The properties at the top of this note could not be read, so nothing was changed.", nextStep: "Fix the properties block in the note, then adopt it again." },
         "project-adopt-failed": { message: "The note could not be adopted as a project.", nextStep: "Check that the note is not in a protected folder, then try again." },
-        "script-capability-missing": { message: "Your Google script is older than this feature needs.", nextStep: "Copy the new script from the setup window, paste it over the old one and deploy it again. Everything that already works keeps working in the meantime." },
+        "script-capability-missing": { message: "Your Google script is older than this feature needs.", nextStep: "Copy the new script (from the setup window, or with Copy combined Google script if you use the combined one), paste it over the old one and deploy it again. Everything that already works keeps working in the meantime." },
         "ai-share-empty": { message: "This project's note is not in a folder you share with AI apps.", nextStep: "Open the AI workspaces settings and add the project's folder (or its Area) to the folders you share, then try again." },
         "pack-links-unverified": { message: "The links in this note could not be checked, so the note was left out of the pack.", nextStep: "Wait a moment for Obsidian to finish reading the note, then try again. Links written inside inline code can also cause this: move them out of the code." },
         "pack-over-budget": { message: "The pack is larger than the 400 KB limit.", nextStep: "Remove the biggest context sources from the workspace, or share fewer notes, then try again." },
@@ -4623,7 +4623,7 @@ export const en: Translations = {
     },
     googleScript: {
         copiedTasks: "Combined Google script copied (Google Tasks). In script.google.com open a new project, paste it over the code, turn on the Google Tasks API service, deploy it as a web app and paste the web app address into Google Tasks settings.",
-        copiedBoth: "Combined Google script copied (Google Tasks and the Drive inventory, one secret). Paste it into a new project at script.google.com, turn on the Google Tasks API and Drive API services, deploy it as a web app, then paste the same web app address into the Google Tasks settings and the Drive inventory settings.",
+        copiedBoth: "Combined Google script copied (Google Tasks and the Drive inventory, one secret). Paste it into a new project at script.google.com, turn on the Google Tasks API and Drive API services, deploy it as a web app, then paste the same web app address into the Google Tasks settings and the Drive inventory settings. The inventory then uses the same secret automatically.",
     },
     integrationStatus: {
         title: "Google script",

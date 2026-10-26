@@ -71,7 +71,7 @@ function inv_isApproved_(folderId) {
 
 function inv_list_(folderId, pageToken) {
   var res = Drive.Files.list({
-    q: "'" + folderId + "' in parents and trashed = false",
+    q: "'" + String(folderId).replace(/\\/g, "\\\\").replace(/'/g, "\\'") + "' in parents and trashed = false",
     fields: "nextPageToken, files(id,name,mimeType,size,modifiedTime,md5Checksum,sha256Checksum,parents)",
     pageSize: 200,
     pageToken: pageToken || null,
@@ -115,6 +115,8 @@ function inv_handle_(req) {
 export function buildCombinedScript(config: CombinedScriptConfig): string {
     if (config.secret.trim() === '') throw new Error('The Google script needs a secret.');
     if (!config.tasks && !config.inventory) throw new Error('The combined script needs at least one module.');
+    // Drive folder ids are letters, digits, '-' and '_'. Anything else would reach a Drive query, so it never reaches the script.
+    for (const id of config.inventory?.rootFolderIds ?? []) if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('A Drive folder id contains characters a Drive id never has.');
     const parts: string[] = [
         '// AI Organiser: your Google script (one deployment for several features).',
         `// Modules in this script: ${[config.tasks ? 'Google Tasks' : '', config.inventory ? 'Drive folder inventory (read-only)' : ''].filter(Boolean).join(', ')}.`,
@@ -154,6 +156,10 @@ export function buildCombinedScript(config: CombinedScriptConfig): string {
     parts.push(
         '',
         'function combinedPing_(req) {',
+        // A client that names a module this script does not carry is told so (it is not a generic success).
+        `  if (req.module !== undefined && req.module !== "tasks" && req.module !== "inventory") return { ok: false, error: { code: "bad-request", message: "Unknown module." } };`,
+        ...(hasTasks ? [] : ['  if (req.module === "tasks") return { ok: false, error: { code: "module-missing", message: "This script does not include the Google Tasks module." } };']),
+        ...(hasInv ? [] : ['  if (req.module === "inventory") return { ok: false, error: { code: "module-missing", message: "This script does not include the Drive inventory module." } };']),
         `  var answer = { ok: true, modules: { ${modulesLine} } };`,
         '  var extra = null;',
         ...(hasTasks ? ['  if (req.module === "tasks") extra = tasks_ping_();'] : []),

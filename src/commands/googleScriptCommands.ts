@@ -2,12 +2,12 @@
  * Copy the combined Google script: one deployment for Google Tasks and (when the Drive inventory is on) the inventory, with one
  * secret. The standalone scripts and their wizards are untouched; this is only for a user who chooses to combine.
  *
- * The one secret is the Tasks secret, also stored as the inventory secret (both stay in this plugin's own secret storage) so the
- * two clients keep working once both URLs point at the combined deployment. Registered only while `google-tasks-export` is on.
+ * The one secret is the Tasks secret. Nothing is copied or overwritten: the inventory client uses the Tasks secret only while its
+ * URL is the same deployment as the Tasks URL (`inventorySecretFor`), so an inventory that still points at its own script keeps
+ * its own secret until the person changes the URL. Registered only while `google-tasks-export` is on.
  */
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
-import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { isFeatureEnabled } from '../services/featureService';
 import { buildCombinedScript } from '../services/googleScript/combinedScript';
@@ -31,8 +31,6 @@ export async function copyCombinedScript(plugin: AIOrganiserPlugin): Promise<voi
             ...(withInventory && roots.length > 0 ? { inventory: { rootFolderIds: roots } } : {}),
         });
         await navigator.clipboard.writeText(script);
-        // One secret for both modules: the inventory client uses the same one once its URL points at this deployment.
-        if (withInventory && roots.length > 0) await plugin.secretStorageService.setSecret(PLUGIN_SECRET_IDS.CLOUD_INVENTORY, secret);
         new Notice(withInventory && roots.length > 0 ? t.copiedBoth : t.copiedTasks, 12000);
     } catch (e) {
         logger.error('GoogleScript', 'Could not copy the combined script', e);
