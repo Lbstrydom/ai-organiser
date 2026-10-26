@@ -69,7 +69,7 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             lines.push(t.line.replace('{version}', String(info.version)).replace('{capabilities}', info.capabilities.join(', ') || '-'));
             if (info.legacy) lines.push(t.legacy);
             const missing = missingCapabilities(module, info);
-            if (missing.length > 0) lines.push(t.lacks.replace('{capabilities}', missing.join(', ')));
+            if (missing.length > 0) lines.push((info.combined ? t.lacksCombined : t.lacks).replace('{capabilities}', missing.join(', ')));
         }
         if (module === 'tasks') {
             const waiting = pendingApprovals(plugin.settings.sweepApprovals, true).reduce((n, r) => n + exportable(r).length, 0);
@@ -93,5 +93,7 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             rerender();
         }));
     }
-    box.createEl('p', { text: t.access, cls: 'setting-item-description' });
+    // Only what the modules in use can do: a Tasks-only setup is not told the script lists Drive folders.
+    const can = [modules.includes('tasks') ? t.accessTasks : '', modules.includes('inventory') ? t.accessInventory : ''].filter(Boolean);
+    box.createEl('p', { text: [t.access, ...can, t.accessNever].join(' '), cls: 'setting-item-description' });
 }

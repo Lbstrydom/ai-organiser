@@ -22,6 +22,8 @@ export interface TasksPing {
     /** v2 only: every list the script approves, and what it can do */
     approvedListIds?: string[];
     capabilities?: string[];
+    /** True when the answer comes from the combined Google script (it carries a `modules` block) */
+    combined?: boolean;
 }
 
 export type TasksScriptState = 'setup' | 'operational' | 'outdated' | 'list-mismatch' | 'lists-outdated';
@@ -34,7 +36,7 @@ interface Endpoint {
 }
 
 export async function pingTasksScript(endpoint: Endpoint): Promise<Result<TasksPing>> {
-    const res = await callScript<{ scriptVersion?: unknown; approvedListId?: unknown; listHash?: unknown; approvedListIds?: unknown; capabilities?: unknown }>({ ...endpoint, body: { op: 'ping', module: 'tasks' }, maxAttempts: 2 });
+    const res = await callScript<{ scriptVersion?: unknown; approvedListId?: unknown; listHash?: unknown; approvedListIds?: unknown; capabilities?: unknown; modules?: unknown }>({ ...endpoint, body: { op: 'ping', module: 'tasks' }, maxAttempts: 2 });
     if (!res.ok) return err(res.error);
     const v = res.value;
     if (typeof v.scriptVersion !== 'number' || typeof v.listHash !== 'string') return err('script-bad-response');
@@ -42,7 +44,7 @@ export async function pingTasksScript(endpoint: Endpoint): Promise<Result<TasksP
     const strings = (x: unknown): string[] | undefined => (Array.isArray(x) && x.every((i) => typeof i === 'string') ? x : undefined);
     const approvedListIds = strings(v.approvedListIds);
     const capabilities = strings(v.capabilities);
-    return ok({ scriptVersion: v.scriptVersion, approvedListId: approved, listHash: v.listHash, ...(approvedListIds ? { approvedListIds } : {}), ...(capabilities ? { capabilities } : {}) });
+    return ok({ scriptVersion: v.scriptVersion, approvedListId: approved, listHash: v.listHash, ...(approvedListIds ? { approvedListIds } : {}), ...(capabilities ? { capabilities } : {}), ...(v.modules !== null && typeof v.modules === 'object' && !Array.isArray(v.modules) ? { combined: true } : {}) });
 }
 
 /**

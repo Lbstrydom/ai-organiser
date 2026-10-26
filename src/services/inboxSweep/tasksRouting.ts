@@ -58,6 +58,8 @@ export function normaliseTasksLists(raw: unknown): TasksListConfig[] {
 export interface ListsHost {
     tasksListId: string;
     tasksLists: readonly TasksListConfig[];
+    /** The main list's name as the setup saw it: shown instead of its raw id when the list entry has no title */
+    tasksListName?: string;
 }
 
 export interface ResolvedLists {
@@ -72,7 +74,8 @@ export function resolveTasksLists(host: ListsHost): ResolvedLists {
     const mainId = typeof host.tasksListId === 'string' ? host.tasksListId.trim() : '';
     if (mainId === '') return { main: null, others: listed };
     const own = listed.find((l) => l.id === mainId);
-    const main = own ?? { id: mainId, title: '', needsDate: false };
+    const savedName = typeof host.tasksListName === 'string' ? host.tasksListName.trim().slice(0, 120) : '';
+    const main = own ? { ...own, title: own.title || savedName } : { id: mainId, title: savedName, needsDate: false };
     return { main, others: listed.filter((l) => l.id !== mainId) };
 }
 

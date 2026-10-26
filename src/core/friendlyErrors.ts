@@ -116,6 +116,10 @@ export const GUIDANCE_CODES = [
     'tasks-readback-off',
     'tasks-no-list',
     'tasks-not-ready',
+    'tasks-wizard-no-list',
+    'tasks-wizard-unchecked',
+    'tasks-wizard-setup',
+    'tasks-wizard-wrong-list',
     'script-tasks-off',
     // Vault upkeep
     'upkeep-running',

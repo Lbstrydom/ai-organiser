@@ -16,11 +16,13 @@ import { allLists } from '../services/inboxSweep/tasksRouting';
 import { ensureTasksSecret } from './inboxSweepCommands';
 import { logger } from '../utils/logger';
 
-export async function copyCombinedScript(plugin: AIOrganiserPlugin): Promise<void> {
+/** `mainListId`: the list the setup window has just chosen but not yet saved; it goes first so the script approves it as the main list. */
+export async function copyCombinedScript(plugin: AIOrganiserPlugin, mainListId?: string): Promise<void> {
     const t = plugin.t.googleScript;
     const s = plugin.settings;
     try {
-        const lists = allLists(s);
+        const saved = allLists(s);
+        const lists = mainListId ? [{ id: mainListId }, ...saved.filter((l) => l.id !== mainListId)] : saved;
         const main = lists[0]?.id ?? '';
         const withInventory = isFeatureEnabled(s, 'cloud-inventory');
         const roots = withInventory ? approvedRoots(s.cloudInventoryPairs) : [];

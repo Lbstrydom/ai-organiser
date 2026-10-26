@@ -379,7 +379,7 @@ describe('ping normalisation', () => {
   it('reads reported capabilities from the standalone v2 and the combined forms', () => {
     expect(normaliseModulePing('tasks', { ok: true, scriptVersion: 2, capabilities: ['upsert', 'lists', 'status', 'multi-list'] })).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status', 'multi-list'], legacy: false });
     const combined = { ok: true, modules: { tasks: { version: 2, capabilities: ['upsert', 'lists', 'status'] }, inventory: { version: 1, capabilities: ['list'] } } };
-    expect(normaliseModulePing('tasks', combined)).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status'], legacy: false });
+    expect(normaliseModulePing('tasks', combined)).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status'], legacy: false, combined: true });
     expect(normaliseModulePing('inventory', combined)?.capabilities).toEqual(['list']);
     // the same minimum version as a standalone answer
     expect(normaliseModulePing('tasks', { ok: true, modules: { tasks: { version: 0, capabilities: ['upsert'] } } })).toBeNull();
@@ -429,7 +429,9 @@ describe('integration status row', () => {
   });
 
   it('the copy states the real Google access and never promises more', () => {
-    expect(en.integrationStatus.access).toMatch(/never deletes, shares or reads file contents/);
+    expect(en.integrationStatus.accessNever).toMatch(/never deletes, shares or reads file contents/);
+    // A Tasks-only setup is not told the script lists Drive folders.
+    expect(en.integrationStatus.accessTasks).not.toMatch(/Drive/);
   });
 });
 

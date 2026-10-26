@@ -19,6 +19,8 @@ export interface ModuleInfo {
     capabilities: string[];
     /** True when the capabilities were inferred from a v1 answer rather than reported by the script */
     legacy: boolean;
+    /** True when the answer came from the combined Google script */
+    combined?: boolean;
 }
 
 /** What v1 of each module could do (the legacy capability set). */
@@ -43,7 +45,7 @@ export function normaliseModulePing(module: ScriptModule, response: unknown): Mo
         if (!isRecord(modules) || !isRecord(modules[module])) return null;
         const m = modules[module];
         const caps = strings(m.capabilities);
-        return typeof m.version === 'number' && Number.isInteger(m.version) && m.version >= 1 && caps ? { module, version: m.version, capabilities: caps, legacy: false } : null;
+        return typeof m.version === 'number' && Number.isInteger(m.version) && m.version >= 1 && caps ? { module, version: m.version, capabilities: caps, legacy: false, combined: true } : null;
     }
     const version = response.scriptVersion;
     if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) return null;
