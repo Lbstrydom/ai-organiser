@@ -58,6 +58,8 @@ const LIMITS = {
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const PACK_NAME_PATTERN = /^pack-[0-9]{8}-[0-9]{6}-[0-9a-f]{12}[.]md$/;
+// What is never an ordinary note: the same shape, with case folded (file systems fold case).
+const PACK_LIKE_PATTERN = /^pack-[0-9]{8}-[0-9]{6}-[0-9a-f]{12}[.]md$/i;
 
 const caseInsensitiveFs = process.platform === 'win32' || process.platform === 'darwin';
 
@@ -94,7 +96,7 @@ function scopeAllows(p, scope) {
   // A pack is served only through its own tool, which re-checks it; it is never an ordinary note.
   // Whenever AI sharing is published at all (shareFolders is present), a file named like a pack is never an ordinary note; the pack folder itself too.
   if (scope.packs && insideOrEqual(norm, scope.packs.folder)) return false;
-  if (scope.shareFolders !== undefined && PACK_NAME_PATTERN.test(norm.slice(norm.lastIndexOf('/') + 1))) return false;
+  if (scope.shareFolders !== undefined && PACK_LIKE_PATTERN.test(norm.slice(norm.lastIndexOf('/') + 1))) return false;
   if (scope.requireOptIn === true) return inShareFolders(norm, scope);
   return true;
 }

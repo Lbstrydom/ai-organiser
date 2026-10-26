@@ -56,7 +56,9 @@ export function shareFolderOf(path: string, settings: Pick<ShareSettings, 'aiSha
 
 /** The name every pack file has. A pack is never an ordinary note: this holds wherever the pack folder is or used to be. */
 export const PACK_FILE_NAME = /^pack-\d{8}-\d{6}-[0-9a-f]{12}\.md$/;
-export const looksLikePack = (path: string): boolean => PACK_FILE_NAME.test(normalisePath(path).slice(normalisePath(path).lastIndexOf('/') + 1));
+/** Case-insensitive on purpose (file systems fold case): a copy named in capitals is still a pack. The store's own names stay strict (`PACK_FILE_NAME`). */
+const PACK_LIKE = new RegExp(PACK_FILE_NAME.source, 'i');
+export const looksLikePack = (path: string): boolean => PACK_LIKE.test(normalisePath(path).slice(normalisePath(path).lastIndexOf('/') + 1));
 
 /** The pack folder is always excluded. An empty pack folder is treated as the vault root would be: nothing is shareable (fail closed). */
 function insidePackFolder(path: string, packFolder: string): boolean {

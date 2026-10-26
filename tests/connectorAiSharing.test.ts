@@ -325,7 +325,7 @@ describe('one definition of a pack file name', () => {
 		fs.writeFileSync(path.join(dir, 'server.cjs'), CONNECTOR_SERVER_SOURCE);
 		const server = createRequire(path.join(process.cwd(), 'package.json'))(path.join(dir, 'server.cjs')) as { scopeAllows(p: string, s: Record<string, unknown>): boolean };
 		const scope = { includeFolders: [], excludeFolders: [], protectedFolders: [], shareFolders: [] as string[] };
-		for (const name of [made, 'pack-20261026-090507-aaaaaaaaaaaa.md', 'pack-20261026-0905-aaaaaaaa.md', 'pack-notes.md', 'pack-20261026-090507-AAAAAAAAAAAA.md', 'xpack-20261026-090507-aaaaaaaaaaaa.md', 'pack-20261026-090507-aaaaaaaaaaaa.md.txt']) {
+		for (const name of [made, 'pack-20261026-090507-aaaaaaaaaaaa.md', 'pack-20261026-0905-aaaaaaaa.md', 'pack-notes.md', 'pack-20261026-090507-AAAAAAAAAAAA.md', 'xpack-20261026-090507-aaaaaaaaaaaa.md', 'pack-20261026-090507-aaaaaaaaaaaa.md.txt', 'PACK-20261026-090507-AAAAAAAAAAAA.MD', 'Pack-20261026-090507-aaaaaaaaaaaa.md']) {
 			expect(!server.scopeAllows(`Some/${name}`, scope), name).toBe(looksLikePack(`Some/${name}`));
 		}
 		fs.rmSync(dir, { recursive: true, force: true });

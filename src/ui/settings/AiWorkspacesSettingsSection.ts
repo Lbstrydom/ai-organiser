@@ -40,12 +40,13 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
                     if (JSON.stringify(next) === JSON.stringify(s.aiShareFolders ?? [])) return;
                     const before = s.aiShareFolders;
                     s.aiShareFolders = next;
-                    save(() => { s.aiShareFolders = before; });
+                    // Put back only if nothing newer replaced it meanwhile.
+                    save(() => { if (s.aiShareFolders === next) s.aiShareFolders = before; });
                 });
             });
 
         new Setting(this.containerEl).setName(c.optInName).setDesc(c.optInDesc)
-            .addToggle((tg) => tg.setValue(s.aiShareRequireOptIn === true).onChange((v) => { const before = s.aiShareRequireOptIn; s.aiShareRequireOptIn = v; save(() => { s.aiShareRequireOptIn = before; }); }));
+            .addToggle((tg) => tg.setValue(s.aiShareRequireOptIn === true).onChange((v) => { const before = s.aiShareRequireOptIn; s.aiShareRequireOptIn = v; save(() => { if (s.aiShareRequireOptIn === v) s.aiShareRequireOptIn = before; }); }));
 
         new Setting(this.containerEl).setName(c.packFolderName).setDesc(c.packFolderDesc)
             .addText((tx) => {
