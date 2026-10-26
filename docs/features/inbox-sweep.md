@@ -58,3 +58,7 @@ Opt-in on top of the one-list export; with the defaults (`tasksLists: []`, `task
 ## Tests
 
 `sweepGuard`, `sweepService`, `sweepReport`, `sweepLedger`, `sweepCommit`, `sweepItemKeys`, `sweepReportedItems`, `sweepReoffer`, `sweepReofferRollback`, `sweepReviewReported`, `tasksScriptTemplate` (including the script run against a fake Tasks service), `tasksExportService`, `inboxSweepSetup`, `inboxSweepOffPath`.
+
+## AI hand-back notes are skipped
+
+A note with a `## Handoff` section (outside code), an `aio:handoff` marker or `aio-handback: true` is left out of the sweep (`looksLikeHandback`), so its Decisions, Questions and Deliverables lines do not come back as tasks; it has its own review (Review AI hand-back). The run says how many were left out. The guard itself is unchanged, because the hand-back review sends a hand-back's next actions through the sweep with that note as their source.

@@ -74,3 +74,24 @@ describe('Process view gate (off path)', () => {
     expect(Object.values(REGISTER_BY_FEATURE).flat().map((f) => f?.name)).not.toContain('registerProcessCommands');
   });
 });
+
+describe('hand-backs not yet reviewed are listed too (persona F4)', () => {
+  it('a Handoff note in the inbox with no journal record is listed; one the journal knows is left to the journal adapter', async () => {
+    const { newHandbackItems } = await import('../src/services/process/processProjection');
+    const known = rec('a', [['1', 'pending', 'decisions']]); // notePath Inbox/a.md
+    const items = newHandbackItems([{ path: 'Inbox/a.md' }, { path: 'Inbox/new one.md' }, { path: 'Inbox/another.md' }], { a: known });
+    expect(items.map((i) => i.title)).toEqual(['another', 'new one']);
+    expect(items[0]).toMatchObject({ group: 'handbacks', detail: 'new', actions: ['review', 'open'], route: { type: 'handback', path: 'Inbox/another.md' } });
+    // a fully applied hand-back is in the journal, so it is not offered again as new
+    const done = rec('b', [['1', 'applied', 'decisions']]);
+    expect(newHandbackItems([{ path: 'Inbox/b.md' }], { b: done })).toEqual([]);
+  });
+
+  it('a refresh request reaches only views that can refresh', async () => {
+    const { refreshProcessViews, PROCESS_VIEW_TYPE } = await import('../src/ui/views/processRefresh');
+    let refreshed = 0;
+    const app = { workspace: { getLeavesOfType: (t: string) => (t === PROCESS_VIEW_TYPE ? [{ view: { refresh: () => { refreshed++; } } }, { view: {} }, { view: null }] : []) } };
+    refreshProcessViews(app as never);
+    expect(refreshed).toBe(1);
+  });
+});

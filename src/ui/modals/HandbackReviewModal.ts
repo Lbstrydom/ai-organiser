@@ -4,6 +4,7 @@ import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { applyHandback, type PreparedHandback, type ReviewActions } from '../../services/aiWorkspaces/handbackService';
 import type { HandoffSection } from '../../services/aiWorkspaces/handoffParser';
 import { plural } from '../../utils/plural';
+import { refreshProcessViews } from '../views/processRefresh';
 import { logger } from '../../utils/logger';
 
 const SECTION_ORDER: readonly HandoffSection[] = ['decisions', 'actions', 'deliverables', 'questions'];
@@ -30,6 +31,7 @@ export class HandbackReviewModal extends Modal {
 
     onClose(): void {
         this.contentEl.empty();
+        refreshProcessViews(this.app);
     }
 
     private draw(): void {
@@ -51,7 +53,7 @@ export class HandbackReviewModal extends Modal {
         // Project
         const ranked = match.ranked;
         const why = match.exact ? t.whyId : match.preselect ? t.whyReason[ranked.find((r) => r.project.aioId === match.preselect?.aioId)?.reason ?? 'title'] : '';
-        const projectSetting = new Setting(el).setName(t.projectName).setDesc(match.rejected ? t.rejected[match.rejected] : why || (ranked.length > 0 ? t.chooseProject : t.noCandidate));
+        const projectSetting = new Setting(el).then((row) => row.settingEl.addClass('ai-organiser-wrap-row')).setName(t.projectName).setDesc(match.rejected ? t.rejected[match.rejected] : why || (ranked.length > 0 ? t.chooseProject : t.noCandidate));
         projectSetting.addDropdown((d) => {
             d.addOption('', t.notChosen);
             const seen = new Set<string>();
@@ -81,7 +83,11 @@ export class HandbackReviewModal extends Modal {
             }
             if (more > 0) el.createDiv({ text: plural(t.moreItems, more), cls: 'setting-item-description' });
         }
-        if (parse.warnings.length > 0) el.createDiv({ text: plural(t.warnings, parse.warnings.length), cls: 'setting-item-description' });
+        if (parse.warnings.length > 0) {
+            el.createDiv({ text: plural(t.warnings, parse.warnings.length), cls: 'setting-item-description' });
+            const list = el.createEl('ul', { cls: 'setting-item-description' });
+            for (const w of parse.warnings) list.createEl('li', { text: t.warningLines[w.code].replace('{detail}', w.detail) });
+        }
 
         new Setting(el)
             .addButton((b) => b.setButtonText(t.cancel).onClick(() => this.close()))
