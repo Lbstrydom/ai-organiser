@@ -12,26 +12,42 @@ import { err } from '../../core/result';
 import { tryExtractJson } from '../../utils/responseParser';
 import { IR_SCHEMA_VERSION, validateDeckIr, type SlideDeckIr } from './slideIr';
 import { buildIconReference } from './iconRegistry';
+import { buildVisualSelectionGuide } from './visualSelection';
 import { escapeForPrompt, jsonForPrompt } from '../../utils/promptSafe';
 
-/** A compact `(brief → IR)` example. Kept small to bound prompt cost. */
+/**
+ * One compact storyboard-slide → IR example. EVERY fact in the IR comes from the
+ * evidence in the example's input (nothing is added, nothing is rounded into a new
+ * claim), and it shows the pieces this prompt asks for: a subhead, a labelled chart
+ * whose labels carry the real figures, and the slide-level source line. Kept small
+ * to bound prompt cost. The company and figures are illustrative INPUT, not facts.
+ */
 const FEW_SHOT = `<example>
-Brief: "One title slide and one slide on coffee market scale with four key numbers."
-IR:
+Input — the evidence and ONE storyboard slide. Use only what is in the input:
+<evidence>
+[e1] (Example Co annual report) Services revenue was 4.1 EUR bn in FY24, up 12% on FY23.
+[e2] (Example Co annual report) Hardware revenue was 5.9 EUR bn in FY24, flat on FY23.
+</evidence>
+<storyboard_slide>
+{ "id": "s2", "role": "insight", "action_title": "Services grew 12% while hardware stayed flat",
+  "core_message": "Services revenue rose 12% to 4.1 EUR bn in FY24; hardware revenue was flat at 5.9 EUR bn.",
+  "evidence_span_ids": ["e1", "e2"], "suggested_visual": "bar",
+  "visual_data": { "type": "bar", "unit": "EUR bn", "items": [
+    { "label": "Hardware", "value": 5.9, "evidence_span_id": "e2" },
+    { "label": "Services", "value": 4.1, "evidence_span_id": "e1" } ] } }
+</storyboard_slide>
+IR (a bar's pct is its value ÷ the largest value × 100; the labels carry the real figures):
 {
   "schemaVersion": ${IR_SCHEMA_VERSION},
-  "title": "Coffee market",
+  "title": "Revenue mix, FY24",
   "slides": [
-    { "id": "s1", "type": "title", "title": "Coffee market", "subtitle": "Scale of the global trade", "blocks": [] },
-    { "id": "s2", "type": "content", "title": "A vast market", "blocks": [
-      { "kind": "paragraph", "text": "Coffee is the second most traded commodity by value." },
-      { "kind": "stat-grid", "cards": [
-        { "value": "$100B+", "label": "Retail market value", "icon": "dollar-sign" },
-        { "value": "125M", "label": "Livelihoods supported" },
-        { "value": "10B kg", "label": "Produced per year" },
-        { "value": "70+", "label": "Producing countries" }
-      ] }
-    ] }
+    { "id": "s1", "type": "title", "title": "Revenue mix, FY24", "blocks": [] },
+    { "id": "s2", "type": "content", "title": "Services grew 12% while hardware stayed flat", "blocks": [
+      { "kind": "subhead", "text": "Services revenue rose 12% to 4.1 EUR bn" },
+      { "kind": "bar-chart", "axisLabel": "Revenue, FY24 (EUR bn)", "bars": [
+        { "label": "Hardware (5.9 EUR bn)", "pct": 100 },
+        { "label": "Services (4.1 EUR bn)", "pct": 69 } ] }
+    ], "sources": ["Example Co annual report"] }
   ]
 }
 </example>`;
@@ -59,17 +75,23 @@ Return ONLY one JSON object (no prose, no markdown fences) of this shape:
 { "schemaVersion": ${IR_SCHEMA_VERSION}, "title": "Deck title", "slides": [ Slide, ... ] }
 
 Slide = { "id": "unique-string", "type": "title"|"section"|"content"|"closing",
-          "title"?: string, "subtitle"?: string, "background"?: "RRGGBB", "blocks": Block[], "notes"?: string }
+          "title"?: string, "subtitle"?: string, "background"?: "RRGGBB", "blocks": Block[], "notes"?: string,
+          "sources"?: string[], "footnotes"?: string[] }
 - title / section / closing slides MUST have "blocks": [] (use title + subtitle only).
 - Only "content" slides carry blocks. Give every slide a UNIQUE id.
+- "sources" = where the slide's figures come from, as bare origins (e.g. "IEA, 2024"); the renderer prints them as one "Source: …" line. Set it on a slide that shows numbers WHEN the input names where they come from; if the input names no origin, omit it — never invent one. "footnotes" = short qualifying notes (e.g. "Excludes one-off items"), at most 4.
 - "background" is an OPTIONAL per-slide background colour (6-digit hex, no '#', e.g. "ffffff" for white). Set it only when the user asks to change a slide's background; text colour adapts automatically for contrast. Omit it to use the theme.
 
 Block (discriminated by "kind"):
 - { "kind": "heading", "text": string, "level": 1|2|3 }
-- { "kind": "paragraph", "text": string, "emphasis"?: boolean }   // emphasis BOLDS the WHOLE paragraph — use ONLY for a single short key sentence, never a multi-line passage
+- { "kind": "subhead", "text": string }                            // a sub-headline / kicker: ONE short line that leads a slide or a group of content. Use this — never a bold paragraph — for a sub-headline
+- { "kind": "paragraph", "text": string }
 - { "kind": "bullets", "items": string[], "ordered"?: boolean }    // 1–12 items
 - { "kind": "stat-grid", "cards": [ { "value": string, "label": string, "icon"?: "trending-up" } ] }   // 1–6 cards; icon = a NAME from <icons>
 - { "kind": "bar-chart", "bars": [ { "label": string, "pct": number, "color"?: "RRGGBB" } ], "axisLabel"?: string, "source"?: string, "caption"?: string }  // pct 0–100, 1–12 bars. ALWAYS set "axisLabel" with the metric + unit (e.g. "Relative CO₂ per kWh (diesel = 100)") so an index chart is interpretable; add "source" when the data has a provenance.
+- { "kind": "waterfall", "base": { "label": string, "value": number }, "deltas": [ { "label": string, "value": number } ], "total"?: { "label": string }, "unit"?: string, "caption"?: string }  // a build-up; 1–10 deltas
+- { "kind": "line-chart", "series": [ { "label": string, "points": [ { "x": string, "y": number } ] } ], "unit"?: string, "caption"?: string }  // a time series; 1–4 series, 2–20 points each
+- { "kind": "pyramid", "levels": [ { "label": string, "detail"?: string } ], "caption"?: string }  // a hierarchy; 2–6 levels
 - { "kind": "process-flow", "steps": [ { "title": string, "sub"?: string, "icon"?: "rocket" } ] }  // 2–8 steps; icon = a NAME from <icons>
 - { "kind": "two-column", "left": Block[], "right": Block[] }   // ONE level only — no nested two-column
 - { "kind": "table", "headers": string[], "rows": string[][] }  // every row length === headers length
@@ -78,9 +100,11 @@ Block (discriminated by "kind"):
 </output_format>
 
 <requirements>
-- Use the RIGHT block for the data: numbers → stat-grid or bar-chart; steps/pipeline → process-flow; comparisons → table or two-column. Avoid walls of bullets.
-- Every bar-chart MUST carry an "axisLabel" naming the metric + unit (charts with bare numbers are uninterpretable); cite a "source" when the figures have a provenance. Reserve paragraph "emphasis" for ONE short key sentence — never bold a whole multi-line passage.
-- Add a relevant "icon" NAME (chosen from the <icons> list below) on stat-grid cards and process-flow steps where it aids scanning. Use ONLY names from that list — never emoji or freeform text. Use them tastefully; most cards/steps should have one.
+- Use the RIGHT block for the content. Headline figures (a few key numbers) → stat-grid; steps/pipeline → process-flow; side-by-side prose → two-column. Avoid walls of bullets.
+- ${buildVisualSelectionGuide('ir')}
+- If the input includes a storyboard, keep each slide's action title as its slide title and every figure as given. In every case add no facts, numbers or claims that are not in the input.
+- Every bar-chart MUST carry an "axisLabel" naming the metric + unit (charts with bare numbers are uninterpretable); cite a "source" when the figures have a provenance. Write a sub-headline as a "subhead" block, not as an emphasised paragraph.
+- Add an "icon" on a stat-grid card or process-flow step ONLY where it distinguishes one concept from another or makes the sequence clearer — not as decoration; leave it out when it adds nothing. Use ONLY names from the <icons> list below — never emoji or freeform text.
 - ${len ? `Produce EXACTLY ${len} slides total (title + content + closing) — match this count precisely.` : '6–10 slides for a normal deck unless the user asks for a specific count.'} One idea per slide.
 - "color" must be a 6-digit hex WITHOUT '#'. No extra/unknown JSON keys (they are rejected).
 - Output MUST be valid JSON and nothing else.

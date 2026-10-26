@@ -96,7 +96,7 @@ export function buildDeckFromStoryline(
         if (!parsed.ok) return parsed;
         const grounding = selfCheckStoryboard(parsed.value.storyboard, catalog);
         const audit = auditStoryboard(parsed.value.storyboard, grounding, { outputLanguage });
-        const deck = translateStoryboardToIr(parsed.value.storyboard);
+        const deck = translateStoryboardToIr(parsed.value.storyboard, catalog);
         if (!deck.ok) return deck;
         return ok({ deck: deck.value, grounding, audit, comments: parsed.value.comments });
     } catch (e) {
@@ -109,11 +109,11 @@ export function buildDeckFromStoryline(
  *  from a restored/persisted snapshot, not just a freshly schema-parsed LLM response,
  *  so don't trust the TS type at runtime. `translateStoryboardToIr` still applies its
  *  own `validateDeckIr` gate on the output. */
-export function buildDeckFromStoryboard(storyboard: ConsultantStoryboard): Result<SlideDeckIr> {
+export function buildDeckFromStoryboard(storyboard: ConsultantStoryboard, catalog: readonly EvidenceSpan[] = []): Result<SlideDeckIr> {
     try { // Gemini-gate: the SYNC exports must honour the Result boundary too (H8 completion).
         const valid = validateStoryboard(storyboard);
         if (!valid.ok) return valid;
-        return translateStoryboardToIr(valid.value);
+        return translateStoryboardToIr(valid.value, catalog);
     } catch (e) {
         return err(`storyboard build: ${e instanceof Error ? e.message : String(e)}`);
     }

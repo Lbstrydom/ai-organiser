@@ -33,6 +33,7 @@ import {
     type SvgAssetCache,
 } from './svgAsset';
 import { slideFailureNotice, DEFAULT_PLACEHOLDER_LABEL } from './renderIsolation';
+import { slideFooterLines, DEFAULT_SOURCE_LABEL } from './slideFooter';
 import { sanitizeExportTheme } from './themeSafe';
 // Type-only — erased at compile, so the pure renderer keeps NO runtime
 // dependency on the Obsidian-bound brand-asset module (plan M6).
@@ -70,6 +71,8 @@ export interface RenderPptxOptions {
     /** Localised label for a slide that fails to render (caller injects via
      *  plugin.t — the renderer stays Obsidian-free). Default English. */
     placeholderLabel?: string;
+    /** Localised word printed before a slide's sources ("Source"). Default English. */
+    sourceLabel?: string;
     /** Pre-resolved brand assets (icons by concept, both variants). When a slide
      *  references an icon concept present here, the variant PNG matching the
      *  slide background is used; else the existing Lucide path. Absent → Lucide
@@ -100,6 +103,8 @@ interface RenderState {
     svgCache: SvgAssetCache;
     /** Localised placeholder label for a failed slide (default English). */
     placeholderLabel: string;
+    /** Word printed before a slide's sources (default English). */
+    sourceLabel: string;
     /** Footer-band Y for the CURRENT slide (safe-area aware). Block-flow helpers
      *  clip against this instead of the module `FOOTER_Y` constant. Reset per
      *  slide; defaults to the module constant when no safe-area is set. */
@@ -193,7 +198,7 @@ export async function renderDeckToPptx(
     // D2 — validate the theme ONCE at the boundary (config-sourced, not Zod).
     const safeTheme = sanitizeExportTheme(theme, f =>
         notices.push({ slideIndex: 0, blockKind: 'paragraph', severity: 'info', description: `theme.${f} invalid; using fallback` }));
-    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme: safeTheme, rasterize: opts.rasterize, notices, downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL, footerY: FOOTER_Y, brandAssets: opts.brandAssets, slideBgDark: false };
+    const state: RenderState = { barStyle: opts.barChartStyle ?? 'native', theme: safeTheme, rasterize: opts.rasterize, notices, downgrades: [], svgCache: createSvgAssetCache(), placeholderLabel: opts.placeholderLabel ?? DEFAULT_PLACEHOLDER_LABEL, sourceLabel: opts.sourceLabel ?? DEFAULT_SOURCE_LABEL, footerY: FOOTER_Y, brandAssets: opts.brandAssets, slideBgDark: false };
 
     let pres: PptxLike;
     try {
@@ -312,6 +317,19 @@ async function renderSlide(s: SlideLike, slide: SlideIr, index: number, st: Rend
         const u = IR_RENDER_SPEC.accentUnderline;
         s.addShape('rect', { x: geom.left, y: 0.35 + 0.6 + u.gapBelowTitleIn * 0.5, w: u.widthIn, h: u.heightIn, fill: { color: hx(theme.accentColor) }, line: { width: 0 } });
     }
+    // Footnotes + source line: drawn at the bottom, and their height is taken OUT of the
+    // content zone so a block never runs under them (the HTML footer sits in the flex flow).
+    const footerLines = slideFooterLines(slide, st.sourceLabel);
+    if (footerLines.length > 0) {
+        const pt = IR_RENDER_SPEC.font.footerLinePt(theme);
+        const fg = IR_RENDER_SPEC.geometry.footer;
+        // Capped so a long footer can never swallow the content zone; sits ABOVE the (brand) footer band.
+        const h = Math.min(fg.maxIn, footerLines.reduce((acc, l) => acc + estimateTextHeight(l, geom.width, pt), 0));
+        const y = geom.footerY - fg.bandClearIn - h;
+        const color = slide.background ? contrastTextColor(slide.background) : hx(theme.bodyColor);
+        s.addText(footerLines.join('\n'), { x: geom.left, y, w: geom.width, h, fontFace: theme.fontFace, fontSize: pt, color, transparency: 35, valign: 'bottom', fit: 'shrink' });
+        st.footerY = Math.min(st.footerY, y - fg.gapIn);
+    }
     await flowBlocks(s, slide.blocks, { x: geom.left, y: geom.top, w: geom.width }, index, st);
     if (slide.notes) s.addNotes(slide.notes);
 }
@@ -366,6 +384,12 @@ async function renderBlock(s: SlideLike, block: Block, box: Box, slideIndex: num
             const para = IR_RENDER_SPEC.font.paragraphPt(theme);
             const h = clampH(estimateTextHeight(block.text, box.w, para), box, block.kind, slideIndex, st);
             s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: para, bold: Boolean(block.emphasis), color: hx(theme.bodyColor), valign: 'top' });
+            return h;
+        }
+        case 'subhead': {
+            const size = IR_RENDER_SPEC.font.subheadPt(theme);
+            const h = clampH(estimateTextHeight(block.text, box.w, size), box, block.kind, slideIndex, st);
+            s.addText(block.text, { x: box.x, y: box.y, w: box.w, h, fontFace: theme.fontFace, fontSize: size, bold: true, color: hx(theme.primaryColor), valign: 'top' });
             return h;
         }
         case 'caption': {
