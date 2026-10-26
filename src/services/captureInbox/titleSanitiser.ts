@@ -9,7 +9,7 @@ const MAX_TITLE_CHARS = 80;
 const MAX_TITLE_BYTES = 180;
 
 // Control characters, zero-width and bidi-override characters: invisible, and never part of a file name.
-// eslint-disable-next-line no-control-regex
+// eslint-disable-next-line no-control-regex -- matching control characters is the purpose: they are stripped from capture titles
 const INVISIBLE = new RegExp('[\\u0000-\\u001f\\u007f\\u200b-\\u200f\\u202a-\\u202e\\u2066-\\u2069\\ufeff]', 'g');
 
 function clean(raw: unknown): string {
