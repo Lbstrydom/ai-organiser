@@ -1370,6 +1370,8 @@ export interface Translations {
         sweepInbox: string;
         setupInboxSweep: string;
         processCaptureInbox: string;
+        adoptProject: string;
+        openProject: string;
         reviewCaptures: string;
         setupCaptureInbox: string;
         sendTasksToGoogle: string;
@@ -4253,6 +4255,48 @@ export interface Translations {
         indexStaleLine: string;
         indexRefreshedLine: string;
         suggestionLine: string;
+    };
+    projects: {
+        sectionTitle: string;
+        description: string;
+        adoptCommand: string;
+        openCommand: string;
+        adoptedNotice: string;
+        noActiveNote: string;
+        pickerTitle: string;
+        pickerPlaceholder: string;
+        pickerEmpty: string;
+        pickerNoMatch: string;
+        pickerReason: string;
+        adoptedCount: string;
+        duplicateNote: string;
+        unadoptedNote: string;
+        statusNone: string;
+        rootKinds: Record<'inbox' | 'projects' | 'areas' | 'reference' | 'archive', string>;
+        pairing: Record<'none' | 'drive-pending' | 'paired', string>;
+        rootsName: string;
+        rootsDesc: string;
+        rootsEmpty: string;
+        rootAdd: string;
+        rootRemove: string;
+        rootPathLabel: string;
+        rootKindLabel: string;
+        rootProblems: Record<'root-missing' | 'root-protected' | 'root-output-folder' | 'inbox-mismatch' | 'root-overlap', string>;
+    };
+    integrationStatus: {
+        title: string;
+        intro: string;
+        moduleName: Record<'tasks' | 'inventory', string>;
+        notConfigured: string;
+        notChecked: string;
+        line: string;
+        legacy: string;
+        lacks: string;
+        checkNow: string;
+        checking: string;
+        failed: string;
+        waitingRedeploy: string;
+        access: string;
     };
     inboxSweep: {
         sectionTitle: string;

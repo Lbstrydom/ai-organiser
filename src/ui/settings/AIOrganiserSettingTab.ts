@@ -34,6 +34,8 @@ import { CloudInventorySettingsSection } from './CloudInventorySettingsSection';
 import { InboxSweepSettingsSection } from './InboxSweepSettingsSection';
 import { CaptureInboxSettingsSection } from './CaptureInboxSettingsSection';
 import { GoogleTasksSettingsSection } from './GoogleTasksSettingsSection';
+import { ProjectsSettingsSection } from './ProjectsSettingsSection';
+import { integrationRowVisible, renderIntegrationStatusRow } from './IntegrationStatusRow';
 import { VaultUpkeepSettingsSection } from './VaultUpkeepSettingsSection';
 import { AgentConnectorsSettingsSection } from './AgentConnectorsSettingsSection';
 import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
@@ -329,6 +331,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
                 'integrations', t.integrations?.title || 'Integrations', 'puzzle',
                 d?.integrations || 'External tools and export options',
             );
+            // One status row for the Google script, ahead of the features that use it.
+            if (integrationRowVisible(this.plugin.settings)) renderIntegrationStatusRow(content, this.plugin, () => this.display());
             await this.renderIfEnabled('sub-bases', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-bases', t.bases?.title || 'Obsidian Bases', 'database');
                 new BasesSettingsSection(this.plugin, sub, this).display();
@@ -356,6 +360,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-google-tasks', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-google-tasks', this.plugin.t.googleTasks.sectionTitle, 'list-checks');
                 new GoogleTasksSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-projects', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-projects', this.plugin.t.projects.sectionTitle, 'folder-kanban');
+                new ProjectsSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-vault-upkeep', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-vault-upkeep', this.plugin.t.vaultUpkeep.sectionTitle, 'broom');
