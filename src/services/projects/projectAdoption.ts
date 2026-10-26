@@ -23,12 +23,14 @@ export function planAdoption(text: string, role: ProjectRole, makeId: () => stri
     if (existingId === undefined) entries.push([AIO_ID_KEY, aioId]);
     const existingRole = fm?.[AIO_ROLE_KEY];
     const hasRole = !!fm && Object.hasOwn(fm, AIO_ROLE_KEY);
-    if (hasRole && existingRole === role) return err('project-already-adopted');
-    // Any other role (of another kind, or one the plugin does not know) is never silently changed.
-    if (hasRole) return err('project-role-conflict');
-    entries.push([AIO_ROLE_KEY, role]);
-    // A project gets `status: active` only when the note has no status of its own.
-    if (role === 'project' && !(fm && Object.hasOwn(fm, 'status'))) entries.push(['status', 'active']);
+    // Any role other than the requested one (of another kind, or one the plugin does not know) is never silently changed.
+    if (hasRole && existingRole !== role) return err('project-role-conflict');
+    // The role already matches: only a missing id is added (a role without an identity is not an adopted project).
+    if (!hasRole) {
+        entries.push([AIO_ROLE_KEY, role]);
+        // A project gets `status: active` only when the note has no status of its own.
+        if (role === 'project' && !(fm && Object.hasOwn(fm, 'status'))) entries.push(['status', 'active']);
+    }
     if (entries.length === 0) return err('project-already-adopted');
     const inserted = insertFrontmatterKeys(text, entries);
     if (!inserted.ok) return err(inserted.error === 'frontmatter-key-exists' ? 'project-role-conflict' : 'project-frontmatter-unreadable');

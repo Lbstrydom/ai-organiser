@@ -380,6 +380,9 @@ describe('ping normalisation', () => {
       expect(normaliseModulePing('tasks', bad)).toBeNull();
     }
     expect(normaliseModulePing('inventory', { ok: true, scriptVersion: 1, approvedListId: 'L', listHash: 'h' })).toBeNull();
+    // the legacy tasks wire type: a list id is a string or null
+    expect(normaliseModulePing('tasks', { ok: true, scriptVersion: 1, approvedListId: 5, listHash: 'h' })).toBeNull();
+    expect(normaliseModulePing('tasks', { ok: true, scriptVersion: 1, listHash: 'h' })).toBeNull();
   });
 
   it('a missing capability disables only that feature: tasks without status still lists and upserts', () => {

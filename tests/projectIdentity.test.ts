@@ -92,6 +92,11 @@ describe('planAdoption', () => {
     expect(plan.ok && plan.value.added).toEqual(['aio-role', 'status']);
   });
 
+  it('a note with the matching role but no id still gets its id', () => {
+    const plan = planAdoption('---\naio-role: project\nstatus: active\n---\nx', 'project', () => A);
+    expect(plan.ok && plan.value.added).toEqual(['aio-id']);
+  });
+
   it('refuses a bad id, an existing role of another kind and an already adopted note', () => {
     expect(planAdoption('---\naio-id: nope\n---\nx', 'project')).toEqual({ ok: false, error: 'project-id-invalid' });
     expect(planAdoption(`---\naio-id: ${A}\naio-role: area\n---\nx`, 'project')).toEqual({ ok: false, error: 'project-role-conflict' });

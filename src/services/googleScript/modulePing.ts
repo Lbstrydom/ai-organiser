@@ -53,7 +53,7 @@ export function normaliseModulePing(module: ScriptModule, response: unknown): Mo
     }
     // Legacy answers must carry the module's own v1 fields, or they are not a validated v1 ping.
     const v1Shape = module === 'tasks'
-        ? Object.hasOwn(response, 'approvedListId') && typeof response.listHash === 'string'
+        ? (response.approvedListId === null || typeof response.approvedListId === 'string') && typeof response.listHash === 'string'
         : typeof response.rootsHash === 'string';
     return v1Shape && version === 1 ? { module, version, capabilities: [...LEGACY_CAPABILITIES[module]], legacy: true } : null;
 }

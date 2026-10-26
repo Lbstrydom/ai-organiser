@@ -78,10 +78,17 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
         row.setDesc(lines.join(' '));
         row.addButton((b) => b.setButtonText(t.checkNow).onClick(async () => {
             b.setDisabled(true).setButtonText(t.checking);
-            const secret = await secretOf(plugin, module);
-            const res = await pingModule(module, { url: endpoint.url, secret });
+            let result: Checked['result'];
+            try {
+                const secret = await secretOf(plugin, module);
+                const res = await pingModule(module, { url: endpoint.url, secret });
+                result = res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error };
+            } catch {
+                // The secret store failing is a failed check, shown as one, never a dead button.
+                result = { ok: false, error: 'script-auth' };
+            }
             const next = lastChecks.get(plugin) ?? {};
-            next[module] = { at: Date.now(), url: endpoint.url, result: res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error } };
+            next[module] = { at: Date.now(), url: endpoint.url, result };
             lastChecks.set(plugin, next);
             rerender();
         }));
