@@ -23,15 +23,18 @@ export function sectionUnder(text: string, heading: string): string {
     const lines = bodyWithoutOwned(text).split('\n');
     let level = 0;
     const out: string[] = [];
-    let fence = '';
+    let fence: { char: string; size: number } | null = null;
     for (const line of lines) {
-        const open = /^\s*(`{3,}|~{3,})/.exec(line);
-        if (open) {
-            // A fence closes only with the delimiter that opened it.
-            if (fence === '') fence = open[1][0];
-            else if (open[1][0] === fence) fence = '';
+        // CommonMark: an opener is 3+ backticks or tildes (an info string is allowed, but not backticks in a backtick fence's);
+        // a closer is the same character, at least as long, followed only by spaces.
+        let inFence = fence !== null;
+        if (fence === null) {
+            const open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+            if (open && !(open[1][0] === '`' && open[2].includes('`'))) { fence = { char: open[1][0], size: open[1].length }; inFence = true; }
+        } else {
+            const close = /^ {0,3}(`{3,}|~{3,})[ 	]*$/.exec(line);
+            if (close && close[1][0] === fence.char && close[1].length >= fence.size) fence = null;
         }
-        const inFence = fence !== '' || open !== null;
         const m = inFence ? null : /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
         if (level === 0) {
             if (m && m[2].toLowerCase() === heading.toLowerCase()) level = m[1].length;
@@ -43,14 +46,22 @@ export function sectionUnder(text: string, heading: string): string {
     return out.join('\n').trim();
 }
 
-/** Cut to at most `cap` UTF-8 bytes on a character boundary, marking the cut. */
+const CUT_MARKER = '\n[cut: the note is longer than this summary shows]';
+
+/** Cut to at most `cap` UTF-8 bytes in total, marker included, on a whole-character boundary. */
 export function capBytes(text: string, cap: number): string {
     const enc = new TextEncoder();
     if (enc.encode(text).length <= cap) return text;
-    let end = text.length;
-    while (end > 0 && enc.encode(text.slice(0, end)).length > cap) end = Math.floor(end * 0.9);
-    while (end < text.length && enc.encode(text.slice(0, end + 1)).length <= cap) end += 1;
-    return `${text.slice(0, end).trimEnd()}\n[cut: the note is longer than this summary shows]`;
+    const budget = Math.max(0, cap - enc.encode(CUT_MARKER).length);
+    let used = 0;
+    let kept = '';
+    for (const ch of text) {
+        const n = enc.encode(ch).length;
+        if (used + n > budget) break;
+        used += n;
+        kept += ch;
+    }
+    return kept.trimEnd() + CUT_MARKER;
 }
 
 export interface InstructionsInput {

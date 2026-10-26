@@ -69,20 +69,46 @@ export function neutraliseLinks(text: string, from: string, input: Pick<PackInpu
     return neutraliseWikilinks(neutraliseMarkdownLinks(text, from, input), from, input);
 }
 
-/** `[text](path)` and `![alt](path)` to vault paths: the same rules as wikilinks. Web and mail addresses and in-page anchors are left as written. */
+/**
+ * `[text](path)` and `![alt](path)` to vault paths: the same rules as wikilinks. Web and mail addresses and in-page anchors are left as written.
+ * Scanned, not matched by a pattern: the destination is read to its BALANCED closing parenthesis at any depth. A destination that
+ * never closes on its line is treated as private (fail closed) and the rest of the line is replaced.
+ */
 function neutraliseMarkdownLinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
-    return text.replace(/(!?)\[([^\]\n]*)\]\(\s*(<[^>\n]*>|(?:[^()\s\n]|\([^()\s\n]*\))*)[^)\n]*\)/g, (whole, bang: string, label: string, rawTarget: string) => {
-        const target = rawTarget.replace(/^<|>$/g, '');
-        if (target === '' || target.startsWith('#') || /^(https?:|mailto:)/i.test(target)) return whole;
-        let path = target;
-        try { path = decodeURIComponent(target); } catch { /* keep as written */ }
+    const start = /(!?)\[([^\]\n]*)\]\(/g;
+    let out = '';
+    let last = 0;
+    for (let m = start.exec(text); m !== null; m = start.exec(text)) {
+        const bang = m[1];
+        const label = m[2];
+        const open = m.index + m[0].length;
+        let depth = 1;
+        let i = open;
+        for (; i < text.length && text[i] !== '\n'; i++) {
+            if (text[i] === '(') depth++;
+            else if (text[i] === ')' && --depth === 0) break;
+        }
+        const closed = depth === 0;
+        const end = closed ? i + 1 : (text.indexOf('\n', open) === -1 ? text.length : text.indexOf('\n', open));
+        out += text.slice(last, m.index);
+        last = end;
+        start.lastIndex = end;
+        const whole = text.slice(m.index, end);
+        const placeholder = bang ? '[not shared]' : label + ' [not shared]';
+        if (!closed) { out += placeholder; continue; }
+        const inner = text.slice(open, i).trim();
+        const rawTarget = inner.startsWith('<') ? inner.slice(1, inner.indexOf('>') === -1 ? undefined : inner.indexOf('>')) : inner.split(/\s/)[0];
+        if (rawTarget === '' || rawTarget.startsWith('#') || /^(https?:|mailto:)/i.test(rawTarget)) { out += whole; continue; }
+        let path = rawTarget;
+        try { path = decodeURIComponent(rawTarget); } catch { /* keep as written */ }
         path = path.replace(/#.*$/, '');
-        if (ATTACHMENT_EXT.test(path)) return bang ? '[attachment not included]' : `${label} [attachment not included]`;
+        if (ATTACHMENT_EXT.test(path)) { out += bang ? '[attachment not included]' : label + ' [attachment not included]'; continue; }
         const resolved = input.resolveLink(path, from);
-        if (resolved === null) return bang ? '[not shared]' : `${label} [not shared]`;
-        if (ATTACHMENT_EXT.test(resolved)) return '[attachment not included]';
-        return input.reasonNotShareable(resolved) === null ? whole : bang ? '[not shared]' : `${label} [not shared]`;
-    });
+        if (resolved === null) { out += placeholder; continue; }
+        if (ATTACHMENT_EXT.test(resolved)) { out += '[attachment not included]'; continue; }
+        out += input.reasonNotShareable(resolved) === null ? whole : placeholder;
+    }
+    return out + text.slice(last);
 }
 
 function neutraliseWikilinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {

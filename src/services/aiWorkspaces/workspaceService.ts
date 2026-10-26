@@ -151,7 +151,16 @@ async function stillFresh(plugin: AIOrganiserPlugin, pack: PreparedPack): Promis
 }
 
 /** After the person confirmed the preview: refuse a stale one, write the pack, record it. */
-export async function confirmPack(plugin: AIOrganiserPlugin, prepared: PreparedWorkspacePack): Promise<Result<PackEntry>> {
+const confirmQueue = new WeakMap<object, Promise<unknown>>();
+
+/** Confirmations run one at a time per plugin: the record is read, extended and saved without another confirmation in between. */
+export function confirmPack(plugin: AIOrganiserPlugin, prepared: PreparedWorkspacePack): Promise<Result<PackEntry>> {
+    const run = (confirmQueue.get(plugin) ?? Promise.resolve()).then(() => confirmOne(plugin, prepared));
+    confirmQueue.set(plugin, run.catch(() => undefined));
+    return run;
+}
+
+async function confirmOne(plugin: AIOrganiserPlugin, prepared: PreparedWorkspacePack): Promise<Result<PackEntry>> {
     if (!aiWorkspacesActive(plugin)) return err('unknown');
     const check = await stillFresh(plugin, prepared.pack);
     if (!check.ok) return err(check.error);

@@ -237,3 +237,24 @@ describe('audit round 2 pins', () => {
     expect(sectionUnder('## AI context\n~~~\n```\n## inner\n~~~\nafter\n## B\nz', 'AI context')).toBe('~~~\n```\n## inner\n~~~\nafter');
   });
 });
+
+describe('audit round 3 pins', () => {
+  const i = { reasonNotShareable: (p: string) => (p.includes('Private') ? ('outside-allow-list' as const) : null), resolveLink: (l: string) => l };
+  it('reads a link target to its balanced close at any depth and fails closed when it never closes', () => {
+    expect(neutraliseLinks('[x](Work/Team(Plans(Private))/Secret.md) tail', 'a.md', i)).toBe('x [not shared] tail');
+    expect(neutraliseLinks('[ok](Work/A(B(C)).md "title") tail', 'a.md', i)).toBe('[ok](Work/A(B(C)).md "title") tail');
+    expect(neutraliseLinks('see [x](Work/Private(1.md and more\nnext line', 'a.md', i)).toBe('see x [not shared]\nnext line');
+  });
+  it('a fence closes only on a bare closer of the same character and length', () => {
+    expect(sectionUnder('## AI context\n```js\n```not a closer\n## inner\n```\nafter\n## B\nz', 'AI context')).toBe('```js\n```not a closer\n## inner\n```\nafter');
+    expect(sectionUnder('## AI context\n````\n```\n## inner\n````\nafter\n## B', 'AI context')).toBe('````\n```\n## inner\n````\nafter');
+  });
+  it('capBytes keeps the marker inside the budget and never splits a character', () => {
+    const out = capBytes('a'.repeat(9000), 8 * 1024);
+    expect(new TextEncoder().encode(out).length).toBeLessThanOrEqual(8 * 1024);
+    expect(out).toContain('[cut:');
+    const emoji = capBytes('😀'.repeat(3000), 1000);
+    expect(new TextEncoder().encode(emoji).length).toBeLessThanOrEqual(1000);
+    expect(emoji).not.toContain('�');
+  });
+});
