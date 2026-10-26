@@ -3,7 +3,7 @@
  * Unit tests over the pure checker, then temp-repo integration tests (real git).
  * Fixtures are synthetic: the "marker" below is a made-up string.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { vi, describe, it, expect, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -21,6 +21,9 @@ const GUARD_SCRIPT = resolve(__dirname, '..', 'scripts', 'check-private-staged.m
 const MARKER = 'zz-synthetic-marker-7f3a';
 
 const noBlob = () => null;
+
+// These tests spawn git and node child processes; under full-suite load the 5 s default is too tight.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('globToRegExp', () => {
 	it('treats ** as crossing folders and * as staying in one', () => {
