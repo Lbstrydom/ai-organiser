@@ -8,6 +8,7 @@
  */
 import type { EvidenceSpan } from './consultantStoryboard';
 import { STORYBOARD_SCHEMA_VERSION } from './consultantStoryboard';
+import { buildVisualSelectionGuide } from './visualSelection';
 
 export interface StoryboardPromptOptions {
     outputLanguage?: string;
@@ -35,6 +36,7 @@ const VISUAL_GUIDE = `Choose suggested_visual by the DATA SHAPE, and emit the ma
 - magnitudes to compare -> "bar" : {type:"bar", unit?, items:[{label,value,evidence_span_id}]}
 - structured facts -> "table"    : {type:"table", columns:[...], rows:[{cells:[{text,value?,evidence_span_id?}]}]}
 - otherwise prose -> "bullets" | "stat-grid" | "process-flow" | "none" : {type:"<that>"}
+${buildVisualSelectionGuide('storyboard')}
 EVERY numeric value MUST carry an evidence_span_id citing a span that contains that number.`;
 
 /** Format the evidence catalog for a prompt (all untrusted fields neutralised). */
