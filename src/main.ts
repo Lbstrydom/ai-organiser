@@ -35,6 +35,7 @@ import { EventHandlers } from './utils/eventHandlers';
 import { TagNetworkManager } from './utils/tagNetworkUtils';
 import { TagNetworkView, TAG_NETWORK_VIEW_TYPE } from './ui/views/TagNetworkView';
 import { RelatedNotesView, RELATED_NOTES_VIEW_TYPE } from './ui/views/RelatedNotesView';
+import { ProcessView, PROCESS_VIEW_TYPE, processViewActive } from './ui/views/ProcessView';
 import { TagOperations } from './utils/tagOperations';
 import { BatchProcessResult } from './utils/batchProcessor';
 import { getTranslations } from './i18n';
@@ -1238,6 +1239,9 @@ export default class AIOrganiserPlugin extends Plugin {
             this.safeRegisterView(RELATED_NOTES_VIEW_TYPE, (leaf) =>
                 new RelatedNotesView(leaf, this));
         }
+
+        // The Process view is registered only while a feature that feeds it is on.
+        if (processViewActive(this.settings)) this.safeRegisterView(PROCESS_VIEW_TYPE, (leaf) => new ProcessView(leaf, this));
 
         // Register command picker command
         this.addCommand({

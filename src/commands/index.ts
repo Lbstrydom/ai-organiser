@@ -35,6 +35,8 @@ import { registerGoogleTasksCommands, registerInboxSweepCommands } from './inbox
 import { registerCaptureInboxCommands } from './captureInboxCommands';
 import { registerProjectCommands } from './projectCommands';
 import { registerAiWorkspaceCommands } from './aiWorkspaceCommands';
+import { registerProcessCommands } from './processCommands';
+import { processViewActive } from '../ui/views/ProcessView';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -100,5 +102,7 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
         if (!isFeatureEnabled(plugin.settings, id)) continue;
         for (const fn of fns) fn(plugin);
     }
+    // The Process view exists while any feature that feeds it is on.
+    if (processViewActive(plugin.settings)) registerProcessCommands(plugin);
     registerContextMenu(plugin);
 }
