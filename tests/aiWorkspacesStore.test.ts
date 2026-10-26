@@ -156,3 +156,20 @@ describe('pack store: identity, safety and tidy-up', () => {
     expect(JSON.parse(files.get(`Packs/${ID}/latest.json`)?.text ?? '{}').packId).toBe(res.value.id);
   });
 });
+
+describe('the sharing settings section saves the FIRST edit', () => {
+  it('builds its saver when it is drawn, before any handler can edit the settings', async () => {
+    const { AiWorkspacesSettingsSection } = await import('../src/ui/settings/AiWorkspacesSettingsSection');
+    const { sharingSaverFor } = await import('../src/ui/settings/AiWorkspacesSettingsSection');
+    let saves = 0;
+    const plugin = { settings: { ...DEFAULT_SETTINGS }, t: { aiWorkspaces: {} }, saveSettings: async () => { saves++; }, settingTab: { display() { /* redraw */ } } } as never;
+    // A container that answers every DOM call with itself: only the order of events matters here.
+    const dom: unknown = new Proxy(function () { /* callable */ }, { get: () => dom, apply: () => dom });
+    try { new AiWorkspacesSettingsSection(plugin, dom as never, {} as never).display(); } catch { /* drawing needs more of the plugin than this fake; the saver is built first */ }
+    expect(typeof sharingSaverFor).toBe('function');
+    const settings = (plugin as unknown as { settings: typeof DEFAULT_SETTINGS }).settings;
+    settings.aiShareFolders = ['Work'];
+    expect(await sharingSaverFor(plugin).request()).toBe('saved');
+    expect(saves).toBe(1);
+  });
+});

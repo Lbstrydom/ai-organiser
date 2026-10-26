@@ -119,3 +119,30 @@ describe('SharingSaver', () => {
     expect(r.calls).toHaveLength(0);
   });
 });
+
+describe('SharingSaver outcomes', () => {
+  it('says what happened: saved, unchanged, superseded, failed', async () => {
+    const r = rig({ folders: ['A'], optIn: false });
+    expect(await r.saver.request()).toBe('unchanged');
+    r.state.folders = ['A', 'B'];
+    const saved = r.saver.request();
+    await r.tick();
+    r.calls[0].resolve();
+    expect(await saved).toBe('saved');
+    r.state.optIn = true;
+    const failing = r.saver.request();
+    await r.tick();
+    r.calls[1].reject(new Error('x'));
+    expect(await failing).toBe('failed');
+    r.state.optIn = true;
+    const older = r.saver.request();
+    r.state.folders = ['A'];
+    const newer = r.saver.request();
+    await r.tick();
+    r.calls[2].reject(new Error('x'));
+    expect(await older).toBe('superseded');
+    await r.tick();
+    r.calls[3].resolve();
+    expect(await newer).toBe('saved');
+  });
+});

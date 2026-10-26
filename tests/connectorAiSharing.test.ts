@@ -188,7 +188,7 @@ describe('scope parity: the server and the plugin agree with the opt-in on', () 
 	afterAll(() => fs.rmSync(dir, { recursive: true, force: true }));
 
 	let seed = 7;
-	const rand = (n: number): number => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+	const rand = (n: number): number => { seed = (Math.imul(seed, 1103515245) + 12345) & 0x7fffffff; return seed % n; };
 	const segs = ['Work', 'work', 'Personal', 'A', 'B b', 'Sub', '.hid', 'x'];
 	const pick = (): string => Array.from({ length: 1 + rand(3) }, () => segs[rand(segs.length)]).join('/');
 

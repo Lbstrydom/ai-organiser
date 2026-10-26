@@ -13,7 +13,7 @@ import { logger } from '../../utils/logger';
  * are access control: saves run one at a time and a failed one puts back the last value that really saved (see SharingSaver).
  */
 const savers = new WeakMap<AIOrganiserPlugin, SharingSaver>();
-function sharingSaverFor(plugin: AIOrganiserPlugin): SharingSaver {
+export function sharingSaverFor(plugin: AIOrganiserPlugin): SharingSaver {
     let saver = savers.get(plugin);
     if (!saver) {
         const s = plugin.settings;
@@ -41,6 +41,8 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
     display(): void {
         const c = this.plugin.t.aiWorkspaces;
         const s = this.plugin.settings;
+        // The saver remembers the values as they are NOW as the last saved ones, so it must exist before any handler below can edit them.
+        sharingSaverFor(this.plugin);
         this.createSectionHeader(c.sectionTitle, 'messages-square', 2);
         this.containerEl.createEl('p', { text: c.description, cls: 'setting-item-description' });
         const saveSharing = (): void => { void sharingSaverFor(this.plugin).request(); };

@@ -22,6 +22,11 @@ export interface SharingSaverDeps {
 const same = (a: Sharing, b: Sharing): boolean => a.optIn === b.optIn && JSON.stringify(a.folders) === JSON.stringify(b.folders);
 const copy = (s: Sharing): Sharing => ({ folders: [...s.folders], optIn: s.optIn });
 
+export type SaveOutcome = 'saved' | 'unchanged' | 'superseded' | 'failed';
+
+/**
+ * Construct this BEFORE the first edit: its constructor records the values it sees as already saved.
+ */
 export class SharingSaver {
     private saved: Sharing;
     private chain: Promise<void> = Promise.resolve();
@@ -34,23 +39,28 @@ export class SharingSaver {
     /** The last state that was really saved (or the state at start). */
     get lastSaved(): Sharing { return copy(this.saved); }
 
-    /** Save the current values. Resolves when this save has finished, whatever its outcome. Never rejects. */
-    request(): Promise<void> {
+    /**
+     * Save the current values. Resolves when this save has finished, never rejects, and says what happened: `saved`, `unchanged` (the
+     * current values were already saved), `superseded` (it failed but a newer save is the retry) or `failed` (the last saved state was put back).
+     */
+    request(): Promise<SaveOutcome> {
         this.waiting++;
-        const run = this.chain.then(async () => {
+        const run = this.chain.then(async (): Promise<SaveOutcome> => {
             this.waiting--;
             const attempt = copy(this.deps.read());
-            if (same(attempt, this.saved)) return;
+            if (same(attempt, this.saved)) return 'unchanged';
             try {
                 await this.deps.persist();
                 this.saved = attempt;
+                return 'saved';
             } catch (e) {
-                if (this.waiting > 0) return; // a newer change is queued: its save carries this one and is the retry
+                if (this.waiting > 0) return 'superseded'; // a newer change is queued: its save carries this one and is the retry
                 this.deps.write(copy(this.saved));
                 this.deps.onFailed(e);
+                return 'failed';
             }
         });
-        this.chain = run.catch(() => undefined);
-        return this.chain;
+        this.chain = run.then(() => undefined, () => undefined);
+        return run.catch(() => 'failed' as const);
     }
 }
