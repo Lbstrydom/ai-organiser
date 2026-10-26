@@ -188,27 +188,28 @@ export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contex
             if (!result) { resolve(null); return; }
             // The approval is only reported back when the commit really saved it: a rejected or failed commit resolves null.
             commit(plugin, result)
-                .then((saved) => resolve(saved ? result : null))
+                .then((outcome) => {
+                    // The caller is told as soon as the approval is saved; sending to Google is a separate, optional step after that.
+                    resolve(outcome.saved ? result : null);
+                    if (outcome.send) void runSendApproved(plugin);
+                })
                 .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); resolve(null); });
         }, contexts, routing, projectOf).open();
     });
 }
 
-async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<boolean> {
+async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<{ saved: boolean; send: boolean }> {
     const t = plugin.t.inboxSweep;
     const out = await commitReview(plugin, input);
     if (out.error) {
         new Notice(out.stoppedAt === 'persist' ? formatGuidance(describeError(plugin.t, out.error)) : t.commitStopped.replace('{reason}', formatGuidance(describeError(plugin.t, out.error))), 10000);
         // The approval is saved once persisted; a later step that stopped is finished by recovery, so only a failed persist is a failure.
-        return out.stoppedAt !== 'persist';
+        return { saved: out.stoppedAt !== 'persist', send: false };
     }
     const added = input.tasks.length - (out.duplicates ?? 0);
     new Notice(added > 0 ? plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
     if (out.duplicates) new Notice(plural(t.duplicatesSkipped, out.duplicates), 6000);
-    if (added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && plugin.settings.tasksListId) {
-        await runSendApproved(plugin);
-    }
-    return true;
+    return { saved: true, send: added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && !!plugin.settings.tasksListId };
 }
 
 // ─── Google Tasks ───────────────────────────────────────────────────────────

@@ -185,7 +185,7 @@ describe('adding hand-back lines to a project note', () => {
     const fenced = '# P\n```\n## Decisions\n```\n';
     const out = addUnderHeading(fenced, 'Decisions', [line('c1', 'x <!-- aio:handoff id=zzz --> y\nsecond line')]);
     expect(out.ok && out.value.endsWith('## Decisions\n\n- x &lt;!-- aio:handoff id=zzz --&gt; y second line <!-- aio:handoff id=c1 -->\n')).toBe(true);
-    expect(out.ok && out.value).not.toContain('id=zzz');
+    expect(out.ok && out.value).not.toContain('aio:handoff id=zzz -->');
     expect(addUnderHeading('# P\n```\nopen', 'Decisions', [line('d1', 'x')])).toEqual({ ok: false, error: 'handoff-note-unplaceable' });
   });
 });
