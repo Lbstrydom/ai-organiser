@@ -221,11 +221,13 @@ export class OperationIndex {
             const stored = await this.persisted(opId);
             if (!stored.ok) return err(stored.error);
             if (!stored.value) return err('operation-not-found');
-            this.entries.set(opId, stored.value);
-            const decided = takeOver(stored.value, this.ctx(), confirmedNotRunningElsewhere);
+            // The same journal-reconciled state a load shows: eligibility is judged on what the journal says now.
+            const current = this.deps.probe ? reconcileWithJournal(stored.value, await this.deps.probe(stored.value)).summary : stored.value;
+            const decided = takeOver(current, this.ctx(), confirmedNotRunningElsewhere);
             if (!decided.ok) return err(decided.error);
             const written = await this.deps.store.write(fileOf(opId), JSON.stringify(decided.summary));
             if (!written.ok) return err('operation-store-unwritable');
+            // State is published only after the write succeeded: a refusal or a failed write leaves the index as it was.
             this.entries.set(opId, decided.summary);
             this.notify();
             return ok(structuredClone(decided.summary));

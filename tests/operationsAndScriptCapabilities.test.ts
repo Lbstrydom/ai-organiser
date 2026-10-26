@@ -342,6 +342,19 @@ describe('OperationIndex: integrity', () => {
     expect(JSON.parse(f.files.get('op-aaaaaa.json')!)).toMatchObject({ status: 'running', resources: ['a'] });
   });
 
+  it('take-over judges the journal-reconciled state, and a refused take-over changes nothing', async () => {
+    let now = T0;
+    const f = fakeStore(Object.fromEntries([fileOf(sum({ opId: 'op-theirs', device: 'dev-2', updatedAt: T0 - DAY - 1 }))]));
+    // the journal shows fresh activity: the operation is not idle, so it cannot be taken over
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => now, probe: async () => ({ state: 'found', status: 'running', updatedAt: T0 - 1000 }) });
+    await index.load();
+    now = T0;
+    const before = JSON.stringify(index.get('op-theirs'));
+    expect(await index.takeOver('op-theirs', true)).toEqual({ ok: false, error: 'operation-takeover-too-soon' });
+    expect(JSON.stringify(index.get('op-theirs'))).toBe(before);
+    expect(f.calls.write).toBe(0);
+  });
+
   it('hands out copies only: mutating what it returns changes nothing inside', async () => {
     const f = fakeStore();
     const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 });

@@ -76,6 +76,8 @@ export class ProjectPickerModal extends Modal {
     }
 
     onOpen(): void {
+        // One opening, one outcome: a reused instance starts again as not chosen.
+        this.chosen = false;
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.createEl('h3', { text: this.options.plugin.t.projects.pickerTitle, cls: 'ai-organiser-modal-title' });
         const body = this.contentEl.createDiv();
