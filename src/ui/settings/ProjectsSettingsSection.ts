@@ -6,6 +6,7 @@ import { captureOutputRoots } from '../../services/captureInbox/captureConfig';
 import { PARA_KINDS, normaliseParaRoots, validateParaRoots, type ParaKind, type ParaRoot } from '../../services/projects/paraRoots';
 import { peekProjectService } from '../../services/projects/projectService';
 import { plural } from '../../utils/plural';
+import { addFolderPicker } from './components/FolderSuggest';
 
 /**
  * Projects: the one PARA folder list that every project feature reads, and a one-line summary of what is adopted.
@@ -70,9 +71,10 @@ export class ProjectsSettingsSection extends BaseSettingSection {
                         d.setValue(row.kind).onChange((v) => { row.kind = v as ParaKind; commit(); });
                         d.selectEl.setAttribute('aria-label', c.rootKindLabel);
                     })
-                    .addText((tx) => {
-                        tx.setPlaceholder(c.rootPathLabel).setValue(row.path).onChange((v) => { row.path = v; commit(); });
-                        tx.inputEl.setAttribute('aria-label', c.rootPathLabel);
+                    .then((setting) => {
+                        // The same type-to-search folder picker every other folder setting uses.
+                        const input = addFolderPicker(setting, this.plugin.app, () => row.path, (v) => { row.path = v; commit(); }, c.rootPathLabel);
+                        input.inputEl.setAttribute('aria-label', c.rootPathLabel);
                     })
                     .addExtraButton((b) => b.setIcon('trash').setTooltip(c.rootRemove).onClick(() => { draft = draft.filter((_, j) => j !== i); draw(); commit(); }));
             });

@@ -31,6 +31,7 @@ import { reviewRoutingFor } from '../services/inboxSweep/reviewRouting';
 import { getProjectService } from '../services/projects/projectService';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
 import { configuredListIds, selectTasksScript } from '../services/inboxSweep/tasksScriptSelect';
+import { copyCombinedScript } from './googleScriptCommands';
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
@@ -366,6 +367,7 @@ export function openInboxSweepSetup(plugin: AIOrganiserPlugin, onDone?: () => vo
                 }
                 return err('write-failed');
             }
+            new Notice(c.setupSaved, 8000);
             onDone?.();
             return ok(undefined);
         },
@@ -384,6 +386,10 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         listId: s.tasksListId,
         status: c.notTested,
         operational: false,
+        /** The deployed script is the combined Google script (learned from a test); unknown until one ran */
+        combined: false,
+        /** Why the last check said not ready: the guidance Finish shows */
+        notReady: 'tasks-wizard-unchecked',
     };
     const listName = (): string => draft.lists.find((l) => l.id === draft.listId)?.title ?? s.tasksListName;
     const endpoint = async (): Promise<Result<{ url: string; secret: string }>> => {
@@ -396,6 +402,25 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         const { secret, created } = await ensureTasksSecret(plugin);
         await navigator.clipboard.writeText(selectTasksScript(s, secret, approvedListId).text);
         new Notice(c.scriptCopied + (created ? ` ${c.secretCreated}` : ''), 8000);
+    };
+    const copyCombined = async (): Promise<void> => {
+        await copyCombinedScript(plugin, draft.listId || undefined);
+    };
+    /** One check of the deployed script: used by Test connection and Test again, so both learn whether it is the combined one. */
+    const verify = async (status: HTMLElement, forList: boolean): Promise<void> => {
+        status.setText(c.testing);
+        const ep = await endpoint();
+        // A check that could not reach the script clears readiness; the deployment kind stays (not reaching a script says nothing about its kind, and a different link already reset it).
+        const unreached = (code: string): void => { draft.operational = false; draft.notReady = 'tasks-wizard-unchecked'; status.setText(formatGuidance(describeError(t, code))); };
+        if (!ep.ok) { unreached(ep.error); return; }
+        const ping = await pingTasksScript(ep.value);
+        if (!ping.ok) { unreached(ping.error); return; }
+        draft.combined = ping.value.combined === true;
+        if (!forList) { draft.status = c.connected; status.setText(c.connected); return; }
+        const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
+        draft.operational = state === 'operational';
+        draft.notReady = state === 'setup' ? 'tasks-wizard-setup' : state === 'outdated' ? 'script-outdated' : state === 'lists-outdated' ? 'tasks-script-lists-outdated' : 'tasks-wizard-wrong-list';
+        status.setText(state === 'operational' ? c.operationalLine.replace('{list}', listName()) : state === 'setup' ? c.stillSetup : state === 'outdated' ? formatGuidance(describeError(t, 'script-outdated')) : state === 'lists-outdated' ? formatGuidance(describeError(t, 'tasks-script-lists-outdated')) : c.wrongList);
     };
     const run = (task: () => Promise<void>, line?: HTMLElement): void => {
         task().catch((e: unknown) => {
@@ -414,28 +439,25 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                 validate: () => (validateScriptUrl(draft.url).ok ? ok(undefined) : err('script-invalid-endpoint')),
                 render: (el) => {
                     el.createEl('p', { text: c.scriptIntro });
+                    el.createEl('p', { text: c.combinedHint, cls: 'setting-item-description' });
                     for (const line of [c.step1, c.step2, c.step3, c.step4]) el.createEl('p', { text: line });
-                    new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => copyScript(null))));
+                    new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(null)))));
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.status);
                     new Setting(el).setName(c.scriptUrlName).setDesc(c.scriptUrlDesc).addText((tx) => {
-                        tx.setValue(draft.url).onChange((v) => { draft.url = v.trim(); });
+                        tx.setValue(draft.url).onChange((v) => {
+                            // What was learned belongs to the link it was learned from: a different link starts unchecked.
+                            if (v.trim() !== draft.url) { draft.operational = false; draft.combined = false; draft.notReady = 'tasks-wizard-unchecked'; draft.status = c.notTested; }
+                            draft.url = v.trim();
+                        });
                         tx.inputEl.setAttribute('aria-label', c.scriptUrlName);
-                    }).addButton((b) => b.setButtonText(c.testConnection).onClick(() => run(async () => {
-                        status.setText(c.testing);
-                        const ep = await endpoint();
-                        if (!ep.ok) { status.setText(formatGuidance(describeError(t, ep.error))); return; }
-                        const ping = await pingTasksScript(ep.value);
-                        if (!ping.ok) { status.setText(formatGuidance(describeError(t, ping.error))); return; }
-                        draft.status = c.connected;
-                        status.setText(c.connected);
-                    }, status)));
+                    }).addButton((b) => b.setButtonText(c.testConnection).onClick(() => run(() => verify(status, false), status)));
                 },
             },
             {
                 id: 'list',
                 title: c.stepList,
-                validate: () => (draft.listId ? ok(undefined) : err('tasks-no-list')),
+                validate: () => (draft.listId ? ok(undefined) : err('tasks-wizard-no-list')),
                 render: (el) => {
                     el.createEl('p', { text: c.listHelp });
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
@@ -443,8 +465,9 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                     const showLists = (): void => {
                         holder.empty();
                         new Setting(holder).setName(c.listName).addDropdown((d) => {
-                            d.addOption('', '');
                             for (const l of draft.lists) d.addOption(l.id, l.title);
+                            // What the dropdown shows is what is chosen: with no valid choice yet, the first list is chosen.
+                            if (!draft.lists.some((l) => l.id === draft.listId)) { draft.listId = draft.lists[0]?.id ?? ''; draft.operational = false; }
                             d.setValue(draft.listId).onChange((v) => { draft.listId = v; draft.operational = false; });
                         });
                     };
@@ -464,22 +487,18 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
             {
                 id: 'finish',
                 title: c.stepFinish,
-                validate: () => (draft.operational ? ok(undefined) : err('tasks-not-ready')),
+                validate: () => (draft.operational ? ok(undefined) : err(draft.notReady)),
                 render: (el) => {
-                    el.createEl('p', { text: c.finishIntro.replace('{list}', listName()) });
-                    new Setting(el).addButton((b) => b.setButtonText(c.copyFinalScript).setCta().onClick(() => run(() => copyScript(draft.listId))));
+                    el.createEl('p', { text: (draft.combined ? c.finishIntroCombined : c.finishIntro).replace('{list}', listName()) });
+                    // The combined deployment is never overwritten by the standalone script: the primary button follows what the last test found.
+                    new Setting(el).addButton((b) => b.setButtonText(draft.combined ? c.copyFinalCombined : c.copyFinalScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(draft.listId)))));
+                    if (!draft.combined) {
+                        el.createEl('p', { text: c.standaloneNote, cls: 'setting-item-description' });
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedInstead).onClick(() => run(copyCombined)));
+                    }
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.operational ? c.operationalLine.replace('{list}', listName()) : c.notReady);
-                    new Setting(el).addButton((b) => b.setButtonText(c.testAgain).onClick(() => run(async () => {
-                        status.setText(c.testing);
-                        const ep = await endpoint();
-                        if (!ep.ok) { status.setText(formatGuidance(describeError(t, ep.error))); return; }
-                        const ping = await pingTasksScript(ep.value);
-                        if (!ping.ok) { status.setText(formatGuidance(describeError(t, ping.error))); return; }
-                        const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
-                        draft.operational = state === 'operational';
-                        status.setText(state === 'operational' ? c.operationalLine.replace('{list}', listName()) : state === 'setup' ? c.stillSetup : state === 'outdated' ? formatGuidance(describeError(t, 'script-outdated')) : state === 'lists-outdated' ? formatGuidance(describeError(t, 'tasks-script-lists-outdated')) : c.wrongList);
-                    }, status)));
+                    new Setting(el).addButton((b) => b.setButtonText(c.testAgain).onClick(() => run(() => verify(status, true), status)));
                 },
             },
         ],
@@ -505,6 +524,7 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                 }
                 return err('write-failed');
             }
+            new Notice(t.googleTasks.setupSaved.replace('{list}', set.listName || draft.listId), 8000);
             onDone?.();
             return ok(undefined);
         },

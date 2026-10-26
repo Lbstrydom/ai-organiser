@@ -12,7 +12,7 @@ import {
 } from '../src/services/operations/operationSummary';
 import { OperationIndex, adapterOperationStore, getOperationIndex, operationIndexActive, type OperationStore } from '../src/services/operations/operationIndex';
 import { LEGACY_CAPABILITIES, capabilityGap, hasCapability, normaliseModulePing } from '../src/services/googleScript/modulePing';
-import { integrationRowVisible, missingCapabilities, renderIntegrationStatusRow } from '../src/ui/settings/IntegrationStatusRow';
+import { integrationRowVisible, missingCapabilities, renderIntegrationStatusRow, accessText } from '../src/ui/settings/IntegrationStatusRow';
 import { describeError } from '../src/core/friendlyErrors';
 import { en } from '../src/i18n/en';
 import { ok, err, type Result } from '../src/core/result';
@@ -379,7 +379,7 @@ describe('ping normalisation', () => {
   it('reads reported capabilities from the standalone v2 and the combined forms', () => {
     expect(normaliseModulePing('tasks', { ok: true, scriptVersion: 2, capabilities: ['upsert', 'lists', 'status', 'multi-list'] })).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status', 'multi-list'], legacy: false });
     const combined = { ok: true, modules: { tasks: { version: 2, capabilities: ['upsert', 'lists', 'status'] }, inventory: { version: 1, capabilities: ['list'] } } };
-    expect(normaliseModulePing('tasks', combined)).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status'], legacy: false });
+    expect(normaliseModulePing('tasks', combined)).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status'], legacy: false, combined: true });
     expect(normaliseModulePing('inventory', combined)?.capabilities).toEqual(['list']);
     // the same minimum version as a standalone answer
     expect(normaliseModulePing('tasks', { ok: true, modules: { tasks: { version: 0, capabilities: ['upsert'] } } })).toBeNull();
@@ -429,7 +429,10 @@ describe('integration status row', () => {
   });
 
   it('the copy states the real Google access and never promises more', () => {
-    expect(en.integrationStatus.access).toMatch(/never deletes, shares or reads file contents/);
+    expect(en.integrationStatus.accessNever).toMatch(/never deletes, shares or reads file contents/);
+    // A Tasks-only setup is not told the script lists Drive folders.
+    expect(accessText(en.integrationStatus, ['tasks'])).not.toMatch(/Drive/);
+    expect(accessText(en.integrationStatus, ['tasks', 'inventory'])).toMatch(/Drive folders/);
   });
 });
 

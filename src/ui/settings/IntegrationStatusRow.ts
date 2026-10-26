@@ -11,6 +11,7 @@ import type AIOrganiserPlugin from '../../main';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { isFeatureEnabled } from '../../services/featureService';
+import { inventorySecretFor } from '../../services/googleScript/sharedSecret';
 import { pingModule, type ModuleInfo, type ScriptModule } from '../../services/googleScript/modulePing';
 import { validateScriptUrl } from '../../services/appsScriptClient';
 import { exportable, pendingApprovals } from '../../services/inboxSweep/sweepLedger';
@@ -40,7 +41,17 @@ function endpointOf(plugin: AIOrganiserPlugin, module: ScriptModule): { url: str
 }
 
 async function secretOf(plugin: AIOrganiserPlugin, module: ScriptModule): Promise<string> {
-    return (await plugin.secretStorageService.getSecret(module === 'tasks' ? PLUGIN_SECRET_IDS.GOOGLE_TASKS : PLUGIN_SECRET_IDS.CLOUD_INVENTORY)) ?? '';
+    if (module === 'tasks') return (await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS)) ?? '';
+    // The same rule the inventory client uses: on the combined deployment the inventory answers to the Tasks secret.
+    const found = await inventorySecretFor(plugin);
+    if (!found.ok) throw new Error(found.error);
+    return found.value ?? '';
+}
+
+/** What the script can do, limited to the modules in use: a Tasks-only setup is not told the script lists Drive folders. */
+export function accessText(t: { access: string; accessTasks: string; accessInventory: string; accessNever: string }, modules: readonly ScriptModule[]): string {
+    const can = [modules.includes('tasks') ? t.accessTasks : '', modules.includes('inventory') ? t.accessInventory : ''].filter(Boolean);
+    return [t.access, ...can, t.accessNever].join(' ');
 }
 
 export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrganiserPlugin, rerender: () => void): void {
@@ -69,7 +80,7 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             lines.push(t.line.replace('{version}', String(info.version)).replace('{capabilities}', info.capabilities.join(', ') || '-'));
             if (info.legacy) lines.push(t.legacy);
             const missing = missingCapabilities(module, info);
-            if (missing.length > 0) lines.push(t.lacks.replace('{capabilities}', missing.join(', ')));
+            if (missing.length > 0) lines.push((info.combined ? t.lacksCombined : t.lacks).replace('{capabilities}', missing.join(', ')));
         }
         if (module === 'tasks') {
             const waiting = pendingApprovals(plugin.settings.sweepApprovals, true).reduce((n, r) => n + exportable(r).length, 0);
@@ -93,5 +104,6 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             rerender();
         }));
     }
-    box.createEl('p', { text: t.access, cls: 'setting-item-description' });
+    // Only what the modules in use can do: a Tasks-only setup is not told the script lists Drive folders.
+    box.createEl('p', { text: accessText(t, modules), cls: 'setting-item-description' });
 }

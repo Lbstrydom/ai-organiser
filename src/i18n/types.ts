@@ -4394,11 +4394,15 @@ export interface Translations {
         line: string;
         legacy: string;
         lacks: string;
+        lacksCombined: string;
         checkNow: string;
         checking: string;
         failed: string;
         waitingRedeploy: string;
         access: string;
+        accessNever: string;
+        accessTasks: string;
+        accessInventory: string;
     };
     inboxSweep: {
         sectionTitle: string;
@@ -4422,6 +4426,7 @@ export interface Translations {
         contextsReset: string;
         contextsDropped: string;
         wizardTitle: string;
+        setupSaved: string;
         stepFolders: string;
         foldersHelp: string;
         reportName: string;
@@ -4684,8 +4689,10 @@ export interface Translations {
         sendNow: string;
         pendingLine: string;
         wizardTitle: string;
+        setupSaved: string;
         stepScript: string;
         scriptIntro: string;
+        combinedHint: string;
         step1: string;
         step2: string;
         step3: string;
@@ -4705,6 +4712,10 @@ export interface Translations {
         stepFinish: string;
         finishIntro: string;
         copyFinalScript: string;
+        finishIntroCombined: string;
+        copyFinalCombined: string;
+        standaloneNote: string;
+        copyCombinedInstead: string;
         testAgain: string;
         operationalLine: string;
         notReady: string;
