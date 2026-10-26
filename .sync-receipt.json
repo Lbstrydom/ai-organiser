@@ -1,8 +1,124 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 210,
+  "olderSyncsDropped": 213,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-10-25T21:03:24.314Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "05edb3376a2db85bc89dbf9f672630cfb8666ef6",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 4,
+        "updated": 19,
+        "unchanged": 968,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/plan-declared-paths.mjs",
+        "scripts/.claude-skills/lib/plan-git-source.mjs",
+        "scripts/.claude-skills/lib/prepush-audit-gate.mjs",
+        "scripts/.claude-skills/lib/upstream/fix-commit.mjs"
+      ],
+      "updated": [
+        ".claude/skills/fleet/references/participant-rules.md",
+        "scripts/.claude-skills/check-plan-status.mjs",
+        "scripts/.claude-skills/lib/assert-repo-root.mjs",
+        "scripts/.claude-skills/lib/audit-scope.mjs",
+        "scripts/.claude-skills/lib/audit/adjacency-detector.mjs",
+        "scripts/.claude-skills/lib/audit/file-coverage.mjs",
+        "scripts/.claude-skills/lib/audit/legacy-production-audit.mjs",
+        "scripts/.claude-skills/lib/concern-identity.mjs",
+        "scripts/.claude-skills/lib/config.mjs",
+        "scripts/.claude-skills/lib/context.mjs",
+        "scripts/.claude-skills/lib/coverage-format.mjs",
+        "scripts/.claude-skills/lib/file-io.mjs",
+        "scripts/.claude-skills/lib/install/bundle-deps.mjs",
+        "scripts/.claude-skills/lib/plan-status.mjs",
+        "scripts/.claude-skills/lib/schemas.mjs",
+        "scripts/.claude-skills/lib/sync-divergence.mjs",
+        "scripts/.claude-skills/lib/sync-gitignore.mjs",
+        "scripts/.claude-skills/lib/upstream/commands.mjs",
+        "scripts/.claude-skills/write-ledger-entries.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-10-25T15:07:27.260Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "b4c09fb48112d078e3098378a7997a962a166f67",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 1,
+        "updated": 6,
+        "unchanged": 980,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/final-review/run-id-recovery.mjs"
+      ],
+      "updated": [
+        "scripts/.claude-skills/gemini-review.mjs",
+        "scripts/.claude-skills/lib/final-review-marker.mjs",
+        "scripts/.claude-skills/lib/final-review/code-coverage.mjs",
+        "scripts/.claude-skills/lib/final-review/providers.mjs",
+        "scripts/.claude-skills/lib/final-review/shadow.mjs",
+        "scripts/.claude-skills/lib/final-review/transport.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-10-25T13:59:54.157Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "22243b91253eab96e77ea50b9af1f5fa7b916426",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 0,
+        "updated": 3,
+        "unchanged": 983,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [],
+      "updated": [
+        "scripts/.claude-skills/lib/db/query.mjs",
+        "scripts/.claude-skills/lib/model-pricing-table.mjs",
+        "scripts/.claude-skills/lib/store/fleet-events.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-10-25T09:53:57.818Z",
       "source": {
@@ -342,139 +458,6 @@
         "scripts/.claude-skills/lib/fleet/telemetry.mjs",
         "scripts/.claude-skills/lib/sync-receipt.mjs",
         "scripts/.claude-skills/lib/vcs.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-15T05:53:46.259Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "98d816b3d45c6440c024c0a87b31a60e3cddfdc9",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 3,
-        "updated": 11,
-        "unchanged": 932,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [
-        ".claude/skills/fleet/references/lease.md",
-        "scripts/.claude-skills/lib/fleet/lease-model.mjs",
-        "scripts/.claude-skills/lib/fleet/lease-turns.mjs"
-      ],
-      "updated": [
-        ".claude/skills/fleet/SKILL.md",
-        ".claude/skills/fleet/references/coordination-rationale.md",
-        ".claude/skills/fleet/references/coordination.md",
-        ".claude/skills/fleet/references/participant-rules.md",
-        "scripts/.claude-skills/lib/audit/stage1-triage.mjs",
-        "scripts/.claude-skills/lib/bundle-deps.json",
-        "scripts/.claude-skills/lib/fleet/argv.mjs",
-        "scripts/.claude-skills/lib/fleet/lease-cmd.mjs",
-        "scripts/.claude-skills/lib/fleet/lease.mjs",
-        "scripts/.claude-skills/lib/runner-probe.mjs",
-        "scripts/.claude-skills/lib/store/plans.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-14T12:06:15.502Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "08b8dc09d8c704d23656ce793b5c917035244b1e",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 7,
-        "updated": 12,
-        "unchanged": 924,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [
-        ".claude/skills/fleet/references/config.md",
-        ".claude/skills/fleet/references/coordination-rationale.md",
-        ".claude/skills/fleet/references/ending-a-session.md",
-        ".claude/skills/fleet/references/handover.md",
-        "scripts/.claude-skills/debt-ledger-migrate.mjs",
-        "scripts/.claude-skills/lib/debt-ledger-files.mjs",
-        "scripts/.claude-skills/lib/debt-ledger-migration.mjs"
-      ],
-      "updated": [
-        ".claude/skills/audit-code/references/debt-capture.md",
-        ".claude/skills/fleet/SKILL.md",
-        ".claude/skills/fleet/references/coordination.md",
-        ".claude/skills/fleet/references/participant-rules.md",
-        "scripts/.claude-skills/debt-auto-capture.mjs",
-        "scripts/.claude-skills/debt-capture-trail-check.mjs",
-        "scripts/.claude-skills/debt-ledger-claims-check.mjs",
-        "scripts/.claude-skills/debt-resolve.mjs",
-        "scripts/.claude-skills/lib/bundle-deps.json",
-        "scripts/.claude-skills/lib/debt-git-history.mjs",
-        "scripts/.claude-skills/lib/debt-ledger.mjs",
-        "scripts/.claude-skills/lib/model-pricing-table.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-14T06:14:23.088Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "126efc14623330174528c2311ea0de63413265dc",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 4,
-        "updated": 12,
-        "unchanged": 920,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [
-        "scripts/.claude-skills/lib/fleet/lease-cmd.mjs",
-        "scripts/.claude-skills/lib/fleet/lease.mjs",
-        "scripts/.claude-skills/lib/fleet/proposals-cmd.mjs",
-        "scripts/.claude-skills/lib/fleet/proposals.mjs"
-      ],
-      "updated": [
-        ".claude/skills/fleet/SKILL.md",
-        ".claude/skills/fleet/references/coordination.md",
-        ".claude/skills/fleet/references/participant-rules.md",
-        ".claude/skills/ship/SKILL.md",
-        "scripts/.claude-skills/fleet.mjs",
-        "scripts/.claude-skills/lib/bundle-deps.json",
-        "scripts/.claude-skills/lib/fleet/argv.mjs",
-        "scripts/.claude-skills/lib/fleet/commands.mjs",
-        "scripts/.claude-skills/lib/fleet/coordination.mjs",
-        "scripts/.claude-skills/lib/fleet/lifecycle.mjs",
-        "scripts/.claude-skills/lib/fleet/telemetry.mjs",
-        "scripts/.claude-skills/lib/module-graph.mjs"
       ],
       "gcDeleted": [],
       "overridesHeld": [],
