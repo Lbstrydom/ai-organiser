@@ -19,10 +19,13 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
         this.createSectionHeader(c.sectionTitle, 'messages-square', 2);
         this.containerEl.createEl('p', { text: c.description, cls: 'setting-item-description' });
         // A sharing setting that did not save may leave the connector on the previous scope: the person is told, not just the log.
-        const save = (): void => {
+        // `undo` puts the previous value back: a sharing setting that did not save must not look applied.
+        const save = (undo?: () => void): void => {
             this.plugin.saveSettings().catch((e: unknown) => {
                 logger.error('AiWorkspaces', 'Could not save the settings', e);
+                undo?.();
                 new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 9000);
+                this.settingTab.display();
             });
         };
 
@@ -35,13 +38,14 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
                 ta.inputEl.addEventListener('blur', () => {
                     const next = normaliseShareFolders(draft.split('\n'));
                     if (JSON.stringify(next) === JSON.stringify(s.aiShareFolders ?? [])) return;
+                    const before = s.aiShareFolders;
                     s.aiShareFolders = next;
-                    save();
+                    save(() => { s.aiShareFolders = before; });
                 });
             });
 
         new Setting(this.containerEl).setName(c.optInName).setDesc(c.optInDesc)
-            .addToggle((tg) => tg.setValue(s.aiShareRequireOptIn === true).onChange((v) => { s.aiShareRequireOptIn = v; save(); }));
+            .addToggle((tg) => tg.setValue(s.aiShareRequireOptIn === true).onChange((v) => { const before = s.aiShareRequireOptIn; s.aiShareRequireOptIn = v; save(() => { s.aiShareRequireOptIn = before; }); }));
 
         new Setting(this.containerEl).setName(c.packFolderName).setDesc(c.packFolderDesc)
             .addText((tx) => {

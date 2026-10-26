@@ -150,6 +150,9 @@ describe('pack store: identity, safety and tidy-up', () => {
     (plugin as unknown as { app: { fileManager: { trashFile: () => Promise<void> } } }).app.fileManager.trashFile = async () => { throw new Error('locked'); };
     const res = await writePack(plugin, ID, prepared('dddddddd1111'), new Date(2026, 9, 26, 10, 0));
     expect(res.ok).toBe(true);
-    expect(files.has(`Packs/${ID}/latest.json`)).toBe(true);
+    if (!res.ok) return;
+    // the seventh pack itself is on disk and is what the pointer names
+    expect(files.has(res.value.path)).toBe(true);
+    expect(JSON.parse(files.get(`Packs/${ID}/latest.json`)?.text ?? '{}').packId).toBe(res.value.id);
   });
 });

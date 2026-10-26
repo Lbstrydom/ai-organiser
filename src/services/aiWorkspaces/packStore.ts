@@ -10,9 +10,10 @@ import { Result, ok, err } from '../../core/result';
 import { logger } from '../../utils/logger';
 import type { PreparedPack } from './contextPack';
 import { isAioId } from '../projects/projectIndex';
+import { PACK_FILE_NAME } from './aiShareScope';
 import { MAX_PACKS_KEPT, type PackEntry } from './workspaceRecord';
 
-const PACK_FILE = /^pack-\d{8}-\d{6}-[0-9a-f]{12}\.md$/;
+const PACK_FILE = PACK_FILE_NAME;
 
 /** The pack folder, validated: a visible vault-relative path outside the protected folders. */
 export function packFolderPath(raw: string, protectedFolders: Parameters<typeof assertWritable>[0]): Result<string> {

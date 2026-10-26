@@ -314,3 +314,26 @@ describe('the vault map follows the same policy', () => {
 		expect(optedInScope(base, { ...on, featureFlags: { provider: true, 'agent-index': true } as typeof DEFAULT_SETTINGS.featureFlags, aiShareRequireOptIn: true })).toBe(base);
 	});
 });
+
+describe('one definition of a pack file name', () => {
+	it('the store, the sharing filter and the server agree on what a pack file is called', async () => {
+		const { packFileName } = await import('../src/services/aiWorkspaces/packStore');
+		const { PACK_FILE_NAME, looksLikePack } = await import('../src/services/aiWorkspaces/aiShareScope');
+		const made = packFileName(new Date(2026, 9, 26, 9, 5, 7), 'abcdef0123456789abcdef');
+		expect(PACK_FILE_NAME.test(made)).toBe(true);
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'aio-name-'));
+		fs.writeFileSync(path.join(dir, 'server.cjs'), CONNECTOR_SERVER_SOURCE);
+		const server = createRequire(path.join(process.cwd(), 'package.json'))(path.join(dir, 'server.cjs')) as { scopeAllows(p: string, s: Record<string, unknown>): boolean };
+		const scope = { includeFolders: [], excludeFolders: [], protectedFolders: [], shareFolders: [] as string[] };
+		for (const name of [made, 'pack-20261026-090507-aaaaaaaaaaaa.md', 'pack-20261026-0905-aaaaaaaa.md', 'pack-notes.md', 'pack-20261026-090507-AAAAAAAAAAAA.md', 'xpack-20261026-090507-aaaaaaaaaaaa.md', 'pack-20261026-090507-aaaaaaaaaaaa.md.txt']) {
+			expect(!server.scopeAllows(`Some/${name}`, scope), name).toBe(looksLikePack(`Some/${name}`));
+		}
+		fs.rmSync(dir, { recursive: true, force: true });
+	});
+
+	it('with AI sharing published but no pack policy (an unusable pack folder), a pack-named file is still refused', async () => {
+		vault.write(`Elsewhere/${PACK_NAME}.md`, 'stray pack');
+		vault.writeScope({ shareFolders: [] });
+		expect(await readable(open(), `Elsewhere/${PACK_NAME}.md`)).toBe(false);
+	});
+});

@@ -92,7 +92,9 @@ function scopeAllows(p, scope) {
   if (!(includes.length === 0 || includes.some(function (f) { return insideOrEqual(norm, f); }))) return false;
   // AI sharing opt-in: the notes served must also be inside the share allow-list. Default deny: an empty list shares nothing.
   // A pack is served only through its own tool, which re-checks it; it is never an ordinary note.
-  if (scope.packs && (insideOrEqual(norm, scope.packs.folder) || PACK_NAME_PATTERN.test(norm.slice(norm.lastIndexOf('/') + 1)))) return false;
+  // Whenever AI sharing is published at all (shareFolders is present), a file named like a pack is never an ordinary note; the pack folder itself too.
+  if (scope.packs && insideOrEqual(norm, scope.packs.folder)) return false;
+  if (scope.shareFolders !== undefined && PACK_NAME_PATTERN.test(norm.slice(norm.lastIndexOf('/') + 1))) return false;
   if (scope.requireOptIn === true) return inShareFolders(norm, scope);
   return true;
 }
