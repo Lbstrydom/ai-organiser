@@ -9,7 +9,7 @@
  */
 import type { DataAdapter } from 'obsidian';
 import { Result, ok, err } from '../../core/result';
-import { assertWritable, resolveProtectedFolders } from '../../core/protectedPaths';
+import { assertWritable, normalisePath, resolveProtectedFolders } from '../../core/protectedPaths';
 import type { AIOrganiserSettings } from '../../core/settings';
 import { isFeatureEnabled } from '../featureService';
 import { sha256Hex } from '../attachmentDuplicateService';
@@ -103,6 +103,9 @@ export function parseScopeDocument(text: string): ScopeDocument | null {
         if (d.packs !== undefined) {
             const p = d.packs as Record<string, unknown> | null;
             if (!p || typeof p !== 'object' || typeof p.folder !== 'string' || typeof p.revision !== 'string' || d.shareFolders === undefined) return null;
+            // The same rule the server applies: a visible, non-empty folder.
+            const folder = normalisePath(p.folder.trim());
+            if (folder === '' || folder.split('/').some((seg) => seg.startsWith('.'))) return null;
         }
         return d as unknown as ScopeDocument;
     } catch {

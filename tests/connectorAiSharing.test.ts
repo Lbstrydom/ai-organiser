@@ -265,3 +265,22 @@ describe('the published scope document', () => {
 		expect(normaliseShareFolders([' A ', 'a'])).toEqual(['A']);
 	});
 });
+
+describe('the pack folder is never an ordinary note path', () => {
+	it('read_note, search and list refuse the pack folder even when the allow-list would cover it', async () => {
+		writePack();
+		vault.writeIndex([{ path: 'Work/Plan.md', tags: ['plan'] }, { path: `${PACK_FOLDER}/${ID}/${PACK_NAME}.md`, tags: ['plan'] }]);
+		vault.writeScope({ shareFolders: ['AI-Organiser', 'Work'], requireOptIn: true, packs: { folder: PACK_FOLDER, revision: 'rev1' } });
+		const c = open();
+		expect(await readable(c, `${PACK_FOLDER}/${ID}/${PACK_NAME}.md`)).toBe(false);
+		expect((await c.call('search_notes', { query: 'plan' }, true)).text.join('\n')).not.toContain('Workspace packs');
+		const inner = (await c.call('list_folder', { path: 'AI-Organiser' }, true)).text.join('\n');
+		expect(inner).not.toContain('Workspace packs');
+	});
+
+	it('the plugin parser rejects the same packs.folder values the server does', () => {
+		const ok = { generator: 'ai-organiser/connector-scope', version: 1, revision: 'r', generatedAt: 'n', disabled: false, includeFolders: [], excludeFolders: [], protectedFolders: [], indexPath: 'i', shareFolders: [] };
+		for (const folder of ['', '   ', '.hidden/P', 'A/.b', '/']) expect(parseScopeDocument(JSON.stringify({ ...ok, packs: { folder, revision: 'r' } })), JSON.stringify(folder)).toBeNull();
+		expect(parseScopeDocument(JSON.stringify({ ...ok, packs: { folder: 'AI-Organiser/Workspace packs', revision: 'r' } }))).not.toBeNull();
+	});
+});

@@ -128,3 +128,28 @@ describe('off path: the feature is default off and adds nothing', () => {
     expect(TFile).toBeDefined();
   });
 });
+
+describe('pack store: identity, safety and tidy-up', () => {
+  it('the same confirmed bytes at a different time reuse the existing file instead of storing them twice', async () => {
+    const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
+    const first = await writePack(plugin, ID, prepared('aaaaaaaa1111'), new Date(2026, 9, 26, 9, 5, 7));
+    const second = await writePack(plugin, ID, prepared('aaaaaaaa1111'), new Date(2026, 9, 26, 9, 40, 0));
+    expect(first.ok && second.ok && first.value.path === second.value.path).toBe(true);
+    expect([...files.keys()].filter((k) => /pack-/.test(k))).toHaveLength(1);
+  });
+
+  it('refuses a project id that is not a single UUID segment', async () => {
+    const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
+    for (const bad of ['../x', 'a/b', '', 'not-a-uuid']) expect(await writePack(plugin, bad, prepared('bbbbbbbb1111'))).toEqual({ ok: false, error: 'pack-folder-invalid' });
+    expect(files.size).toBe(0);
+  });
+
+  it('a failure while removing older packs does not turn a published pack into a failure', async () => {
+    const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
+    for (let i = 0; i < 6; i++) await writePack(plugin, ID, prepared(`${String(i).padStart(10, '0')}cc`), new Date(2026, 9, 26, 9, i));
+    (plugin as unknown as { app: { fileManager: { trashFile: () => Promise<void> } } }).app.fileManager.trashFile = async () => { throw new Error('locked'); };
+    const res = await writePack(plugin, ID, prepared('dddddddd1111'), new Date(2026, 9, 26, 10, 0));
+    expect(res.ok).toBe(true);
+    expect(files.has(`Packs/${ID}/latest.json`)).toBe(true);
+  });
+});

@@ -120,6 +120,8 @@ export async function exportChatProject(plugin: AIOrganiserPlugin, options: { ex
             if (!assertWritable(plugin.settings.protectedFolders, 'create', target.path).ok) return err('protected-path');
             if (target.existing === null) {
                 await ensureFolder(plugin, folder.value);
+                // Everything that authorised this export (the scope, the sharing allow-list, the folder, the feature) is checked again after the wait.
+                if (!(await unchanged())) return err('baseline-changed');
                 if (!assertWritable(plugin.settings.protectedFolders, 'create', target.path).ok) return err('protected-path');
                 if (vault.getAbstractFileByPath(target.path)) return err('connector-file-not-ours');
                 await vault.create(target.path, target.text);

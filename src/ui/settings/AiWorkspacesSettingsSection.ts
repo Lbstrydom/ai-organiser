@@ -18,7 +18,13 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
         const s = this.plugin.settings;
         this.createSectionHeader(c.sectionTitle, 'messages-square', 2);
         this.containerEl.createEl('p', { text: c.description, cls: 'setting-item-description' });
-        const save = (): void => { void this.plugin.saveSettings().catch((e: unknown) => logger.error('AiWorkspaces', 'Could not save the settings', e)); };
+        // A sharing setting that did not save may leave the connector on the previous scope: the person is told, not just the log.
+        const save = (): void => {
+            this.plugin.saveSettings().catch((e: unknown) => {
+                logger.error('AiWorkspaces', 'Could not save the settings', e);
+                new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 9000);
+            });
+        };
 
         new Setting(this.containerEl).setName(c.shareFoldersName).setDesc(`${c.shareFoldersDesc} ${c.revokeNote}`)
             .addTextArea((ta) => {

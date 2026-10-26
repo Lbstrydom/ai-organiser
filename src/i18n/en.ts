@@ -4574,7 +4574,7 @@ export const en: Translations = {
     },
     aiWorkspaces: {
         sectionTitle: "AI workspaces",
-        description: "Prepare the instructions and a dated context pack for a Claude or ChatGPT project. The plugin never sends anything: you review the exact notes, then copy the instructions or upload the pack yourself. Only notes inside the folders you choose below can be included.",
+        description: "Prepare the instructions and a dated context pack for a Claude or ChatGPT project. The plugin never sends anything itself: you review the exact notes, then copy the instructions or upload the pack yourself. If you use the read-only connector, an AI app you connected can also fetch the latest pack. Only notes inside the folders you choose below can be included.",
         shareFoldersName: "Folders shared with AI apps",
         shareFoldersDesc: "One folder per line: an Area or project folder. Nothing is shared until you add a folder. Notes in protected, excluded or hidden folders are never included.",
         shareFoldersPlaceholder: "2 Areas/Work\n1 Projects/Website",
@@ -4604,7 +4604,7 @@ export const en: Translations = {
         blockPack: "Last pack",
         blockReleased: "Released",
         previewTitle: "Review what will be shared",
-        previewIntro: "These notes will be written into the pack. Nothing leaves your vault until you upload it yourself.",
+        previewIntro: "These notes will be written into the pack. The pack stays in your vault until you upload it yourself (or, if you use the read-only connector, a connected AI app fetches it).",
         previewNotes: "Notes included",
         previewSkipped: "Left out",
         previewTotal: "{count} note[s], {kb} KB",

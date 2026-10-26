@@ -91,6 +91,8 @@ function scopeAllows(p, scope) {
   const includes = nonEmpty(scope.includeFolders);
   if (!(includes.length === 0 || includes.some(function (f) { return insideOrEqual(norm, f); }))) return false;
   // AI sharing opt-in: the notes served must also be inside the share allow-list. Default deny: an empty list shares nothing.
+  // A pack is served only through its own tool, which re-checks it; it is never an ordinary note.
+  if (scope.packs && insideOrEqual(norm, scope.packs.folder)) return false;
   if (scope.requireOptIn === true) return inShareFolders(norm, scope);
   return true;
 }
@@ -107,6 +109,7 @@ function folderVisible(rel, scope) {
   if (norm.charAt(0) === '.') return false;
   const excludes = nonEmpty(scope.excludeFolders.concat(scope.protectedFolders));
   if (excludes.some(function (f) { return insideOrEqual(norm, f); })) return false;
+  if (scope.packs && insideOrEqual(norm, scope.packs.folder)) return false;
   const includes = nonEmpty(scope.includeFolders);
   if (!(includes.length === 0 || includes.some(function (f) { return insideOrEqual(norm, f) || insideOrEqual(f, norm); }))) return false;
   if (scope.requireOptIn === true) {
@@ -227,7 +230,7 @@ async function readScope(vaultRoot) {
   if (doc.packs !== undefined) {
     const p = doc.packs;
     if (!p || typeof p !== 'object' || typeof p.folder !== 'string' || typeof p.revision !== 'string' || scope.shareFolders === undefined) return bad;
-    const folder = normalisePath(p.folder);
+    const folder = normalisePath(p.folder.trim());
     if (folder === '' || folder.charAt(0) === '.' || folder.split('/').some(function (s) { return s.charAt(0) === '.'; })) return bad;
     scope.packs = { folder: folder, revision: p.revision };
   }
@@ -388,8 +391,7 @@ async function toolList(args, ctx) {
 // still be shareable under the policy published now, and the file must be the one the pointer describes (size and hash).
 function packSourceAllowed(rel, scope) {
   if (!scopeAllows(rel, scope)) return false;
-  if (!inShareFolders(normalisePath(rel), scope)) return false;
-  return !insideOrEqual(rel, scope.packs.folder);
+  return inShareFolders(normalisePath(rel), scope);
 }
 
 async function toolPack(args, ctx) {

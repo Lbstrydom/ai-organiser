@@ -20,7 +20,7 @@ import { isFeatureEnabled } from '../featureService';
  * connector and the map serve exactly what they always did.
  */
 export function shareOptInActive(settings: Pick<AIOrganiserSettings, 'featureFlags' | 'aiShareRequireOptIn'>): boolean {
-    return isFeatureEnabled(settings as never, 'ai-workspaces') && settings.aiShareRequireOptIn === true;
+    return isFeatureEnabled(settings, 'ai-workspaces') && settings.aiShareRequireOptIn === true;
 }
 
 /** At most this many allow-list entries. */
@@ -54,20 +54,26 @@ export function shareFolderOf(path: string, settings: Pick<ShareSettings, 'aiSha
     return best;
 }
 
+/** The pack folder is always excluded. An empty pack folder is treated as the vault root would be: nothing is shareable (fail closed). */
+function insidePackFolder(path: string, packFolder: string): boolean {
+    const folder = normalisePath(packFolder.trim());
+    return folder === '' || isInsideOrEqual(normalisePath(path), folder);
+}
+
 /** True when a note may be included in a pack, an instructions copy or (with the opt-in) the connector and vault map. */
-export function isAiShareable(path: string, settings: ShareSettings, packFolder?: string): boolean {
+export function isAiShareable(path: string, settings: ShareSettings, packFolder: string): boolean {
     if (shareFolderOf(path, settings) === null) return false;
-    if (packFolder && packFolder.trim() !== '' && isInsideOrEqual(normalisePath(path), normalisePath(packFolder))) return false;
-    return isInIndexScope(path, scopeConfigFromSettings(settings as never));
+    if (insidePackFolder(path, packFolder)) return false;
+    return isInIndexScope(path, scopeConfigFromSettings(settings));
 }
 
 /** Why a note is not shareable, for the preview ("outside the allow-list", "protected", ...). */
 export type NotShareableReason = 'outside-allow-list' | 'in-pack-folder' | 'kept-out';
 
-export function notShareableReason(path: string, settings: ShareSettings, packFolder?: string): NotShareableReason | null {
+export function notShareableReason(path: string, settings: ShareSettings, packFolder: string): NotShareableReason | null {
     if (shareFolderOf(path, settings) === null) return 'outside-allow-list';
-    if (packFolder && packFolder.trim() !== '' && isInsideOrEqual(normalisePath(path), normalisePath(packFolder))) return 'in-pack-folder';
-    return isInIndexScope(path, scopeConfigFromSettings(settings as never)) ? null : 'kept-out';
+    if (insidePackFolder(path, packFolder)) return 'in-pack-folder';
+    return isInIndexScope(path, scopeConfigFromSettings(settings)) ? null : 'kept-out';
 }
 
 /** A hash of everything that decides shareability: an approval made under one revision is refused under another. */

@@ -145,7 +145,7 @@ export class ServerClient {
 		if (modern) params._meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' };
 		const raw = await this.request('tools/call', params);
 		const result = raw.result as { content?: Array<{ text: string }>; isError?: boolean } | undefined;
-		return { text: (result?.content ?? []).map((c) => c.text), isError: result?.isError ?? false, raw };
+		return { text: (result?.content ?? []).map((c) => c.text), isError: raw.error !== undefined || (result?.isError ?? false), raw };
 	}
 
 	closeInput(): void { this.child.stdin.end(); }
