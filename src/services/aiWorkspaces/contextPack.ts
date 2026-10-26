@@ -10,6 +10,7 @@ import { Result, ok, err } from '../../core/result';
 import { toModelText } from '../../utils/excalidrawContent';
 import { bodyWithoutOwned, buildWorkspaceInstructions } from './workspaceInstructions';
 import { stripWorkspaceBlock } from './workspaceBlock';
+import { neutraliseByCache, type LinkOccurrence } from './linkNeutraliser';
 
 /** Same budget as the vault map. */
 export const PACK_BUDGET_BYTES = 400 * 1024;
@@ -20,7 +21,7 @@ export interface PackNote {
     text: string;
 }
 
-export type SkipReason = 'outside-allow-list' | 'in-pack-folder' | 'kept-out' | 'missing';
+export type SkipReason = 'outside-allow-list' | 'in-pack-folder' | 'kept-out' | 'missing' | 'links-unverified';
 
 export interface PackInput {
     vaultId: string;
@@ -32,8 +33,10 @@ export interface PackInput {
     sources: readonly PackNote[];
     /** Why a path may not be shared, or null when it may */
     reasonNotShareable: (path: string) => SkipReason | null;
-    /** Resolve a `[[link]]` written in `from` to a vault path, or null when it does not resolve */
+    /** Resolve a link target written in `from` to a vault path, or null when it does not resolve */
     resolveLink: (link: string, from: string) => string | null;
+    /** The links and embeds Obsidian's cache reports for a note, with positions; null when the note has no cache */
+    linksOf: (note: PackNote) => LinkOccurrence[] | null;
     sharePolicyRevision: string;
 }
 
@@ -62,69 +65,11 @@ async function sha256(text: string): Promise<string> {
     return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-const ATTACHMENT_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|heic|pdf|docx?|pptx?|xlsx?|mp3|m4a|wav|mp4|mov|zip)$/i;
-
-/** Links and embeds in an included note: attachments are not included; a note the policy does not allow reads `[not shared]`. */
-export function neutraliseLinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
-    return neutraliseWikilinks(neutraliseMarkdownLinks(text, from, input), from, input);
-}
-
-/**
- * `[text](path)` and `![alt](path)` to vault paths: the same rules as wikilinks. Web and mail addresses and in-page anchors are left as written.
- * Scanned, not matched by a pattern: the destination is read to its BALANCED closing parenthesis at any depth. A destination that
- * never closes on its line is treated as private (fail closed) and the rest of the line is replaced.
- */
-function neutraliseMarkdownLinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
-    const start = /(!?)\[([^\]\n]*)\]\(/g;
-    let out = '';
-    let last = 0;
-    for (let m = start.exec(text); m !== null; m = start.exec(text)) {
-        const bang = m[1];
-        const label = m[2];
-        const open = m.index + m[0].length;
-        let depth = 1;
-        let i = open;
-        for (; i < text.length && text[i] !== '\n'; i++) {
-            if (text[i] === '(') depth++;
-            else if (text[i] === ')' && --depth === 0) break;
-        }
-        const closed = depth === 0;
-        const end = closed ? i + 1 : (text.indexOf('\n', open) === -1 ? text.length : text.indexOf('\n', open));
-        out += text.slice(last, m.index);
-        last = end;
-        start.lastIndex = end;
-        const whole = text.slice(m.index, end);
-        const placeholder = bang ? '[not shared]' : label + ' [not shared]';
-        if (!closed) { out += placeholder; continue; }
-        const inner = text.slice(open, i).trim();
-        const rawTarget = inner.startsWith('<') ? inner.slice(1, inner.indexOf('>') === -1 ? undefined : inner.indexOf('>')) : inner.split(/\s/)[0];
-        if (rawTarget === '' || rawTarget.startsWith('#') || /^(https?:|mailto:)/i.test(rawTarget)) { out += whole; continue; }
-        let path = rawTarget;
-        try { path = decodeURIComponent(rawTarget); } catch { /* keep as written */ }
-        path = path.replace(/#.*$/, '');
-        if (ATTACHMENT_EXT.test(path)) { out += bang ? '[attachment not included]' : label + ' [attachment not included]'; continue; }
-        const resolved = input.resolveLink(path, from);
-        if (resolved === null) { out += placeholder; continue; }
-        if (ATTACHMENT_EXT.test(resolved)) { out += '[attachment not included]'; continue; }
-        out += input.reasonNotShareable(resolved) === null ? whole : placeholder;
-    }
-    return out + text.slice(last);
-}
-
-function neutraliseWikilinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
-    return text.replace(/(!?)\[\[([^\]\n|#]+)(#[^\]\n|]*)?(\|([^\]\n]*))?\]\]/g, (whole, bang: string, target: string, _heading: string | undefined, _alias: string | undefined, alias: string | undefined) => {
-        if (ATTACHMENT_EXT.test(target.trim())) return bang ? '[attachment not included]' : `${alias ?? target.trim()} [attachment not included]`;
-        const resolved = input.resolveLink(target.trim(), from);
-        if (resolved === null) return bang ? '[not shared]' : whole;
-        if (ATTACHMENT_EXT.test(resolved)) return '[attachment not included]';
-        return input.reasonNotShareable(resolved) === null ? (bang ? `${alias ?? target.trim()}` : whole) : (bang ? '[not shared]' : `${alias ?? target.trim()} [not shared]`);
-    });
-}
-
-/** Text of one included note: drawing blobs dropped, plugin-owned blocks left out, links neutralised. */
-function includedText(note: PackNote, input: PackInput): string {
-    const model = toModelText(note.text, note.path);
-    return neutraliseLinks(bodyWithoutOwned(model), note.path, input);
+/** Text of one included note: links neutralised from the cache first (positions are in the original text), then drawing blobs and plugin-owned blocks dropped. */
+function includedText(note: PackNote, input: PackInput): Result<string> {
+    const linked = neutraliseByCache(note.text, note.path, input.linksOf(note), input);
+    if (!linked.ok) return err(linked.error);
+    return ok(bodyWithoutOwned(toModelText(linked.value, note.path)));
 }
 
 export async function buildContextPack(input: PackInput): Promise<Result<PreparedPack>> {
@@ -139,10 +84,15 @@ export async function buildContextPack(input: PackInput): Promise<Result<Prepare
         seen.add(c.note.path);
         const reason = input.reasonNotShareable(c.note.path);
         if (reason !== null) { skipped.push({ path: c.note.path, reason }); continue; }
-        included.push({ ...c, text: includedText(c.note, input), hash: await sha256(stripWorkspaceBlock(c.note.text)) });
+        const text = includedText(c.note, input);
+        // A note whose links cannot be checked against its cache is not packed; the preview says why.
+        if (!text.ok) { skipped.push({ path: c.note.path, reason: 'links-unverified' }); continue; }
+        included.push({ ...c, text: text.value, hash: await sha256(stripWorkspaceBlock(c.note.text)) });
     }
     // The project note is the pack's reason to exist: without it there is nothing to prepare.
-    if (!included.some((i) => i.note.path === input.project.path)) return err('ai-share-empty');
+    if (!included.some((i) => i.note.path === input.project.path)) {
+        return err(skipped.some((s) => s.path === input.project.path && s.reason === 'links-unverified') ? 'pack-links-unverified' : 'ai-share-empty');
+    }
 
     const projectIncluded = included.find((i) => i.note.path === input.project.path);
     const areaIncluded = input.area ? included.find((i) => i.note.path === input.area?.path) : undefined;

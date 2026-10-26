@@ -5,6 +5,7 @@ import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, Ov
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
+import { isFeatureEnabled } from '../services/featureService';
 import { normaliseShareFolders } from '../services/aiWorkspaces/aiShareScope';
 import { normaliseWorkspaces, type WorkspaceRecord } from '../services/aiWorkspaces/workspaceRecord';
 import { normaliseParaRoots, type ParaRoot } from '../services/projects/paraRoots';
@@ -1413,7 +1414,7 @@ export function getPluginManagedFolders(settings: AIOrganiserSettings): string[]
     const pluginFolder = normalizeFolderSegment(settings.pluginFolder, DEFAULT_PLUGIN_FOLDER);
     const outputRoot = getEffectiveOutputRoot(settings);
     // Context packs are plugin output, kept out of tagging and protected folders; only while the feature is on.
-    const packs = settings.featureFlags?.['ai-workspaces'] === true && settings.aiWorkspacePackFolder?.trim() ? [settings.aiWorkspacePackFolder.trim()] : [];
+    const packs = isFeatureEnabled(settings, 'ai-workspaces') && settings.aiWorkspacePackFolder?.trim() ? [settings.aiWorkspacePackFolder.trim()] : [];
 
     if (outputRoot === pluginFolder) {
         return [pluginFolder, ...packs]; // Same root — just exclude pluginFolder

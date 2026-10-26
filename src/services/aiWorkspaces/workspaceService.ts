@@ -15,6 +15,7 @@ import { logger } from '../../utils/logger';
 import { notShareableReason, sharePolicyRevision } from './aiShareScope';
 import { buildContextPack, packSha256, verifyPrepared, type PackNote, type PreparedPack } from './contextPack';
 import { writePack } from './packStore';
+import type { LinkOccurrence } from './linkNeutraliser';
 import { applyWorkspaceBlock, renderWorkspaceBlock, stripWorkspaceBlock } from './workspaceBlock';
 import { emptyWorkspace, normaliseWorkspace, withPack, type PackEntry, type WorkspaceRecord } from './workspaceRecord';
 
@@ -84,6 +85,21 @@ function areaPathOf(plugin: AIOrganiserPlugin, anchor: AnchorRef): string | null
     return plugin.app.metadataCache.getFirstLinkpathDest(linkpathOf(raw), anchor.notePath)?.path ?? null;
 }
 
+/** Links and embeds with positions, straight from Obsidian's cache; null when the note has none. */
+function linksFromCache(plugin: AIOrganiserPlugin, path: string): LinkOccurrence[] | null {
+    const file = plugin.app.vault.getAbstractFileByPath(path);
+    if (!(file instanceof TFile)) return null;
+    const cache = plugin.app.metadataCache.getFileCache(file);
+    if (!cache) return null;
+    const out: LinkOccurrence[] = [];
+    for (const [list, embed] of [[cache.links, false], [cache.embeds, true]] as const) {
+        for (const l of list ?? []) {
+            out.push({ link: l.link, displayText: l.displayText, original: l.original, start: l.position.start.offset, end: l.position.end.offset, embed });
+        }
+    }
+    return out;
+}
+
 export interface PreparedWorkspacePack {
     aioId: string;
     pack: PreparedPack;
@@ -117,6 +133,7 @@ export async function preparePack(plugin: AIOrganiserPlugin, aioId: string): Pro
             sources,
             reasonNotShareable: (path) => notShareableReason(path, s, s.aiWorkspacePackFolder),
             resolveLink: (link, from) => plugin.app.metadataCache.getFirstLinkpathDest(link, from)?.path ?? null,
+            linksOf: (note) => linksFromCache(plugin, note.path),
             sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder),
         });
         if (!built.ok) return err(built.error);

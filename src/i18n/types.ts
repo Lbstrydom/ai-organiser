@@ -4322,7 +4322,7 @@ export interface Translations {
         previewNotes: string;
         previewSkipped: string;
         previewTotal: string;
-        skipReasons: Record<'outside-allow-list' | 'in-pack-folder' | 'kept-out' | 'missing', string>;
+        skipReasons: Record<'outside-allow-list' | 'in-pack-folder' | 'kept-out' | 'missing' | 'links-unverified', string>;
         confirmPack: string;
         confirmCopy: string;
         cancel: string;

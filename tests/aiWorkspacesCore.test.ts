@@ -6,7 +6,8 @@ import {
 import { normaliseWorkspace, normaliseWorkspaces, validateChatUrl, withPack, emptyWorkspace } from '../src/services/aiWorkspaces/workspaceRecord';
 import { applyWorkspaceBlock, readWorkspaceBlock, renderWorkspaceBlock, stripWorkspaceBlock } from '../src/services/aiWorkspaces/workspaceBlock';
 import { bodyWithoutOwned, buildWorkspaceInstructions, capBytes, sectionUnder } from '../src/services/aiWorkspaces/workspaceInstructions';
-import { buildContextPack, neutraliseLinks, verifyPrepared, PACK_BUDGET_BYTES } from '../src/services/aiWorkspaces/contextPack';
+import { buildContextPack, verifyPrepared, PACK_BUDGET_BYTES } from '../src/services/aiWorkspaces/contextPack';
+import { neutraliseByCache, type LinkOccurrence } from '../src/services/aiWorkspaces/linkNeutraliser';
 import { renderHandoffContract } from '../src/services/aiWorkspaces/handoffGrammar';
 
 const ID = '3f2b8f4e-1c2d-4e5f-8a6b-7c8d9e0f1a2b';
@@ -154,6 +155,11 @@ describe('instructions', () => {
   });
 });
 
+/** A stand-in for Obsidian's cache in these tests: the wikilinks and embeds of a text, at their offsets. */
+function wikiCache(text: string): LinkOccurrence[] {
+  return [...text.matchAll(/(!?)\[\[([^\]|]+)(?:\|([^\]]*))?\]\]/g)].map((m) => ({ link: m[2], displayText: m[3] ?? m[2], original: m[0], start: m.index ?? 0, end: (m.index ?? 0) + m[0].length, embed: m[1] === '!' }));
+}
+
 describe('context pack', () => {
   const note = (path: string, text: string) => ({ path, text });
   const allow = (deny: Record<string, 'outside-allow-list' | 'kept-out'> = {}) => (p: string) => deny[p] ?? null;
@@ -164,7 +170,8 @@ describe('context pack', () => {
     project: note('Work/P.md', '# P\n\nSee [[Secret]] and [[Open]] and ![[img.png]].\n'),
     sources: [] as Array<{ path: string; text: string }>,
     reasonNotShareable: allow({ 'Work/Secret.md': 'outside-allow-list' }),
-    resolveLink: (l: string) => `Work/${l}.md`,
+    resolveLink: (l: string) => (/\.[a-z]+$/i.test(l) ? l : `Work/${l}.md`),
+    linksOf: (n: { text: string }) => wikiCache(n.text),
     sharePolicyRevision: 'rev1',
     ...over,
   });
@@ -193,6 +200,13 @@ describe('context pack', () => {
     expect(res).toEqual({ ok: false, error: 'ai-share-empty' });
   });
 
+  it('a note whose links cannot be checked is left out, and the project note then refuses with its own code', async () => {
+    const src = await buildContextPack(base({ sources: [note('Work/Ok.md', 'ok words [[Open]]')], linksOf: (n: { path: string; text: string }) => (n.path === 'Work/Ok.md' ? null : wikiCache(n.text)) }));
+    expect(src.ok && src.value.skipped).toEqual([{ path: 'Work/Ok.md', reason: 'links-unverified' }]);
+    expect(src.ok && src.value.text).not.toContain('ok words');
+    expect(await buildContextPack(base({ linksOf: () => null }))).toEqual({ ok: false, error: 'pack-links-unverified' });
+  });
+
   it('refuses over the budget and is byte-stable otherwise', async () => {
     const big = await buildContextPack(base({ sources: [note('Work/Big.md', 'x'.repeat(PACK_BUDGET_BYTES + 10))] }));
     expect(big).toEqual({ ok: false, error: 'pack-over-budget' });
@@ -210,28 +224,13 @@ describe('context pack', () => {
     expect(verifyPrepared(res.value, { sharePolicyRevision: 'rev1', hashes: new Map([['Work/P.md', 'other']]) })).toEqual({ ok: false, error: 'pack-preview-stale' });
   });
 
-  it('neutraliseLinks keeps an unresolved plain link and hides an unresolved embed', () => {
-    const i = { reasonNotShareable: () => null, resolveLink: () => null };
-    expect(neutraliseLinks('[[Ghost]] ![[Ghost]]', 'a.md', i)).toBe('[[Ghost]] [not shared]');
-  });
 });
 
-describe('markdown links are neutralised like wikilinks', () => {
-  const i = { reasonNotShareable: (p: string) => (p === 'Work/Secret.md' ? ('outside-allow-list' as const) : null), resolveLink: (l: string) => (l === 'ghost.md' ? null : l) };
-  it('hides private targets, images and attachments; leaves web links and anchors', () => {
-    const out = neutraliseLinks('[a](Work/Secret.md) [b](Work/Open.md) ![c](Work/Secret.md) ![d](img.png) [e](https://example.com) [f](#top) [g](<Work/Secret.md#h>) [h](ghost.md)', 'x.md', i);
-    expect(out).toBe('a [not shared] [b](Work/Open.md) [not shared] [attachment not included] [e](https://example.com) [f](#top) g [not shared] h [not shared]');
-  });
-});
 
 describe('audit round 2 pins', () => {
   it('rejects a ChatGPT address with a suffix or an injected link', () => {
     expect(validateChatUrl('chatgpt', 'https://chatgpt.com/project/x)](https://evil.example')).toBeNull();
     expect(validateChatUrl('chatgpt', 'https://chatgpt.com/g/g-abc/project/extra')).toBeNull();
-  });
-  it('keeps a link target with parentheses whole', () => {
-    const i = { reasonNotShareable: (p: string) => (p.startsWith('Work/Secret') ? ('outside-allow-list' as const) : null), resolveLink: (l: string) => l };
-    expect(neutraliseLinks('[p](Work/Plan(2026).md) [s](Work/Secret(1).md)', 'x.md', i)).toBe('[p](Work/Plan(2026).md) s [not shared]');
   });
   it('a tilde fence is not closed by a backtick fence', () => {
     expect(sectionUnder('## AI context\n~~~\n```\n## inner\n~~~\nafter\n## B\nz', 'AI context')).toBe('~~~\n```\n## inner\n~~~\nafter');
@@ -239,12 +238,6 @@ describe('audit round 2 pins', () => {
 });
 
 describe('audit round 3 pins', () => {
-  const i = { reasonNotShareable: (p: string) => (p.includes('Private') ? ('outside-allow-list' as const) : null), resolveLink: (l: string) => l };
-  it('reads a link target to its balanced close at any depth and fails closed when it never closes', () => {
-    expect(neutraliseLinks('[x](Work/Team(Plans(Private))/Secret.md) tail', 'a.md', i)).toBe('x [not shared] tail');
-    expect(neutraliseLinks('[ok](Work/A(B(C)).md "title") tail', 'a.md', i)).toBe('[ok](Work/A(B(C)).md "title") tail');
-    expect(neutraliseLinks('see [x](Work/Private(1.md and more\nnext line', 'a.md', i)).toBe('see x [not shared]\nnext line');
-  });
   it('a fence closes only on a bare closer of the same character and length', () => {
     expect(sectionUnder('## AI context\n```js\n```not a closer\n## inner\n```\nafter\n## B\nz', 'AI context')).toBe('```js\n```not a closer\n## inner\n```\nafter');
     expect(sectionUnder('## AI context\n````\n```\n## inner\n````\nafter\n## B', 'AI context')).toBe('````\n```\n## inner\n````\nafter');
@@ -256,5 +249,55 @@ describe('audit round 3 pins', () => {
     const emoji = capBytes('😀'.repeat(3000), 1000);
     expect(new TextEncoder().encode(emoji).length).toBeLessThanOrEqual(1000);
     expect(emoji).not.toContain('�');
+  });
+});
+
+
+describe('links come from the metadata cache and fail closed', () => {
+  const policy = { reasonNotShareable: (p: string) => (p.includes('Private') ? 'outside-allow-list' : null), resolveLink: (l: string) => l };
+  /** Occurrences as Obsidian would report them for `text`: every listed source string, at its real offset. */
+  const occ = (text: string, originals: Array<{ original: string; link: string; displayText?: string; embed?: boolean }>): LinkOccurrence[] => {
+    let from = 0;
+    return originals.map((o) => { const start = text.indexOf(o.original, from); from = start + o.original.length; return { link: o.link, displayText: o.displayText, original: o.original, start, end: start + o.original.length, embed: o.embed === true }; });
+  };
+  const run = (text: string, list: LinkOccurrence[] | null) => neutraliseByCache(text, 'a.md', list, policy);
+
+  it('handles angle-bracket targets, titles and nested parentheses without parsing them', () => {
+    const text = 'a [x](<Work/Private (1).md>) b [y](Work/Team(Plans(Private))/S.md "t") c [ok](Work/A(B(C)).md "title") d';
+    const list = occ(text, [
+      { original: '[x](<Work/Private (1).md>)', link: 'Work/Private (1).md', displayText: 'x' },
+      { original: '[y](Work/Team(Plans(Private))/S.md "t")', link: 'Work/Team(Plans(Private))/S.md', displayText: 'y' },
+      { original: '[ok](Work/A(B(C)).md "title")', link: 'Work/A(B(C)).md', displayText: 'ok' },
+    ]);
+    expect(run(text, list)).toEqual({ ok: true, value: 'a x [not shared] b y [not shared] c [ok](Work/A(B(C)).md "title") d' });
+  });
+
+  it('wikilinks and embeds: private hidden, attachments never included, shareable embed shows its text', () => {
+    const text = 'see [[Private plan|plan]] and ![[Private plan]] and ![[pic.png]] and [[Open]]';
+    const list = occ(text, [
+      { original: '[[Private plan|plan]]', link: 'Private plan', displayText: 'plan' },
+      { original: '![[Private plan]]', link: 'Private plan', embed: true },
+      { original: '![[pic.png]]', link: 'pic.png', embed: true },
+      { original: '[[Open]]', link: 'Open', displayText: 'Open' },
+    ]);
+    expect(run(text, list)).toEqual({ ok: true, value: 'see plan [not shared] and [not shared] and [attachment not included] and [[Open]]' });
+  });
+
+  it('leaves web links alone and does not count links inside fenced code', () => {
+    const text = '[w](https://example.com)\n```\n[[Private x]] and [c](Private/y.md)\n```\n';
+    const list = occ(text, [{ original: '[w](https://example.com)', link: 'https://example.com', displayText: 'w' }]);
+    expect(run(text, list)).toEqual({ ok: true, value: text });
+  });
+
+  it('a stale cache fails closed: moved offsets, a missing cache, or a link the cache never saw', () => {
+    const text = 'x [[Open]] y';
+    const good = occ(text, [{ original: '[[Open]]', link: 'Open' }]);
+    expect(run(text, good).ok).toBe(true);
+    expect(run('XX' + text, good)).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run(text, null)).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run(text + ' [[Added later]]', good)).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run(text + ' [new](Private/z.md)', good)).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run(text, [{ ...good[0], end: 999 }])).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run(text, [...good, ...good])).toEqual({ ok: false, error: 'links-unverified' });
   });
 });

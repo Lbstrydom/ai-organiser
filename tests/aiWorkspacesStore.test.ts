@@ -5,6 +5,7 @@ import { DEFAULT_SETTINGS, migrateOldSettings } from '../src/core/settings';
 import { REGISTER_BY_FEATURE } from '../src/commands';
 import { isFeatureEnabled } from '../src/services/featureService';
 import { packFileName, packFolderPath, writePack } from '../src/services/aiWorkspaces/packStore';
+import type AIOrganiserPlugin from '../src/main';
 import type { PreparedPack } from '../src/services/aiWorkspaces/contextPack';
 
 const ID = '3f2b8f4e-1c2d-4e5f-8a6b-7c8d9e0f1a2b';
@@ -43,7 +44,7 @@ function fakePlugin(over: Record<string, unknown> = {}) {
     },
   };
   const plugin = { app: { vault, fileManager }, settings: { ...DEFAULT_SETTINGS, ...over } };
-  return { plugin: plugin as never, files, trashed };
+  return { plugin: plugin as unknown as AIOrganiserPlugin, files, trashed };
 }
 
 const prepared = (digest: string): PreparedPack => ({
@@ -119,11 +120,11 @@ describe('off path: the feature is default off and adds nothing', () => {
   });
 
   it('settings migration adds only inert defaults and keeps stored values', () => {
-    const migrated = migrateOldSettings({ aiShareFolders: [' Work/ ', 5], aiWorkspaces: { x: { anchorId: 'bad' } } } as never);
+    const migrated = migrateOldSettings({ aiShareFolders: [' Work/ ', 5], aiWorkspaces: { x: { anchorId: 'bad' } } } as never) ?? DEFAULT_SETTINGS;
     expect(migrated.aiShareFolders).toEqual(['Work']);
     expect(migrated.aiWorkspaces).toEqual({});
     expect(migrated.aiShareRequireOptIn).toBe(false);
-    expect(migrateOldSettings({} as never).aiShareFolders).toEqual([]);
+    expect(migrateOldSettings({} as never)?.aiShareFolders).toEqual([]);
     expect(TFile).toBeDefined();
   });
 });
