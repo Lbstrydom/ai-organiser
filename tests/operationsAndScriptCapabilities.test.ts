@@ -308,6 +308,39 @@ describe('OperationIndex: integrity', () => {
     expect(index.list().map((s) => s.opId)).toEqual(['op-good001']);
   });
 
+  it('a failed reload on the SAME instance keeps what it already knew', async () => {
+    const f = fakeStore(Object.fromEntries([fileOf(sum({ opId: 'op-good001' }))]));
+    let failReads = false;
+    const store: OperationStore = { ...f.store, read: async (file) => (failReads ? err('operation-store-unreadable') : f.store.read(file)) };
+    const index = new OperationIndex({ store, device: 'dev-1', now: () => T0 });
+    expect((await index.load()).ok).toBe(true);
+    failReads = true;
+    expect(await index.load()).toEqual({ ok: false, error: 'operation-store-unreadable' });
+    expect(index.isLoaded()).toBe(true);
+    expect(index.list().map((s) => s.opId)).toEqual(['op-good001']);
+  });
+
+  it('only this device repairs its own summaries on disk', async () => {
+    const f = fakeStore(Object.fromEntries([fileOf(sum({ opId: 'op-mine001' })), fileOf(sum({ opId: 'op-theirs1', device: 'dev-2' }))]));
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 + 10, probe: async () => ({ state: 'found', status: 'done', updatedAt: T0 + 5 }) });
+    await index.load();
+    expect(JSON.parse(f.files.get('op-mine001.json')!).status).toBe('done');
+    expect(JSON.parse(f.files.get('op-theirs1.json')!).status).toBe('running');
+    expect(index.get('op-theirs1')?.status).toBe('done');
+  });
+
+  it('snapshots the summary when publish is called, not when the queued write runs', async () => {
+    const f = fakeStore();
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 });
+    await index.load();
+    const mine = sum({ resources: ['a'] });
+    const pending = index.publish(mine);
+    mine.status = 'failed';
+    mine.resources!.push('b');
+    await pending;
+    expect(JSON.parse(f.files.get('op-aaaaaa.json')!)).toMatchObject({ status: 'running', resources: ['a'] });
+  });
+
   it('hands out copies only: mutating what it returns changes nothing inside', async () => {
     const f = fakeStore();
     const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 });

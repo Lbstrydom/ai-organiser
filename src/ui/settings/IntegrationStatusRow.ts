@@ -25,7 +25,7 @@ export const KNOWN_CAPABILITIES: Readonly<Record<ScriptModule, readonly string[]
 export const integrationRowVisible = (settings: Parameters<typeof isFeatureEnabled>[0]): boolean =>
     isFeatureEnabled(settings, 'google-tasks-export') || isFeatureEnabled(settings, 'cloud-inventory');
 
-type Checked = { at: number; result: { ok: true; info: ModuleInfo } | { ok: false; error: string } };
+type Checked = { at: number; url: string; result: { ok: true; info: ModuleInfo } | { ok: false; error: string } };
 const lastChecks = new WeakMap<AIOrganiserPlugin, Partial<Record<ScriptModule, Checked>>>();
 
 /** What each module still needs from the script, given what it reported (pure, for the row and for tests). */
@@ -59,7 +59,8 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
         const row = new Setting(box).setName(t.moduleName[module]);
         const endpoint = endpointOf(plugin, module);
         if (!endpoint) { row.setDesc(t.notConfigured); continue; }
-        const checked = checks[module];
+        // A result is shown only for the deployment it was obtained from.
+        const checked = checks[module]?.url === endpoint.url ? checks[module] : undefined;
         const lines: string[] = [];
         if (!checked) lines.push(t.notChecked);
         else if (!checked.result.ok) lines.push(t.failed.replace('{reason}', formatGuidance(describeError(plugin.t, checked.result.error))));
@@ -80,7 +81,7 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             const secret = await secretOf(plugin, module);
             const res = await pingModule(module, { url: endpoint.url, secret });
             const next = lastChecks.get(plugin) ?? {};
-            next[module] = { at: Date.now(), result: res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error } };
+            next[module] = { at: Date.now(), url: endpoint.url, result: res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error } };
             lastChecks.set(plugin, next);
             rerender();
         }));

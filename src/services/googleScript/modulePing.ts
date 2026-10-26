@@ -38,7 +38,9 @@ const strings = (v: unknown): string[] | null => (Array.isArray(v) && v.every((x
 export function normaliseModulePing(module: ScriptModule, response: unknown): ModuleInfo | null {
     if (!isRecord(response) || response.ok !== true) return null;
     const modules = response.modules;
-    if (isRecord(modules) && isRecord(modules[module])) {
+    // A combined answer is authoritative: a module it does not carry, or carries malformed, has no capabilities (never the standalone fields).
+    if (modules !== undefined) {
+        if (!isRecord(modules) || !isRecord(modules[module])) return null;
         const m = modules[module];
         const caps = strings(m.capabilities);
         return typeof m.version === 'number' && Number.isFinite(m.version) && caps ? { module, version: m.version, capabilities: caps, legacy: false } : null;

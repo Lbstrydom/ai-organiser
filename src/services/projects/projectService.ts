@@ -45,6 +45,8 @@ export function linkpathOf(value: string): string {
 
 export class ProjectService {
     private cached: ProjectIndex | null = null;
+    /** The roots the cached index was built with: a changed setting rebuilds it */
+    private cachedRoots = '';
     private disposed = false;
 
     constructor(private readonly plugin: AIOrganiserPlugin) {}
@@ -65,11 +67,12 @@ export class ProjectService {
 
     /** The index, rebuilt from the metadata cache when a note has changed since it was built. */
     index(): ProjectIndex {
-        if (this.cached && !this.disposed) return this.cached;
+        const rootsKey = JSON.stringify(this.roots());
+        if (this.cached && !this.disposed && rootsKey === this.cachedRoots) return this.cached;
         const { app } = this.plugin;
         const notes = app.vault.getMarkdownFiles().map((f) => ({ path: f.path, frontmatter: app.metadataCache.getFileCache(f)?.frontmatter as Record<string, unknown> | undefined }));
         const built = buildProjectIndex(notes, { roots: this.roots() });
-        if (!this.disposed) this.cached = built;
+        if (!this.disposed) { this.cached = built; this.cachedRoots = rootsKey; }
         return built;
     }
 

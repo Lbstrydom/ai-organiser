@@ -32,7 +32,8 @@ export function yamlScalar(value: string): string {
     const plain = /^[A-Za-z0-9_][A-Za-z0-9_./ -]*$/.test(value) && !/\s$/.test(value)
         && !/^(?:true|false|null|yes|no|on|off|y|n|~)$/i.test(value)
         && !/^[+-]?(?:\d[\d_]*)(?:\.[\d_]*)?(?:e[+-]?\d+)?$/i.test(value)
-        && !/^0[xob]/i.test(value);
+        && !/^0[xob]/i.test(value)
+        && !/^\d{4}-\d{1,2}-\d{1,2}/.test(value);
     return plain ? value : JSON.stringify(value);
 }
 

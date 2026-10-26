@@ -22,10 +22,11 @@ export function planAdoption(text: string, role: ProjectRole, makeId: () => stri
     const aioId = typeof existingId === 'string' ? existingId.trim().toLowerCase() : makeId();
     if (existingId === undefined) entries.push([AIO_ID_KEY, aioId]);
     const existingRole = fm?.[AIO_ROLE_KEY];
-    if (existingRole === role) return err('project-already-adopted');
-    // A note that already has a role of another kind is not silently changed.
-    if (existingRole !== undefined && Object.hasOwn(fm ?? {}, AIO_ROLE_KEY) && typeof existingRole === 'string' && ['project', 'area', 'container'].includes(existingRole.trim())) return err('project-role-conflict');
-    if (!(fm && Object.hasOwn(fm, AIO_ROLE_KEY))) entries.push([AIO_ROLE_KEY, role]);
+    const hasRole = !!fm && Object.hasOwn(fm, AIO_ROLE_KEY);
+    if (hasRole && existingRole === role) return err('project-already-adopted');
+    // Any other role (of another kind, or one the plugin does not know) is never silently changed.
+    if (hasRole) return err('project-role-conflict');
+    entries.push([AIO_ROLE_KEY, role]);
     // A project gets `status: active` only when the note has no status of its own.
     if (role === 'project' && !(fm && Object.hasOwn(fm, 'status'))) entries.push(['status', 'active']);
     if (entries.length === 0) return err('project-already-adopted');

@@ -127,7 +127,8 @@ export class OperationIndex {
                     const reconciled = reconcileWithJournal(parsed, await this.deps.probe(parsed));
                     summary = reconciled.summary;
                     if (reconciled.kind !== 'ok') problems.set(parsed.opId, reconciled.kind);
-                    if (reconciled.kind === 'repaired') {
+                    // Only this device's own summaries are repaired on disk: another device's entry is its owner's to write.
+                    if (reconciled.kind === 'repaired' && parsed.device === this.deps.device) {
                         const repaired = await this.deps.store.write(file, JSON.stringify(summary));
                         if (!repaired.ok) logger.warn('Operations', `Could not save a repaired summary: ${file}`);
                     }
@@ -164,11 +165,13 @@ export class OperationIndex {
      * since this index was read) and refuses another device's operation.
      */
     publish(input: OperationSummary): Promise<Result<void>> {
+        // The snapshot is taken now, at the boundary: later changes by the caller cannot reach a queued write.
+        let snapshot: OperationSummary | null = null;
+        try { snapshot = parseSummary(JSON.parse(JSON.stringify(input))); } catch { snapshot = null; }
         return this.serial(async () => {
             if (!this.loaded) return err('operation-not-loaded');
             // The same contract as a load: anything it would reject cannot be written.
-            let summary: OperationSummary | null = null;
-            try { summary = parseSummary(JSON.parse(JSON.stringify(input))); } catch { summary = null; }
+            const summary = snapshot;
             if (!summary) return err('operation-invalid');
             if (summary.device !== this.deps.device) return err('operation-not-owner');
             const stored = await this.persisted(summary.opId);
@@ -268,15 +271,23 @@ export function adapterOperationStore(plugin: AIOrganiserPlugin): OperationStore
 }
 
 /** A random id per installation, kept in this device's local storage (never in synced data). */
+const sessionDeviceIds = new WeakMap<AIOrganiserPlugin, string>();
+
 export function deviceId(plugin: AIOrganiserPlugin): string {
+    const known = sessionDeviceIds.get(plugin);
+    if (known) return known;
     try {
         const saved: unknown = plugin.app.loadLocalStorage('ai-organiser-device');
-        if (typeof saved === 'string' && /^[0-9a-f-]{8,}$/.test(saved)) return saved;
+        const id = typeof saved === 'string' && /^[0-9a-f-]{8,}$/.test(saved) ? saved : crypto.randomUUID();
+        if (id !== saved) plugin.app.saveLocalStorage('ai-organiser-device', id);
+        sessionDeviceIds.set(plugin, id);
+        return id;
+    } catch (e) {
+        // Local storage unavailable: the id is still stable for this session, so ownership checks stay coherent until reload.
+        logger.warn('Operations', 'Could not keep the device id in local storage', e);
         const fresh = crypto.randomUUID();
-        plugin.app.saveLocalStorage('ai-organiser-device', fresh);
+        sessionDeviceIds.set(plugin, fresh);
         return fresh;
-    } catch {
-        return crypto.randomUUID();
     }
 }
 
