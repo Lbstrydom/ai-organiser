@@ -1449,7 +1449,8 @@ function carryRoutedFields(x: Record<string, unknown>): Partial<ApprovalRecord['
     const target = x.target && typeof x.target === 'object' ? (x.target as Record<string, unknown>) : null;
     if (target && typeof target.listId === 'string' && target.listId !== '') out.target = { listId: target.listId };
     const wire = x.wire && typeof x.wire === 'object' ? (x.wire as Record<string, unknown>) : null;
-    if (wire && typeof wire.title === 'string' && typeof wire.notes === 'string') out.wire = { title: wire.title, notes: wire.notes, ...(isValidDue(wire.due) ? { due: wire.due } : {}) };
+    // The frozen payload is one contract: with an unusable date the whole payload is dropped (and re-frozen from the task), never half kept.
+    if (wire && typeof wire.title === 'string' && typeof wire.notes === 'string' && (wire.due === undefined || isValidDue(wire.due))) out.wire = { title: wire.title, notes: wire.notes, ...(wire.due !== undefined ? { due: wire.due as string } : {}) };
     if (typeof x.projectId === 'string' && x.projectId !== '') out.projectId = x.projectId;
     if (x.remoteStatus === 'needsAction' || x.remoteStatus === 'completed' || x.remoteStatus === 'deleted') out.remoteStatus = x.remoteStatus;
     if (typeof x.checkedAt === 'number' && Number.isFinite(x.checkedAt) && x.checkedAt >= 0) out.checkedAt = x.checkedAt;

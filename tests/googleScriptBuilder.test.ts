@@ -160,6 +160,13 @@ describe('v2: several lists', () => {
     expect(run(w, upsert('LA', [{ exportId: id(1), title: 'Old' }])).results[0]).toMatchObject({ status: 'exists', taskId: 'old1' });
   });
 
+  it('a receipt for a list that is no longer approved still binds the id', () => {
+    const w = newWorld();
+    w.props[`x:GONE:${id(1)}`] = JSON.stringify({ taskId: 'old1', title: 'Old' });
+    expect(run(w, upsert('LA', [{ exportId: id(1), title: 'Old' }])).results[0]).toMatchObject({ status: 'target-conflict', taskId: 'old1' });
+    expect(w.lists.LA).toHaveLength(0);
+  });
+
   it('keeps the request validation of v1', () => {
     const w = newWorld();
     expect(run(w, upsert('LA', [])).error.code).toBe('bad-request');

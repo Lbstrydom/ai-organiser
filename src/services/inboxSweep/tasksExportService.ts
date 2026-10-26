@@ -125,7 +125,9 @@ export function toWire(task: ApprovedTask, list?: TasksListConfig | null, noteLi
     const context = safeContext(task.context, task.contexts);
     const title = sanitizeInline(context ? `${task.text} ${context}` : task.text, 300);
     const notes = `From note: ${sanitizeInline(task.sourcePath, 200)}${noteLink ? `\n${noteLink}` : ''}`;
-    return { exportId: task.id, title, notes, ...(list?.needsDate && isValidDue(task.due) ? { due: task.due } : {}) };
+    // The date policy was fixed at approval: a date that was required then is sent even if the list stopped needing one since, and a
+    // list that needs one now sends the date it was given. Nothing here invents or strips a date.
+    return { exportId: task.id, title, notes, ...(isValidDue(task.due) && (task.needsDateAtApproval === true || list?.needsDate) ? { due: task.due } : {}) };
 }
 
 /** Decode an upsert answer. Every acknowledgement names a task of THIS batch, once, and every task of the batch is acknowledged. */
@@ -155,7 +157,8 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
     const withHeld = (s: ExportSummary): ExportSummary => (held.size > 0 ? { ...s, held: [...held].map(([id, reason]) => ({ id, reason })) } : s);
 
     for (let pass = 0; pass < passes; pass++) {
-        const todo = exportable(record).filter((t) => !blockedIds.has(t.id));
+        // Without routing only legacy tasks go to the one list: a routed task has its own destination and is never sent to a fallback.
+        const todo = exportable(record).filter((t) => !blockedIds.has(t.id) && (deps.routing !== undefined || t.routingMode !== 'routed'));
         if (todo.length === 0) break;
         // Which list each task goes to. Without routing every task goes to the one list, as it always did.
         const targets = new Map<string, string>();
@@ -171,6 +174,7 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
         // post-redeploy send meets the same list with the same bytes.
         if (deps.routing) {
             let changed = false;
+            const durable = record;
             record = {
                 ...record,
                 tasks: record.tasks.map((t) => {
@@ -183,7 +187,7 @@ export async function exportApproved(start: ApprovalRecord, deps: ExportDeps): P
             };
             if (changed) {
                 const persisted = await persistRecord(deps, record);
-                if (!persisted.ok) { summary.error = persisted.error; return { record, summary: withHeld(finalise(record, summary)) }; }
+                if (!persisted.ok) { summary.error = persisted.error; return { record: durable, summary: withHeld(finalise(durable, summary)) }; }
             }
         }
         const byList = new Map<string, ApprovedTask[]>();

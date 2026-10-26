@@ -206,6 +206,63 @@ describe('exportApproved with routing', () => {
 
 // ─── Completion read-back ───────────────────────────────────────────────────
 
+describe('audit round 1 guards', () => {
+  it('a routed task is exportable only after the report section is written', () => {
+    const born = newApproval({ runId: 'run-aaaaaa', now: 'T', reportPath: 'R.md', tasks: [routed(1, 'L')], dispositions: [] });
+    expect(born.reportDone).toBe(false);
+    expect(exportable(born)).toEqual([]);
+    expect(exportable(markReported(born)).map((t) => t.id)).toEqual([id(1)]);
+  });
+
+  it('without routing a routed task is never sent to the fallback list', async () => {
+    const h = harness();
+    const out = await exportApproved(record([routed(1, 'home'), base(2)]), h.deps);
+    expect(h.sent).toHaveLength(1);
+    expect(h.sent[0].tasks.map((t) => t.exportId)).toEqual([id(2)]);
+    expect(out.record.tasks[0].state).toBe('routed');
+  });
+
+  it('the approval-time date policy holds: a date that was required then is still sent, and a list that needs one now holds a task without it', async () => {
+    const stillSent = harness({ routing: routing({ tasksLists: [L('main'), L('dated', 'Dated', false)] }) });
+    await exportApproved(record([routed(1, 'dated', { due: '2026-11-03', needsDateAtApproval: true })]), stillSent.deps);
+    expect(stillSent.sent[0].tasks[0].due).toBe('2026-11-03');
+    // no date was needed at approval and none is invented now
+    const noDate = harness({ routing: routing({ tasksLists: [L('main'), L('dated', 'Dated', false)] }) });
+    await exportApproved(record([routed(2, 'dated', { needsDateAtApproval: false })]), noDate.deps);
+    expect(noDate.sent[0].tasks[0].due).toBeUndefined();
+    const nowNeeded = harness({ routing: routing() });
+    const out = await exportApproved(record([routed(3, 'dated', { needsDateAtApproval: false })]), nowNeeded.deps);
+    expect(nowNeeded.sent).toEqual([]);
+    expect(out.summary.held).toEqual([{ id: id(3), reason: 'tasks-due-missing' }]);
+  });
+
+  it('a failed freeze checkpoint returns the record as it was durably, with nothing sent', async () => {
+    const h = harness({ routing: routing(), persist: async () => err<void>('write-failed') });
+    const start = record([routed(1, 'main')]);
+    const out = await exportApproved(start, h.deps);
+    expect(out.record).toBe(start);
+    expect(out.record.tasks[0].target).toBeUndefined();
+  });
+
+  it('status goes to the list the tasks really went to: the frozen target, else the list stamped on the approval, else the main list', () => {
+    const rec = { ...record([base(1), routed(2, 'home', { target: { listId: 'home' } })]), listId: 'oldmain' };
+    const exportedRec = { ...rec, tasks: rec.tasks.map((t) => ({ ...t, state: 'exported' as const })) };
+    expect([...statusTargets(exportedRec, 'newmain').keys()]).toEqual(['oldmain', 'home']);
+    expect([...statusTargets({ ...exportedRec, listId: undefined }, 'newmain').keys()]).toEqual(['newmain', 'home']);
+  });
+
+  it('a frozen payload with an unusable date is dropped whole by the migration (and frozen again from the task), never half kept', () => {
+    const rec = (wire: unknown) => ({ runId: 'run-aaaaaa', createdAt: '2026-10-26', reportPath: 'R.md', tasks: [{ id: id(1), text: 'x', context: '', sourcePath: 'a.md', sourceHash: 'h', state: 'routed', routingMode: 'routed', wire }], dispositions: [], reportDone: true, ledgerDone: true });
+    type M = { sweepApprovals: Array<{ tasks: ApprovedTask[] }> };
+    const bad = migrateOldSettings({ sweepApprovals: [rec({ title: 'T', notes: 'N', due: '2026-02-30' })] } as never) as unknown as M;
+    expect(bad.sweepApprovals[0].tasks[0].wire).toBeUndefined();
+    const good = migrateOldSettings({ sweepApprovals: [rec({ title: 'T', notes: 'N', due: '2026-11-03' })] } as never) as unknown as M;
+    expect(good.sweepApprovals[0].tasks[0].wire).toEqual({ title: 'T', notes: 'N', due: '2026-11-03' });
+    const noDue = migrateOldSettings({ sweepApprovals: [rec({ title: 'T', notes: 'N' })] } as never) as unknown as M;
+    expect(noDue.sweepApprovals[0].tasks[0].wire).toEqual({ title: 'T', notes: 'N' });
+  });
+});
+
 describe('refreshTaskStatus', () => {
   const exported = (tasks: Base[]): ApprovalRecord => ({ ...record(tasks), tasks: record(tasks).tasks.map((t) => ({ ...t, state: 'exported' as const })), ledgerDone: true });
   const NOW = 1_800_000_000_000;

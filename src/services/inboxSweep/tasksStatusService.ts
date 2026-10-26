@@ -45,9 +45,11 @@ export function statusTargets(record: ApprovalRecord, mainListId: string): Map<s
     const out = new Map<string, ApprovedTask[]>();
     for (const task of record.tasks) {
         if (task.state !== 'exported') continue;
-        const listId = task.target?.listId ?? mainListId;
+        // Where it really went: its frozen target, else the list stamped on the approval, else the main list (never today's setting first).
+        const listId = task.target?.listId ?? (record.listId || mainListId);
         if (listId === '') continue;
-        out.set(listId, [...(out.get(listId) ?? []), task]);
+        const bucket = out.get(listId);
+        if (bucket) bucket.push(task); else out.set(listId, [task]);
     }
     return out;
 }

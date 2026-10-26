@@ -385,7 +385,11 @@ export async function refreshStatuses(plugin: AIOrganiserPlugin, signal?: AbortS
     for (const rec of [...s.sweepApprovals]) {
         const out: Result<RefreshOutcome> = await refreshTaskStatus(rec, {
             url: url.value, secret, signal, mainListId: s.tasksListId, now: () => Date.now(),
-            persist: (r) => runExclusive(() => saveRecord(plugin, mergeStatusFields(plugin.settings.sweepApprovals.find((x) => x.runId === r.runId), r))),
+            // A record that no longer exists (pruned or removed while the request was out) is not written back.
+            persist: (r) => runExclusive(async () => {
+                const live = plugin.settings.sweepApprovals.find((x) => x.runId === r.runId);
+                return live ? saveRecord(plugin, mergeStatusFields(live, r)) : ok(undefined);
+            }),
         });
         if (!out.ok) return err(out.error);
         checked += out.value.batch.items.filter((i) => i.outcome === 'ok' || i.outcome === 'not-found').length;

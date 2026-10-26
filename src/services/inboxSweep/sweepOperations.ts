@@ -38,15 +38,20 @@ export function probeSweep(plugin: AIOrganiserPlugin): (s: OperationSummary) => 
     };
 }
 
-let loading: Promise<OperationIndex | null> | null = null;
+const loading = new WeakMap<AIOrganiserPlugin, Promise<OperationIndex | null>>();
 
 /** The index, loaded once; null while no consumer is enabled or the store cannot be read. */
 export function sweepOperationIndex(plugin: AIOrganiserPlugin): Promise<OperationIndex | null> {
     const index = getOperationIndex(plugin, probeSweep(plugin));
     if (!index) return Promise.resolve(null);
     if (index.isLoaded()) return Promise.resolve(index);
-    loading ??= index.load().then((res) => (res.ok ? index : null)).finally(() => { loading = null; });
-    return loading;
+    // The in-flight load belongs to this plugin's index, never to another instance's.
+    let pending = loading.get(plugin);
+    if (!pending) {
+        pending = index.load().then((res) => (res.ok ? index : null)).finally(() => { loading.delete(plugin); });
+        loading.set(plugin, pending);
+    }
+    return pending;
 }
 
 /** Record the export's current state for this approval. Never throws, never blocks an export. */

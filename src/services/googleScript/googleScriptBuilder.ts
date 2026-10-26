@@ -99,12 +99,14 @@ function tasks_scanMarkers_(listId, started) {
   return found;
 }
 
-// The list an export id is bound to: the explicit binding, else any list that already holds a receipt for it (v1 receipts count).
+// The list an export id is bound to: the explicit binding, else the list of ANY receipt for it, even one for a list that is not
+// approved today (a v1 receipt counts, and removing a list from the approved set never frees its ids).
 function tasks_boundList_(map, exportId) {
   var bound = map["bind:" + exportId];
   if (bound) return bound;
-  for (var i = 0; i < TASKS_CONFIG.APPROVED_LIST_IDS.length; i++) {
-    if (map["x:" + TASKS_CONFIG.APPROVED_LIST_IDS[i] + ":" + exportId]) return TASKS_CONFIG.APPROVED_LIST_IDS[i];
+  var tail = ":" + exportId;
+  for (var k in map) {
+    if (k.indexOf("x:") === 0 && k.length > tail.length + 2 && k.slice(-tail.length) === tail) return k.slice(2, k.length - tail.length);
   }
   return null;
 }

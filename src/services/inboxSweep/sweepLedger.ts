@@ -133,7 +133,8 @@ export function applyDispositions(ledger: SweepLedger, record: ApprovalRecord, n
 
 /** Items that may be sent to Google Tasks: reported and not yet exported. */
 export function exportable(record: ApprovalRecord): ApprovedTask[] {
-    return record.tasks.filter((t) => t.state === 'reported' || t.state === 'routed' || (t.state === 'failed' && t.error !== 'conflict'));
+    // A routed task is exportable only once the report section is written, as a legacy one only becomes `reported` then.
+    return record.tasks.filter((t) => t.state === 'reported' || (t.state === 'routed' && record.reportDone) || (t.state === 'failed' && t.error !== 'conflict'));
 }
 
 export interface ExportResult {
