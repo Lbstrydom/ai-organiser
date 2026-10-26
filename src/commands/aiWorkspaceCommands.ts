@@ -3,7 +3,7 @@
  * `ai-workspaces` is enabled. Each one that shares text goes through the preview: nothing is copied or written before the
  * person confirms the exact notes.
  */
-import { Notice } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { getProjectService } from '../services/projects/projectService';
@@ -62,6 +62,14 @@ async function share(plugin: AIOrganiserPlugin, project: ProjectRef, mode: 'pack
     }).open();
 }
 
+/** Read a note as a hand-back and open its review. Used by the command and by the Process view. */
+export async function openHandbackReview(plugin: AIOrganiserPlugin, file: TFile): Promise<void> {
+    const prepared = await prepareHandback(plugin, file);
+    if (!prepared.ok) { guidance(plugin, prepared.error); return; }
+    if (prepared.value.parse.status === 'malformed' && prepared.value.parse.reasons.includes('no-section')) { new Notice(plugin.t.handback.noHandoffHere, 6000); return; }
+    new HandbackReviewModal(plugin.app, plugin, prepared.value, (notes, contexts, projectId) => review(plugin, notes, contexts, projectId)).open();
+}
+
 export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
     // The hand-back review also needs the capture inbox (its gate is both features); with either off the command does not exist.
@@ -73,11 +81,7 @@ export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
             callback: () => {
                 const file = plugin.app.workspace.getActiveFile();
                 if (!file || file.extension !== 'md') { new Notice(t.handback.openNoteFirst, 5000); return; }
-                void prepareHandback(plugin, file).then((prepared) => {
-                    if (!prepared.ok) { guidance(plugin, prepared.error); return; }
-                    if (prepared.value.parse.status === 'malformed' && prepared.value.parse.reasons.includes('no-section')) { new Notice(t.handback.noHandoffHere, 6000); return; }
-                    new HandbackReviewModal(plugin.app, plugin, prepared.value, (notes, contexts, projectId) => review(plugin, notes, contexts, projectId)).open();
-                });
+                void openHandbackReview(plugin, file);
             },
         });
     }

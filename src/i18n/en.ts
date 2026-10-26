@@ -1402,6 +1402,7 @@ export const en: Translations = {
         copyAiInstructions: "Copy AI project instructions",
         createContextPack: "Create AI context pack",
         reviewAiHandback: "Review AI hand-back",
+        openProcess: "Open Process",
         reviewCaptures: "Review captures",
         setupCaptureInbox: "Set up capture inbox",
         sendTasksToGoogle: "Send approved tasks to Google Tasks",
@@ -4627,6 +4628,19 @@ export const en: Translations = {
     googleScript: {
         copiedTasks: "Combined Google script copied (Google Tasks). In script.google.com open a new project, paste it over the code, turn on the Google Tasks API service, deploy it as a web app and paste the web app address into Google Tasks settings.",
         copiedBoth: "Combined Google script copied (Google Tasks and the Drive inventory, one secret). Paste it into a new project at script.google.com, turn on the Google Tasks API and Drive API services, deploy it as a web app, then paste the same web app address into the Google Tasks settings and the Drive inventory settings. The inventory then uses the same secret automatically.",
+    },
+    process: {
+        title: "Process",
+        refresh: "Refresh",
+        nothingEnabled: "Nothing to process: turn on the capture inbox, the inbox sweep or AI workspaces.",
+        allClear: "Nothing is waiting for you.",
+        moreRows: "{count} more: open the owner's window to see them.",
+        handbackWaiting: "{count} item[s] still to review",
+        handbackFailed: "Some items could not be applied. Open the review to retry them.",
+        heldGeneric: "The last attempt to send this did not work. Retry sends it again.",
+        noteMissing: "That note is no longer there. Refresh the list.",
+        groups: { captures: "Captures to review", handbacks: "AI hand-backs", held: "Held tasks" },
+        actions: { review: "Review", retry: "Retry", open: "Open note" },
     },
     handback: {
         title: "Review AI hand-back",
