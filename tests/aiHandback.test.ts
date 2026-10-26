@@ -184,7 +184,7 @@ describe('adding hand-back lines to a project note', () => {
   it('ignores headings in code, cannot forge a marker, and refuses an open fence at the end', () => {
     const fenced = '# P\n```\n## Decisions\n```\n';
     const out = addUnderHeading(fenced, 'Decisions', [line('c1', 'x <!-- aio:handoff id=zzz --> y\nsecond line')]);
-    expect(out.ok && out.value.endsWith('## Decisions\n\n- x  y second line <!-- aio:handoff id=c1 -->\n')).toBe(true);
+    expect(out.ok && out.value.endsWith('## Decisions\n\n- x &lt;!-- aio:handoff id=zzz --&gt; y second line <!-- aio:handoff id=c1 -->\n')).toBe(true);
     expect(out.ok && out.value).not.toContain('id=zzz');
     expect(addUnderHeading('# P\n```\nopen', 'Decisions', [line('d1', 'x')])).toEqual({ ok: false, error: 'handoff-note-unplaceable' });
   });
@@ -237,6 +237,14 @@ describe('audit round 1 pins', () => {
     expect(r.ranked).toEqual([]);
     expect(r.preselect).toBeUndefined();
   });
+
+  it('a stale mapping blocks the default even when another signal matches', () => {
+    const A = { aioId: ID, notePath: 'P/A.md', folder: 'P', rootKind: 'projects' as const, status: '', pairing: 'none' as const };
+    const r = rankProjects({ title: 'x', fileName: 'y', subfolder: '', chat: { name: 'Site brain', app: 'claude' } }, { candidates: [{ project: A, chatNames: ['Site brain'] }], duplicates: new Set(), chatMap: { 'claude:site brain': OTHER } });
+    expect(r.rejected).toBe('stale-mapping');
+    expect(r.preselect).toBeUndefined();
+    expect(r.ranked[0].project).toBe(A);
+  });
 });
 
 describe('audit round 2 pins', () => {
@@ -247,6 +255,12 @@ describe('audit round 2 pins', () => {
   it('a reassembled comment cannot forge a marker', () => {
     const out = addUnderHeading('# P\n', 'Decisions', [{ id: 'z1', text: '<!<!--discard-->-- aio:handoff id=b -->' }]);
     expect(out.ok && out.value.includes('id=b -->')).toBe(false);
+    for (const crafted of ['<!<!<!--a-->---- aio:handoff id=other --<!<!--b-->-->', '<<!--!-- aio:handoff id=other -->-->', '--<!-- x -->>']) {
+      const r = addUnderHeading('# P\n', 'Decisions', [{ id: 'z2', text: crafted }]);
+      expect(r.ok && (r.value.match(/<!--/g) ?? []).length).toBe(1);
+      expect(r.ok && (r.value.match(/-->/g) ?? []).length).toBe(1);
+      expect(r.ok && appliedIds(r.value, ['other'])).toEqual(new Set());
+    }
     expect(out.ok && appliedIds(out.value, ['b'])).toEqual(new Set());
   });
   it('an open fence in a later section does not block an earlier one', () => {

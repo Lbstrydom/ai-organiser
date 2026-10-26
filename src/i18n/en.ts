@@ -4649,6 +4649,7 @@ export const en: Translations = {
         rejected: {
             'unknown-id': "The id in the hand-back matches no project. Choose one from the list.",
             'duplicate-id': "More than one note carries the id in the hand-back. Choose one from the list.",
+            'stale-mapping': "This chat project was linked to a project that can no longer be used. Choose one from the list.",
         },
         rememberName: "Remember the chat project {chat} for this project",
         sections: { decisions: "Decisions", actions: "Next actions", deliverables: "Deliverables", questions: "Questions" },

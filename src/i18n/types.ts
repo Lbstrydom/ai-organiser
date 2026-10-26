@@ -4346,7 +4346,7 @@ export interface Translations {
         notChosen: string;
         whyId: string;
         whyReason: Record<'id' | 'mapping' | 'workspace-chat' | 'title' | 'folder', string>;
-        rejected: Record<'unknown-id' | 'duplicate-id', string>;
+        rejected: Record<'unknown-id' | 'duplicate-id' | 'stale-mapping', string>;
         rememberName: string;
         sections: Record<'decisions' | 'actions' | 'deliverables' | 'questions', string>;
         itemDone: string;

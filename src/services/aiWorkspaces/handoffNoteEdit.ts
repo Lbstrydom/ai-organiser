@@ -23,8 +23,9 @@ export function appliedIds(noteText: string, ids: readonly string[]): Set<string
 
 /** One line of a note's list: single line, no embedded markers, so it cannot break out of the list or forge a marker. */
 function listLine(text: string, id: string): string {
-    // Comments are removed, then any comment delimiter left over (one reassembled from the pieces around a removed comment) goes too.
-    const clean = text.replace(/<!--[\s\S]*?-->/g, '').replace(/<!--|-->/g, '').replace(/\s*\n\s*/g, ' ').trim();
+    // No comment can exist in the text, however its pieces are arranged: every comment opener and closer is escaped, not removed
+    // (removal can reassemble a delimiter from the pieces around it). A marker can therefore only be the one this function adds.
+    const clean = text.replace(/<!/g, '&lt;!').replace(/-->/g, '--&gt;').replace(/\s*\n\s*/g, ' ').trim();
     return `- ${clean} ${marker(id)}`;
 }
 

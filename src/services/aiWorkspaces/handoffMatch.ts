@@ -50,7 +50,7 @@ export interface MatchResult {
     /** An exact match by id */
     exact?: ProjectRef;
     /** Set when the block carried an id that cannot be used */
-    rejected?: 'unknown-id' | 'duplicate-id';
+    rejected?: 'unknown-id' | 'duplicate-id' | 'stale-mapping';
     ranked: RankedProject[];
     /** Pre-selected only when clearly ahead */
     preselect?: ProjectRef;
@@ -95,6 +95,7 @@ export function rankProjects(signals: MatchSignals, env: MatchEnvironment): Matc
     const candidates = eligible.slice(0, MAX_CANDIDATES);
     const complete = eligible.length <= MAX_CANDIDATES;
     const exactKey = signals.chat ? mappingKey(signals.chat) : null;
+    const eligibleIds = new Set(eligible.map((c) => c.project.aioId));
     // A block without an app can use the mapping only as a suggestion: it ranks below an exact (app-qualified) hit.
     const looseKey = signals.chat && !signals.chat.app ? null : signals.chat ? mappingKey({ name: signals.chat.name }) : null;
     const chatName = signals.chat ? mappingKey({ name: signals.chat.name }).slice(4) : '';
@@ -119,6 +120,9 @@ export function rankProjects(signals: MatchSignals, env: MatchEnvironment): Matc
     // A mapping key that points at several projects is a collision: none of them is exact.
     ranked.sort((a, b) => b.score - a.score || a.project.notePath.localeCompare(b.project.notePath));
     const [first, second] = ranked;
-    const preselect = complete && first && first.score >= PRESELECT_MIN_SCORE && (!second || first.score - second.score >= PRESELECT_MIN_MARGIN) ? first.project : undefined;
-    return { ranked, ...(preselect ? { preselect } : {}) };
+    // A remembered mapping that points at a project which can no longer be used is stale: it is said, and nothing is pre-selected.
+    const mapped = [exactKey, signals.chat ? mappingKey({ name: signals.chat.name }) : null].map((k) => (k ? env.chatMap[k] : undefined)).filter((id): id is string => !!id);
+    const stale = mapped.some((id) => !eligibleIds.has(id));
+    const preselect = !stale && complete && first && first.score >= PRESELECT_MIN_SCORE && (!second || first.score - second.score >= PRESELECT_MIN_MARGIN) ? first.project : undefined;
+    return { ranked, ...(stale ? { rejected: 'stale-mapping' as const } : {}), ...(preselect ? { preselect } : {}) };
 }
