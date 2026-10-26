@@ -32,7 +32,7 @@ export function sectionUnder(text: string, heading: string): string {
             const open = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
             if (open && !(open[1][0] === '`' && open[2].includes('`'))) { fence = { char: open[1][0], size: open[1].length }; inFence = true; }
         } else {
-            const close = /^ {0,3}(`{3,}|~{3,})[ 	]*$/.exec(line);
+            const close = /^ {0,3}(`{3,}|~{3,})\s*$/.exec(line);
             if (close && close[1][0] === fence.char && close[1].length >= fence.size) fence = null;
         }
         const m = inFence ? null : /^(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
