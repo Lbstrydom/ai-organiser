@@ -26,7 +26,7 @@ import {
  * Fail closed: with none enabled the service does not exist.
  */
 export function projectServiceActive(settings: Parameters<typeof isFeatureEnabled>[0]): boolean {
-    return isFeatureEnabled(settings, 'google-tasks-export');
+    return isFeatureEnabled(settings, 'google-tasks-export') || isFeatureEnabled(settings, 'ai-workspaces');
 }
 
 export interface AdoptOutcome {
