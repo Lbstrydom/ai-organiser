@@ -404,9 +404,11 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
     const verify = async (status: HTMLElement, forList: boolean): Promise<void> => {
         status.setText(c.testing);
         const ep = await endpoint();
-        if (!ep.ok) { status.setText(formatGuidance(describeError(t, ep.error))); return; }
+        // A check that could not reach the script leaves nothing learned: readiness and the deployment kind are cleared.
+        const unreached = (code: string): void => { draft.operational = false; draft.combined = false; draft.notReady = 'tasks-wizard-unchecked'; status.setText(formatGuidance(describeError(t, code))); };
+        if (!ep.ok) { unreached(ep.error); return; }
         const ping = await pingTasksScript(ep.value);
-        if (!ping.ok) { status.setText(formatGuidance(describeError(t, ping.error))); return; }
+        if (!ping.ok) { unreached(ping.error); return; }
         draft.combined = ping.value.combined === true;
         if (!forList) { draft.status = c.connected; status.setText(c.connected); return; }
         const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
@@ -433,11 +435,15 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                     el.createEl('p', { text: c.scriptIntro });
                     el.createEl('p', { text: c.combinedHint, cls: 'setting-item-description' });
                     for (const line of [c.step1, c.step2, c.step3, c.step4]) el.createEl('p', { text: line });
-                    new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => copyScript(null))));
+                    new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(null)))));
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.status);
                     new Setting(el).setName(c.scriptUrlName).setDesc(c.scriptUrlDesc).addText((tx) => {
-                        tx.setValue(draft.url).onChange((v) => { draft.url = v.trim(); });
+                        tx.setValue(draft.url).onChange((v) => {
+                            // What was learned belongs to the link it was learned from: a different link starts unchecked.
+                            if (v.trim() !== draft.url) { draft.operational = false; draft.combined = false; draft.notReady = 'tasks-wizard-unchecked'; draft.status = c.notTested; }
+                            draft.url = v.trim();
+                        });
                         tx.inputEl.setAttribute('aria-label', c.scriptUrlName);
                     }).addButton((b) => b.setButtonText(c.testConnection).onClick(() => run(() => verify(status, false), status)));
                 },

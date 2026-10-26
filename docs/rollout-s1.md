@@ -22,7 +22,7 @@ Manual steps, in order. Nothing here is done for you: the plugin never edits you
 
 ## 6. Google lists and routing
 - *Settings > Google Tasks > Set up Google Tasks*: paste the web app link, **Test connection** (it says whether it found the combined script), **Load my lists**, pick your main list, then **Test again** until it says Ready. Finish stays blocked until then and says why.
-- Then *Your lists*: add the lists you use, mark the ones that need a date, and add routing rules (kind and optional context to a list or "report only"). Rules only pre-select; you approve every item. After you change the list set, run **Copy combined Google script** again and redeploy (new version, same link). Check: in a sweep review each item shows a destination, and the Integrations row lists nothing waiting on a redeploy.
+- Once you have chosen your main list, run **Copy combined Google script** again, paste it over the old one and deploy a new version (same link): until then the script is not locked to your list and **Test again** will not say Ready. Then *Your lists*: add the lists you use, mark the ones that need a date, and add routing rules (kind and optional context to a list or "report only"). Rules only pre-select; you approve every item. After you change the list set, run **Copy combined Google script** again and redeploy (new version, same link). Check: in a sweep review each item shows a destination, and the Integrations row lists nothing waiting on a redeploy.
 - Optional: turn on the **completion check** (read-only) and the **note link** (it puts your vault name and note path into the task in your own Google account; the setting says so).
 
 ## 7. AI sharing (default deny)

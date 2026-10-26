@@ -12,7 +12,7 @@ import {
 } from '../src/services/operations/operationSummary';
 import { OperationIndex, adapterOperationStore, getOperationIndex, operationIndexActive, type OperationStore } from '../src/services/operations/operationIndex';
 import { LEGACY_CAPABILITIES, capabilityGap, hasCapability, normaliseModulePing } from '../src/services/googleScript/modulePing';
-import { integrationRowVisible, missingCapabilities, renderIntegrationStatusRow } from '../src/ui/settings/IntegrationStatusRow';
+import { integrationRowVisible, missingCapabilities, renderIntegrationStatusRow, accessText } from '../src/ui/settings/IntegrationStatusRow';
 import { describeError } from '../src/core/friendlyErrors';
 import { en } from '../src/i18n/en';
 import { ok, err, type Result } from '../src/core/result';
@@ -431,7 +431,8 @@ describe('integration status row', () => {
   it('the copy states the real Google access and never promises more', () => {
     expect(en.integrationStatus.accessNever).toMatch(/never deletes, shares or reads file contents/);
     // A Tasks-only setup is not told the script lists Drive folders.
-    expect(en.integrationStatus.accessTasks).not.toMatch(/Drive/);
+    expect(accessText(en.integrationStatus, ['tasks'])).not.toMatch(/Drive/);
+    expect(accessText(en.integrationStatus, ['tasks', 'inventory'])).toMatch(/Drive folders/);
   });
 });
 
