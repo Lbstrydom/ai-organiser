@@ -4858,6 +4858,7 @@ export const en: Translations = {
         rulesTitle: "Where items go",
         rulesHelp: "Rules pre-select a destination in the review, first match wins, and everything else goes to your main list. They never send anything: you still approve each item.",
         ruleKind: "Kind",
+        ruleContextInvalid: "Not saved yet: {contexts} is not a context. Start with @ and use lower-case letters, digits, - or _.",
         ruleContext: "Context (optional)",
         ruleDestination: "Destination",
         addRule: "Add rule",

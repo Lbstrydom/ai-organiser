@@ -77,6 +77,17 @@ describe('the record: legacy is untouched, routed tasks are born where an older 
     expect(mergeExportStates(live, { ...live }).tasks[0]).toEqual(live.tasks[0]);
   });
 
+  it('a terminal conflict in the live record is never reopened by a later export write', () => {
+    const live = record([routed(1, 'L')]);
+    const conflicted = applyExportResults(live, [{ exportId: id(1), status: 'target-conflict' }]);
+    const late = { ...live, tasks: live.tasks.map((t) => ({ ...t, error: 'export-failed', target: { listId: 'L' } })) };
+    expect(mergeExportStates(conflicted, late).tasks[0]).toMatchObject({ state: 'failed', error: 'conflict' });
+    // a plain failed task that is retryable still takes the new outcome
+    const retryable = applyExportResults(record([base(2)]), [{ exportId: id(2), status: 'error' }]);
+    const done = { ...retryable, tasks: retryable.tasks.map((t) => ({ ...t, state: 'exported' as const })) };
+    expect(mergeExportStates(retryable, done).tasks[0].state).toBe('exported');
+  });
+
   it('the new task fields survive the settings migration, validated one by one', () => {
     const task = { id: id(1), text: 'x', context: '', sourcePath: 'a.md', sourceHash: 'h', state: 'routed', routingMode: 'routed', kind: 'waiting_for', destination: { type: 'list', listId: 'L' }, due: '2026-11-03', needsDateAtApproval: true, target: { listId: 'L' }, wire: { title: 'T', notes: 'N', due: '2026-11-03' }, projectId: 'p1', remoteStatus: 'completed', checkedAt: 5 };
     const rec = (t: unknown) => ({ runId: 'run-aaaaaa', createdAt: '2026-10-26', reportPath: 'R.md', tasks: [t], dispositions: [], reportDone: true, ledgerDone: true });

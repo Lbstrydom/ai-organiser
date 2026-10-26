@@ -4566,6 +4566,7 @@ export interface Translations {
         rulesTitle: string;
         rulesHelp: string;
         ruleKind: string;
+        ruleContextInvalid: string;
         ruleContext: string;
         ruleDestination: string;
         addRule: string;

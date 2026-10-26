@@ -108,11 +108,16 @@ function renderRules(container: HTMLElement, plugin: AIOrganiserPlugin): void {
     container.createEl('h4', { text: c.rulesTitle });
     container.createEl('p', { text: c.rulesHelp, cls: 'setting-item-description' });
     const holder = container.createDiv();
+    const problem = container.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', attr: { role: 'status' } });
+    problem.hide();
     // Rows are edited as a draft: a half-filled row is not stored.
     let draft: Array<{ kind: SweepItemKind; context: string; dest: string }> = s.tasksRoutingRules.map((r) => ({ kind: r.kind, context: r.context ?? '', dest: r.destination.type === 'list' ? `list:${r.destination.listId}` : 'report-only' }));
     const commit = (): void => {
         // A half-typed or invalid context never overwrites the saved rules: the draft keeps it until it is valid.
-        if (draft.some((d) => d.context.trim() !== '' && !/^@[a-z0-9][a-z0-9_-]{0,23}$/.test(d.context.trim()))) return;
+        const invalid = draft.filter((d) => d.context.trim() !== '' && !/^@[a-z0-9][a-z0-9_-]{0,23}$/.test(d.context.trim()));
+        problem.setText(invalid.length > 0 ? c.ruleContextInvalid.replace('{contexts}', invalid.map((d) => d.context.trim()).join(', ')) : '');
+        problem.toggle(invalid.length > 0);
+        if (invalid.length > 0) return;
         const rules: RoutingRule[] = draft.map((d) => ({
             kind: d.kind,
             ...(d.context.trim() !== '' ? { context: d.context.trim() } : {}),

@@ -134,7 +134,8 @@ export function mergeExportStates(current: ApprovalRecord | undefined, incoming:
             // reach keeps the state it has now.
             // A routed task that was tried and stays routed also carries news: its frozen target, payload and last error.
             const outcome = next && (next.state === 'exported' || next.state === 'failed' || (next.routingMode === 'routed' && next.state === 'routed' && (next.target !== undefined || next.error !== undefined)));
-            const waiting = t.state === 'reported' || t.state === 'failed' || t.state === 'routed';
+            // A terminal conflict is never reopened by a later write: only a task still waiting to be exported moves.
+            const waiting = t.state === 'reported' || t.state === 'routed' || (t.state === 'failed' && t.error !== 'conflict');
             if (!next || !outcome || !waiting) return t;
             // Frozen target and payload, and the last read status, come from the export (they are decided there).
             return { ...t, state: next.state, error: next.error, ...(next.target ? { target: next.target } : {}), ...(next.wire ? { wire: next.wire } : {}) };
