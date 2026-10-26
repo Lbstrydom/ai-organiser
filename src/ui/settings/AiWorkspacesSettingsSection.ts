@@ -4,8 +4,33 @@ import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
 import { BaseSettingSection } from './BaseSettingSection';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { normaliseShareFolders } from '../../services/aiWorkspaces/aiShareScope';
+import { SharingSaver } from '../../services/aiWorkspaces/sharingSaver';
 import { packFolderPath } from '../../services/aiWorkspaces/packStore';
 import { logger } from '../../utils/logger';
+
+/**
+ * One saver per plugin, not per redraw: the settings page is rebuilt often, and two savers could overlap their saves. Sharing settings
+ * are access control: saves run one at a time and a failed one puts back the last value that really saved (see SharingSaver).
+ */
+const savers = new WeakMap<AIOrganiserPlugin, SharingSaver>();
+function sharingSaverFor(plugin: AIOrganiserPlugin): SharingSaver {
+    let saver = savers.get(plugin);
+    if (!saver) {
+        const s = plugin.settings;
+        saver = new SharingSaver({
+            read: () => ({ folders: s.aiShareFolders ?? [], optIn: s.aiShareRequireOptIn === true }),
+            write: (v) => { s.aiShareFolders = [...v.folders]; s.aiShareRequireOptIn = v.optIn; },
+            persist: () => plugin.saveSettings(),
+            onFailed: (e) => {
+                logger.error('AiWorkspaces', 'Could not save the sharing settings', e);
+                new Notice(formatGuidance(describeError(plugin.t, 'unknown')), 9000);
+                plugin.settingTab?.display();
+            },
+        });
+        savers.set(plugin, saver);
+    }
+    return saver;
+}
 
 /** AI workspaces: which folders may be shared with AI apps (default none), the opt-in for the connector, and the pack folder. */
 export class AiWorkspacesSettingsSection extends BaseSettingSection {
@@ -18,21 +43,7 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
         const s = this.plugin.settings;
         this.createSectionHeader(c.sectionTitle, 'messages-square', 2);
         this.containerEl.createEl('p', { text: c.description, cls: 'setting-item-description' });
-        // Sharing settings are access control. What was last SAVED is remembered; a save that fails puts exactly that back (never an
-        // intermediate edit), says so, and redraws, so nothing looks applied that is not.
-        let savedFolders = [...(s.aiShareFolders ?? [])];
-        let savedOptIn = s.aiShareRequireOptIn === true;
-        const saveSharing = (): void => {
-            const folders = [...(s.aiShareFolders ?? [])];
-            const optIn = s.aiShareRequireOptIn === true;
-            this.plugin.saveSettings().then(() => { savedFolders = folders; savedOptIn = optIn; }).catch((e: unknown) => {
-                logger.error('AiWorkspaces', 'Could not save the sharing settings', e);
-                s.aiShareFolders = [...savedFolders];
-                s.aiShareRequireOptIn = savedOptIn;
-                new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 9000);
-                this.settingTab.display();
-            });
-        };
+        const saveSharing = (): void => { void sharingSaverFor(this.plugin).request(); };
         const save = (): void => { this.plugin.saveSettings().catch((e: unknown) => logger.error('AiWorkspaces', 'Could not save the settings', e)); };
 
         new Setting(this.containerEl).setName(c.shareFoldersName).setDesc(`${c.shareFoldersDesc} ${c.revokeNote}`)
