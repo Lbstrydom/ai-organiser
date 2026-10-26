@@ -4,6 +4,7 @@
  * judged by comparing hashes.
  */
 import { renderHandoffContract } from './handoffGrammar';
+import { nonBodyLines } from '../../utils/markdownRegions';
 
 /** Caps (bytes of UTF-8) for the text taken from the project and Area notes. */
 export const PROJECT_BODY_CAP = 8 * 1024;
@@ -14,8 +15,25 @@ export const AREA_CONTEXT_HEADING = 'AI context';
 /** Plugin-owned blocks (`<!-- aio:x --> ... <!-- /aio:x -->`) and frontmatter are not the person's own words: they are left out. */
 export function bodyWithoutOwned(text: string): string {
     let body = text.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
-    body = body.replace(/^<!-- aio:([\w-]+) -->\s*$[\s\S]*?^<!-- \/aio:\1 -->\s*$\n?/gm, '');
-    return body.trim();
+    return withoutOwnedBlocks(body).trim();
+}
+
+/** Plugin-owned blocks removed, but only where they really are blocks: a marker inside a code fence is the person's own text. */
+function withoutOwnedBlocks(text: string): string {
+    const lines = text.split('\n');
+    const hidden = nonBodyLines(lines);
+    const out: string[] = [];
+    for (let i = 0; i < lines.length; i++) {
+        const open = hidden[i] ? null : /^<!-- aio:([\w-]+) -->\s*$/.exec(lines[i]);
+        if (open) {
+            const close = new RegExp('^<!-- /aio:' + open[1] + ' -->\\s*$');
+            let j = i + 1;
+            while (j < lines.length && !(hidden[j] === false && close.test(lines[j]))) j++;
+            if (j < lines.length) { i = j; continue; }
+        }
+        out.push(lines[i]);
+    }
+    return out.join('\n');
 }
 
 /** The section under `## <heading>` (to the next heading of the same or higher level); '' when there is none. */
@@ -75,7 +93,7 @@ export interface InstructionsInput {
 }
 
 /** Note text may not close or open the instruction sections: only those tag names are neutralised, the markdown is left as written. */
-const esc = (s: string): string => s.replace(/<(\/?)(role|project|area_context|handoff)>/gi, '&lt;$1$2&gt;');
+const esc = (s: string): string => s.replace(/<(\s*\/?\s*(?:role|project|area_context|handoff)\b[^>]*>)/gi, '&lt;$1');
 
 export function buildWorkspaceInstructions(input: InstructionsInput): string {
     const body = input.notesFollow ? '' : capBytes(bodyWithoutOwned(input.projectNote), PROJECT_BODY_CAP);

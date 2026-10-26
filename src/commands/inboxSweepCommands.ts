@@ -72,6 +72,8 @@ export function buildSweepDeps(plugin: AIOrganiserPlugin, signal?: AbortSignal):
         contexts: () => resolveSweepContexts(plugin.settings),
         reportedKeys: (path) => reportedKeysFor(path, plugin.settings.sweepReportedItems, plugin.settings.sweepApprovals),
         currentPath: (path) => (plugin.app.vault.getAbstractFileByPath(path) instanceof TFile ? path : null),
+        // Hand-backs have their own review only while AI workspaces are on; off, the sweep reads every note exactly as it always did.
+        skipHandbacks: () => isFeatureEnabled(plugin.settings, 'ai-workspaces'),
     };
 }
 

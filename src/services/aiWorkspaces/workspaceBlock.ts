@@ -42,12 +42,15 @@ export function readWorkspaceBlock(noteText: string): Result<string | null> {
 }
 
 /**
- * The note body without the workspace block, as what a pack is judged on. The blank lines the block was added with go too (a run of
- * blank lines collapses to one and trailing space is dropped), so writing or removing the block never changes this text: a pack is
- * never made stale by the plugin's own block.
+ * The note body without the workspace block, as what a pack is judged on. The blank lines the block was added with go too (the join
+ * where it stood, and trailing space at the very end of the note), and nothing else is normalised, so writing or removing the
+ * block never changes this text: a pack is never made stale by the plugin's own block.
  */
 export function stripWorkspaceBlock(noteText: string): string {
     const found = findMarkedBlock(noteText, WORKSPACE_MARKERS);
-    const without = !found.ok || !found.value ? noteText : noteText.slice(0, found.value.start) + noteText.slice(found.value.end);
-    return without.replace(/(\r?\n){3,}/g, '\n\n').trimEnd();
+    if (!found.ok || !found.value) return `${noteText.trimEnd()}\n`;
+    // Only the join where the block was is tidied; the rest of the note, code included, is exactly as written.
+    const before = noteText.slice(0, found.value.start).trimEnd();
+    const after = noteText.slice(found.value.end).trimStart();
+    return `${before}${before !== '' && after !== '' ? '\n\n' : ''}${after}`.trimEnd() + '\n';
 }

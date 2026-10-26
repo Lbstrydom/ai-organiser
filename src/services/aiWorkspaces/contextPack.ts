@@ -7,6 +7,7 @@
  * refuses to write it when either has changed since the preview.
  */
 import { Result, ok, err } from '../../core/result';
+import { logger } from '../../utils/logger';
 import { toModelText } from '../../utils/excalidrawContent';
 import { bodyWithoutOwned, buildWorkspaceInstructions } from './workspaceInstructions';
 import { stripWorkspaceBlock } from './workspaceBlock';
@@ -73,23 +74,47 @@ function includedText(note: PackNote, input: PackInput & { inPack: ReadonlySet<s
 }
 
 export async function buildContextPack(input: PackInput): Promise<Result<PreparedPack>> {
+    // A callback or the hash may throw: the declared contract is a Result, never a rejection.
+    try {
+        return await buildContextPackUnsafe(input);
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Could not build the pack', e);
+        return err('pack-write-failed');
+    }
+}
+
+async function buildContextPackUnsafe(input: PackInput): Promise<Result<PreparedPack>> {
     const skipped: PreparedPack['skipped'] = [];
     const candidates: Array<{ role: string; note: PackNote }> = [{ role: 'Project note', note: input.project }];
     if (input.area) candidates.push({ role: 'Area note', note: input.area });
     for (const s of input.sources) candidates.push({ role: 'Context source', note: s });
     const included: Array<{ role: string; note: PackNote; text: string; hash: string }> = [];
     const seen = new Set<string>();
-    // The notes this pack will hold (shareable ones), so a link to any other note can say it is not in this pack.
-    const inPack = new Set(candidates.filter((c) => input.reasonNotShareable(c.note.path) === null).map((c) => c.note.path));
-    for (const c of candidates) {
-        if (seen.has(c.note.path)) continue;
-        seen.add(c.note.path);
+    // "In this pack" is what really ends up in it: start from the shareable notes, and while a note drops out because its links cannot be
+    // checked, check again with the survivors (a link to a dropped note then says it is not in the pack). It settles within a few passes.
+    const unique = candidates.filter((c) => (seen.has(c.note.path) ? false : (seen.add(c.note.path), true)));
+    const shareable = unique.filter((c) => input.reasonNotShareable(c.note.path) === null);
+    for (const c of unique) {
         const reason = input.reasonNotShareable(c.note.path);
-        if (reason !== null) { skipped.push({ path: c.note.path, reason }); continue; }
-        const text = includedText(c.note, { ...input, inPack });
-        // A note whose links cannot be checked against its cache is not packed; the preview says why.
-        if (!text.ok) { skipped.push({ path: c.note.path, reason: 'links-unverified' }); continue; }
-        included.push({ ...c, text: text.value, hash: await sha256(stripWorkspaceBlock(c.note.text)) });
+        if (reason !== null) skipped.push({ path: c.note.path, reason });
+    }
+    let survivors = new Set(shareable.map((c) => c.note.path));
+    let texts = new Map<string, string>();
+    for (let pass = 0; pass < 4; pass++) {
+        texts = new Map();
+        const dropped: string[] = [];
+        for (const c of shareable) {
+            if (!survivors.has(c.note.path)) continue;
+            const text = includedText(c.note, { ...input, inPack: survivors });
+            // A note whose links cannot be checked against its cache is not packed; the preview says why.
+            if (text.ok) texts.set(c.note.path, text.value); else dropped.push(c.note.path);
+        }
+        if (dropped.length === 0) break;
+        for (const d of dropped) { survivors = new Set([...survivors].filter((p) => p !== d)); if (!skipped.some((s) => s.path === d)) skipped.push({ path: d, reason: 'links-unverified' }); }
+    }
+    for (const c of shareable) {
+        const text = texts.get(c.note.path);
+        if (text !== undefined && survivors.has(c.note.path)) included.push({ ...c, text, hash: await sha256(stripWorkspaceBlock(c.note.text)) });
     }
     // The project note is the pack's reason to exist: without it there is nothing to prepare.
     if (!included.some((i) => i.note.path === input.project.path)) {

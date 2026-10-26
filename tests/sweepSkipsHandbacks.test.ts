@@ -28,6 +28,7 @@ describe('the sweep leaves AI hand-backs to their own review (persona F6)', () =
       complete: async (prompt) => { prompts.push(prompt); return ok(JSON.stringify({ gtd_processing: { next_actions: [{ text: 'Call Sam', context: '', evidence: 'Call Sam on Friday' }], waiting_for: [], projects: [], someday_maybe: [] } })); },
       policy: () => policy,
       ledger: () => ({}),
+      skipHandbacks: () => true,
     };
     const res = await runSweep(deps, { maxNotes: 5, maxChars: 12000 });
     if (!res.ok) throw new Error('run');
@@ -35,5 +36,25 @@ describe('the sweep leaves AI hand-backs to their own review (persona F6)', () =
     expect(prompts[0]).not.toContain('Email Dana');
     expect(res.value.notes.map((n) => n.path)).toEqual(['Inbox/meeting.md']);
     expect(res.value.skippedHandbacks).toBe(1);
+  });
+
+  it('with AI workspaces off the sweep reads a Handoff note like any other (byte-identical off path)', async () => {
+    const prompts: string[] = [];
+    const texts: Record<string, string> = { 'Inbox/handback.md': HANDBACK, 'Inbox/meeting.md': ORDINARY };
+    const deps: SweepDeps = {
+      candidates: () => ['Inbox/handback.md', 'Inbox/meeting.md'],
+      readText: async (p) => texts[p] ?? null,
+      complete: async (prompt) => { prompts.push(prompt); return ok(JSON.stringify({ gtd_processing: { next_actions: [], waiting_for: [], projects: [], someday_maybe: [] } })); },
+      policy: () => policy,
+      ledger: () => ({}),
+    };
+    const res = await runSweep(deps, { maxNotes: 5, maxChars: 12000 });
+    if (!res.ok) throw new Error('run');
+    expect(prompts).toHaveLength(2);
+    expect(res.value.skippedHandbacks).toBeUndefined();
+  });
+
+  it('flag text quoted inside another frontmatter value is not a hand-back flag', () => {
+    expect(looksLikeHandback('---\nsummary: "aio-handback: true"\n---\nbody')).toBe(false);
   });
 });

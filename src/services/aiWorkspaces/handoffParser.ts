@@ -9,6 +9,7 @@
  * A hand-back that cannot be read this way is `malformed` with the reasons; nothing is guessed.
  */
 import { nonBodyLines } from '../../utils/markdownRegions';
+import { parseSnapshotMetadata } from '../inboxSweep/noteSnapshot';
 import { isAioId } from '../projects/projectIndex';
 import { isValidDue } from '../inboxSweep/tasksRouting';
 import { HANDOFF_HEADING, HANDOFF_SECTIONS } from './handoffGrammar';
@@ -221,7 +222,8 @@ export function parseHandoff(raw: string, contexts: readonly string[]): HandoffP
 export function looksLikeHandback(text: string): boolean {
     if (text.includes('<!-- aio:handoff id=')) return true;
     const normalised = normaliseHandoffText(text);
-    if (/^---\n[\s\S]{0,2000}?\baio-handback:\s*true\b[\s\S]*?\n---/.test(normalised)) return true;
+    const flag = parseSnapshotMetadata(text).properties['aio-handback'];
+    if (flag !== undefined && flag.some((v) => v.trim().toLowerCase() === 'true')) return true;
     const lines = normalised.split('\n');
     const hidden = nonBodyLines(lines);
     return lines.some((line, i) => {

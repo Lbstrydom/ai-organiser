@@ -137,7 +137,7 @@ describe('instructions', () => {
     expect(a).not.toContain('not this');
     expect(a).not.toContain('owned');
     expect(a).not.toContain(`aio-id: ${ID}\n---`);
-    expect(a).toContain('&lt;/project&gt;');
+    expect(a).toContain('&lt;/project>');
     expect(a).toContain('project "Plan X".');
   });
 

@@ -66,7 +66,7 @@ const MARKER = /\[\[|!\[|\]\(/g;
  * only a target that begins with http://, https:// or mailto: qualifies; anything else (a path, a relative link, a bare name) stays
  * subject to the fail-closed check.
  */
-const EXTERNAL_TARGET = /^<?(?:https?:\/\/|mailto:)/i;
+const EXTERNAL_TARGET = /^\s*<?(?:https?:\/\/|mailto:)/i;
 function isExternalMarker(line: string, at: number): boolean {
     const marker = line.slice(at, at + 2);
     if (marker === '](') return EXTERNAL_TARGET.test(line.slice(at + 2));

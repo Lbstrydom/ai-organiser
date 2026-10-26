@@ -4682,7 +4682,7 @@ export const en: Translations = {
         longItem: "Long item: shown in full.",
         deliverableNote: "Files are not filed in this version. Move the file to the project yourself.",
         moreItems: "{count} more item[s] in the file: open it to see them.",
-        warnings: "{count} line[s] in the hand-back could not be understood and [was|were] ignored.",
+        warnings: "{count} thing[s] in the hand-back [was|were] ignored or adjusted:",
         warningLines: {
             'unknown-key': "Heading not recognised, so its lines were ignored: {detail}",
             'bad-date': "Date not understood, so the item has no date: {detail}",
