@@ -3,7 +3,10 @@
  * Unit tests over the pure checker, then temp-repo integration tests (real git).
  * Fixtures are synthetic: the "marker" below is a made-up string.
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { vi, describe, it, expect, afterEach } from 'vitest';
+
+// These tests spawn git and node child processes; under full-suite load the 5 s default is too tight.
+vi.setConfig({ testTimeout: 30_000 });
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
