@@ -311,3 +311,14 @@ describe('the pack folder is always excluded', () => {
     expect(isAiShareable('Work/Packs/p.md', s, 'Work/Packs')).toBe(false);
   });
 });
+
+describe('pack files are never shareable notes', () => {
+  it('a file named like a pack is refused wherever it sits', async () => {
+    const { looksLikePack } = await import('../src/services/aiWorkspaces/aiShareScope');
+    expect(looksLikePack('Anywhere/Deep/pack-20261026-090507-aaaaaaaaaaaa.md')).toBe(true);
+    expect(looksLikePack('Work/pack-notes.md')).toBe(false);
+    const s = settings({ aiShareFolders: ['Work'] });
+    expect(isAiShareable('Work/pack-20261026-090507-aaaaaaaaaaaa.md', s, 'Somewhere/Else')).toBe(false);
+    expect(notShareableReason('Work/pack-20261026-090507-aaaaaaaaaaaa.md', s, 'Somewhere/Else')).toBe('in-pack-folder');
+  });
+});

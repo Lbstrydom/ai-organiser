@@ -284,3 +284,33 @@ describe('the pack folder is never an ordinary note path', () => {
 		expect(parseScopeDocument(JSON.stringify({ ...ok, packs: { folder: 'AI-Organiser/Workspace packs', revision: 'r' } }))).not.toBeNull();
 	});
 });
+
+describe('packs are never ordinary notes, wherever the pack folder used to be', () => {
+	it('the server refuses a file named like a pack outside the current pack folder, with or without the opt-in', async () => {
+		vault.write(`Old stuff/Packs/${ID}/${PACK_NAME}.md`, 'an old pack');
+		vault.writeScope({ packs: { folder: PACK_FOLDER, revision: 'rev1' }, shareFolders: [] });
+		expect(await readable(open(), `Old stuff/Packs/${ID}/${PACK_NAME}.md`)).toBe(false);
+		vault.writeScope({ packs: { folder: PACK_FOLDER, revision: 'rev1' }, shareFolders: ['Old stuff'], requireOptIn: true });
+		expect(await readable(open(), `Old stuff/Packs/${ID}/${PACK_NAME}.md`)).toBe(false);
+		// the same name does not matter when packs are not served at all (the connector as it always was)
+		vault.writeScope({});
+		expect(await readable(open(), `Old stuff/Packs/${ID}/${PACK_NAME}.md`)).toBe(true);
+	});
+});
+
+describe('the vault map follows the same policy', () => {
+	it('lists no pack file and, with the opt-in, only the allow-list; unchanged when AI workspaces are off', async () => {
+		const { optedInScope } = await import('../src/services/agentConnectors/connectorRuntime');
+		const base = { isIncluded: () => true, includeAliases: false, includeHeadings: false, frontmatterKeys: [], exportUnresolvedLinks: false };
+		const on = { ...DEFAULT_SETTINGS, featureFlags: { provider: true, 'agent-index': true, 'ai-workspaces': true } as typeof DEFAULT_SETTINGS.featureFlags, aiShareFolders: ['Work'], aiWorkspacePackFolder: 'AI-Organiser/Workspace packs' };
+		const packPath = `AI-Organiser/Workspace packs/${ID}/${PACK_NAME}.md`;
+		const noOptIn = optedInScope(base, { ...on, aiShareRequireOptIn: false });
+		expect(noOptIn.isIncluded('Personal/Diary.md')).toBe(true);
+		expect(noOptIn.isIncluded(packPath)).toBe(false);
+		expect(noOptIn.isIncluded(`Elsewhere/${PACK_NAME}.md`)).toBe(false);
+		const optIn = optedInScope(base, { ...on, aiShareRequireOptIn: true });
+		expect(optIn.isIncluded('Work/Plan.md')).toBe(true);
+		expect(optIn.isIncluded('Personal/Diary.md')).toBe(false);
+		expect(optedInScope(base, { ...on, featureFlags: { provider: true, 'agent-index': true } as typeof DEFAULT_SETTINGS.featureFlags, aiShareRequireOptIn: true })).toBe(base);
+	});
+});

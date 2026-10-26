@@ -28,11 +28,16 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
 
         new Setting(this.containerEl).setName(c.shareFoldersName).setDesc(`${c.shareFoldersDesc} ${c.revokeNote}`)
             .addTextArea((ta) => {
-                ta.setPlaceholder(c.shareFoldersPlaceholder).setValue((s.aiShareFolders ?? []).join('\n')).onChange((v) => {
-                    s.aiShareFolders = normaliseShareFolders(v.split('\n'));
+                // The allow-list decides what leaves the vault, so half-typed lines are a draft: it takes effect when the field is left.
+                let draft = (s.aiShareFolders ?? []).join('\n');
+                ta.setPlaceholder(c.shareFoldersPlaceholder).setValue(draft).onChange((v) => { draft = v; });
+                ta.inputEl.rows = 4;
+                ta.inputEl.addEventListener('blur', () => {
+                    const next = normaliseShareFolders(draft.split('\n'));
+                    if (JSON.stringify(next) === JSON.stringify(s.aiShareFolders ?? [])) return;
+                    s.aiShareFolders = next;
                     save();
                 });
-                ta.inputEl.rows = 4;
             });
 
         new Setting(this.containerEl).setName(c.optInName).setDesc(c.optInDesc)

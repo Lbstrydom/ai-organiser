@@ -54,6 +54,10 @@ export function shareFolderOf(path: string, settings: Pick<ShareSettings, 'aiSha
     return best;
 }
 
+/** The name every pack file has. A pack is never an ordinary note: this holds wherever the pack folder is or used to be. */
+export const PACK_FILE_NAME = /^pack-\d{8}-\d{6}-[0-9a-f]{12}\.md$/;
+export const looksLikePack = (path: string): boolean => PACK_FILE_NAME.test(normalisePath(path).slice(normalisePath(path).lastIndexOf('/') + 1));
+
 /** The pack folder is always excluded. An empty pack folder is treated as the vault root would be: nothing is shareable (fail closed). */
 function insidePackFolder(path: string, packFolder: string): boolean {
     const folder = normalisePath(packFolder.trim());
@@ -63,7 +67,7 @@ function insidePackFolder(path: string, packFolder: string): boolean {
 /** True when a note may be included in a pack, an instructions copy or (with the opt-in) the connector and vault map. */
 export function isAiShareable(path: string, settings: ShareSettings, packFolder: string): boolean {
     if (shareFolderOf(path, settings) === null) return false;
-    if (insidePackFolder(path, packFolder)) return false;
+    if (insidePackFolder(path, packFolder) || looksLikePack(path)) return false;
     return isInIndexScope(path, scopeConfigFromSettings(settings));
 }
 
@@ -72,7 +76,7 @@ export type NotShareableReason = 'outside-allow-list' | 'in-pack-folder' | 'kept
 
 export function notShareableReason(path: string, settings: ShareSettings, packFolder: string): NotShareableReason | null {
     if (shareFolderOf(path, settings) === null) return 'outside-allow-list';
-    if (insidePackFolder(path, packFolder)) return 'in-pack-folder';
+    if (insidePackFolder(path, packFolder) || looksLikePack(path)) return 'in-pack-folder';
     return isInIndexScope(path, scopeConfigFromSettings(settings)) ? null : 'kept-out';
 }
 
