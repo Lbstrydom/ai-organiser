@@ -44,8 +44,15 @@ Command **Review AI hand-back** on the open note. Gate: `ai-workspaces` AND `cap
 
 Not written: stamping the project id into the hand-back note's frontmatter (the journal and the mapping carry it).
 
+## Connector and vault map (AI sharing opt-in, pack tool)
+
+Settings: **Apply this list to the connector and the vault map** (`aiShareRequireOptIn`, default off). It is on only while `ai-workspaces` is on (`shareOptInActive`).
+
+- **Off (default)**: the connector and the vault map serve exactly what they always did; the published scope document has no sharing fields while `ai-workspaces` is off, and its revision is the one it always had (pinned by a test that recomputes the legacy hash).
+- **On**: the scope document gains `requireOptIn: true` and `shareFolders`; the server's `scopeAllows` (a transliteration kept in step by a generated-path parity suite) serves a note only if it is ALSO inside a share folder (default deny: an empty list serves nothing), and `folderVisible` shows a folder only if it is inside, or on the way to, one. The vault map applies the same filter, and the export confirmation is bound to the allow-list. A scope document that asks for the opt-in without a readable allow-list is invalid and the server fails closed.
+- **Pack tool `get_workspace_pack { id }`**: listed only while the published scope carries `packs: { folder, revision }` (that is, while AI workspaces are on). It serves the latest pack of one project, read-only, and re-checks at serving time: the pointer (`latest.json`, written beside the pack with its `sources`) must carry the policy revision published now, every source must pass `scopeAllows` AND the share allow-list AND lie outside the pack folder, the pointer must name a pack file in that project's own folder, and the file's SHA-256 must equal the pointer's digest. Any failure is "no longer available"; changing the allow-list republishes the scope (new revision), which withdraws older packs at once. Packs follow the allow-list with or without the opt-in.
+- Deviation from the original plan: the pack policy travels inside the scope document (one atomic, tombstoned publication) rather than a separate `share-policy.json`, so a scope and a policy can never disagree.
+
 ## Not in this slice
 
-The read-only connector tool `get_workspace_pack`, the signed share-policy publication and the `aiShareRequireOptIn` toggle for
-the connector and vault map are a later change. `aiShareRequireOptIn` exists in the schema (default false, part of the policy
-revision) but has no settings row yet, because nothing reads it. 
+Hand-back from the connector (a mailbox tool) is deferred by the roadmap. A signed manifest in the cryptographic sense is not built: the digest and the policy revision bind a pack to what the plugin wrote and published, in the same way the scope document is trusted (a vault write is already full access).

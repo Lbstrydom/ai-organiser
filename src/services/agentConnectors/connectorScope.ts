@@ -9,13 +9,15 @@
  */
 import type { DataAdapter } from 'obsidian';
 import { Result, ok, err } from '../../core/result';
-import { assertWritable, resolveProtectedFolders } from '../../core/protectedPaths';
+import { assertWritable, normalisePath, resolveProtectedFolders } from '../../core/protectedPaths';
 import type { AIOrganiserSettings } from '../../core/settings';
 import { isFeatureEnabled } from '../featureService';
 import { sha256Hex } from '../attachmentDuplicateService';
 import { planOutput, scopeConfigFromSettings } from '../agentIndex/agentIndexService';
 import { CONNECTOR_SCOPE_GENERATOR, CONNECTOR_SCOPE_PATH } from './connectorServerSource';
 import { logger } from '../../utils/logger';
+import { normaliseShareFolders, sharePolicyRevision } from '../aiWorkspaces/aiShareScope';
+import { packFolderPath } from '../aiWorkspaces/packStore';
 
 export { CONNECTOR_SCOPE_PATH, CONNECTOR_SCOPE_GENERATOR };
 
@@ -29,17 +31,29 @@ export interface ScopeDocument {
     excludeFolders: string[];
     protectedFolders: string[];
     indexPath: string;
+    /**
+     * AI sharing (see `aiShareScope.ts`). Present only while `ai-workspaces` is on and either the opt-in is on or packs are served,
+     * so a scope document made without AI workspaces is byte-identical to what it always was.
+     * `shareFolders` is the allow-list; with `requireOptIn` true the notes the connector serves must also be inside it.
+     */
+    shareFolders?: string[];
+    requireOptIn?: true;
+    /** Present while packs may be served: where they live and the share-policy revision they must have been made under */
+    packs?: { folder: string; revision: string };
 }
 
 type ScopeSettings = Pick<AIOrganiserSettings,
-    'featureFlags' | 'protectedFolders' | 'agentIndexOutputPath' | 'agentIndexIncludeFolders' | 'agentIndexExcludeFolders'
+    'featureFlags' | 'protectedFolders' | 'agentIndexOutputPath' | 'aiShareFolders' | 'aiShareRequireOptIn' | 'aiWorkspacePackFolder' | 'agentIndexIncludeFolders' | 'agentIndexExcludeFolders'
     | 'agentIndexIncludeAliases' | 'agentIndexIncludeHeadings' | 'agentIndexFrontmatterKeys' | 'agentIndexExportUnresolvedLinks'>;
 
 const sorted = (list: readonly string[]): string[] => [...new Set(list)].sort();
 
 /** The content the revision covers: everything that decides what the connector may serve. */
 async function revisionOf(body: Omit<ScopeDocument, 'revision' | 'generatedAt'>): Promise<string> {
-    const canonical = JSON.stringify([body.disabled, body.includeFolders, body.excludeFolders, body.protectedFolders, body.indexPath]);
+    // The AI sharing fields join the hash only when present, so a scope without them keeps the revision it always had.
+    const base: unknown[] = [body.disabled, body.includeFolders, body.excludeFolders, body.protectedFolders, body.indexPath];
+    if (body.shareFolders !== undefined || body.requireOptIn !== undefined || body.packs !== undefined) base.push([body.shareFolders ?? null, body.requireOptIn ?? false, body.packs ?? null]);
+    const canonical = JSON.stringify(base);
     return (await sha256Hex(new TextEncoder().encode(canonical).buffer)).slice(0, 16);
 }
 
@@ -62,6 +76,14 @@ export async function buildScopeDocument(settings: ScopeSettings, now: string): 
             protectedFolders: sorted(resolveProtectedFolders(settings.protectedFolders)),
             indexPath: plan.value.path,
         };
+        // AI sharing: only while AI workspaces are on. The allow-list is published for packs, and gates the notes only on opt-in.
+        if (isFeatureEnabled(settings as never, 'ai-workspaces')) {
+            const optIn = settings.aiShareRequireOptIn === true;
+            body.shareFolders = sorted(normaliseShareFolders(settings.aiShareFolders));
+            if (optIn) body.requireOptIn = true;
+            const folder = packFolderPath(settings.aiWorkspacePackFolder, settings.protectedFolders);
+            if (folder.ok) body.packs = { folder: folder.value, revision: await sharePolicyRevision(settings as never, folder.value) };
+        }
     }
     return ok({ ...body, revision: await revisionOf(body), generatedAt: now });
 }
@@ -74,6 +96,17 @@ export function parseScopeDocument(text: string): ScopeDocument | null {
         const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === 'string');
         if (d.generator !== CONNECTOR_SCOPE_GENERATOR || d.version !== 1 || typeof d.revision !== 'string' || typeof d.generatedAt !== 'string' || typeof d.disabled !== 'boolean') return null;
         if (!strings(d.includeFolders) || !strings(d.excludeFolders) || !strings(d.protectedFolders) || typeof d.indexPath !== 'string') return null;
+        if (d.shareFolders !== undefined && !strings(d.shareFolders)) return null;
+        if (d.requireOptIn !== undefined && d.requireOptIn !== true) return null;
+        // Opting in without an allow-list is not a document we wrote.
+        if (d.requireOptIn === true && d.shareFolders === undefined) return null;
+        if (d.packs !== undefined) {
+            const p = d.packs as Record<string, unknown> | null;
+            if (!p || typeof p !== 'object' || typeof p.folder !== 'string' || typeof p.revision !== 'string' || d.shareFolders === undefined) return null;
+            // The same rule the server applies: a visible, non-empty folder.
+            const folder = normalisePath(p.folder.trim());
+            if (folder === '' || folder.split('/').some((seg) => seg.startsWith('.'))) return null;
+        }
         return d as unknown as ScopeDocument;
     } catch {
         return null;
@@ -103,7 +136,10 @@ function sameScope(a: ScopeDocument, b: ScopeDocument): boolean {
   return a.disabled === b.disabled && a.indexPath === b.indexPath
     && sortedList(a.includeFolders) === sortedList(b.includeFolders)
     && sortedList(a.excludeFolders) === sortedList(b.excludeFolders)
-    && sortedList(a.protectedFolders) === sortedList(b.protectedFolders);
+    && sortedList(a.protectedFolders) === sortedList(b.protectedFolders)
+    && (a.requireOptIn === true) === (b.requireOptIn === true)
+    && JSON.stringify(a.shareFolders === undefined ? null : [...a.shareFolders].sort()) === JSON.stringify(b.shareFolders === undefined ? null : [...b.shareFolders].sort())
+    && JSON.stringify(a.packs ?? null) === JSON.stringify(b.packs ?? null);
 }
 
 async function readOurs(adapter: PublishAdapter, path: string): Promise<Result<ScopeDocument | null>> {

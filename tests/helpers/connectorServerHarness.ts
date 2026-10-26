@@ -14,6 +14,11 @@ export interface ScopeShape {
 	protectedFolders?: string[];
 	indexPath?: string;
 	disabled?: boolean;
+	shareFolders?: string[];
+	requireOptIn?: boolean;
+	packs?: { folder: string; revision: string };
+	/** Written over the document as given (for malformed cases) */
+	raw?: Record<string, unknown>;
 }
 
 export interface TestVault {
@@ -46,6 +51,10 @@ export function makeVault(): TestVault {
 				disabled: scope.disabled ?? false,
 				includeFolders: scope.include ?? [], excludeFolders: scope.exclude ?? [], protectedFolders: scope.protectedFolders ?? [],
 				indexPath: scope.indexPath ?? '.ai-organiser/agent-index.jsonl',
+				...(scope.shareFolders !== undefined ? { shareFolders: scope.shareFolders } : {}),
+				...(scope.requireOptIn ? { requireOptIn: true } : {}),
+				...(scope.packs ? { packs: scope.packs } : {}),
+				...(scope.raw ?? {}),
 			}));
 		},
 		writeIndex(notes, indexPath = '.ai-organiser/agent-index.jsonl') {
@@ -136,7 +145,7 @@ export class ServerClient {
 		if (modern) params._meta = { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' };
 		const raw = await this.request('tools/call', params);
 		const result = raw.result as { content?: Array<{ text: string }>; isError?: boolean } | undefined;
-		return { text: (result?.content ?? []).map((c) => c.text), isError: result?.isError ?? false, raw };
+		return { text: (result?.content ?? []).map((c) => c.text), isError: raw.error !== undefined || (result?.isError ?? false), raw };
 	}
 
 	closeInput(): void { this.child.stdin.end(); }

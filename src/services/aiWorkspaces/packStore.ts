@@ -9,9 +9,11 @@ import { assertWritable, normalisePath } from '../../core/protectedPaths';
 import { Result, ok, err } from '../../core/result';
 import { logger } from '../../utils/logger';
 import type { PreparedPack } from './contextPack';
+import { isAioId } from '../projects/projectIndex';
+import { PACK_FILE_NAME } from './aiShareScope';
 import { MAX_PACKS_KEPT, type PackEntry } from './workspaceRecord';
 
-const PACK_FILE = /^pack-\d{8}-\d{6}-[0-9a-f]{12}\.md$/;
+const PACK_FILE = PACK_FILE_NAME;
 
 /** The pack folder, validated: a visible vault-relative path outside the protected folders. */
 export function packFolderPath(raw: string, protectedFolders: Parameters<typeof assertWritable>[0]): Result<string> {
@@ -39,6 +41,17 @@ async function ensureFolder(plugin: AIOrganiserPlugin, dir: string): Promise<voi
     }
 }
 
+/** The name of a pack in `dir` that already holds exactly these bytes, or null. */
+async function samePack(plugin: AIOrganiserPlugin, dir: string, prepared: PreparedPack): Promise<string | null> {
+    const folder = plugin.app.vault.getFolderByPath(dir);
+    if (!folder) return null;
+    const suffix = `-${prepared.digest.slice(0, 12)}.md`;
+    for (const child of folder.children) {
+        if (child instanceof TFile && PACK_FILE.test(child.name) && child.name.endsWith(suffix) && (await plugin.app.vault.read(child)) === prepared.text) return child.name;
+    }
+    return null;
+}
+
 const queues = new WeakMap<object, Promise<unknown>>();
 
 /** Writes and pruning run one at a time per plugin, so two confirmations cannot interleave their publication and retention. */
@@ -52,8 +65,11 @@ async function writeOne(plugin: AIOrganiserPlugin, aioId: string, prepared: Prep
     try {
         const root = packFolderPath(plugin.settings.aiWorkspacePackFolder, plugin.settings.protectedFolders);
         if (!root.ok) return err(root.error);
-        const dir = `${root.value}/${aioId}`;
-        const name = packFileName(now, prepared.digest);
+        // The project id is one path segment (a UUID); nothing else is ever appended to the pack folder.
+        if (!isAioId(aioId)) return err('pack-folder-invalid');
+        const dir = `${root.value}/${aioId.toLowerCase()}`;
+        // The same confirmed bytes are never stored twice: a pack with this digest and these exact bytes is reused whatever its timestamp.
+        const name = (await samePack(plugin, dir, prepared)) ?? packFileName(now, prepared.digest);
         const path = `${dir}/${name}`;
         const pointer = `${dir}/latest.json`;
         if (!assertWritable(plugin.settings.protectedFolders, 'create', [path, pointer]).ok) return err('protected-path');
@@ -64,11 +80,12 @@ async function writeOne(plugin: AIOrganiserPlugin, aioId: string, prepared: Prep
         if (!(existing instanceof TFile)) await vault.create(path, prepared.text);
         else if (await vault.read(existing) !== prepared.text) await vault.modify(existing, prepared.text);
         const entry: PackEntry = { id: name.replace(/\.md$/, ''), createdAt: now.toISOString(), path, digest: prepared.digest };
-        const json = `${JSON.stringify({ packId: entry.id, path, digest: entry.digest, createdAt: entry.createdAt, generatorVersion: prepared.generatorVersion, sharePolicyRevision: prepared.sharePolicyRevision }, null, 2)}\n`;
+        const json = `${JSON.stringify({ packId: entry.id, path, digest: entry.digest, createdAt: entry.createdAt, generatorVersion: prepared.generatorVersion, sharePolicyRevision: prepared.sharePolicyRevision, sources: prepared.sources }, null, 2)}\n`;
         const latest = vault.getAbstractFileByPath(pointer);
         if (latest instanceof TFile) await vault.modify(latest, json);
         else await vault.create(pointer, json);
-        await prune(plugin, dir, name);
+        // The pack and its pointer are committed. A failure while tidying older packs is logged; it never turns a published pack into a failure.
+        try { await prune(plugin, dir, name); } catch (e) { logger.warn('AiWorkspaces', 'Could not remove older packs', e); }
         return ok(entry);
     } catch (e) {
         logger.error('AiWorkspaces', 'Could not write the pack', e);

@@ -7,10 +7,12 @@
 import { FileSystemAdapter, TFile, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
-import { assertWritable, normalisePath, type ProtectedSource } from '../../core/protectedPaths';
+import { assertWritable, isInsideOrEqual, normalisePath, type ProtectedSource } from '../../core/protectedPaths';
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
 import { collectRecords, projectionScope, scopedFiles, scopeConfigFromSettings, scopeHashOf } from '../agentIndex/agentIndexService';
 import { isFeatureEnabled } from '../featureService';
+import { looksLikePack, normaliseShareFolders, shareFolderOf, shareOptInActive } from '../aiWorkspaces/aiShareScope';
+import type { ProjectionScope } from '../agentIndex/agentIndexProjection';
 import { logger } from '../../utils/logger';
 import { buildChatExport, CHAT_EXPORT_INSTRUCTIONS, CHAT_EXPORT_NAME_PATTERN, isOwnExport } from './chatExport';
 import { validateVaultPath } from './connectorGuides';
@@ -47,7 +49,9 @@ async function ensureFolder(plugin: AIOrganiserPlugin, dir: string): Promise<voi
 /** The scope and folder a confirmation applies to. Captured when the confirmation is shown, compared before writing. */
 export async function exportRevision(plugin: AIOrganiserPlugin): Promise<string> {
     const s = plugin.settings;
-    return `${await scopeHashOf(scopeConfigFromSettings(s))}|${s.agentConnectorFolder.trim()}|${JSON.stringify(s.protectedFolders)}`;
+    // With the AI sharing opt-in on, the allow-list is part of what a confirmation was given for; off, the revision is what it always was.
+    const share = isFeatureEnabled(s, 'ai-workspaces') ? `|share:${shareOptInActive(s) ? JSON.stringify(normaliseShareFolders(s.aiShareFolders).sort()) : 'packs'}|${s.aiWorkspacePackFolder.trim()}` : '';
+    return `${await scopeHashOf(scopeConfigFromSettings(s))}|${s.agentConnectorFolder.trim()}|${JSON.stringify(s.protectedFolders)}${share}`;
 }
 
 export interface ExportSummary {
@@ -65,6 +69,16 @@ export interface ExportSummary {
  * the protected list and the feature switch are checked again right before writing and again before
  * any superseded part is trashed. Never throws.
  */
+/** The vault map's scope with the AI sharing opt-in applied: a note appears only if it is also inside the allow-list. Off: unchanged. */
+export function optedInScope(scope: ProjectionScope, s: Parameters<typeof shareOptInActive>[0] & Pick<AIOrganiserPlugin['settings'], 'aiShareFolders' | 'aiWorkspacePackFolder'>): ProjectionScope {
+    // While AI workspaces are on, packs are never listed (the server refuses them as notes too); with the opt-in the allow-list applies as well.
+    if (!isFeatureEnabled(s, 'ai-workspaces')) return scope;
+    const optIn = shareOptInActive(s);
+    return { ...scope, isIncluded: (path: string) => scope.isIncluded(path) && !isPackPath(path, s.aiWorkspacePackFolder) && (!optIn || shareFolderOf(path, s) !== null) };
+}
+
+const isPackPath = (path: string, packFolder: string): boolean => looksLikePack(path) || (packFolder.trim() !== '' && isInsideOrEqual(normalisePath(path), normalisePath(packFolder)));
+
 export async function exportChatProject(plugin: AIOrganiserPlugin, options: { expectedRevision?: string } = {}): Promise<Result<ExportSummary>> {
     try {
         const s = plugin.settings;
@@ -83,7 +97,7 @@ export async function exportChatProject(plugin: AIOrganiserPlugin, options: { ex
         const collected = await collectRecords(plugin.app, scopedFiles(plugin.app, config), config);
         const built = buildChatExport({
             records: collected.records,
-            scope: projectionScope(config),
+            scope: optedInScope(projectionScope(config), s),
             instructions: CHAT_EXPORT_INSTRUCTIONS,
             generatedAt: new Date().toISOString(),
         });
@@ -110,6 +124,8 @@ export async function exportChatProject(plugin: AIOrganiserPlugin, options: { ex
             if (!assertWritable(plugin.settings.protectedFolders, 'create', target.path).ok) return err('protected-path');
             if (target.existing === null) {
                 await ensureFolder(plugin, folder.value);
+                // Everything that authorised this export (the scope, the sharing allow-list, the folder, the feature) is checked again after the wait.
+                if (!(await unchanged())) return err('baseline-changed');
                 if (!assertWritable(plugin.settings.protectedFolders, 'create', target.path).ok) return err('protected-path');
                 if (vault.getAbstractFileByPath(target.path)) return err('connector-file-not-ours');
                 await vault.create(target.path, target.text);

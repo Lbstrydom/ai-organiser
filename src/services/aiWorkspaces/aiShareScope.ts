@@ -13,6 +13,15 @@ import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { isInIndexScope, scopeConfigFromSettings } from '../agentIndex/agentIndexService';
 import { sha256Hex } from '../attachmentDuplicateService';
 import type { AIOrganiserSettings } from '../../core/settings';
+import { isFeatureEnabled } from '../featureService';
+
+/**
+ * The opt-in for the connector and the vault map: on only while AI workspaces are on AND the person turned the opt-in on. Off, the
+ * connector and the map serve exactly what they always did.
+ */
+export function shareOptInActive(settings: Pick<AIOrganiserSettings, 'featureFlags' | 'aiShareRequireOptIn'>): boolean {
+    return isFeatureEnabled(settings, 'ai-workspaces') && settings.aiShareRequireOptIn === true;
+}
 
 /** At most this many allow-list entries. */
 export const MAX_SHARE_FOLDERS = 40;
@@ -45,20 +54,32 @@ export function shareFolderOf(path: string, settings: Pick<ShareSettings, 'aiSha
     return best;
 }
 
+/** The name every pack file has. A pack is never an ordinary note: this holds wherever the pack folder is or used to be. */
+export const PACK_FILE_NAME = /^pack-\d{8}-\d{6}-[0-9a-f]{12}\.md$/;
+/** Case-insensitive on purpose (file systems fold case): a copy named in capitals is still a pack. The store's own names stay strict (`PACK_FILE_NAME`). */
+const PACK_LIKE = new RegExp(PACK_FILE_NAME.source, 'i');
+export const looksLikePack = (path: string): boolean => PACK_LIKE.test(normalisePath(path).slice(normalisePath(path).lastIndexOf('/') + 1));
+
+/** The pack folder is always excluded. An empty pack folder is treated as the vault root would be: nothing is shareable (fail closed). */
+function insidePackFolder(path: string, packFolder: string): boolean {
+    const folder = normalisePath(packFolder.trim());
+    return folder === '' || isInsideOrEqual(normalisePath(path), folder);
+}
+
 /** True when a note may be included in a pack, an instructions copy or (with the opt-in) the connector and vault map. */
-export function isAiShareable(path: string, settings: ShareSettings, packFolder?: string): boolean {
+export function isAiShareable(path: string, settings: ShareSettings, packFolder: string): boolean {
     if (shareFolderOf(path, settings) === null) return false;
-    if (packFolder && packFolder.trim() !== '' && isInsideOrEqual(normalisePath(path), normalisePath(packFolder))) return false;
-    return isInIndexScope(path, scopeConfigFromSettings(settings as never));
+    if (insidePackFolder(path, packFolder) || looksLikePack(path)) return false;
+    return isInIndexScope(path, scopeConfigFromSettings(settings));
 }
 
 /** Why a note is not shareable, for the preview ("outside the allow-list", "protected", ...). */
 export type NotShareableReason = 'outside-allow-list' | 'in-pack-folder' | 'kept-out';
 
-export function notShareableReason(path: string, settings: ShareSettings, packFolder?: string): NotShareableReason | null {
+export function notShareableReason(path: string, settings: ShareSettings, packFolder: string): NotShareableReason | null {
     if (shareFolderOf(path, settings) === null) return 'outside-allow-list';
-    if (packFolder && packFolder.trim() !== '' && isInsideOrEqual(normalisePath(path), normalisePath(packFolder))) return 'in-pack-folder';
-    return isInIndexScope(path, scopeConfigFromSettings(settings as never)) ? null : 'kept-out';
+    if (insidePackFolder(path, packFolder) || looksLikePack(path)) return 'in-pack-folder';
+    return isInIndexScope(path, scopeConfigFromSettings(settings)) ? null : 'kept-out';
 }
 
 /** A hash of everything that decides shareability: an approval made under one revision is refused under another. */

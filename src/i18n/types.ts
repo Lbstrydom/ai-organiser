@@ -4297,6 +4297,8 @@ export interface Translations {
         shareFoldersName: string;
         shareFoldersDesc: string;
         shareFoldersPlaceholder: string;
+        optInName: string;
+        optInDesc: string;
         packFolderName: string;
         packFolderDesc: string;
         revokeNote: string;

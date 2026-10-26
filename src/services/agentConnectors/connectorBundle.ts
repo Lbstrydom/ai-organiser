@@ -17,7 +17,7 @@ export const CONNECTOR_SERVER_FILE = 'ai-organiser-vault-server.cjs';
 /** Written into the ZIP's end record so a later save replaces only a bundle that is ours. */
 export const CONNECTOR_BUNDLE_COMMENT = 'ai-organiser/connector-bundle v1';
 
-export const CONNECTOR_TOOL_NAMES = ['search_notes', 'read_note', 'list_folder'] as const;
+export const CONNECTOR_TOOL_NAMES = ['search_notes', 'read_note', 'list_folder', 'get_workspace_pack'] as const;
 
 /** The extension manifest (spec 0.3, read from the MCPB repository on 2026-10-22). */
 export function buildBundleManifest(pluginVersion: string): Record<string, unknown> {
@@ -40,6 +40,7 @@ export function buildBundleManifest(pluginVersion: string): Record<string, unkno
             { name: 'search_notes', description: 'Search the included notes by title, path, tag, alias or heading.' },
             { name: 'read_note', description: 'Read one included note by its path.' },
             { name: 'list_folder', description: 'List the folders and notes inside a folder.' },
+            { name: 'get_workspace_pack', description: 'Get the latest context pack you made for a project (only while AI workspaces are on).' },
         ],
         user_config: {
             vault_folder: {

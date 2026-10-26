@@ -20,9 +20,9 @@ describe('what the server source contains', () => {
 		expect(source).not.toContain('${');
 	});
 
-	it('requires only fs, path and os', () => {
+	it('requires only fs, path, os and crypto (a hash)', () => {
 		const required = [...source.matchAll(/require\('([^']+)'\)/g)].map((m) => m[1]).sort();
-		expect(required).toEqual(['node:fs', 'node:os', 'node:path']);
+		expect(required).toEqual(['node:crypto', 'node:fs', 'node:os', 'node:path']);
 		expect(source).not.toMatch(/\bimport\s+[\w{*]/);
 	});
 

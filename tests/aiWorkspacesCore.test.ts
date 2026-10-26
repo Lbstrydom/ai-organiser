@@ -16,15 +16,15 @@ const PACK_DIR = 'AI-Organiser/Workspace packs';
 
 describe('AI share scope (default deny)', () => {
   it('shares nothing while the allow-list is empty', () => {
-    expect(isAiShareable('2 Areas/A1/note.md', settings())).toBe(false);
+    expect(isAiShareable('2 Areas/A1/note.md', settings(), PACK_DIR)).toBe(false);
   });
 
   it('shares a note inside an entry and nothing outside it', () => {
     const s = settings({ aiShareFolders: ['2 Areas/A1'] });
-    expect(isAiShareable('2 Areas/A1/note.md', s)).toBe(true);
-    expect(isAiShareable('2 Areas/A1/deep/er/note.md', s)).toBe(true);
-    expect(isAiShareable('2 Areas/A10/note.md', s)).toBe(false);
-    expect(isAiShareable('2 Areas/A2/note.md', s)).toBe(false);
+    expect(isAiShareable('2 Areas/A1/note.md', s, PACK_DIR)).toBe(true);
+    expect(isAiShareable('2 Areas/A1/deep/er/note.md', s, PACK_DIR)).toBe(true);
+    expect(isAiShareable('2 Areas/A10/note.md', s, PACK_DIR)).toBe(false);
+    expect(isAiShareable('2 Areas/A2/note.md', s, PACK_DIR)).toBe(false);
   });
 
   it('keeps hidden, excluded, protected and pack-folder notes out even inside an entry', () => {
@@ -32,11 +32,11 @@ describe('AI share scope (default deny)', () => {
     expect(isAiShareable('Work/ok.md', s, PACK_DIR)).toBe(true);
     expect(isAiShareable('Work/Private/x.md', s, PACK_DIR)).toBe(false);
     expect(isAiShareable('Work/Course/x.md', s, PACK_DIR)).toBe(false);
-    expect(notShareableReason('Work/Private/x.md', s)).toBe('kept-out');
+    expect(notShareableReason('Work/Private/x.md', s, PACK_DIR)).toBe('kept-out');
     const packInside = settings({ aiShareFolders: ['AI-Organiser'] });
     expect(isAiShareable(`${PACK_DIR}/p/latest.json`, packInside, PACK_DIR)).toBe(false);
     expect(notShareableReason(`${PACK_DIR}/p/x.md`, packInside, PACK_DIR)).toBe('in-pack-folder');
-    expect(notShareableReason('Elsewhere/x.md', s)).toBe('outside-allow-list');
+    expect(notShareableReason('Elsewhere/x.md', s, PACK_DIR)).toBe('outside-allow-list');
   });
 
   it('normalises the list and finds the deepest covering entry', () => {
@@ -299,5 +299,26 @@ describe('links come from the metadata cache and fail closed', () => {
     expect(run(text + ' [new](Private/z.md)', good)).toEqual({ ok: false, error: 'links-unverified' });
     expect(run(text, [{ ...good[0], end: 999 }])).toEqual({ ok: false, error: 'links-unverified' });
     expect(run(text, [...good, ...good])).toEqual({ ok: false, error: 'links-unverified' });
+  });
+});
+
+describe('the pack folder is always excluded', () => {
+  it('a missing or empty pack folder shares nothing rather than everything', () => {
+    const s = settings({ aiShareFolders: ['Work'] });
+    expect(isAiShareable('Work/a.md', s, '')).toBe(false);
+    expect(isAiShareable('Work/a.md', s, '   ')).toBe(false);
+    expect(isAiShareable('Work/a.md', s, 'Work/Packs')).toBe(true);
+    expect(isAiShareable('Work/Packs/p.md', s, 'Work/Packs')).toBe(false);
+  });
+});
+
+describe('pack files are never shareable notes', () => {
+  it('a file named like a pack is refused wherever it sits', async () => {
+    const { looksLikePack } = await import('../src/services/aiWorkspaces/aiShareScope');
+    expect(looksLikePack('Anywhere/Deep/pack-20261026-090507-aaaaaaaaaaaa.md')).toBe(true);
+    expect(looksLikePack('Work/pack-notes.md')).toBe(false);
+    const s = settings({ aiShareFolders: ['Work'] });
+    expect(isAiShareable('Work/pack-20261026-090507-aaaaaaaaaaaa.md', s, 'Somewhere/Else')).toBe(false);
+    expect(notShareableReason('Work/pack-20261026-090507-aaaaaaaaaaaa.md', s, 'Somewhere/Else')).toBe('in-pack-folder');
   });
 });

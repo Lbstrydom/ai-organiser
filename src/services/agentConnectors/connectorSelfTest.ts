@@ -14,6 +14,9 @@ import type { SpawnedChild, Spawner } from './localTools';
 export const SELF_TEST_LIMIT_MS = 8000;
 const MODERN = '2026-07-28';
 const TOOLS = 'search_notes,read_note,list_folder';
+/** The pack tool is listed only while the published scope serves packs; the test accepts the list with or without it, nothing else. */
+const TOOLS_WITH_PACK = `${TOOLS},get_workspace_pack`;
+const toolsOk = (listed: string): boolean => listed === TOOLS || listed === TOOLS_WITH_PACK;
 
 export interface SelfTestResult {
     /** Entries the connector shows at the top level of the vault */
@@ -100,7 +103,7 @@ export async function runConnectorSelfTest(spawn: Spawner, serverPath: string, v
         const init = await c.ask('initialize', { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'ai-organiser-test', version: '1' } });
         if (typeof init.result?.protocolVersion !== 'string') return err(FAILED);
         c.notify('notifications/initialized');
-        if (toolNames(await c.ask('tools/list')) !== TOOLS) return err(FAILED);
+        if (!toolsOk(toolNames(await c.ask('tools/list')))) return err(FAILED);
         const items = itemsOf(await c.ask('tools/call', { name: 'list_folder', arguments: {} }));
         return items === null ? err(FAILED) : ok(items);
     });
@@ -112,7 +115,7 @@ export async function runConnectorSelfTest(spawn: Spawner, serverPath: string, v
         const versions = discover.result?.supportedVersions;
         if (!Array.isArray(versions) || !versions.includes(MODERN)) return err(FAILED);
         const tools = await c.ask('tools/list', meta);
-        if (toolNames(tools) !== TOOLS || tools.result?.resultType !== 'complete') return err(FAILED);
+        if (!toolsOk(toolNames(tools)) || tools.result?.resultType !== 'complete') return err(FAILED);
         const call = await c.ask('tools/call', { ...meta, name: 'list_folder', arguments: {} });
         const items = itemsOf(call);
         return items === null || call.result?.resultType !== 'complete' ? err(FAILED) : ok(items);

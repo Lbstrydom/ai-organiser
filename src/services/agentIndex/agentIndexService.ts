@@ -43,7 +43,7 @@ export interface IndexScopeConfig {
     protectedFolders?: readonly string[];
 }
 
-export function scopeConfigFromSettings(s: AIOrganiserPlugin['settings']): IndexScopeConfig {
+export function scopeConfigFromSettings(s: Pick<AIOrganiserPlugin['settings'], 'agentIndexIncludeFolders' | 'agentIndexExcludeFolders' | 'agentIndexIncludeAliases' | 'agentIndexIncludeHeadings' | 'agentIndexFrontmatterKeys' | 'agentIndexExportUnresolvedLinks' | 'protectedFolders'>): IndexScopeConfig {
     return {
         includeFolders: s.agentIndexIncludeFolders,
         excludeFolders: s.agentIndexExcludeFolders,

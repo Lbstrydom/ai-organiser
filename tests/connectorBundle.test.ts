@@ -100,7 +100,7 @@ describe('the extension bundle', () => {
 			mcp_config: { command: 'node', args: ['${__dirname}/server/index.js', '${user_config.vault_folder}'] },
 		});
 		expect(m.user_config.vault_folder).toMatchObject({ type: 'directory', required: true });
-		expect(m.tools.map((t: { name: string }) => t.name)).toEqual(['search_notes', 'read_note', 'list_folder']);
+		expect(m.tools.map((t: { name: string }) => t.name)).toEqual(['search_notes', 'read_note', 'list_folder', 'get_workspace_pack']);
 		expect(m.compatibility.runtimes.node).toBe('>=18');
 		expect(JSON.stringify(buildBundleManifest('1.2.3'))).toBe(JSON.stringify(m));
 	});
@@ -143,7 +143,7 @@ describe('the Codex config snippet', () => {
 		for (const s of samples) expect(decodeTomlBasic(tomlBasicString(s)), JSON.stringify(s)).toBe(s);
 	});
 
-	it('builds the table with the three tools allow-listed and no shell command', () => {
+	it('builds the table with the tools allow-listed and no shell command', () => {
 		const res = buildCodexConfig('C:\\Vaults\\My Vault\\AI connectors\\ai-organiser-vault-server.cjs', 'C:\\Vaults\\My Vault');
 		expect(res).toEqual({
 			ok: true,
@@ -152,7 +152,7 @@ describe('the Codex config snippet', () => {
 				'command = "node"',
 				'args = ["C:\\\\Vaults\\\\My Vault\\\\AI connectors\\\\ai-organiser-vault-server.cjs", "C:\\\\Vaults\\\\My Vault"]',
 				'startup_timeout_sec = 10',
-				'enabled_tools = ["search_notes", "read_note", "list_folder"]',
+				'enabled_tools = ["search_notes", "read_note", "list_folder", "get_workspace_pack"]',
 			].join('\n'),
 		});
 	});
