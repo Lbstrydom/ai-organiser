@@ -16,7 +16,7 @@
 import { Result, ok, err } from '../../core/result';
 import { assertWritable, normalisePath, type ProtectedSource } from '../../core/protectedPaths';
 import { nonBodyLines } from '../../utils/markdownRegions';
-import { VALID_GTD_CONTEXTS } from '../validators/constants';
+import { DEFAULT_SWEEP_CONTEXTS } from './sweepContexts';
 
 export const RUN_ID_PATTERN = /^run-[0-9a-z]{6,24}$/;
 export const TASK_ID_PATTERN = /^aio-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -27,6 +27,8 @@ export interface ReportTask {
     text: string;
     context: string;
     sourcePath: string;
+    /** The context set the task was approved under (absent: the built-in set) */
+    contexts?: readonly string[];
 }
 
 export const startMarker = (runId: string): string => `<!-- aio:sweep run=${runId} -->`;
@@ -43,8 +45,8 @@ export function sanitizeInline(raw: string, max = MAX_TASK_TEXT): string {
     return s;
 }
 
-export function safeContext(context: string): string {
-    return (VALID_GTD_CONTEXTS as readonly string[]).includes(context) ? context : '';
+export function safeContext(context: string, allowed: readonly string[] = DEFAULT_SWEEP_CONTEXTS): string {
+    return allowed.includes(context) ? context : '';
 }
 
 /** A vault path can become a `[[link]]` only when it contains none of the characters links cannot hold. */
@@ -60,7 +62,7 @@ export function renderTaskLine(task: ReportTask): Result<string> {
     if (!TASK_ID_PATTERN.test(task.id)) return err('invalid-task-id');
     const text = sanitizeInline(task.text);
     if (text === '') return err('empty-task');
-    const context = safeContext(task.context);
+    const context = safeContext(task.context, task.contexts);
     return ok(`- [ ] ${text}${context ? ` ${context}` : ''} (${sourceRef(task.sourcePath)}) <!-- aio:task id=${task.id} -->`);
 }
 

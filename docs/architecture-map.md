@@ -1,10 +1,10 @@
 <!-- audit-loop:architectural-map -->
 # Architecture Map — Lbstrydom/ai-organiser
 
-- Generated: 2026-10-25T19:09:03.649Z   commit: 67a4fc94ecb6   refresh_id: 102d748c-bf00-43ad-a43d-02a312b5a5a9
+- Generated: 2026-10-26T01:37:03.284Z   commit: 2855dea2dbb7   refresh_id: f679749c-17e4-417c-8784-c22f9ca99bdb
 - Store: `d5a9d07b91225a93 (db=audit_loop)`
-- Drift score: 121 / threshold 20   status: `RED`
-- Domains: 31   Symbols: 4233   Layering violations (dep-cruiser rules): 0
+- Drift score: 122 / threshold 20   status: `RED`
+- Domains: 31   Symbols: 4245   Layering violations (dep-cruiser rules): 0
 
 ## Contents
 - [audio-narration](#audio-narration) — 47 symbols
@@ -12,7 +12,7 @@
 - [canvas](#canvas) — 35 symbols
 - [chat](#chat) — 112 symbols
 - [commands](#commands) — 278 symbols
-- [core](#core) — 80 symbols
+- [core](#core) — 81 symbols
 - [embeddings](#embeddings) — 17 symbols
 - [export](#export) — 56 symbols
 - [i18n](#i18n) — 3 symbols
@@ -27,13 +27,13 @@
 - [prompts](#prompts) — 129 symbols
 - [research](#research) — 27 symbols
 - [root-scripts](#root-scripts) — 19 symbols
-- [services](#services) — 1143 symbols
+- [services](#services) — 1151 symbols
 - [sketch](#sketch) — 7 symbols
 - [src](#src) — 2 symbols
-- [tests](#tests) — 891 symbols
+- [tests](#tests) — 893 symbols
 - [tests-mocks](#tests-mocks) — 29 symbols
 - [tts](#tts) — 43 symbols
-- [ui](#ui) — 317 symbols
+- [ui](#ui) — 318 symbols
 - [ui-chat](#ui-chat) — 52 symbols
 - [utils](#utils) — 291 symbols
 - [validators](#validators) — 24 symbols
@@ -47,108 +47,108 @@
 flowchart TB
 subgraph dom_audio_narration_64eeaa63497bb156 ["audio-narration"]
   file_src_services_audioNarration_audioNarrati_08c28bc743b4b027["src/services/audioNarration/audioNarrationService.ts"]:::component
-  sym_src_services_audioNarration_audioNarrati_1c2ac9ff22deedba["buildOutputPath"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_1c2ac9ff22deedba
-  sym_src_services_audioNarration_audioNarrati_638f0d85d04b4ff8["describeError"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_638f0d85d04b4ff8
-  sym_src_services_audioNarration_audioNarrati_1e913c604b603149["executeNarration"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_1e913c604b603149
-  sym_src_services_audioNarration_audioNarrati_eab74f85780272b2["isAbort"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_eab74f85780272b2
-  sym_src_services_audioNarration_audioNarrati_c385139af91cf5a2["parentFolder"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_c385139af91cf5a2
-  sym_src_services_audioNarration_audioNarrati_e526461343ef7ca1["prepareNarration"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_e526461343ef7ca1
-  sym_src_services_audioNarration_audioNarrati_b00cb81c75e6aeaf["proseOptionsFromSettings"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_b00cb81c75e6aeaf
-  sym_src_services_audioNarration_audioNarrati_9bad99eca6eb39a3["sanitiseFilename"]:::symbol
-  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_9bad99eca6eb39a3
+  sym_src_services_audioNarration_audioNarrati_56be2e9361dedcad["buildOutputPath"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_56be2e9361dedcad
+  sym_src_services_audioNarration_audioNarrati_d6d0f53a6171c1ea["describeError"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_d6d0f53a6171c1ea
+  sym_src_services_audioNarration_audioNarrati_ab7db9dc541ffe65["executeNarration"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_ab7db9dc541ffe65
+  sym_src_services_audioNarration_audioNarrati_f646da50dc537188["isAbort"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_f646da50dc537188
+  sym_src_services_audioNarration_audioNarrati_91c26d234828f385["parentFolder"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_91c26d234828f385
+  sym_src_services_audioNarration_audioNarrati_4842fb638c2c3d87["prepareNarration"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_4842fb638c2c3d87
+  sym_src_services_audioNarration_audioNarrati_6de54592ccdca614["proseOptionsFromSettings"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_6de54592ccdca614
+  sym_src_services_audioNarration_audioNarrati_29e234122fc54a32["sanitiseFilename"]:::symbol
+  file_src_services_audioNarration_audioNarrati_08c28bc743b4b027 --> sym_src_services_audioNarration_audioNarrati_29e234122fc54a32
   file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba["src/services/audioNarration/llmEnhancerPrompts.ts"]:::component
-  sym_src_services_audioNarration_llmEnhancerP_b95f24d71720c71e["buildEnhancerPrompt"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba --> sym_src_services_audioNarration_llmEnhancerP_b95f24d71720c71e
-  sym_src_services_audioNarration_llmEnhancerP_9e8120b77ee744c1["escapeXml"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba --> sym_src_services_audioNarration_llmEnhancerP_9e8120b77ee744c1
-  sym_src_services_audioNarration_llmEnhancerP_b399833c038181c0["neutraliseEnvelopeMarkers"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba --> sym_src_services_audioNarration_llmEnhancerP_b399833c038181c0
+  sym_src_services_audioNarration_llmEnhancerP_66e6a791a5d55438["buildEnhancerPrompt"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba --> sym_src_services_audioNarration_llmEnhancerP_66e6a791a5d55438
+  sym_src_services_audioNarration_llmEnhancerP_7267926ad0451c64["escapeXml"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba --> sym_src_services_audioNarration_llmEnhancerP_7267926ad0451c64
+  sym_src_services_audioNarration_llmEnhancerP_32688de0d806d791["neutraliseEnvelopeMarkers"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_23158aaad63d70ba --> sym_src_services_audioNarration_llmEnhancerP_32688de0d806d791
   file_src_services_audioNarration_llmEnhancerP_31643161307d9a72["src/services/audioNarration/llmEnhancerProvider.ts"]:::component
-  sym_src_services_audioNarration_llmEnhancerP_035e229fb5c20ddb["callWithTimeout"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_035e229fb5c20ddb
-  sym_src_services_audioNarration_llmEnhancerP_5eff8d206d2f090d["classifyTransportError"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_5eff8d206d2f090d
-  sym_src_services_audioNarration_llmEnhancerP_d09079f6a2e38578["errOutcome"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_d09079f6a2e38578
-  sym_src_services_audioNarration_llmEnhancerP_98c848c36bbf7412["GeminiEnhancementProvider"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_98c848c36bbf7412
-  sym_src_services_audioNarration_llmEnhancerP_eb07768c94076362["getLlmEnhancementProvider"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_eb07768c94076362
-  sym_src_services_audioNarration_llmEnhancerP_5441ecd167e3cb3d["haikuCacheKey"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_5441ecd167e3cb3d
-  sym_src_services_audioNarration_llmEnhancerP_2485973f6fec1124["HaikuEnhancementProvider"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_2485973f6fec1124
-  sym_src_services_audioNarration_llmEnhancerP_45c20ae77afe5c79["parseEnhancerJson"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_45c20ae77afe5c79
-  sym_src_services_audioNarration_llmEnhancerP_c944b3d55b2b116e["parseRetryAfter"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_c944b3d55b2b116e
-  sym_src_services_audioNarration_llmEnhancerP_16de9da388ea1aa5["resolveLatestHaiku"]:::symbol
-  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_16de9da388ea1aa5
+  sym_src_services_audioNarration_llmEnhancerP_f26808bc290d006e["callWithTimeout"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_f26808bc290d006e
+  sym_src_services_audioNarration_llmEnhancerP_1462e03999e3755e["classifyTransportError"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_1462e03999e3755e
+  sym_src_services_audioNarration_llmEnhancerP_5614a53a20e6f40d["errOutcome"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_5614a53a20e6f40d
+  sym_src_services_audioNarration_llmEnhancerP_840d9230e8ebb38f["GeminiEnhancementProvider"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_840d9230e8ebb38f
+  sym_src_services_audioNarration_llmEnhancerP_e33ca247ba114346["getLlmEnhancementProvider"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_e33ca247ba114346
+  sym_src_services_audioNarration_llmEnhancerP_ccbf8255e48023c5["haikuCacheKey"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_ccbf8255e48023c5
+  sym_src_services_audioNarration_llmEnhancerP_6d2cc9645fc22acc["HaikuEnhancementProvider"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_6d2cc9645fc22acc
+  sym_src_services_audioNarration_llmEnhancerP_31c0d950e9c606e6["parseEnhancerJson"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_31c0d950e9c606e6
+  sym_src_services_audioNarration_llmEnhancerP_c8d6c2c6c1e59319["parseRetryAfter"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_c8d6c2c6c1e59319
+  sym_src_services_audioNarration_llmEnhancerP_f1a74e41511a7ba0["resolveLatestHaiku"]:::symbol
+  file_src_services_audioNarration_llmEnhancerP_31643161307d9a72 --> sym_src_services_audioNarration_llmEnhancerP_f1a74e41511a7ba0
   file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8["src/services/audioNarration/llmMarkdownEnhancer.ts"]:::component
-  sym_src_services_audioNarration_llmMarkdownE_cbf89825579d0710["enhanceMarkdown"]:::symbol
-  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_cbf89825579d0710
-  sym_src_services_audioNarration_llmMarkdownE_c27c6da8b7482a59["extractH1"]:::symbol
-  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_c27c6da8b7482a59
-  sym_src_services_audioNarration_llmMarkdownE_418300d37f3877b9["splitByH2"]:::symbol
-  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_418300d37f3877b9
-  sym_src_services_audioNarration_llmMarkdownE_50d18dd7507c26dd["stripFrontmatter"]:::symbol
-  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_50d18dd7507c26dd
+  sym_src_services_audioNarration_llmMarkdownE_55130206387882c1["enhanceMarkdown"]:::symbol
+  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_55130206387882c1
+  sym_src_services_audioNarration_llmMarkdownE_c01610d3c973061a["extractH1"]:::symbol
+  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_c01610d3c973061a
+  sym_src_services_audioNarration_llmMarkdownE_f9bd93da9176f97a["splitByH2"]:::symbol
+  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_f9bd93da9176f97a
+  sym_src_services_audioNarration_llmMarkdownE_96bb98deea78b11b["stripFrontmatter"]:::symbol
+  file_src_services_audioNarration_llmMarkdownE_46226b9d712555f8 --> sym_src_services_audioNarration_llmMarkdownE_96bb98deea78b11b
   file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74["src/services/audioNarration/markdownToProseTransformer.ts"]:::component
-  sym_src_services_audioNarration_markdownToPr_2bf9773a68a6dba9["capitalize"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_2bf9773a68a6dba9
-  sym_src_services_audioNarration_markdownToPr_8e653db0079d5a56["computeStats"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_8e653db0079d5a56
-  sym_src_services_audioNarration_markdownToPr_ec0cd2c9f811c687["dedupe"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_ec0cd2c9f811c687
-  sym_src_services_audioNarration_markdownToPr_755b05ac6cd9b952["isTableAlignmentRow"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_755b05ac6cd9b952
-  sym_src_services_audioNarration_markdownToPr_216363f5e9597ff1["splitTableRow"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_216363f5e9597ff1
-  sym_src_services_audioNarration_markdownToPr_45d49fcda9178b0b["stripInlineFormatting"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_45d49fcda9178b0b
-  sym_src_services_audioNarration_markdownToPr_c2c8d07c8f901f0c["stripInlineFormattingMinimal"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_c2c8d07c8f901f0c
-  sym_src_services_audioNarration_markdownToPr_406cdcc263fd5cc9["tableToProse"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_406cdcc263fd5cc9
-  sym_src_services_audioNarration_markdownToPr_9e0200edd1bad78d["transformToSpokenProse"]:::symbol
-  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_9e0200edd1bad78d
+  sym_src_services_audioNarration_markdownToPr_c4a274c37464d86f["capitalize"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_c4a274c37464d86f
+  sym_src_services_audioNarration_markdownToPr_2ecff3ba3a667cd8["computeStats"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_2ecff3ba3a667cd8
+  sym_src_services_audioNarration_markdownToPr_49b71e596e91a2b0["dedupe"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_49b71e596e91a2b0
+  sym_src_services_audioNarration_markdownToPr_2eb7bf30525c2e34["isTableAlignmentRow"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_2eb7bf30525c2e34
+  sym_src_services_audioNarration_markdownToPr_70723cd4925b3bfa["splitTableRow"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_70723cd4925b3bfa
+  sym_src_services_audioNarration_markdownToPr_398ed13f0ad49d47["stripInlineFormatting"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_398ed13f0ad49d47
+  sym_src_services_audioNarration_markdownToPr_5d1aefe28e36dd8d["stripInlineFormattingMinimal"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_5d1aefe28e36dd8d
+  sym_src_services_audioNarration_markdownToPr_56f670fafcb6895e["tableToProse"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_56f670fafcb6895e
+  sym_src_services_audioNarration_markdownToPr_b71a5b2b75ecb6ff["transformToSpokenProse"]:::symbol
+  file_src_services_audioNarration_markdownToPr_39145a1bbb1a9e74 --> sym_src_services_audioNarration_markdownToPr_b71a5b2b75ecb6ff
   file_src_services_audioNarration_narrationCos_bff4517962134625["src/services/audioNarration/narrationCostEstimator.ts"]:::component
-  sym_src_services_audioNarration_narrationCos_d69df984863a15b1["estimateLlmEnhancementCostUsd"]:::symbol
-  file_src_services_audioNarration_narrationCos_bff4517962134625 --> sym_src_services_audioNarration_narrationCos_d69df984863a15b1
-  sym_src_services_audioNarration_narrationCos_b08158eff40ce699["estimateNarrationCost"]:::symbol
-  file_src_services_audioNarration_narrationCos_bff4517962134625 --> sym_src_services_audioNarration_narrationCos_b08158eff40ce699
+  sym_src_services_audioNarration_narrationCos_e4610ac5ff5e170d["estimateLlmEnhancementCostUsd"]:::symbol
+  file_src_services_audioNarration_narrationCos_bff4517962134625 --> sym_src_services_audioNarration_narrationCos_e4610ac5ff5e170d
+  sym_src_services_audioNarration_narrationCos_a6208e6dabbcf127["estimateNarrationCost"]:::symbol
+  file_src_services_audioNarration_narrationCos_bff4517962134625 --> sym_src_services_audioNarration_narrationCos_a6208e6dabbcf127
   file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d["src/services/audioNarration/narrationEmbedManager.ts"]:::component
-  sym_src_services_audioNarration_narrationEmb_e5143276e6225f21["buildBlock"]:::symbol
-  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_e5143276e6225f21
-  sym_src_services_audioNarration_narrationEmb_5d5dfee11dd707b6["describeError"]:::symbol
-  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_5d5dfee11dd707b6
-  sym_src_services_audioNarration_narrationEmb_66bb2fcfa75eb940["findEmbedBlock"]:::symbol
-  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_66bb2fcfa75eb940
-  sym_src_services_audioNarration_narrationEmb_8766c25f525f7c58["syncEmbed"]:::symbol
-  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_8766c25f525f7c58
+  sym_src_services_audioNarration_narrationEmb_774b31b2dd8153ad["buildBlock"]:::symbol
+  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_774b31b2dd8153ad
+  sym_src_services_audioNarration_narrationEmb_cf0ed438b8b9da02["describeError"]:::symbol
+  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_cf0ed438b8b9da02
+  sym_src_services_audioNarration_narrationEmb_e9261ea7e6de881c["findEmbedBlock"]:::symbol
+  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_e9261ea7e6de881c
+  sym_src_services_audioNarration_narrationEmb_8fde33f497471544["syncEmbed"]:::symbol
+  file_src_services_audioNarration_narrationEmb_a76b7fdd8803320d --> sym_src_services_audioNarration_narrationEmb_8fde33f497471544
   file_src_services_audioNarration_narrationJob_6a72f2901b3ab01f["src/services/audioNarration/narrationJobRegistry.ts"]:::component
-  sym_src_services_audioNarration_narrationJob_67a62a0158e20933["JobInFlightError"]:::symbol
-  file_src_services_audioNarration_narrationJob_6a72f2901b3ab01f --> sym_src_services_audioNarration_narrationJob_67a62a0158e20933
-  sym_src_services_audioNarration_narrationJob_8891da50cf802ce1["NarrationJobRegistry"]:::symbol
-  file_src_services_audioNarration_narrationJob_6a72f2901b3ab01f --> sym_src_services_audioNarration_narrationJob_8891da50cf802ce1
+  sym_src_services_audioNarration_narrationJob_fe6d35dd4c3c3f02["JobInFlightError"]:::symbol
+  file_src_services_audioNarration_narrationJob_6a72f2901b3ab01f --> sym_src_services_audioNarration_narrationJob_fe6d35dd4c3c3f02
+  sym_src_services_audioNarration_narrationJob_3d6dcdebd30dc71b["NarrationJobRegistry"]:::symbol
+  file_src_services_audioNarration_narrationJob_6a72f2901b3ab01f --> sym_src_services_audioNarration_narrationJob_3d6dcdebd30dc71b
   file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f["src/services/audioNarration/narrationTypes.ts"]:::component
-  sym_src_services_audioNarration_narrationTyp_bb1e40f7bcdcf1ff["decodeError"]:::symbol
-  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_bb1e40f7bcdcf1ff
-  sym_src_services_audioNarration_narrationTyp_6997f15a796980d4["encodeError"]:::symbol
-  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_6997f15a796980d4
-  sym_src_services_audioNarration_narrationTyp_0050bbbaf1ca3a8f["errFrom"]:::symbol
-  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_0050bbbaf1ca3a8f
-  sym_src_services_audioNarration_narrationTyp_1aabfebd5bdc3043["isNarrationErrorCode"]:::symbol
-  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_1aabfebd5bdc3043
-  sym_src_services_audioNarration_narrationTyp_09ef1d2106585ae3["makeError"]:::symbol
-  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_09ef1d2106585ae3
+  sym_src_services_audioNarration_narrationTyp_d03fdb98c9c9e2d0["decodeError"]:::symbol
+  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_d03fdb98c9c9e2d0
+  sym_src_services_audioNarration_narrationTyp_3b74804dc5fe9b8a["encodeError"]:::symbol
+  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_3b74804dc5fe9b8a
+  sym_src_services_audioNarration_narrationTyp_009dd8ea6eaa6b8f["errFrom"]:::symbol
+  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_009dd8ea6eaa6b8f
+  sym_src_services_audioNarration_narrationTyp_766f49b4bea416f6["isNarrationErrorCode"]:::symbol
+  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_766f49b4bea416f6
+  sym_src_services_audioNarration_narrationTyp_fd13d20a72fff072["makeError"]:::symbol
+  file_src_services_audioNarration_narrationTyp_7f57d1eb8409675f --> sym_src_services_audioNarration_narrationTyp_fd13d20a72fff072
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -217,92 +217,92 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_audit_loop_scripts_a8aa14f3ba7a27d8 ["audit-loop-scripts"]
   file_scripts_automated_tests_js_59d2054414e25933["scripts/automated-tests.js"]:::component
-  sym_scripts_automated_tests_js_assertContain_c20c0a195acd5653["assertContains"]:::symbol
-  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_assertContain_c20c0a195acd5653
-  sym_scripts_automated_tests_js_assertEqual_7bfd7bbc8ba57719["assertEqual"]:::symbol
-  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_assertEqual_7bfd7bbc8ba57719
-  sym_scripts_automated_tests_js_assertTrue_d63210724971f78a["assertTrue"]:::symbol
-  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_assertTrue_d63210724971f78a
-  sym_scripts_automated_tests_js_test_4594edcd18f3c214["test"]:::symbol
-  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_test_4594edcd18f3c214
+  sym_scripts_automated_tests_js_assertContain_5f4d132c20d72a68["assertContains"]:::symbol
+  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_assertContain_5f4d132c20d72a68
+  sym_scripts_automated_tests_js_assertEqual_0dd0d676daf2a336["assertEqual"]:::symbol
+  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_assertEqual_0dd0d676daf2a336
+  sym_scripts_automated_tests_js_assertTrue_533cb5f5d2aa2bb7["assertTrue"]:::symbol
+  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_assertTrue_533cb5f5d2aa2bb7
+  sym_scripts_automated_tests_js_test_1213ab5592686003["test"]:::symbol
+  file_scripts_automated_tests_js_59d2054414e25933 --> sym_scripts_automated_tests_js_test_1213ab5592686003
   file_scripts_check_private_staged_mjs_a54daf0e7d5774fc["scripts/check-private-staged.mjs"]:::component
-  sym_scripts_check_private_staged_mjs_checkSt_a44f980faa7dc90b["checkStaged"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_checkSt_a44f980faa7dc90b
-  sym_scripts_check_private_staged_mjs_git_a72de7968dfb9785["git"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_git_a72de7968dfb9785
-  sym_scripts_check_private_staged_mjs_globToR_d891d65099612cce["globToRegExp"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_globToR_d891d65099612cce
-  sym_scripts_check_private_staged_mjs_loadGua_97bc21f463f217c6["loadGuardConfig"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_loadGua_97bc21f463f217c6
-  sym_scripts_check_private_staged_mjs_normali_f565de3cad154953["normalisePath"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_normali_f565de3cad154953
-  sym_scripts_check_private_staged_mjs_parseRa_e94477d75c904dc8["parseRawDiff"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_parseRa_e94477d75c904dc8
-  sym_scripts_check_private_staged_mjs_readBlo_018ad883414de956["readBlobById"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_readBlo_018ad883414de956
-  sym_scripts_check_private_staged_mjs_run_64c1f11c97e26d9b["run"]:::symbol
-  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_run_64c1f11c97e26d9b
+  sym_scripts_check_private_staged_mjs_checkSt_870cdd4af4b535b4["checkStaged"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_checkSt_870cdd4af4b535b4
+  sym_scripts_check_private_staged_mjs_git_3d6ac3eb8bd2754e["git"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_git_3d6ac3eb8bd2754e
+  sym_scripts_check_private_staged_mjs_globToR_e63104d1364fc635["globToRegExp"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_globToR_e63104d1364fc635
+  sym_scripts_check_private_staged_mjs_loadGua_d17c6bac58620eba["loadGuardConfig"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_loadGua_d17c6bac58620eba
+  sym_scripts_check_private_staged_mjs_normali_ce49c39bb6547abc["normalisePath"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_normali_ce49c39bb6547abc
+  sym_scripts_check_private_staged_mjs_parseRa_9036a9e96261f081["parseRawDiff"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_parseRa_9036a9e96261f081
+  sym_scripts_check_private_staged_mjs_readBlo_0c426d92b58810e4["readBlobById"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_readBlo_0c426d92b58810e4
+  sym_scripts_check_private_staged_mjs_run_8433a51cacb61060["run"]:::symbol
+  file_scripts_check_private_staged_mjs_a54daf0e7d5774fc --> sym_scripts_check_private_staged_mjs_run_8433a51cacb61060
   file_scripts_check_version_bump_mjs_9582c07f4d11cccb["scripts/check-version-bump.mjs"]:::component
-  sym_scripts_check_version_bump_mjs_evaluate_41e79911215b5319["evaluate"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_evaluate_41e79911215b5319
-  sym_scripts_check_version_bump_mjs_findVersi_58c0cad7cb18b2e4["findVersionChanges"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_findVersi_58c0cad7cb18b2e4
-  sym_scripts_check_version_bump_mjs_fingerpri_ce63bf670f4d7d7b["fingerprint"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_fingerpri_ce63bf670f4d7d7b
-  sym_scripts_check_version_bump_mjs_git_8cadc309f361aaf3["git"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_git_8cadc309f361aaf3
-  sym_scripts_check_version_bump_mjs_hasReleas_7c6a699a10637446["hasReleaseLabel"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_hasReleas_7c6a699a10637446
-  sym_scripts_check_version_bump_mjs_isPlainOb_bfaba03a3bcee198["isPlainObject"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_isPlainOb_bfaba03a3bcee198
-  sym_scripts_check_version_bump_mjs_main_7284afd9a2001a06["main"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_main_7284afd9a2001a06
-  sym_scripts_check_version_bump_mjs_nonEmptyS_637f56f543a4ca18["nonEmptyString"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_nonEmptyS_637f56f543a4ca18
-  sym_scripts_check_version_bump_mjs_parseArgs_f2d6a5d1d54e4dbc["parseArgs"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_parseArgs_f2d6a5d1d54e4dbc
-  sym_scripts_check_version_bump_mjs_parseLabe_b6efad03c74405b0["parseLabels"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_parseLabe_b6efad03c74405b0
-  sym_scripts_check_version_bump_mjs_parseLabe_be07b29add948fc6["parseLabelsJson"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_parseLabe_be07b29add948fc6
-  sym_scripts_check_version_bump_mjs_readFileA_0574e5ff74c30d23["readFileAtRef"]:::symbol
-  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_readFileA_0574e5ff74c30d23
+  sym_scripts_check_version_bump_mjs_evaluate_e2769c42519003cd["evaluate"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_evaluate_e2769c42519003cd
+  sym_scripts_check_version_bump_mjs_findVersi_d70cef19f90f9970["findVersionChanges"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_findVersi_d70cef19f90f9970
+  sym_scripts_check_version_bump_mjs_fingerpri_0602bd44478ef268["fingerprint"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_fingerpri_0602bd44478ef268
+  sym_scripts_check_version_bump_mjs_git_60aece57b92c9f9d["git"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_git_60aece57b92c9f9d
+  sym_scripts_check_version_bump_mjs_hasReleas_049a48d6e87db82f["hasReleaseLabel"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_hasReleas_049a48d6e87db82f
+  sym_scripts_check_version_bump_mjs_isPlainOb_7a80c112a89cd36c["isPlainObject"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_isPlainOb_7a80c112a89cd36c
+  sym_scripts_check_version_bump_mjs_main_5dcd41f32c5abd7e["main"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_main_5dcd41f32c5abd7e
+  sym_scripts_check_version_bump_mjs_nonEmptyS_5584debbe2a956cf["nonEmptyString"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_nonEmptyS_5584debbe2a956cf
+  sym_scripts_check_version_bump_mjs_parseArgs_fb9a359913eee10c["parseArgs"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_parseArgs_fb9a359913eee10c
+  sym_scripts_check_version_bump_mjs_parseLabe_c1e12b6845656cf4["parseLabels"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_parseLabe_c1e12b6845656cf4
+  sym_scripts_check_version_bump_mjs_parseLabe_70881b0e1c07ab32["parseLabelsJson"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_parseLabe_70881b0e1c07ab32
+  sym_scripts_check_version_bump_mjs_readFileA_f3c9165bec5ef4e8["readFileAtRef"]:::symbol
+  file_scripts_check_version_bump_mjs_9582c07f4d11cccb --> sym_scripts_check_version_bump_mjs_readFileA_f3c9165bec5ef4e8
   file_scripts_install_private_hook_mjs_f02c50222066095c["scripts/install-private-hook.mjs"]:::component
-  sym_scripts_install_private_hook_mjs_buildHo_48ea2e02a3c4809d["buildHookScript"]:::symbol
-  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_buildHo_48ea2e02a3c4809d
-  sym_scripts_install_private_hook_mjs_install_a125151e55660dc7["installHook"]:::symbol
-  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_install_a125151e55660dc7
-  sym_scripts_install_private_hook_mjs_planIns_13d9aca51bea562c["planInstall"]:::symbol
-  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_planIns_13d9aca51bea562c
-  sym_scripts_install_private_hook_mjs_resolve_11ba5c1de7017a0d["resolveHooksDir"]:::symbol
-  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_resolve_11ba5c1de7017a0d
+  sym_scripts_install_private_hook_mjs_buildHo_f47ab60d16f59ffa["buildHookScript"]:::symbol
+  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_buildHo_f47ab60d16f59ffa
+  sym_scripts_install_private_hook_mjs_install_51dbff214c47dff7["installHook"]:::symbol
+  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_install_51dbff214c47dff7
+  sym_scripts_install_private_hook_mjs_planIns_d1a92c6a3c24316a["planInstall"]:::symbol
+  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_planIns_d1a92c6a3c24316a
+  sym_scripts_install_private_hook_mjs_resolve_6ea2c1d73b2590c9["resolveHooksDir"]:::symbol
+  file_scripts_install_private_hook_mjs_f02c50222066095c --> sym_scripts_install_private_hook_mjs_resolve_6ea2c1d73b2590c9
   file_scripts_jspdfPdfObjectNeutraliser_mjs_e23d5f08f419f38b["scripts/jspdfPdfObjectNeutraliser.mjs"]:::component
-  sym_scripts_jspdfPdfObjectNeutraliser_mjs_ne_87f9a30a663772bf["neutraliseJspdfPdfObjectLoader"]:::symbol
-  file_scripts_jspdfPdfObjectNeutraliser_mjs_e23d5f08f419f38b --> sym_scripts_jspdfPdfObjectNeutraliser_mjs_ne_87f9a30a663772bf
+  sym_scripts_jspdfPdfObjectNeutraliser_mjs_ne_c80c1309c242898f["neutraliseJspdfPdfObjectLoader"]:::symbol
+  file_scripts_jspdfPdfObjectNeutraliser_mjs_e23d5f08f419f38b --> sym_scripts_jspdfPdfObjectNeutraliser_mjs_ne_c80c1309c242898f
   file_scripts_setImmediatePolyfillSignature_mj_151ec8bbf4bd793e["scripts/setImmediatePolyfillSignature.mjs"]:::component
-  sym_scripts_setImmediatePolyfillSignature_mj_171e3fc5d157d46d["containsUnneutralisedPolyfillSignature"]:::symbol
-  file_scripts_setImmediatePolyfillSignature_mj_151ec8bbf4bd793e --> sym_scripts_setImmediatePolyfillSignature_mj_171e3fc5d157d46d
+  sym_scripts_setImmediatePolyfillSignature_mj_049bb94adb8820cd["containsUnneutralisedPolyfillSignature"]:::symbol
+  file_scripts_setImmediatePolyfillSignature_mj_151ec8bbf4bd793e --> sym_scripts_setImmediatePolyfillSignature_mj_049bb94adb8820cd
   file_scripts_verify_build_mjs_bac2dd0f20cc0b32["scripts/verify-build.mjs"]:::component
-  sym_scripts_verify_build_mjs_checkNoManifest_63b921fa1ba03753["checkNoManifestJsonLiteral"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkNoManifest_63b921fa1ba03753
-  sym_scripts_verify_build_mjs_checkNoScriptEl_7ee4ce82b0921340["checkNoScriptElementCreation"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkNoScriptEl_7ee4ce82b0921340
-  sym_scripts_verify_build_mjs_checkSetImmedia_57bcae7570dc0f0f["checkSetImmediatePolyfillNeutralised"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkSetImmedia_57bcae7570dc0f0f
-  sym_scripts_verify_build_mjs_checkVersionSyn_d8d95d2eeb4dc68b["checkVersionSync"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkVersionSyn_d8d95d2eeb4dc68b
-  sym_scripts_verify_build_mjs_isNonNullObject_6f8dbebef3a51b2b["isNonNullObject"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_isNonNullObject_6f8dbebef3a51b2b
-  sym_scripts_verify_build_mjs_loadArtifacts_f6178f04df234268["loadArtifacts"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_loadArtifacts_f6178f04df234268
-  sym_scripts_verify_build_mjs_main_b0bfe51d09d689ad["main"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_main_b0bfe51d09d689ad
-  sym_scripts_verify_build_mjs_NON_EMPTY_STRIN_45772d62fddc56e2["NON_EMPTY_STRING"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_NON_EMPTY_STRIN_45772d62fddc56e2
-  sym_scripts_verify_build_mjs_reportBundleSiz_c070586bdc2c77da["reportBundleSize"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_reportBundleSiz_c070586bdc2c77da
-  sym_scripts_verify_build_mjs_runAllChecks_66414efcf05f758f["runAllChecks"]:::symbol
-  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_runAllChecks_66414efcf05f758f
+  sym_scripts_verify_build_mjs_checkNoManifest_4e32566b76c2b58e["checkNoManifestJsonLiteral"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkNoManifest_4e32566b76c2b58e
+  sym_scripts_verify_build_mjs_checkNoScriptEl_59d624987f9e7031["checkNoScriptElementCreation"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkNoScriptEl_59d624987f9e7031
+  sym_scripts_verify_build_mjs_checkSetImmedia_ba5b7edf2500845d["checkSetImmediatePolyfillNeutralised"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkSetImmedia_ba5b7edf2500845d
+  sym_scripts_verify_build_mjs_checkVersionSyn_4e01c1301576cbc0["checkVersionSync"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_checkVersionSyn_4e01c1301576cbc0
+  sym_scripts_verify_build_mjs_isNonNullObject_ed8751db42aed38d["isNonNullObject"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_isNonNullObject_ed8751db42aed38d
+  sym_scripts_verify_build_mjs_loadArtifacts_b1ed4fac1985bd1e["loadArtifacts"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_loadArtifacts_b1ed4fac1985bd1e
+  sym_scripts_verify_build_mjs_main_0fd0982694f917ad["main"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_main_0fd0982694f917ad
+  sym_scripts_verify_build_mjs_NON_EMPTY_STRIN_89ec12a0a9c0016c["NON_EMPTY_STRING"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_NON_EMPTY_STRIN_89ec12a0a9c0016c
+  sym_scripts_verify_build_mjs_reportBundleSiz_249e5dc2f457764f["reportBundleSize"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_reportBundleSiz_249e5dc2f457764f
+  sym_scripts_verify_build_mjs_runAllChecks_aa3664ce49644e5c["runAllChecks"]:::symbol
+  file_scripts_verify_build_mjs_bac2dd0f20cc0b32 --> sym_scripts_verify_build_mjs_runAllChecks_aa3664ce49644e5c
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -364,81 +364,81 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_canvas_a457e8f04aa796dc ["canvas"]
   file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71["src/services/canvas/canvasUtils.ts"]:::component
-  sym_src_services_canvas_canvasUtils_ts_build_6e2c8353f85409c9["buildCanvasEdge"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_build_6e2c8353f85409c9
-  sym_src_services_canvas_canvasUtils_ts_build_9e70bfc5b5c9977f["buildCanvasNode"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_build_9e70bfc5b5c9977f
-  sym_src_services_canvas_canvasUtils_ts_ensur_c0c022869171943c["ensureCanvasExtension"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_ensur_c0c022869171943c
-  sym_src_services_canvas_canvasUtils_ts_ensur_ddc9162926cc7875["ensureFolderExists"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_ensur_ddc9162926cc7875
-  sym_src_services_canvas_canvasUtils_ts_gener_5ccf096f3ce9a297["generateId"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_gener_5ccf096f3ce9a297
-  sym_src_services_canvas_canvasUtils_ts_getAv_841a14cb443ca009["getAvailableCanvasPath"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_getAv_841a14cb443ca009
-  sym_src_services_canvas_canvasUtils_ts_norma_cf0c1aa24dd195c4["normalizeFolderPath"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_norma_cf0c1aa24dd195c4
-  sym_src_services_canvas_canvasUtils_ts_openC_b234d9c75fc24172["openCanvasFile"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_openC_b234d9c75fc24172
-  sym_src_services_canvas_canvasUtils_ts_sanit_c220d35a3409e193["sanitizeCanvasName"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_sanit_c220d35a3409e193
-  sym_src_services_canvas_canvasUtils_ts_seria_4a5e369e8ac8dd2d["serializeCanvas"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_seria_4a5e369e8ac8dd2d
-  sym_src_services_canvas_canvasUtils_ts_write_e99eb2d38b6cd8a7["writeCanvasFile"]:::symbol
-  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_write_e99eb2d38b6cd8a7
+  sym_src_services_canvas_canvasUtils_ts_build_5f5c6a0a64df7419["buildCanvasEdge"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_build_5f5c6a0a64df7419
+  sym_src_services_canvas_canvasUtils_ts_build_5b322c7a3e8d7231["buildCanvasNode"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_build_5b322c7a3e8d7231
+  sym_src_services_canvas_canvasUtils_ts_ensur_5960c3652578867f["ensureCanvasExtension"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_ensur_5960c3652578867f
+  sym_src_services_canvas_canvasUtils_ts_ensur_3630fd804e04ef5c["ensureFolderExists"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_ensur_3630fd804e04ef5c
+  sym_src_services_canvas_canvasUtils_ts_gener_d8ff6a6b62eef7de["generateId"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_gener_d8ff6a6b62eef7de
+  sym_src_services_canvas_canvasUtils_ts_getAv_6239f5d298317624["getAvailableCanvasPath"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_getAv_6239f5d298317624
+  sym_src_services_canvas_canvasUtils_ts_norma_e0b6000a77783e34["normalizeFolderPath"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_norma_e0b6000a77783e34
+  sym_src_services_canvas_canvasUtils_ts_openC_42df0144bf49824f["openCanvasFile"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_openC_42df0144bf49824f
+  sym_src_services_canvas_canvasUtils_ts_sanit_506f2f2e50061a0e["sanitizeCanvasName"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_sanit_506f2f2e50061a0e
+  sym_src_services_canvas_canvasUtils_ts_seria_48b13981b3e2e4a4["serializeCanvas"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_seria_48b13981b3e2e4a4
+  sym_src_services_canvas_canvasUtils_ts_write_cf802a675d4f993b["writeCanvasFile"]:::symbol
+  file_src_services_canvas_canvasUtils_ts_f142a2fda50cbf71 --> sym_src_services_canvas_canvasUtils_ts_write_cf802a675d4f993b
   file_src_services_canvas_canvasWritePort_ts_40933ce9a50e2b5d["src/services/canvas/canvasWritePort.ts"]:::component
-  sym_src_services_canvas_canvasWritePort_ts_r_37c922830a8b5d7e["rewriteCanvasNodes"]:::symbol
-  file_src_services_canvas_canvasWritePort_ts_40933ce9a50e2b5d --> sym_src_services_canvas_canvasWritePort_ts_r_37c922830a8b5d7e
-  sym_src_services_canvas_canvasWritePort_ts_t_df1aee76ba2246d2["transformCanvas"]:::symbol
-  file_src_services_canvas_canvasWritePort_ts_40933ce9a50e2b5d --> sym_src_services_canvas_canvasWritePort_ts_t_df1aee76ba2246d2
+  sym_src_services_canvas_canvasWritePort_ts_r_17631e5bc6a16706["rewriteCanvasNodes"]:::symbol
+  file_src_services_canvas_canvasWritePort_ts_40933ce9a50e2b5d --> sym_src_services_canvas_canvasWritePort_ts_r_17631e5bc6a16706
+  sym_src_services_canvas_canvasWritePort_ts_t_100c6a6ed2bab67c["transformCanvas"]:::symbol
+  file_src_services_canvas_canvasWritePort_ts_40933ce9a50e2b5d --> sym_src_services_canvas_canvasWritePort_ts_t_100c6a6ed2bab67c
   file_src_services_canvas_clusterBoard_ts_6668b5195db31506["src/services/canvas/clusterBoard.ts"]:::component
-  sym_src_services_canvas_clusterBoard_ts_buil_57e79e85064ee76c["buildClusterBoard"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_buil_57e79e85064ee76c
-  sym_src_services_canvas_clusterBoard_ts_comp_9c140828a6235ef1["computeMaxNotes"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_comp_9c140828a6235ef1
-  sym_src_services_canvas_clusterBoard_ts_dete_fe642e9376eb1f8f["deterministicClustering"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_dete_fe642e9376eb1f8f
-  sym_src_services_canvas_clusterBoard_ts_extr_3554e2edb06d8eef["extractIndexes"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_extr_3554e2edb06d8eef
-  sym_src_services_canvas_clusterBoard_ts_getC_6dfc95bdf27f951b["getClusterColor"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_getC_6dfc95bdf27f951b
-  sym_src_services_canvas_clusterBoard_ts_grou_8d66cd80f58c2d58["groupBySubtag"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_grou_8d66cd80f58c2d58
-  sym_src_services_canvas_clusterBoard_ts_pars_fcea323f676adbf7["parseClusterResponse"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_pars_fcea323f676adbf7
-  sym_src_services_canvas_clusterBoard_ts_rema_f9ca238c28515ebe["remapClusterIds"]:::symbol
-  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_rema_f9ca238c28515ebe
+  sym_src_services_canvas_clusterBoard_ts_buil_becc3faf09da8d50["buildClusterBoard"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_buil_becc3faf09da8d50
+  sym_src_services_canvas_clusterBoard_ts_comp_1c7b14b128e084db["computeMaxNotes"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_comp_1c7b14b128e084db
+  sym_src_services_canvas_clusterBoard_ts_dete_d2f5901fee619037["deterministicClustering"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_dete_d2f5901fee619037
+  sym_src_services_canvas_clusterBoard_ts_extr_d6e990a002ca22ab["extractIndexes"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_extr_d6e990a002ca22ab
+  sym_src_services_canvas_clusterBoard_ts_getC_f08efc5dda056bd6["getClusterColor"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_getC_f08efc5dda056bd6
+  sym_src_services_canvas_clusterBoard_ts_grou_8bba9fd99a468857["groupBySubtag"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_grou_8bba9fd99a468857
+  sym_src_services_canvas_clusterBoard_ts_pars_9ba2024a0691aa9d["parseClusterResponse"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_pars_9ba2024a0691aa9d
+  sym_src_services_canvas_clusterBoard_ts_rema_a9418ddcce032ade["remapClusterIds"]:::symbol
+  file_src_services_canvas_clusterBoard_ts_6668b5195db31506 --> sym_src_services_canvas_clusterBoard_ts_rema_a9418ddcce032ade
   file_src_services_canvas_contextBoard_ts_33a99d91132c8216["src/services/canvas/contextBoard.ts"]:::component
-  sym_src_services_canvas_contextBoard_ts_buil_142e905c0c7f1788["buildContextBoard"]:::symbol
-  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_buil_142e905c0c7f1788
-  sym_src_services_canvas_contextBoard_ts_buil_d7341138fa9c3bb0["buildFileOrMissingNode"]:::symbol
-  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_buil_d7341138fa9c3bb0
-  sym_src_services_canvas_contextBoard_ts_buil_5f3616996b8269d5["buildMissingNode"]:::symbol
-  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_buil_5f3616996b8269d5
-  sym_src_services_canvas_contextBoard_ts_mapC_05f967b19ab114c5["mapContentTypeToNode"]:::symbol
-  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_mapC_05f967b19ab114c5
+  sym_src_services_canvas_contextBoard_ts_buil_1af283f9feb22cf8["buildContextBoard"]:::symbol
+  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_buil_1af283f9feb22cf8
+  sym_src_services_canvas_contextBoard_ts_buil_820d8edacd04f9c3["buildFileOrMissingNode"]:::symbol
+  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_buil_820d8edacd04f9c3
+  sym_src_services_canvas_contextBoard_ts_buil_de8741ba598730ee["buildMissingNode"]:::symbol
+  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_buil_de8741ba598730ee
+  sym_src_services_canvas_contextBoard_ts_mapC_9bccb38b485018f0["mapContentTypeToNode"]:::symbol
+  file_src_services_canvas_contextBoard_ts_33a99d91132c8216 --> sym_src_services_canvas_contextBoard_ts_mapC_9bccb38b485018f0
   file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c["src/services/canvas/investigationBoard.ts"]:::component
-  sym_src_services_canvas_investigationBoard_t_9a1da4de0c89de23["buildInvestigationBoard"]:::symbol
-  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_9a1da4de0c89de23
-  sym_src_services_canvas_investigationBoard_t_dfdd4e155ec51c72["extractLabelArray"]:::symbol
-  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_dfdd4e155ec51c72
-  sym_src_services_canvas_investigationBoard_t_6243865334bd25c0["getFallbackEdgeLabel"]:::symbol
-  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_6243865334bd25c0
-  sym_src_services_canvas_investigationBoard_t_0da38f11320968c7["parseEdgeLabelResponse"]:::symbol
-  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_0da38f11320968c7
+  sym_src_services_canvas_investigationBoard_t_78cfeaa9205828a4["buildInvestigationBoard"]:::symbol
+  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_78cfeaa9205828a4
+  sym_src_services_canvas_investigationBoard_t_6040ecc211a2c332["extractLabelArray"]:::symbol
+  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_6040ecc211a2c332
+  sym_src_services_canvas_investigationBoard_t_c4683ea69a635634["getFallbackEdgeLabel"]:::symbol
+  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_c4683ea69a635634
+  sym_src_services_canvas_investigationBoard_t_3a0e8132c62a146c["parseEdgeLabelResponse"]:::symbol
+  file_src_services_canvas_investigationBoard_t_857bab3ba83dab3c --> sym_src_services_canvas_investigationBoard_t_3a0e8132c62a146c
   file_src_services_canvas_layouts_ts_eb515e52c0f65bce["src/services/canvas/layouts.ts"]:::component
-  sym_src_services_canvas_layouts_ts_adaptiveL_799645ebd204e03b["adaptiveLayout"]:::symbol
-  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_adaptiveL_799645ebd204e03b
-  sym_src_services_canvas_layouts_ts_chooseLay_631eb43a6a216bb9["chooseLayout"]:::symbol
-  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_chooseLay_631eb43a6a216bb9
-  sym_src_services_canvas_layouts_ts_clustered_8410aaab65afd25e["clusteredLayout"]:::symbol
-  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_clustered_8410aaab65afd25e
-  sym_src_services_canvas_layouts_ts_computeEd_98d58b2abda1999e["computeEdgeSides"]:::symbol
-  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_computeEd_98d58b2abda1999e
-  sym_src_services_canvas_layouts_ts_gridLayou_89f14d3edef9aec6["gridLayout"]:::symbol
-  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_gridLayou_89f14d3edef9aec6
-  sym_src_services_canvas_layouts_ts_radialLay_69a673c046b30176["radialLayout"]:::symbol
-  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_radialLay_69a673c046b30176
+  sym_src_services_canvas_layouts_ts_adaptiveL_f0b8d36cf1024854["adaptiveLayout"]:::symbol
+  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_adaptiveL_f0b8d36cf1024854
+  sym_src_services_canvas_layouts_ts_chooseLay_49723c6ab85852d7["chooseLayout"]:::symbol
+  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_chooseLay_49723c6ab85852d7
+  sym_src_services_canvas_layouts_ts_clustered_bc0237a61f3f16ee["clusteredLayout"]:::symbol
+  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_clustered_bc0237a61f3f16ee
+  sym_src_services_canvas_layouts_ts_computeEd_b04076ba422f9b1b["computeEdgeSides"]:::symbol
+  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_computeEd_b04076ba422f9b1b
+  sym_src_services_canvas_layouts_ts_gridLayou_0ba76dac3423971d["gridLayout"]:::symbol
+  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_gridLayou_0ba76dac3423971d
+  sym_src_services_canvas_layouts_ts_radialLay_42349d2dff2e4392["radialLayout"]:::symbol
+  file_src_services_canvas_layouts_ts_eb515e52c0f65bce --> sym_src_services_canvas_layouts_ts_radialLay_42349d2dff2e4392
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -495,37 +495,37 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_chat_31e06f7d89feb99a ["chat"]
   file_src_services_chat_attachmentIndexService_07a8bbdf44af1c82["src/services/chat/attachmentIndexService.ts"]:::component
-  sym_src_services_chat_attachmentIndexService_57a0eb2368547167["AttachmentIndexService"]:::symbol
-  file_src_services_chat_attachmentIndexService_07a8bbdf44af1c82 --> sym_src_services_chat_attachmentIndexService_57a0eb2368547167
-  sym_src_services_chat_attachmentIndexService_c168d7ac25c10bee["cosineSimilarity"]:::symbol
-  file_src_services_chat_attachmentIndexService_07a8bbdf44af1c82 --> sym_src_services_chat_attachmentIndexService_c168d7ac25c10bee
+  sym_src_services_chat_attachmentIndexService_3d89b0b36f4f8579["AttachmentIndexService"]:::symbol
+  file_src_services_chat_attachmentIndexService_07a8bbdf44af1c82 --> sym_src_services_chat_attachmentIndexService_3d89b0b36f4f8579
+  sym_src_services_chat_attachmentIndexService_09dda1c4cae9385a["cosineSimilarity"]:::symbol
+  file_src_services_chat_attachmentIndexService_07a8bbdf44af1c82 --> sym_src_services_chat_attachmentIndexService_09dda1c4cae9385a
   file_src_services_chat_brandThemeService_ts_b0485f45194471fe["src/services/chat/brandThemeService.ts"]:::component
-  sym_src_services_chat_brandThemeService_ts_b_fb601c5968a3c0ff["buildCssFromColors"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_b_fb601c5968a3c0ff
-  sym_src_services_chat_brandThemeService_ts_b_501a8fcb6c022e1d["buildIconCss"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_b_501a8fcb6c022e1d
-  sym_src_services_chat_brandThemeService_ts_e_f93c4d762b1f42a7["extractSection"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_e_f93c4d762b1f42a7
-  sym_src_services_chat_brandThemeService_ts_g_78778d85d53b1a16["getBrandPath"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_g_78778d85d53b1a16
-  sym_src_services_chat_brandThemeService_ts_g_9946669001fc91c5["getDefaultTheme"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_g_9946669001fc91c5
-  sym_src_services_chat_brandThemeService_ts_i_804f9986a88207ad["isBrandAvailable"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_i_804f9986a88207ad
-  sym_src_services_chat_brandThemeService_ts_l_d6d9fddbe2a504ea["loadBrandTheme"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_l_d6d9fddbe2a504ea
-  sym_src_services_chat_brandThemeService_ts_p_9b230d8ab3f2cdb8["parseAuditChecklist"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_9b230d8ab3f2cdb8
-  sym_src_services_chat_brandThemeService_ts_p_bbf47132167871c2["parseBrandFile"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_bbf47132167871c2
-  sym_src_services_chat_brandThemeService_ts_p_64cb4098a0437881["parseColors"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_64cb4098a0437881
-  sym_src_services_chat_brandThemeService_ts_p_860cdc9a3c0a603a["parseFont"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_860cdc9a3c0a603a
-  sym_src_services_chat_brandThemeService_ts_p_f3508ce314e56c82["parseFontFallback"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_f3508ce314e56c82
-  sym_src_services_chat_brandThemeService_ts_p_a4705be705186587["parseLayout"]:::symbol
-  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_a4705be705186587
+  sym_src_services_chat_brandThemeService_ts_b_801fd6480e994cc5["buildCssFromColors"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_b_801fd6480e994cc5
+  sym_src_services_chat_brandThemeService_ts_b_02e5fc131ec233a7["buildIconCss"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_b_02e5fc131ec233a7
+  sym_src_services_chat_brandThemeService_ts_e_1486f519a21d7d42["extractSection"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_e_1486f519a21d7d42
+  sym_src_services_chat_brandThemeService_ts_g_6da9f3bb884b9da7["getBrandPath"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_g_6da9f3bb884b9da7
+  sym_src_services_chat_brandThemeService_ts_g_fdbf68aa0a4841e9["getDefaultTheme"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_g_fdbf68aa0a4841e9
+  sym_src_services_chat_brandThemeService_ts_i_1a621abeb9ed0a85["isBrandAvailable"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_i_1a621abeb9ed0a85
+  sym_src_services_chat_brandThemeService_ts_l_8505223a058c8bdb["loadBrandTheme"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_l_8505223a058c8bdb
+  sym_src_services_chat_brandThemeService_ts_p_57af8a0c4c51ae13["parseAuditChecklist"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_57af8a0c4c51ae13
+  sym_src_services_chat_brandThemeService_ts_p_9dfd9caa49ff5bcb["parseBrandFile"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_9dfd9caa49ff5bcb
+  sym_src_services_chat_brandThemeService_ts_p_96a60f6f5c54053b["parseColors"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_96a60f6f5c54053b
+  sym_src_services_chat_brandThemeService_ts_p_544cf6f882e5f591["parseFont"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_544cf6f882e5f591
+  sym_src_services_chat_brandThemeService_ts_p_bebcbf8684f59a05["parseFontFallback"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_bebcbf8684f59a05
+  sym_src_services_chat_brandThemeService_ts_p_946213cef5a0457f["parseLayout"]:::symbol
+  file_src_services_chat_brandThemeService_ts_b0485f45194471fe --> sym_src_services_chat_brandThemeService_ts_p_946213cef5a0457f
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -661,38 +661,38 @@ _Domain has 112 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_commands_10f5f77eef9a6b43 ["commands"]
   file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d["src/commands/agentConnectorCommands.ts"]:::component
-  sym_src_commands_agentConnectorCommands_ts_c_5fe818db821aa2fb["confirm"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_c_5fe818db821aa2fb
-  sym_src_commands_agentConnectorCommands_ts_e_e9c29a7013aa0cd2["exportWithConfirmation"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_e_e9c29a7013aa0cd2
-  sym_src_commands_agentConnectorCommands_ts_f_52c95c59bfeb48e1["filesText"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_f_52c95c59bfeb48e1
-  sym_src_commands_agentConnectorCommands_ts_o_af04af8f60def2f3["openAgentConnectors"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_o_af04af8f60def2f3
-  sym_src_commands_agentConnectorCommands_ts_p_14065869e4c457bb["previewExport"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_p_14065869e4c457bb
-  sym_src_commands_agentConnectorCommands_ts_r_00b9aa605b4f433a["registerAgentConnectorCommands"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_r_00b9aa605b4f433a
-  sym_src_commands_agentConnectorCommands_ts_r_1bb6c3f0ca149b3e["runExportCommand"]:::symbol
-  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_r_1bb6c3f0ca149b3e
+  sym_src_commands_agentConnectorCommands_ts_c_40b69aa19f0a24ac["confirm"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_c_40b69aa19f0a24ac
+  sym_src_commands_agentConnectorCommands_ts_e_dc4f804d63ec602d["exportWithConfirmation"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_e_dc4f804d63ec602d
+  sym_src_commands_agentConnectorCommands_ts_f_98f3f96260bdc81d["filesText"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_f_98f3f96260bdc81d
+  sym_src_commands_agentConnectorCommands_ts_o_5e36f8c7e67c8625["openAgentConnectors"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_o_5e36f8c7e67c8625
+  sym_src_commands_agentConnectorCommands_ts_p_4ac91ee3bffeca93["previewExport"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_p_4ac91ee3bffeca93
+  sym_src_commands_agentConnectorCommands_ts_r_a23a23f04de58a89["registerAgentConnectorCommands"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_r_a23a23f04de58a89
+  sym_src_commands_agentConnectorCommands_ts_r_6bf0da6009918153["runExportCommand"]:::symbol
+  file_src_commands_agentConnectorCommands_ts_574dddccb382ed7d --> sym_src_commands_agentConnectorCommands_ts_r_6bf0da6009918153
   file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67["src/commands/agentIndexCommands.ts"]:::component
-  sym_src_commands_agentIndexCommands_ts_copyT_61ce10c4fce1e324["copyText"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_copyT_61ce10c4fce1e324
-  sym_src_commands_agentIndexCommands_ts_openA_9e62e2ede3340110["openAgentIndexSetup"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_openA_9e62e2ede3340110
-  sym_src_commands_agentIndexCommands_ts_regis_46afd6b47346440e["registerAgentIndexCommands"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_regis_46afd6b47346440e
-  sym_src_commands_agentIndexCommands_ts_regis_f676dd059eb39985["registerAutoRebuild"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_regis_f676dd059eb39985
-  sym_src_commands_agentIndexCommands_ts_runBu_1220828835786761["runBuild"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_runBu_1220828835786761
-  sym_src_commands_agentIndexCommands_ts_runCh_85b769c417370ab1["runCheck"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_runCh_85b769c417370ab1
-  sym_src_commands_agentIndexCommands_ts_runWr_c3cf209b52fab6e2["runWriteInstructions"]:::symbol
-  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_runWr_c3cf209b52fab6e2
+  sym_src_commands_agentIndexCommands_ts_copyT_b4f0db6edfa22f36["copyText"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_copyT_b4f0db6edfa22f36
+  sym_src_commands_agentIndexCommands_ts_openA_77801559084afdbf["openAgentIndexSetup"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_openA_77801559084afdbf
+  sym_src_commands_agentIndexCommands_ts_regis_b134661074815093["registerAgentIndexCommands"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_regis_b134661074815093
+  sym_src_commands_agentIndexCommands_ts_regis_5a501218ab515d84["registerAutoRebuild"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_regis_5a501218ab515d84
+  sym_src_commands_agentIndexCommands_ts_runBu_b4fa147b805c6181["runBuild"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_runBu_b4fa147b805c6181
+  sym_src_commands_agentIndexCommands_ts_runCh_96f0c1574a8d34fc["runCheck"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_runCh_96f0c1574a8d34fc
+  sym_src_commands_agentIndexCommands_ts_runWr_cd02056ffebfe920["runWriteInstructions"]:::symbol
+  file_src_commands_agentIndexCommands_ts_a61e1ea2ca711d67 --> sym_src_commands_agentIndexCommands_ts_runWr_cd02056ffebfe920
   file_src_commands_audioNarrationCommands_ts_0908dd8ed2de8cc4["src/commands/audioNarrationCommands.ts"]:::component
-  sym_src_commands_audioNarrationCommands_ts_f_f09600e76bb4b825["formatBytes"]:::symbol
-  file_src_commands_audioNarrationCommands_ts_0908dd8ed2de8cc4 --> sym_src_commands_audioNarrationCommands_ts_f_f09600e76bb4b825
+  sym_src_commands_audioNarrationCommands_ts_f_18ece0117aa34f60["formatBytes"]:::symbol
+  file_src_commands_audioNarrationCommands_ts_0908dd8ed2de8cc4 --> sym_src_commands_audioNarrationCommands_ts_f_18ece0117aa34f60
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -734,18 +734,18 @@ _Domain has 278 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`getFilesWithTag`](../src/commands/canvasCommands.ts#L258) | function | `src/commands/canvasCommands.ts` | 258-270 |  | `src/commands/index.ts` |
 | [`registerCanvasCommands`](../src/commands/canvasCommands.ts#L29) | function | `src/commands/canvasCommands.ts` | 29-256 |  | `src/commands/index.ts` |
 | [`resolveCanvasLanguage`](../src/commands/canvasCommands.ts#L16) | function | `src/commands/canvasCommands.ts` | 16-18 |  | `src/commands/index.ts` |
-| [`cancellableNotice`](../src/commands/captureInboxCommands.ts#L77) | function | `src/commands/captureInboxCommands.ts` | 77-83 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`confirmRun`](../src/commands/captureInboxCommands.ts#L85) | function | `src/commands/captureInboxCommands.ts` | 85-87 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`confirmText`](../src/commands/captureInboxCommands.ts#L66) | function | `src/commands/captureInboxCommands.ts` | 66-74 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`getCaptureController`](../src/commands/captureInboxCommands.ts#L52) | function | `src/commands/captureInboxCommands.ts` | 52-54 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`getCorruptJournalStore`](../src/commands/captureInboxCommands.ts#L47) | function | `src/commands/captureInboxCommands.ts` | 47-49 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`guidance`](../src/commands/captureInboxCommands.ts#L56) | function | `src/commands/captureInboxCommands.ts` | 56-58 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`inboxFolders`](../src/commands/captureInboxCommands.ts#L60) | function | `src/commands/captureInboxCommands.ts` | 60-62 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`inInbox`](../src/commands/captureInboxCommands.ts#L64) | function | `src/commands/captureInboxCommands.ts` | 64-64 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`makeController`](../src/commands/captureInboxCommands.ts#L89) | function | `src/commands/captureInboxCommands.ts` | 89-253 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`registerCaptureInboxCommands`](../src/commands/captureInboxCommands.ts#L329) | function | `src/commands/captureInboxCommands.ts` | 329-348 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`start`](../src/commands/captureInboxCommands.ts#L277) | function | `src/commands/captureInboxCommands.ts` | 277-327 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
-| [`trackRenames`](../src/commands/captureInboxCommands.ts#L256) | function | `src/commands/captureInboxCommands.ts` | 256-275 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`cancellableNotice`](../src/commands/captureInboxCommands.ts#L78) | function | `src/commands/captureInboxCommands.ts` | 78-84 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`confirmRun`](../src/commands/captureInboxCommands.ts#L86) | function | `src/commands/captureInboxCommands.ts` | 86-88 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`confirmText`](../src/commands/captureInboxCommands.ts#L67) | function | `src/commands/captureInboxCommands.ts` | 67-75 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`getCaptureController`](../src/commands/captureInboxCommands.ts#L53) | function | `src/commands/captureInboxCommands.ts` | 53-55 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`getCorruptJournalStore`](../src/commands/captureInboxCommands.ts#L48) | function | `src/commands/captureInboxCommands.ts` | 48-50 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`guidance`](../src/commands/captureInboxCommands.ts#L57) | function | `src/commands/captureInboxCommands.ts` | 57-59 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`inboxFolders`](../src/commands/captureInboxCommands.ts#L61) | function | `src/commands/captureInboxCommands.ts` | 61-63 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`inInbox`](../src/commands/captureInboxCommands.ts#L65) | function | `src/commands/captureInboxCommands.ts` | 65-65 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`makeController`](../src/commands/captureInboxCommands.ts#L90) | function | `src/commands/captureInboxCommands.ts` | 90-254 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`registerCaptureInboxCommands`](../src/commands/captureInboxCommands.ts#L332) | function | `src/commands/captureInboxCommands.ts` | 332-351 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`start`](../src/commands/captureInboxCommands.ts#L278) | function | `src/commands/captureInboxCommands.ts` | 278-330 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
+| [`trackRenames`](../src/commands/captureInboxCommands.ts#L257) | function | `src/commands/captureInboxCommands.ts` | 257-276 |  | `src/commands/index.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts`, `tests/captureInboxOffPath.test.ts` |
 | [`handleBuildFromStoryline`](../src/commands/chatCommands.ts#L141) | function | `src/commands/chatCommands.ts` | 141-162 |  | `src/commands/index.ts`, `src/main.ts`, `src/ui/contextMenu.ts` |
 | [`notify`](../src/commands/chatCommands.ts#L17) | function | `src/commands/chatCommands.ts` | 17-19 |  | `src/commands/index.ts`, `src/main.ts`, `src/ui/contextMenu.ts` |
 | [`openAIChat`](../src/commands/chatCommands.ts#L43) | function | `src/commands/chatCommands.ts` | 43-56 |  | `src/commands/index.ts`, `src/main.ts`, `src/ui/contextMenu.ts` |
@@ -994,39 +994,39 @@ _Domain has 278 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_core_0d45f5fd462b8c70 ["core"]
   file_src_core_features_ts_5a4e053b7d5fa493["src/core/features.ts"]:::component
-  sym_src_core_features_ts_freezeDef_e1b4ccc4cceba332["freezeDef"]:::symbol
-  file_src_core_features_ts_5a4e053b7d5fa493 --> sym_src_core_features_ts_freezeDef_e1b4ccc4cceba332
+  sym_src_core_features_ts_freezeDef_4e8e7ccfc74c2bfb["freezeDef"]:::symbol
+  file_src_core_features_ts_5a4e053b7d5fa493 --> sym_src_core_features_ts_freezeDef_4e8e7ccfc74c2bfb
   file_src_core_friendlyErrors_ts_00874c5c471d0ddb["src/core/friendlyErrors.ts"]:::component
-  sym_src_core_friendlyErrors_ts_describeError_f85632a8dd02e3b8["describeError"]:::symbol
-  file_src_core_friendlyErrors_ts_00874c5c471d0ddb --> sym_src_core_friendlyErrors_ts_describeError_f85632a8dd02e3b8
-  sym_src_core_friendlyErrors_ts_formatGuidanc_45406358b16a75d9["formatGuidance"]:::symbol
-  file_src_core_friendlyErrors_ts_00874c5c471d0ddb --> sym_src_core_friendlyErrors_ts_formatGuidanc_45406358b16a75d9
+  sym_src_core_friendlyErrors_ts_describeError_c48090c950729898["describeError"]:::symbol
+  file_src_core_friendlyErrors_ts_00874c5c471d0ddb --> sym_src_core_friendlyErrors_ts_describeError_c48090c950729898
+  sym_src_core_friendlyErrors_ts_formatGuidanc_beaeb516bf962603["formatGuidance"]:::symbol
+  file_src_core_friendlyErrors_ts_00874c5c471d0ddb --> sym_src_core_friendlyErrors_ts_formatGuidanc_beaeb516bf962603
+  sym_src_core_friendlyErrors_ts_formatGuidanc_6e79aff05495dc5a["formatGuidanceInSetup"]:::symbol
+  file_src_core_friendlyErrors_ts_00874c5c471d0ddb --> sym_src_core_friendlyErrors_ts_formatGuidanc_6e79aff05495dc5a
   file_src_core_modelCatalog_ts_13bc46b7764c51a6["src/core/modelCatalog.ts"]:::component
-  sym_src_core_modelCatalog_ts_azureClaudeOpus_c4a3bb87bf71f6ba["azureClaudeOpusIdsNewestFirst"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_azureClaudeOpus_c4a3bb87bf71f6ba
-  sym_src_core_modelCatalog_ts_getAzureModelPr_093c7a0751768c7d["getAzureModelPresets"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getAzureModelPr_093c7a0751768c7d
-  sym_src_core_modelCatalog_ts_getCapabilities_907429e9fcb29059["getCapabilities"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getCapabilities_907429e9fcb29059
-  sym_src_core_modelCatalog_ts_getModelDisplay_53eb5feacd66fadd["getModelDisplayName"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getModelDisplay_53eb5feacd66fadd
-  sym_src_core_modelCatalog_ts_getProviderForM_89f3fcead043678b["getProviderForModel"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getProviderForM_89f3fcead043678b
-  sym_src_core_modelCatalog_ts_isKnownModel_a2ad6d3c90d05fb6["isKnownModel"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_isKnownModel_a2ad6d3c90d05fb6
-  sym_src_core_modelCatalog_ts_resolveDepthMod_fd7ae2ab4ed85f0b["resolveDepthModel"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_resolveDepthMod_fd7ae2ab4ed85f0b
-  sym_src_core_modelCatalog_ts_resolveModelId_0b8ea837d92c6c53["resolveModelId"]:::symbol
-  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_resolveModelId_0b8ea837d92c6c53
+  sym_src_core_modelCatalog_ts_azureClaudeOpus_d422d2c0a6c6856c["azureClaudeOpusIdsNewestFirst"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_azureClaudeOpus_d422d2c0a6c6856c
+  sym_src_core_modelCatalog_ts_getAzureModelPr_fa5702909873b95b["getAzureModelPresets"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getAzureModelPr_fa5702909873b95b
+  sym_src_core_modelCatalog_ts_getCapabilities_ee44d52e79fef02c["getCapabilities"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getCapabilities_ee44d52e79fef02c
+  sym_src_core_modelCatalog_ts_getModelDisplay_dfde7d3bc6dcbc9e["getModelDisplayName"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getModelDisplay_dfde7d3bc6dcbc9e
+  sym_src_core_modelCatalog_ts_getProviderForM_ec9497404a766954["getProviderForModel"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_getProviderForM_ec9497404a766954
+  sym_src_core_modelCatalog_ts_isKnownModel_352576f3c1704e36["isKnownModel"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_isKnownModel_352576f3c1704e36
+  sym_src_core_modelCatalog_ts_resolveDepthMod_5e7cb1458b681430["resolveDepthModel"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_resolveDepthMod_5e7cb1458b681430
+  sym_src_core_modelCatalog_ts_resolveModelId_5de500c88c52e8c0["resolveModelId"]:::symbol
+  file_src_core_modelCatalog_ts_13bc46b7764c51a6 --> sym_src_core_modelCatalog_ts_resolveModelId_5de500c88c52e8c0
   file_src_core_pluginDataStore_ts_1497d4311349336a["src/core/pluginDataStore.ts"]:::component
-  sym_src_core_pluginDataStore_ts_enqueue_7927cc094c012b2f["enqueue"]:::symbol
-  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_enqueue_7927cc094c012b2f
-  sym_src_core_pluginDataStore_ts_loadPluginDa_7b34ccaac61118c6["loadPluginData"]:::symbol
-  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_loadPluginDa_7b34ccaac61118c6
-  sym_src_core_pluginDataStore_ts_saveSettings_2604a69d92a376e1["saveSettingsData"]:::symbol
-  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_saveSettings_2604a69d92a376e1
-  sym_src_core_pluginDataStore_ts_stripDataOnl_99da6e5969624b3d["stripDataOnlyKeys"]:::symbol
-  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_stripDataOnl_99da6e5969624b3d
+  sym_src_core_pluginDataStore_ts_enqueue_78a3cb63d6873f71["enqueue"]:::symbol
+  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_enqueue_78a3cb63d6873f71
+  sym_src_core_pluginDataStore_ts_loadPluginDa_4b48311f4f38ca9a["loadPluginData"]:::symbol
+  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_loadPluginDa_4b48311f4f38ca9a
+  sym_src_core_pluginDataStore_ts_saveSettings_7c783b74fd7a67ee["saveSettingsData"]:::symbol
+  file_src_core_pluginDataStore_ts_1497d4311349336a --> sym_src_core_pluginDataStore_ts_saveSettings_7c783b74fd7a67ee
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1035,15 +1035,16 @@ classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
 classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 ```
 
-_Domain has 80 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+_Domain has 81 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
 
 ### Symbols in this domain
 
 | Symbol | Kind | Path | Lines | Purpose | File imported by |
 |---|---|---|---|---|---|
 | [`freezeDef`](../src/core/features.ts#L96) | function | `src/core/features.ts` | 96-102 |  | `src/core/settings.ts`, `src/main.ts`, `src/services/featureService.ts`, +18 more |
-| [`describeError`](../src/core/friendlyErrors.ts#L179) | function | `src/core/friendlyErrors.ts` | 179-181 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +27 more |
-| [`formatGuidance`](../src/core/friendlyErrors.ts#L184) | function | `src/core/friendlyErrors.ts` | 184-186 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +27 more |
+| [`describeError`](../src/core/friendlyErrors.ts#L180) | function | `src/core/friendlyErrors.ts` | 180-182 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +28 more |
+| [`formatGuidance`](../src/core/friendlyErrors.ts#L193) | function | `src/core/friendlyErrors.ts` | 193-195 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +28 more |
+| [`formatGuidanceInSetup`](../src/core/friendlyErrors.ts#L188) | function | `src/core/friendlyErrors.ts` | 188-190 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +28 more |
 | [`azureClaudeOpusIdsNewestFirst`](../src/core/modelCatalog.ts#L242) | function | `src/core/modelCatalog.ts` | 242-251 |  | `src/services/azure/settingsValidator.ts`, `src/ui/chat/presentation/speedPillModel.ts`, `src/ui/settings/LLMSettingsSection.ts`, +1 more |
 | [`getAzureModelPresets`](../src/core/modelCatalog.ts#L222) | function | `src/core/modelCatalog.ts` | 222-229 |  | `src/services/azure/settingsValidator.ts`, `src/ui/chat/presentation/speedPillModel.ts`, `src/ui/settings/LLMSettingsSection.ts`, +1 more |
 | [`getCapabilities`](../src/core/modelCatalog.ts#L158) | function | `src/core/modelCatalog.ts` | 158-170 |  | `src/services/azure/settingsValidator.ts`, `src/ui/chat/presentation/speedPillModel.ts`, `src/ui/settings/LLMSettingsSection.ts`, +1 more |
@@ -1059,22 +1060,22 @@ _Domain has 80 symbols (>50). Diagram shows top-15 by file order; see flat table
 | [`updatePluginData`](../src/core/pluginDataStore.ts#L108) | function | `src/core/pluginDataStore.ts` | 108-119 |  | `src/main.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/newsletter/catchUp/catchUpCleanup.ts`, +21 more |
 | [`buildBadgeIndex`](../src/core/protectedFolderBadge.ts#L24) | function | `src/core/protectedFolderBadge.ts` | 24-26 |  | `src/ui/explorer/protectedFolderBadge.ts`, `tests/protectedFolderBadgeCss.test.ts`, `tests/protectedFolderBadgeDom.test.ts`, +1 more |
 | [`isBadged`](../src/core/protectedFolderBadge.ts#L29) | function | `src/core/protectedFolderBadge.ts` | 29-33 |  | `src/ui/explorer/protectedFolderBadge.ts`, `tests/protectedFolderBadgeCss.test.ts`, `tests/protectedFolderBadgeDom.test.ts`, +1 more |
-| [`assertWritable`](../src/core/protectedPaths.ts#L103) | function | `src/core/protectedPaths.ts` | 103-116 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`assertWritableActive`](../src/core/protectedPaths.ts#L189) | function | `src/core/protectedPaths.ts` | 189-194 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`findOutputRootConflicts`](../src/core/protectedPaths.ts#L157) | function | `src/core/protectedPaths.ts` | 157-175 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`hasActiveProtection`](../src/core/protectedPaths.ts#L210) | function | `src/core/protectedPaths.ts` | 210-212 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`isInsideOrEqual`](../src/core/protectedPaths.ts#L72) | function | `src/core/protectedPaths.ts` | 72-76 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`isProtectedActive`](../src/core/protectedPaths.ts#L197) | function | `src/core/protectedPaths.ts` | 197-199 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`isProtectedPath`](../src/core/protectedPaths.ts#L79) | function | `src/core/protectedPaths.ts` | 79-83 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`isTargetProtected`](../src/core/protectedPaths.ts#L89) | function | `src/core/protectedPaths.ts` | 89-97 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`key`](../src/core/protectedPaths.ts#L48) | function | `src/core/protectedPaths.ts` | 48-50 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`normalisePath`](../src/core/protectedPaths.ts#L35) | function | `src/core/protectedPaths.ts` | 35-46 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`resolveProtectedFolders`](../src/core/protectedPaths.ts#L53) | function | `src/core/protectedPaths.ts` | 53-69 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`rewriteOnRename`](../src/core/protectedPaths.ts#L122) | function | `src/core/protectedPaths.ts` | 122-143 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`setActiveProtection`](../src/core/protectedPaths.ts#L184) | function | `src/core/protectedPaths.ts` | 184-186 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`splitByProtection`](../src/core/protectedPaths.ts#L202) | function | `src/core/protectedPaths.ts` | 202-207 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +61 more |
-| [`err`](../src/core/result.ts#L6) | function | `src/core/result.ts` | 6-6 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/cloudInventoryCommands.ts`, +148 more |
-| [`ok`](../src/core/result.ts#L5) | function | `src/core/result.ts` | 5-5 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/cloudInventoryCommands.ts`, +148 more |
+| [`assertWritable`](../src/core/protectedPaths.ts#L103) | function | `src/core/protectedPaths.ts` | 103-116 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`assertWritableActive`](../src/core/protectedPaths.ts#L189) | function | `src/core/protectedPaths.ts` | 189-194 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`findOutputRootConflicts`](../src/core/protectedPaths.ts#L157) | function | `src/core/protectedPaths.ts` | 157-175 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`hasActiveProtection`](../src/core/protectedPaths.ts#L210) | function | `src/core/protectedPaths.ts` | 210-212 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`isInsideOrEqual`](../src/core/protectedPaths.ts#L72) | function | `src/core/protectedPaths.ts` | 72-76 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`isProtectedActive`](../src/core/protectedPaths.ts#L197) | function | `src/core/protectedPaths.ts` | 197-199 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`isProtectedPath`](../src/core/protectedPaths.ts#L79) | function | `src/core/protectedPaths.ts` | 79-83 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`isTargetProtected`](../src/core/protectedPaths.ts#L89) | function | `src/core/protectedPaths.ts` | 89-97 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`key`](../src/core/protectedPaths.ts#L48) | function | `src/core/protectedPaths.ts` | 48-50 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`normalisePath`](../src/core/protectedPaths.ts#L35) | function | `src/core/protectedPaths.ts` | 35-46 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`resolveProtectedFolders`](../src/core/protectedPaths.ts#L53) | function | `src/core/protectedPaths.ts` | 53-69 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`rewriteOnRename`](../src/core/protectedPaths.ts#L122) | function | `src/core/protectedPaths.ts` | 122-143 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`setActiveProtection`](../src/core/protectedPaths.ts#L184) | function | `src/core/protectedPaths.ts` | 184-186 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`splitByProtection`](../src/core/protectedPaths.ts#L202) | function | `src/core/protectedPaths.ts` | 202-207 |  | `src/commands/captureInboxCommands.ts`, `src/commands/clearCommands.ts`, `src/commands/inboxSweepCommands.ts`, +62 more |
+| [`err`](../src/core/result.ts#L6) | function | `src/core/result.ts` | 6-6 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/cloudInventoryCommands.ts`, +149 more |
+| [`ok`](../src/core/result.ts#L5) | function | `src/core/result.ts` | 5-5 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/cloudInventoryCommands.ts`, +149 more |
 | [`collapseDuplicatePrefix`](../src/core/settings.ts#L1223) | function | `src/core/settings.ts` | 1223-1233 |  | `src/commands/canvasCommands.ts`, `src/commands/cloudInventoryCommands.ts`, `src/commands/minutesCommands.ts`, +112 more |
 | [`getAudioNarrationFullPath`](../src/core/settings.ts#L1323) | function | `src/core/settings.ts` | 1323-1325 |  | `src/commands/canvasCommands.ts`, `src/commands/cloudInventoryCommands.ts`, `src/commands/minutesCommands.ts`, +112 more |
 | [`getCanvasOutputFullPath`](../src/core/settings.ts#L1331) | function | `src/core/settings.ts` | 1331-1333 |  | `src/commands/canvasCommands.ts`, `src/commands/cloudInventoryCommands.ts`, `src/commands/minutesCommands.ts`, +112 more |
@@ -1130,49 +1131,49 @@ _Domain has 80 symbols (>50). Diagram shows top-15 by file order; see flat table
 flowchart TB
 subgraph dom_embeddings_302049d75567a9b3 ["embeddings"]
   file_src_services_embeddings_cohereEmbeddingS_b2367b8d098cec77["src/services/embeddings/cohereEmbeddingService.ts"]:::component
-  sym_src_services_embeddings_cohereEmbeddingS_89f9298bd910bf83["CohereEmbeddingService"]:::symbol
-  file_src_services_embeddings_cohereEmbeddingS_b2367b8d098cec77 --> sym_src_services_embeddings_cohereEmbeddingS_89f9298bd910bf83
+  sym_src_services_embeddings_cohereEmbeddingS_b31c4c2bf62132f9["CohereEmbeddingService"]:::symbol
+  file_src_services_embeddings_cohereEmbeddingS_b2367b8d098cec77 --> sym_src_services_embeddings_cohereEmbeddingS_b31c4c2bf62132f9
   file_src_services_embeddings_embeddingCooldow_f92f7cc2145e2feb["src/services/embeddings/embeddingCooldown.ts"]:::component
-  sym_src_services_embeddings_embeddingCooldow_ebb9824016e8712b["EmbeddingCooldown"]:::symbol
-  file_src_services_embeddings_embeddingCooldow_f92f7cc2145e2feb --> sym_src_services_embeddings_embeddingCooldow_ebb9824016e8712b
-  sym_src_services_embeddings_embeddingCooldow_36d8ce34828c06b2["parseRetryAfter"]:::symbol
-  file_src_services_embeddings_embeddingCooldow_f92f7cc2145e2feb --> sym_src_services_embeddings_embeddingCooldow_36d8ce34828c06b2
+  sym_src_services_embeddings_embeddingCooldow_65dff4ca17eba082["EmbeddingCooldown"]:::symbol
+  file_src_services_embeddings_embeddingCooldow_f92f7cc2145e2feb --> sym_src_services_embeddings_embeddingCooldow_65dff4ca17eba082
+  sym_src_services_embeddings_embeddingCooldow_acb1c3c5125ede3e["parseRetryAfter"]:::symbol
+  file_src_services_embeddings_embeddingCooldow_f92f7cc2145e2feb --> sym_src_services_embeddings_embeddingCooldow_acb1c3c5125ede3e
   file_src_services_embeddings_embeddingRegistr_1552c014ffd8e40e["src/services/embeddings/embeddingRegistry.ts"]:::component
-  sym_src_services_embeddings_embeddingRegistr_88c2cf7e0a5ad436["getEmbeddingModelOptions"]:::symbol
-  file_src_services_embeddings_embeddingRegistr_1552c014ffd8e40e --> sym_src_services_embeddings_embeddingRegistr_88c2cf7e0a5ad436
+  sym_src_services_embeddings_embeddingRegistr_64cb91682bc08ffd["getEmbeddingModelOptions"]:::symbol
+  file_src_services_embeddings_embeddingRegistr_1552c014ffd8e40e --> sym_src_services_embeddings_embeddingRegistr_64cb91682bc08ffd
   file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c["src/services/embeddings/embeddingServiceFactory.ts"]:::component
-  sym_src_services_embeddings_embeddingService_7967db6ace9e48d0["classifyEmbeddingAvailability"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_7967db6ace9e48d0
-  sym_src_services_embeddings_embeddingService_5bed01d63cb66edf["createEmbeddingService"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_5bed01d63cb66edf
-  sym_src_services_embeddings_embeddingService_81cbbc67959d9f91["createEmbeddingServiceFromSettings"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_81cbbc67959d9f91
-  sym_src_services_embeddings_embeddingService_6e922d54057521af["getAvailableEmbeddingModels"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_6e922d54057521af
-  sym_src_services_embeddings_embeddingService_a8468c5f0d8e372c["getDefaultEmbeddingModel"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_a8468c5f0d8e372c
-  sym_src_services_embeddings_embeddingService_0358e109d0458514["requiresApiKey"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_0358e109d0458514
-  sym_src_services_embeddings_embeddingService_90eb3b3213fa9bd9["resolveLocalOnnxEmbeddingService"]:::symbol
-  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_90eb3b3213fa9bd9
+  sym_src_services_embeddings_embeddingService_4e53d6f1e4e97a23["classifyEmbeddingAvailability"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_4e53d6f1e4e97a23
+  sym_src_services_embeddings_embeddingService_48fce4521dd3a13f["createEmbeddingService"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_48fce4521dd3a13f
+  sym_src_services_embeddings_embeddingService_44067d1ddb5cc4d3["createEmbeddingServiceFromSettings"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_44067d1ddb5cc4d3
+  sym_src_services_embeddings_embeddingService_c4ab7e84a3ca4237["getAvailableEmbeddingModels"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_c4ab7e84a3ca4237
+  sym_src_services_embeddings_embeddingService_61bf11f97979251f["getDefaultEmbeddingModel"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_61bf11f97979251f
+  sym_src_services_embeddings_embeddingService_d4603252a8fdcbf4["requiresApiKey"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_d4603252a8fdcbf4
+  sym_src_services_embeddings_embeddingService_e033ad79c74381a0["resolveLocalOnnxEmbeddingService"]:::symbol
+  file_src_services_embeddings_embeddingService_2b1f72ba4c63c11c --> sym_src_services_embeddings_embeddingService_e033ad79c74381a0
   file_src_services_embeddings_geminiEmbeddingS_9446798dd0200fcd["src/services/embeddings/geminiEmbeddingService.ts"]:::component
-  sym_src_services_embeddings_geminiEmbeddingS_962b0d409f556871["GeminiEmbeddingService"]:::symbol
-  file_src_services_embeddings_geminiEmbeddingS_9446798dd0200fcd --> sym_src_services_embeddings_geminiEmbeddingS_962b0d409f556871
+  sym_src_services_embeddings_geminiEmbeddingS_54db524cc125f128["GeminiEmbeddingService"]:::symbol
+  file_src_services_embeddings_geminiEmbeddingS_9446798dd0200fcd --> sym_src_services_embeddings_geminiEmbeddingS_54db524cc125f128
   file_src_services_embeddings_localOnnxEmbeddi_162588ed33b7c939["src/services/embeddings/localOnnxEmbeddingService.ts"]:::component
-  sym_src_services_embeddings_localOnnxEmbeddi_13964532f2d84174["LocalOnnxEmbeddingService"]:::symbol
-  file_src_services_embeddings_localOnnxEmbeddi_162588ed33b7c939 --> sym_src_services_embeddings_localOnnxEmbeddi_13964532f2d84174
+  sym_src_services_embeddings_localOnnxEmbeddi_fb3bf66ce6c83ea8["LocalOnnxEmbeddingService"]:::symbol
+  file_src_services_embeddings_localOnnxEmbeddi_162588ed33b7c939 --> sym_src_services_embeddings_localOnnxEmbeddi_fb3bf66ce6c83ea8
   file_src_services_embeddings_ollamaEmbeddingS_cd65ba70580fb155["src/services/embeddings/ollamaEmbeddingService.ts"]:::component
-  sym_src_services_embeddings_ollamaEmbeddingS_579ac3e78a7aefed["OllamaEmbeddingService"]:::symbol
-  file_src_services_embeddings_ollamaEmbeddingS_cd65ba70580fb155 --> sym_src_services_embeddings_ollamaEmbeddingS_579ac3e78a7aefed
+  sym_src_services_embeddings_ollamaEmbeddingS_9510fe03fbc8bdad["OllamaEmbeddingService"]:::symbol
+  file_src_services_embeddings_ollamaEmbeddingS_cd65ba70580fb155 --> sym_src_services_embeddings_ollamaEmbeddingS_9510fe03fbc8bdad
   file_src_services_embeddings_openaiEmbeddingS_e9f353c8133d556b["src/services/embeddings/openaiEmbeddingService.ts"]:::component
-  sym_src_services_embeddings_openaiEmbeddingS_41ff5def894cb3d2["OpenAIEmbeddingService"]:::symbol
-  file_src_services_embeddings_openaiEmbeddingS_e9f353c8133d556b --> sym_src_services_embeddings_openaiEmbeddingS_41ff5def894cb3d2
+  sym_src_services_embeddings_openaiEmbeddingS_389523c8f8f42dfe["OpenAIEmbeddingService"]:::symbol
+  file_src_services_embeddings_openaiEmbeddingS_e9f353c8133d556b --> sym_src_services_embeddings_openaiEmbeddingS_389523c8f8f42dfe
   file_src_services_embeddings_types_ts_c282f2c1268cb297["src/services/embeddings/types.ts"]:::component
-  sym_src_services_embeddings_types_ts_getEmbe_c131ae4f5cc3e6df["getEmbeddingDimensions"]:::symbol
-  file_src_services_embeddings_types_ts_c282f2c1268cb297 --> sym_src_services_embeddings_types_ts_getEmbe_c131ae4f5cc3e6df
+  sym_src_services_embeddings_types_ts_getEmbe_d230328955412f21["getEmbeddingDimensions"]:::symbol
+  file_src_services_embeddings_types_ts_c282f2c1268cb297 --> sym_src_services_embeddings_types_ts_getEmbe_d230328955412f21
   file_src_services_embeddings_voyageEmbeddingS_dbb07e311c15c3ce["src/services/embeddings/voyageEmbeddingService.ts"]:::component
-  sym_src_services_embeddings_voyageEmbeddingS_35307fd1aa496451["VoyageEmbeddingService"]:::symbol
-  file_src_services_embeddings_voyageEmbeddingS_dbb07e311c15c3ce --> sym_src_services_embeddings_voyageEmbeddingS_35307fd1aa496451
+  sym_src_services_embeddings_voyageEmbeddingS_af661f93a52a0b9d["VoyageEmbeddingService"]:::symbol
+  file_src_services_embeddings_voyageEmbeddingS_dbb07e311c15c3ce --> sym_src_services_embeddings_voyageEmbeddingS_af661f93a52a0b9d
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1211,36 +1212,36 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_export_d46aee08cc49f6d1 ["export"]
   file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6["src/services/export/brand/brandAssets.ts"]:::component
-  sym_src_services_export_brand_brandAssets_ts_255ed8fe28b6f876["arrayBufferToBase64"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_255ed8fe28b6f876
-  sym_src_services_export_brand_brandAssets_ts_7ce070abbdf1881e["brandFontsSignature"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_7ce070abbdf1881e
-  sym_src_services_export_brand_brandAssets_ts_9b75e888dcb81041["cacheGet"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_9b75e888dcb81041
-  sym_src_services_export_brand_brandAssets_ts_2098cd6ba7b24b04["cacheKey"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_2098cd6ba7b24b04
-  sym_src_services_export_brand_brandAssets_ts_2c58d8947c49e65e["cacheSet"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_2c58d8947c49e65e
-  sym_src_services_export_brand_brandAssets_ts_d80f7f6c38d559fb["clearBrandAssetCache"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_d80f7f6c38d559fb
-  sym_src_services_export_brand_brandAssets_ts_b540d295da05fcb5["defaultRasterize"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_b540d295da05fcb5
-  sym_src_services_export_brand_brandAssets_ts_b1c0acceb4c89bd4["fontCacheGet"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_b1c0acceb4c89bd4
-  sym_src_services_export_brand_brandAssets_ts_91470c8c647f3849["fontCacheSet"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_91470c8c647f3849
-  sym_src_services_export_brand_brandAssets_ts_741bd65df074a3e2["getBrandFolder"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_741bd65df074a3e2
-  sym_src_services_export_brand_brandAssets_ts_858637897f9d360d["getBrandFonts"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_858637897f9d360d
-  sym_src_services_export_brand_brandAssets_ts_ccbd24d1b3488ece["getBrandIcon"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_ccbd24d1b3488ece
-  sym_src_services_export_brand_brandAssets_ts_02032537483ff416["getFileAt"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_02032537483ff416
-  sym_src_services_export_brand_brandAssets_ts_bc2032b7725b311a["getFontsFolder"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_bc2032b7725b311a
-  sym_src_services_export_brand_brandAssets_ts_c9428f7061ff6c0a["getLogo"]:::symbol
-  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_c9428f7061ff6c0a
+  sym_src_services_export_brand_brandAssets_ts_29ddcb7e545601ca["arrayBufferToBase64"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_29ddcb7e545601ca
+  sym_src_services_export_brand_brandAssets_ts_e4f05d8af4ee07a0["brandFontsSignature"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_e4f05d8af4ee07a0
+  sym_src_services_export_brand_brandAssets_ts_c88b970bec001942["cacheGet"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_c88b970bec001942
+  sym_src_services_export_brand_brandAssets_ts_b69136f7a0b99044["cacheKey"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_b69136f7a0b99044
+  sym_src_services_export_brand_brandAssets_ts_8a3a380c4c3b1201["cacheSet"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_8a3a380c4c3b1201
+  sym_src_services_export_brand_brandAssets_ts_63491f9fab8c5bd6["clearBrandAssetCache"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_63491f9fab8c5bd6
+  sym_src_services_export_brand_brandAssets_ts_6658aa1083eaca40["defaultRasterize"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_6658aa1083eaca40
+  sym_src_services_export_brand_brandAssets_ts_5dbfc75d68b25dcc["fontCacheGet"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_5dbfc75d68b25dcc
+  sym_src_services_export_brand_brandAssets_ts_47dd45ea61a636a8["fontCacheSet"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_47dd45ea61a636a8
+  sym_src_services_export_brand_brandAssets_ts_0e7740dc376b97bd["getBrandFolder"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_0e7740dc376b97bd
+  sym_src_services_export_brand_brandAssets_ts_5cbb7f2f9bf3c8ce["getBrandFonts"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_5cbb7f2f9bf3c8ce
+  sym_src_services_export_brand_brandAssets_ts_6d10473621194f84["getBrandIcon"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_6d10473621194f84
+  sym_src_services_export_brand_brandAssets_ts_4414c0d5472153ed["getFileAt"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_4414c0d5472153ed
+  sym_src_services_export_brand_brandAssets_ts_f5ab2473a9efc487["getFontsFolder"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_f5ab2473a9efc487
+  sym_src_services_export_brand_brandAssets_ts_70bb80dd40c5c10e["getLogo"]:::symbol
+  file_src_services_export_brand_brandAssets_ts_aa1277f466c5d6a6 --> sym_src_services_export_brand_brandAssets_ts_70bb80dd40c5c10e
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1320,12 +1321,12 @@ _Domain has 56 symbols (>50). Diagram shows top-15 by file order; see flat table
 flowchart TB
 subgraph dom_i18n_5b59f3e44358493a ["i18n"]
   file_src_i18n_index_ts_8a518b6807c26926["src/i18n/index.ts"]:::component
-  sym_src_i18n_index_ts_getLanguageOptions_840f7004b4b0cbd0["getLanguageOptions"]:::symbol
-  file_src_i18n_index_ts_8a518b6807c26926 --> sym_src_i18n_index_ts_getLanguageOptions_840f7004b4b0cbd0
-  sym_src_i18n_index_ts_getTranslations_6c12a82c7823064a["getTranslations"]:::symbol
-  file_src_i18n_index_ts_8a518b6807c26926 --> sym_src_i18n_index_ts_getTranslations_6c12a82c7823064a
-  sym_src_i18n_index_ts_isSupportedLanguage_89449ef96e7a3c6c["isSupportedLanguage"]:::symbol
-  file_src_i18n_index_ts_8a518b6807c26926 --> sym_src_i18n_index_ts_isSupportedLanguage_89449ef96e7a3c6c
+  sym_src_i18n_index_ts_getLanguageOptions_751e49ab4f4d01dc["getLanguageOptions"]:::symbol
+  file_src_i18n_index_ts_8a518b6807c26926 --> sym_src_i18n_index_ts_getLanguageOptions_751e49ab4f4d01dc
+  sym_src_i18n_index_ts_getTranslations_343b2f0ea5a6cf1e["getTranslations"]:::symbol
+  file_src_i18n_index_ts_8a518b6807c26926 --> sym_src_i18n_index_ts_getTranslations_343b2f0ea5a6cf1e
+  sym_src_i18n_index_ts_isSupportedLanguage_ca717fdc861315fb["isSupportedLanguage"]:::symbol
+  file_src_i18n_index_ts_8a518b6807c26926 --> sym_src_i18n_index_ts_isSupportedLanguage_ca717fdc861315fb
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1350,37 +1351,37 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_kindle_8b77065060d98eaa ["kindle"]
   file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a["src/services/kindle/kindleAuthMethods.ts"]:::component
-  sym_src_services_kindle_kindleAuthMethods_ts_44744e5c4fda2737["BookmarkletAuthMethod"]:::symbol
-  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_44744e5c4fda2737
-  sym_src_services_kindle_kindleAuthMethods_ts_0f4f8bf5893d7dc4["buildAuthMethodChain"]:::symbol
-  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_0f4f8bf5893d7dc4
-  sym_src_services_kindle_kindleAuthMethods_ts_e0386681ce906be5["ConsoleAuthMethod"]:::symbol
-  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_e0386681ce906be5
-  sym_src_services_kindle_kindleAuthMethods_ts_24821bf336521ca8["renderCookieTextarea"]:::symbol
-  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_24821bf336521ca8
+  sym_src_services_kindle_kindleAuthMethods_ts_f779216dbbe2e522["BookmarkletAuthMethod"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_f779216dbbe2e522
+  sym_src_services_kindle_kindleAuthMethods_ts_1cfca452e380f999["buildAuthMethodChain"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_1cfca452e380f999
+  sym_src_services_kindle_kindleAuthMethods_ts_4aabb95678956e4c["ConsoleAuthMethod"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_4aabb95678956e4c
+  sym_src_services_kindle_kindleAuthMethods_ts_c4fdee8e90c09a69["renderCookieTextarea"]:::symbol
+  file_src_services_kindle_kindleAuthMethods_ts_7277d05c4527fd3a --> sym_src_services_kindle_kindleAuthMethods_ts_c4fdee8e90c09a69
   file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64["src/services/kindle/kindleAuthService.ts"]:::component
-  sym_src_services_kindle_kindleAuthService_ts_b54b41f68572d9f8["buildRequestHeaders"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_b54b41f68572d9f8
-  sym_src_services_kindle_kindleAuthService_ts_6bfb91df23104070["clearCookies"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_6bfb91df23104070
-  sym_src_services_kindle_kindleAuthService_ts_dc9d4ef6752302d0["detectAuthExpiry"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_dc9d4ef6752302d0
-  sym_src_services_kindle_kindleAuthService_ts_9bad99a34047e69e["getCookieAgeDays"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_9bad99a34047e69e
-  sym_src_services_kindle_kindleAuthService_ts_deb57a7555799c55["getNotebookUrl"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_deb57a7555799c55
-  sym_src_services_kindle_kindleAuthService_ts_0dc5412e579282b1["getStoredAmazonEmail"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_0dc5412e579282b1
-  sym_src_services_kindle_kindleAuthService_ts_0026dce499abb691["getStoredAmazonPassword"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_0026dce499abb691
-  sym_src_services_kindle_kindleAuthService_ts_0ae869836b13f263["getStoredCookies"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_0ae869836b13f263
-  sym_src_services_kindle_kindleAuthService_ts_a1f1a18fd7ef033a["isAuthenticated"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_a1f1a18fd7ef033a
-  sym_src_services_kindle_kindleAuthService_ts_6b3e77b2bb60074f["isEnhancedPayload"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_6b3e77b2bb60074f
-  sym_src_services_kindle_kindleAuthService_ts_72ba602a529edd70["openAmazonInBrowser"]:::symbol
-  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_72ba602a529edd70
+  sym_src_services_kindle_kindleAuthService_ts_b53efa73ab1e0565["buildRequestHeaders"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_b53efa73ab1e0565
+  sym_src_services_kindle_kindleAuthService_ts_1ff22389feeb2392["clearCookies"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_1ff22389feeb2392
+  sym_src_services_kindle_kindleAuthService_ts_ef37e8af7018a0c8["detectAuthExpiry"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_ef37e8af7018a0c8
+  sym_src_services_kindle_kindleAuthService_ts_86faab724c9105d2["getCookieAgeDays"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_86faab724c9105d2
+  sym_src_services_kindle_kindleAuthService_ts_43ccb3cdf433efc2["getNotebookUrl"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_43ccb3cdf433efc2
+  sym_src_services_kindle_kindleAuthService_ts_74bc1d1752173358["getStoredAmazonEmail"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_74bc1d1752173358
+  sym_src_services_kindle_kindleAuthService_ts_0aa0b1094f0248f3["getStoredAmazonPassword"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_0aa0b1094f0248f3
+  sym_src_services_kindle_kindleAuthService_ts_e4c63cc9fd05e432["getStoredCookies"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_e4c63cc9fd05e432
+  sym_src_services_kindle_kindleAuthService_ts_65d4517fb33c3f99["isAuthenticated"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_65d4517fb33c3f99
+  sym_src_services_kindle_kindleAuthService_ts_e9ccf9700bf22f77["isEnhancedPayload"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_e9ccf9700bf22f77
+  sym_src_services_kindle_kindleAuthService_ts_8c41a078a63d58af["openAmazonInBrowser"]:::symbol
+  file_src_services_kindle_kindleAuthService_ts_82b0867417d7de64 --> sym_src_services_kindle_kindleAuthService_ts_8c41a078a63d58af
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1513,46 +1514,46 @@ _Domain has 109 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_llm_adapters_39a855df1f532490 ["llm-adapters"]
   file_src_services_adapters_aliyunAdapter_ts_3c637ed1faa44c65["src/services/adapters/aliyunAdapter.ts"]:::component
-  sym_src_services_adapters_aliyunAdapter_ts_A_5af10fa482a4fdbd["AliyunAdapter"]:::symbol
-  file_src_services_adapters_aliyunAdapter_ts_3c637ed1faa44c65 --> sym_src_services_adapters_aliyunAdapter_ts_A_5af10fa482a4fdbd
+  sym_src_services_adapters_aliyunAdapter_ts_A_ecc9c795e1629139["AliyunAdapter"]:::symbol
+  file_src_services_adapters_aliyunAdapter_ts_3c637ed1faa44c65 --> sym_src_services_adapters_aliyunAdapter_ts_A_ecc9c795e1629139
   file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09["src/services/adapters/anthropicStream.ts"]:::component
-  sym_src_services_adapters_anthropicStream_ts_8a20cc09543c6012["anthropicStreamError"]:::symbol
-  file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09 --> sym_src_services_adapters_anthropicStream_ts_8a20cc09543c6012
-  sym_src_services_adapters_anthropicStream_ts_702c168d3036a1da["parseAnthropicSseLine"]:::symbol
-  file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09 --> sym_src_services_adapters_anthropicStream_ts_702c168d3036a1da
-  sym_src_services_adapters_anthropicStream_ts_87dd8b76abbde84e["StreamProviderError"]:::symbol
-  file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09 --> sym_src_services_adapters_anthropicStream_ts_87dd8b76abbde84e
+  sym_src_services_adapters_anthropicStream_ts_007cde26d502c311["anthropicStreamError"]:::symbol
+  file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09 --> sym_src_services_adapters_anthropicStream_ts_007cde26d502c311
+  sym_src_services_adapters_anthropicStream_ts_7a6b8123c9da1731["parseAnthropicSseLine"]:::symbol
+  file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09 --> sym_src_services_adapters_anthropicStream_ts_7a6b8123c9da1731
+  sym_src_services_adapters_anthropicStream_ts_96baf1113cd86f5a["StreamProviderError"]:::symbol
+  file_src_services_adapters_anthropicStream_ts_6ce5d3528b794f09 --> sym_src_services_adapters_anthropicStream_ts_96baf1113cd86f5a
   file_src_services_adapters_azureClaudeAdapter_f724a5d51c647d1a["src/services/adapters/azureClaudeAdapter.ts"]:::component
-  sym_src_services_adapters_azureClaudeAdapter_3a60bc796c9ad536["AzureClaudeAdapter"]:::symbol
-  file_src_services_adapters_azureClaudeAdapter_f724a5d51c647d1a --> sym_src_services_adapters_azureClaudeAdapter_3a60bc796c9ad536
-  sym_src_services_adapters_azureClaudeAdapter_66e855d27a19170b["supportsAdaptiveThinking"]:::symbol
-  file_src_services_adapters_azureClaudeAdapter_f724a5d51c647d1a --> sym_src_services_adapters_azureClaudeAdapter_66e855d27a19170b
+  sym_src_services_adapters_azureClaudeAdapter_ee23273a055ff59a["AzureClaudeAdapter"]:::symbol
+  file_src_services_adapters_azureClaudeAdapter_f724a5d51c647d1a --> sym_src_services_adapters_azureClaudeAdapter_ee23273a055ff59a
+  sym_src_services_adapters_azureClaudeAdapter_038d6af658c207dd["supportsAdaptiveThinking"]:::symbol
+  file_src_services_adapters_azureClaudeAdapter_f724a5d51c647d1a --> sym_src_services_adapters_azureClaudeAdapter_038d6af658c207dd
   file_src_services_adapters_azureOpenAIAdapter_ffad8433c3b5b74a["src/services/adapters/azureOpenAIAdapter.ts"]:::component
-  sym_src_services_adapters_azureOpenAIAdapter_a1304e6646d011b5["AzureOpenAIAdapter"]:::symbol
-  file_src_services_adapters_azureOpenAIAdapter_ffad8433c3b5b74a --> sym_src_services_adapters_azureOpenAIAdapter_a1304e6646d011b5
+  sym_src_services_adapters_azureOpenAIAdapter_c7a64b899e0c0469["AzureOpenAIAdapter"]:::symbol
+  file_src_services_adapters_azureOpenAIAdapter_ffad8433c3b5b74a --> sym_src_services_adapters_azureOpenAIAdapter_c7a64b899e0c0469
   file_src_services_adapters_baseAdapter_ts_f401e2db124c37ce["src/services/adapters/baseAdapter.ts"]:::component
-  sym_src_services_adapters_baseAdapter_ts_Bas_5f15ea6aab39c944["BaseAdapter"]:::symbol
-  file_src_services_adapters_baseAdapter_ts_f401e2db124c37ce --> sym_src_services_adapters_baseAdapter_ts_Bas_5f15ea6aab39c944
+  sym_src_services_adapters_baseAdapter_ts_Bas_ea6139679eb31e14["BaseAdapter"]:::symbol
+  file_src_services_adapters_baseAdapter_ts_f401e2db124c37ce --> sym_src_services_adapters_baseAdapter_ts_Bas_ea6139679eb31e14
   file_src_services_adapters_bedrockAdapter_ts_f9027d0ab4e6ddab["src/services/adapters/bedrockAdapter.ts"]:::component
-  sym_src_services_adapters_bedrockAdapter_ts__ac276d5d81909723["BedrockAdapter"]:::symbol
-  file_src_services_adapters_bedrockAdapter_ts_f9027d0ab4e6ddab --> sym_src_services_adapters_bedrockAdapter_ts__ac276d5d81909723
+  sym_src_services_adapters_bedrockAdapter_ts__80e0770bc693d367["BedrockAdapter"]:::symbol
+  file_src_services_adapters_bedrockAdapter_ts_f9027d0ab4e6ddab --> sym_src_services_adapters_bedrockAdapter_ts__80e0770bc693d367
   file_src_services_adapters_claudeAdapter_ts_12c3fa25ae059f02["src/services/adapters/claudeAdapter.ts"]:::component
-  sym_src_services_adapters_claudeAdapter_ts_C_cdea0f1c0a592d06["ClaudeAdapter"]:::symbol
-  file_src_services_adapters_claudeAdapter_ts_12c3fa25ae059f02 --> sym_src_services_adapters_claudeAdapter_ts_C_cdea0f1c0a592d06
-  sym_src_services_adapters_claudeAdapter_ts_s_d352922e8b912f20["supportsAdaptiveThinking"]:::symbol
-  file_src_services_adapters_claudeAdapter_ts_12c3fa25ae059f02 --> sym_src_services_adapters_claudeAdapter_ts_s_d352922e8b912f20
+  sym_src_services_adapters_claudeAdapter_ts_C_61998c38cbed7f7a["ClaudeAdapter"]:::symbol
+  file_src_services_adapters_claudeAdapter_ts_12c3fa25ae059f02 --> sym_src_services_adapters_claudeAdapter_ts_C_61998c38cbed7f7a
+  sym_src_services_adapters_claudeAdapter_ts_s_f245c6046b4ea5a5["supportsAdaptiveThinking"]:::symbol
+  file_src_services_adapters_claudeAdapter_ts_12c3fa25ae059f02 --> sym_src_services_adapters_claudeAdapter_ts_s_f245c6046b4ea5a5
   file_src_services_adapters_claudePromptCache__ab7d31d3c1279548["src/services/adapters/claudePromptCache.ts"]:::component
-  sym_src_services_adapters_claudePromptCache__257f334ccfa43a04["buildClaudeCachedPrompt"]:::symbol
-  file_src_services_adapters_claudePromptCache__ab7d31d3c1279548 --> sym_src_services_adapters_claudePromptCache__257f334ccfa43a04
+  sym_src_services_adapters_claudePromptCache__25626ccafb96ba8c["buildClaudeCachedPrompt"]:::symbol
+  file_src_services_adapters_claudePromptCache__ab7d31d3c1279548 --> sym_src_services_adapters_claudePromptCache__25626ccafb96ba8c
   file_src_services_adapters_cohereAdapter_ts_f89a2dd320437b41["src/services/adapters/cohereAdapter.ts"]:::component
-  sym_src_services_adapters_cohereAdapter_ts_C_9dfcc431f78141f0["CohereAdapter"]:::symbol
-  file_src_services_adapters_cohereAdapter_ts_f89a2dd320437b41 --> sym_src_services_adapters_cohereAdapter_ts_C_9dfcc431f78141f0
+  sym_src_services_adapters_cohereAdapter_ts_C_a28f0d019c5fa2e9["CohereAdapter"]:::symbol
+  file_src_services_adapters_cohereAdapter_ts_f89a2dd320437b41 --> sym_src_services_adapters_cohereAdapter_ts_C_a28f0d019c5fa2e9
   file_src_services_adapters_deepseekAdapter_ts_00252ad3f747bc79["src/services/adapters/deepseekAdapter.ts"]:::component
-  sym_src_services_adapters_deepseekAdapter_ts_a592b81a09578fa0["DeepseekAdapter"]:::symbol
-  file_src_services_adapters_deepseekAdapter_ts_00252ad3f747bc79 --> sym_src_services_adapters_deepseekAdapter_ts_a592b81a09578fa0
+  sym_src_services_adapters_deepseekAdapter_ts_134dcdb2a32a6b46["DeepseekAdapter"]:::symbol
+  file_src_services_adapters_deepseekAdapter_ts_00252ad3f747bc79 --> sym_src_services_adapters_deepseekAdapter_ts_134dcdb2a32a6b46
   file_src_services_adapters_dynamicModelServic_26cf6be189e9a346["src/services/adapters/dynamicModelService.ts"]:::component
-  sym_src_services_adapters_dynamicModelServic_e754daba61a6917b["fetchAnthropic"]:::symbol
-  file_src_services_adapters_dynamicModelServic_26cf6be189e9a346 --> sym_src_services_adapters_dynamicModelServic_e754daba61a6917b
+  sym_src_services_adapters_dynamicModelServic_e9f953724020e9a9["fetchAnthropic"]:::symbol
+  file_src_services_adapters_dynamicModelServic_26cf6be189e9a346 --> sym_src_services_adapters_dynamicModelServic_e9f953724020e9a9
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1630,10 +1631,10 @@ _Domain has 54 symbols (>50). Diagram shows top-15 by file order; see flat table
 flowchart TB
 subgraph dom_long_running_ops_ca2395aa840a4df1 ["long-running-ops"]
   file_src_services_longRunningOp_progressContr_8875c50b7ed088d6["src/services/longRunningOp/progressController.ts"]:::component
-  sym_src_services_longRunningOp_progressContr_8ed0360b6515026a["LongRunningOpController"]:::symbol
-  file_src_services_longRunningOp_progressContr_8875c50b7ed088d6 --> sym_src_services_longRunningOp_progressContr_8ed0360b6515026a
-  sym_src_services_longRunningOp_progressContr_9e5c40e865082aef["parseCountFromPrompt"]:::symbol
-  file_src_services_longRunningOp_progressContr_8875c50b7ed088d6 --> sym_src_services_longRunningOp_progressContr_9e5c40e865082aef
+  sym_src_services_longRunningOp_progressContr_797afcff319cffa7["LongRunningOpController"]:::symbol
+  file_src_services_longRunningOp_progressContr_8875c50b7ed088d6 --> sym_src_services_longRunningOp_progressContr_797afcff319cffa7
+  sym_src_services_longRunningOp_progressContr_d279d70d5089cedd["parseCountFromPrompt"]:::symbol
+  file_src_services_longRunningOp_progressContr_8875c50b7ed088d6 --> sym_src_services_longRunningOp_progressContr_d279d70d5089cedd
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -1657,38 +1658,38 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_newsletter_dd6f465f6810e92c ["newsletter"]
   file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e["src/services/newsletter/briefAudioResolver.ts"]:::component
-  sym_src_services_newsletter_briefAudioResolv_9dca2d29d62c6819["canonicalise"]:::symbol
-  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_9dca2d29d62c6819
-  sym_src_services_newsletter_briefAudioResolv_f7ac3b23bc70ec55["isRealDate"]:::symbol
-  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_f7ac3b23bc70ec55
-  sym_src_services_newsletter_briefAudioResolv_4a407d125487911b["resolveBriefAudioBucket"]:::symbol
-  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_4a407d125487911b
-  sym_src_services_newsletter_briefAudioResolv_a3a27abd44d1f3d0["safeDecode"]:::symbol
-  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_a3a27abd44d1f3d0
+  sym_src_services_newsletter_briefAudioResolv_62517c5e190f6b84["canonicalise"]:::symbol
+  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_62517c5e190f6b84
+  sym_src_services_newsletter_briefAudioResolv_f6b294e0be9ba098["isRealDate"]:::symbol
+  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_f6b294e0be9ba098
+  sym_src_services_newsletter_briefAudioResolv_9d2a691a14957eb0["resolveBriefAudioBucket"]:::symbol
+  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_9d2a691a14957eb0
+  sym_src_services_newsletter_briefAudioResolv_dec4fba46e31420d["safeDecode"]:::symbol
+  file_src_services_newsletter_briefAudioResolv_63d90f7ed2dbf30e --> sym_src_services_newsletter_briefAudioResolv_dec4fba46e31420d
   file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd["src/services/newsletter/briefPostProcess.ts"]:::component
-  sym_src_services_newsletter_briefPostProcess_561e29a1092b4e16["dedupeBriefStories"]:::symbol
-  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_561e29a1092b4e16
-  sym_src_services_newsletter_briefPostProcess_0f51d5d71e7beabb["dropEmptyHeadings"]:::symbol
-  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_0f51d5d71e7beabb
-  sym_src_services_newsletter_briefPostProcess_1cdf09f8adabb75b["postProcessBrief"]:::symbol
-  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_1cdf09f8adabb75b
-  sym_src_services_newsletter_briefPostProcess_3e9c2e0e02899830["stripMemoryLabelSources"]:::symbol
-  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_3e9c2e0e02899830
+  sym_src_services_newsletter_briefPostProcess_6b0f030e73d348d7["dedupeBriefStories"]:::symbol
+  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_6b0f030e73d348d7
+  sym_src_services_newsletter_briefPostProcess_10a8a81d7753f008["dropEmptyHeadings"]:::symbol
+  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_10a8a81d7753f008
+  sym_src_services_newsletter_briefPostProcess_75fa7adcb69e3a20["postProcessBrief"]:::symbol
+  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_75fa7adcb69e3a20
+  sym_src_services_newsletter_briefPostProcess_1067ef45ddaf55ec["stripMemoryLabelSources"]:::symbol
+  file_src_services_newsletter_briefPostProcess_1d1ca22aac1f57bd --> sym_src_services_newsletter_briefPostProcess_1067ef45ddaf55ec
   file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867["src/services/newsletter/catchUp/catchUpCleanup.ts"]:::component
-  sym_src_services_newsletter_catchUp_catchUpC_b51c2678b293e848["audioNamesIn"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_b51c2678b293e848
-  sym_src_services_newsletter_catchUp_catchUpC_df2712199b1b5320["buildReferenceIndex"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_df2712199b1b5320
-  sym_src_services_newsletter_catchUp_catchUpC_456e2800666f1417["bump"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_456e2800666f1417
-  sym_src_services_newsletter_catchUp_catchUpC_f3b52a72e97c700a["createIndexRetryGate"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_f3b52a72e97c700a
-  sym_src_services_newsletter_catchUp_catchUpC_f9564df00218ae3e["decideEpisode"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_f9564df00218ae3e
-  sym_src_services_newsletter_catchUp_catchUpC_a2b845ea2af4c6bb["hasLinkTable"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_a2b845ea2af4c6bb
-  sym_src_services_newsletter_catchUp_catchUpC_679f01561b407197["isIndexSkip"]:::symbol
-  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_679f01561b407197
+  sym_src_services_newsletter_catchUp_catchUpC_29147423ff5a6d2d["audioNamesIn"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_29147423ff5a6d2d
+  sym_src_services_newsletter_catchUp_catchUpC_c4fa3cbf26b9e422["buildReferenceIndex"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_c4fa3cbf26b9e422
+  sym_src_services_newsletter_catchUp_catchUpC_c3bdaffbead0d42b["bump"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_c3bdaffbead0d42b
+  sym_src_services_newsletter_catchUp_catchUpC_e4fd4e72ac5a2d08["createIndexRetryGate"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_e4fd4e72ac5a2d08
+  sym_src_services_newsletter_catchUp_catchUpC_aa31d50811372e07["decideEpisode"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_aa31d50811372e07
+  sym_src_services_newsletter_catchUp_catchUpC_98171ab641a3aa64["hasLinkTable"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_98171ab641a3aa64
+  sym_src_services_newsletter_catchUp_catchUpC_75549164470139d9["isIndexSkip"]:::symbol
+  file_src_services_newsletter_catchUp_catchUpC_aa075016ea5b8867 --> sym_src_services_newsletter_catchUp_catchUpC_75549164470139d9
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2003,76 +2004,76 @@ _Domain has 291 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_notebooklm_3a74eb58101dbfe3 ["notebooklm"]
   file_src_services_notebooklm_chunking_ts_954988d033ca8572["src/services/notebooklm/chunking.ts"]:::component
-  sym_src_services_notebooklm_chunking_ts_auto_88c4625dbe2994d5["autoSelectExportMode"]:::symbol
-  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_auto_88c4625dbe2994d5
-  sym_src_services_notebooklm_chunking_ts_chec_7eba96975d51130e["checkModuleLimits"]:::symbol
-  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_chec_7eba96975d51130e
-  sym_src_services_notebooklm_chunking_ts_chec_753e257bb0ad932a["checkModuleWordLimit"]:::symbol
-  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_chec_753e257bb0ad932a
-  sym_src_services_notebooklm_chunking_ts_esti_e20f5a3007467527["estimateModuleCount"]:::symbol
-  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_esti_e20f5a3007467527
-  sym_src_services_notebooklm_chunking_ts_vali_967cb56407742847["validateExportParameters"]:::symbol
-  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_vali_967cb56407742847
+  sym_src_services_notebooklm_chunking_ts_auto_7c8edb61474a1717["autoSelectExportMode"]:::symbol
+  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_auto_7c8edb61474a1717
+  sym_src_services_notebooklm_chunking_ts_chec_4e23042a8c007056["checkModuleLimits"]:::symbol
+  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_chec_4e23042a8c007056
+  sym_src_services_notebooklm_chunking_ts_chec_120a700f4ab0677c["checkModuleWordLimit"]:::symbol
+  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_chec_120a700f4ab0677c
+  sym_src_services_notebooklm_chunking_ts_esti_cdc385b1ec54187a["estimateModuleCount"]:::symbol
+  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_esti_cdc385b1ec54187a
+  sym_src_services_notebooklm_chunking_ts_vali_afb2b4845ce4964d["validateExportParameters"]:::symbol
+  file_src_services_notebooklm_chunking_ts_954988d033ca8572 --> sym_src_services_notebooklm_chunking_ts_vali_afb2b4845ce4964d
   file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0["src/services/notebooklm/hashing.ts"]:::component
-  sym_src_services_notebooklm_hashing_ts_bytes_15f2cf8b40c0cbc3["bytesToHex"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_bytes_15f2cf8b40c0cbc3
-  sym_src_services_notebooklm_hashing_ts_compu_d024822d5e395d68["computeBinarySHA256"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_compu_d024822d5e395d68
-  sym_src_services_notebooklm_hashing_ts_compu_f5db25a410e06c2d["computePackHash"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_compu_f5db25a410e06c2d
-  sym_src_services_notebooklm_hashing_ts_compu_ee4ce829912b13eb["computeSHA256"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_compu_ee4ce829912b13eb
-  sym_src_services_notebooklm_hashing_ts_gener_3639117967f6bac1["generateShortId"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_gener_3639117967f6bac1
-  sym_src_services_notebooklm_hashing_ts_hashe_a56e6a6e45916518["hashesMatch"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_hashe_a56e6a6e45916518
-  sym_src_services_notebooklm_hashing_ts_hashN_b174efc1d919c723["hashNoteContent"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_hashN_b174efc1d919c723
-  sym_src_services_notebooklm_hashing_ts_isVal_2758c226125b7ede["isValidSHA256"]:::symbol
-  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_isVal_2758c226125b7ede
+  sym_src_services_notebooklm_hashing_ts_bytes_9ae67775c6ad8f86["bytesToHex"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_bytes_9ae67775c6ad8f86
+  sym_src_services_notebooklm_hashing_ts_compu_baaf16e77ed63ecd["computeBinarySHA256"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_compu_baaf16e77ed63ecd
+  sym_src_services_notebooklm_hashing_ts_compu_5c00de323f46e221["computePackHash"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_compu_5c00de323f46e221
+  sym_src_services_notebooklm_hashing_ts_compu_1b5f7d94903f3c23["computeSHA256"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_compu_1b5f7d94903f3c23
+  sym_src_services_notebooklm_hashing_ts_gener_7cbfe30cf1176138["generateShortId"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_gener_7cbfe30cf1176138
+  sym_src_services_notebooklm_hashing_ts_hashe_0c3953de42f376c2["hashesMatch"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_hashe_0c3953de42f376c2
+  sym_src_services_notebooklm_hashing_ts_hashN_bb2a8d0ddcf81b5e["hashNoteContent"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_hashN_bb2a8d0ddcf81b5e
+  sym_src_services_notebooklm_hashing_ts_isVal_df5666d3f18e411e["isValidSHA256"]:::symbol
+  file_src_services_notebooklm_hashing_ts_95a96cd790f87ed0 --> sym_src_services_notebooklm_hashing_ts_isVal_df5666d3f18e411e
   file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9["src/services/notebooklm/notebooklmUtils.ts"]:::component
-  sym_src_services_notebooklm_notebooklmUtils__88741b6d7d823ba7["formatBytes"]:::symbol
-  file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9 --> sym_src_services_notebooklm_notebooklmUtils__88741b6d7d823ba7
-  sym_src_services_notebooklm_notebooklmUtils__94ee09aa7141ff1b["resolveOutputName"]:::symbol
-  file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9 --> sym_src_services_notebooklm_notebooklmUtils__94ee09aa7141ff1b
-  sym_src_services_notebooklm_notebooklmUtils__3498701adea459fc["sanitizeFilename"]:::symbol
-  file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9 --> sym_src_services_notebooklm_notebooklmUtils__3498701adea459fc
+  sym_src_services_notebooklm_notebooklmUtils__19e62905e619bf69["formatBytes"]:::symbol
+  file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9 --> sym_src_services_notebooklm_notebooklmUtils__19e62905e619bf69
+  sym_src_services_notebooklm_notebooklmUtils__a79fcee1e9cfeba1["resolveOutputName"]:::symbol
+  file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9 --> sym_src_services_notebooklm_notebooklmUtils__a79fcee1e9cfeba1
+  sym_src_services_notebooklm_notebooklmUtils__6807aa100b1ba434["sanitizeFilename"]:::symbol
+  file_src_services_notebooklm_notebooklmUtils__663017d9e8c885f9 --> sym_src_services_notebooklm_notebooklmUtils__6807aa100b1ba434
   file_src_services_notebooklm_pdf_MarkdownPdfG_dbb0ba61b5a7dfba["src/services/notebooklm/pdf/MarkdownPdfGenerator.ts"]:::component
-  sym_src_services_notebooklm_pdf_MarkdownPdfG_e50831e25e115022["MarkdownPdfGenerator"]:::symbol
-  file_src_services_notebooklm_pdf_MarkdownPdfG_dbb0ba61b5a7dfba --> sym_src_services_notebooklm_pdf_MarkdownPdfG_e50831e25e115022
+  sym_src_services_notebooklm_pdf_MarkdownPdfG_f3d67c9b1510b970["MarkdownPdfGenerator"]:::symbol
+  file_src_services_notebooklm_pdf_MarkdownPdfG_dbb0ba61b5a7dfba --> sym_src_services_notebooklm_pdf_MarkdownPdfG_f3d67c9b1510b970
   file_src_services_notebooklm_registry_ts_7d29f04cdb83c179["src/services/notebooklm/registry.ts"]:::component
-  sym_src_services_notebooklm_registry_ts_norm_54006f7fd6883242["normalizePackEntry"]:::symbol
-  file_src_services_notebooklm_registry_ts_7d29f04cdb83c179 --> sym_src_services_notebooklm_registry_ts_norm_54006f7fd6883242
-  sym_src_services_notebooklm_registry_ts_norm_e6b94883f797d7bb["normalizeRegistryEntry"]:::symbol
-  file_src_services_notebooklm_registry_ts_7d29f04cdb83c179 --> sym_src_services_notebooklm_registry_ts_norm_e6b94883f797d7bb
-  sym_src_services_notebooklm_registry_ts_Regi_c04fdcff3802624f["RegistryService"]:::symbol
-  file_src_services_notebooklm_registry_ts_7d29f04cdb83c179 --> sym_src_services_notebooklm_registry_ts_Regi_c04fdcff3802624f
+  sym_src_services_notebooklm_registry_ts_norm_6946b3a909a75e85["normalizePackEntry"]:::symbol
+  file_src_services_notebooklm_registry_ts_7d29f04cdb83c179 --> sym_src_services_notebooklm_registry_ts_norm_6946b3a909a75e85
+  sym_src_services_notebooklm_registry_ts_norm_40d3065efaf7981c["normalizeRegistryEntry"]:::symbol
+  file_src_services_notebooklm_registry_ts_7d29f04cdb83c179 --> sym_src_services_notebooklm_registry_ts_norm_40d3065efaf7981c
+  sym_src_services_notebooklm_registry_ts_Regi_83a902ec4c6ac508["RegistryService"]:::symbol
+  file_src_services_notebooklm_registry_ts_7d29f04cdb83c179 --> sym_src_services_notebooklm_registry_ts_Regi_83a902ec4c6ac508
   file_src_services_notebooklm_selectionService_429b55adfdfa99dc["src/services/notebooklm/selectionService.ts"]:::component
-  sym_src_services_notebooklm_selectionService_82ab6504c913ac93["SelectionService"]:::symbol
-  file_src_services_notebooklm_selectionService_429b55adfdfa99dc --> sym_src_services_notebooklm_selectionService_82ab6504c913ac93
+  sym_src_services_notebooklm_selectionService_360f651561e85aa1["SelectionService"]:::symbol
+  file_src_services_notebooklm_selectionService_429b55adfdfa99dc --> sym_src_services_notebooklm_selectionService_360f651561e85aa1
   file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d["src/services/notebooklm/sourcePackService.ts"]:::component
-  sym_src_services_notebooklm_sourcePackServic_9c4eff4581be55de["computeConfigHash"]:::symbol
-  file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d --> sym_src_services_notebooklm_sourcePackServic_9c4eff4581be55de
-  sym_src_services_notebooklm_sourcePackServic_349d3ec47e62c717["sleep"]:::symbol
-  file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d --> sym_src_services_notebooklm_sourcePackServic_349d3ec47e62c717
-  sym_src_services_notebooklm_sourcePackServic_b22f1551376062f2["SourcePackService"]:::symbol
-  file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d --> sym_src_services_notebooklm_sourcePackServic_b22f1551376062f2
+  sym_src_services_notebooklm_sourcePackServic_c4193d542f14cb53["computeConfigHash"]:::symbol
+  file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d --> sym_src_services_notebooklm_sourcePackServic_c4193d542f14cb53
+  sym_src_services_notebooklm_sourcePackServic_0a5ecc79b1325c6a["sleep"]:::symbol
+  file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d --> sym_src_services_notebooklm_sourcePackServic_0a5ecc79b1325c6a
+  sym_src_services_notebooklm_sourcePackServic_8732cef2451605b1["SourcePackService"]:::symbol
+  file_src_services_notebooklm_sourcePackServic_fdc88b0a46e9fe4d --> sym_src_services_notebooklm_sourcePackServic_8732cef2451605b1
   file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d["src/services/notebooklm/textPreprocessor.ts"]:::component
-  sym_src_services_notebooklm_textPreprocessor_f5ae5f37e4d8f666["getExtension"]:::symbol
-  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_f5ae5f37e4d8f666
-  sym_src_services_notebooklm_textPreprocessor_e5fb02be0164a1ec["htmlBlockTag"]:::symbol
-  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_e5fb02be0164a1ec
-  sym_src_services_notebooklm_textPreprocessor_d0953d6c8cf0f672["isImageExtension"]:::symbol
-  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_d0953d6c8cf0f672
-  sym_src_services_notebooklm_textPreprocessor_4b512eb8cf2e5f9b["parseFence"]:::symbol
-  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_4b512eb8cf2e5f9b
-  sym_src_services_notebooklm_textPreprocessor_224eb0d754e5399e["preprocessNoteForNotebookLM"]:::symbol
-  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_224eb0d754e5399e
-  sym_src_services_notebooklm_textPreprocessor_9f18879c7076f7ce["replaceImageEmbeds"]:::symbol
-  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_9f18879c7076f7ce
+  sym_src_services_notebooklm_textPreprocessor_3ea86098c7c781cf["getExtension"]:::symbol
+  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_3ea86098c7c781cf
+  sym_src_services_notebooklm_textPreprocessor_62d24b30e5ec3438["htmlBlockTag"]:::symbol
+  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_62d24b30e5ec3438
+  sym_src_services_notebooklm_textPreprocessor_d8b4ff82cabcae20["isImageExtension"]:::symbol
+  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_d8b4ff82cabcae20
+  sym_src_services_notebooklm_textPreprocessor_8ddfd3303e8e7f85["parseFence"]:::symbol
+  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_8ddfd3303e8e7f85
+  sym_src_services_notebooklm_textPreprocessor_3c9b77e58d42e28f["preprocessNoteForNotebookLM"]:::symbol
+  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_3c9b77e58d42e28f
+  sym_src_services_notebooklm_textPreprocessor_d8af2b9032c37a09["replaceImageEmbeds"]:::symbol
+  file_src_services_notebooklm_textPreprocessor_2a7d23778fd08e0d --> sym_src_services_notebooklm_textPreprocessor_d8af2b9032c37a09
   file_src_services_notebooklm_writer_ts_51bc106504f41e05["src/services/notebooklm/writer.ts"]:::component
-  sym_src_services_notebooklm_writer_ts_Writer_4b24d40ca2b43aaf["WriterService"]:::symbol
-  file_src_services_notebooklm_writer_ts_51bc106504f41e05 --> sym_src_services_notebooklm_writer_ts_Writer_4b24d40ca2b43aaf
+  sym_src_services_notebooklm_writer_ts_Writer_b7ba0a1e79ed5a92["WriterService"]:::symbol
+  file_src_services_notebooklm_writer_ts_51bc106504f41e05 --> sym_src_services_notebooklm_writer_ts_Writer_b7ba0a1e79ed5a92
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2125,98 +2126,98 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_persona_harness_b7984c5a629f32c3 ["persona-harness"]
   file_scripts_persona_harness_azure_feature_sw_1f8e88dbb4aa71f5["scripts/persona-harness/azure-feature-sweep.mjs"]:::component
-  sym_scripts_persona_harness_azure_feature_sw_464a3c299e882d08["feature"]:::symbol
-  file_scripts_persona_harness_azure_feature_sw_1f8e88dbb4aa71f5 --> sym_scripts_persona_harness_azure_feature_sw_464a3c299e882d08
-  sym_scripts_persona_harness_azure_feature_sw_91fdafade2062d11["mark"]:::symbol
-  file_scripts_persona_harness_azure_feature_sw_1f8e88dbb4aa71f5 --> sym_scripts_persona_harness_azure_feature_sw_91fdafade2062d11
+  sym_scripts_persona_harness_azure_feature_sw_457d2c43666956d9["feature"]:::symbol
+  file_scripts_persona_harness_azure_feature_sw_1f8e88dbb4aa71f5 --> sym_scripts_persona_harness_azure_feature_sw_457d2c43666956d9
+  sym_scripts_persona_harness_azure_feature_sw_93be44c9be999c85["mark"]:::symbol
+  file_scripts_persona_harness_azure_feature_sw_1f8e88dbb4aa71f5 --> sym_scripts_persona_harness_azure_feature_sw_93be44c9be999c85
   file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f["scripts/persona-harness/azure-ui-flows.mjs"]:::component
-  sym_scripts_persona_harness_azure_ui_flows_m_d8872caacaeff7d7["closeAllModals"]:::symbol
-  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_d8872caacaeff7d7
-  sym_scripts_persona_harness_azure_ui_flows_m_e0a904e08708fbf7["dismissSecondary"]:::symbol
-  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_e0a904e08708fbf7
-  sym_scripts_persona_harness_azure_ui_flows_m_a6d55c25159257e0["mark"]:::symbol
-  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_a6d55c25159257e0
-  sym_scripts_persona_harness_azure_ui_flows_m_723b62e6b00280bc["pollState"]:::symbol
-  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_723b62e6b00280bc
-  sym_scripts_persona_harness_azure_ui_flows_m_c8e175e914707d81["record"]:::symbol
-  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_c8e175e914707d81
-  sym_scripts_persona_harness_azure_ui_flows_m_426effab57a0f99f["shot"]:::symbol
-  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_426effab57a0f99f
+  sym_scripts_persona_harness_azure_ui_flows_m_6e663ec985b22bdb["closeAllModals"]:::symbol
+  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_6e663ec985b22bdb
+  sym_scripts_persona_harness_azure_ui_flows_m_f7d1bcfac539bcba["dismissSecondary"]:::symbol
+  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_f7d1bcfac539bcba
+  sym_scripts_persona_harness_azure_ui_flows_m_fbc65f84d51eb8a9["mark"]:::symbol
+  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_fbc65f84d51eb8a9
+  sym_scripts_persona_harness_azure_ui_flows_m_5528d3eb0a742c7d["pollState"]:::symbol
+  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_5528d3eb0a742c7d
+  sym_scripts_persona_harness_azure_ui_flows_m_52348af231924979["record"]:::symbol
+  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_52348af231924979
+  sym_scripts_persona_harness_azure_ui_flows_m_f56c4eb326400b76["shot"]:::symbol
+  file_scripts_persona_harness_azure_ui_flows_m_782536186c8f607f --> sym_scripts_persona_harness_azure_ui_flows_m_f56c4eb326400b76
   file_scripts_persona_harness_driver_mjs_2550b6f3326049f5["scripts/persona-harness/driver.mjs"]:::component
-  sym_scripts_persona_harness_driver_mjs_dismi_60c1cb6bc66bddda["dismissModal"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_dismi_60c1cb6bc66bddda
-  sym_scripts_persona_harness_driver_mjs_dumpC_ee6381659f7b6bbe["dumpCommandPickerStructure"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_dumpC_ee6381659f7b6bbe
-  sym_scripts_persona_harness_driver_mjs_ensur_3455a40a5b0557bf["ensureVaultOpen"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_ensur_3455a40a5b0557bf
-  sym_scripts_persona_harness_driver_mjs_findM_adadcf4010e0480d["findMainPage"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_findM_adadcf4010e0480d
-  sym_scripts_persona_harness_driver_mjs_isObs_59c286ba5733fe96["isObsidianRunning"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_isObs_59c286ba5733fe96
-  sym_scripts_persona_harness_driver_mjs_launc_898fe0f3777cf7b3["launchOrAttach"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_launc_898fe0f3777cf7b3
-  sym_scripts_persona_harness_driver_mjs_openP_ae251b1d6b9ca563["openPaletteAndType"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openP_ae251b1d6b9ca563
-  sym_scripts_persona_harness_driver_mjs_openP_6c98642485d4ad0e["openPluginCommandPicker"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openP_6c98642485d4ad0e
-  sym_scripts_persona_harness_driver_mjs_openP_c2722c2dc40c01bc["openPluginCommandPickerViaRibbon"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openP_c2722c2dc40c01bc
-  sym_scripts_persona_harness_driver_mjs_openV_23abd9cca5bd5ecb["openVaultFile"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openV_23abd9cca5bd5ecb
-  sym_scripts_persona_harness_driver_mjs_readV_7158138cc4fc8df3["readVisibleMenuItems"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_readV_7158138cc4fc8df3
-  sym_scripts_persona_harness_driver_mjs_right_49c9babe5b5cbf5a["rightClickEditor"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_right_49c9babe5b5cbf5a
-  sym_scripts_persona_harness_driver_mjs_right_5f5f4705b88b9ca4["rightClickEditorWithSelection"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_right_5f5f4705b88b9ca4
-  sym_scripts_persona_harness_driver_mjs_right_dd0940f7a08c8632["rightClickFileInTree"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_right_dd0940f7a08c8632
-  sym_scripts_persona_harness_driver_mjs_runCo_09ae88fc61eda293["runCommand"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_runCo_09ae88fc61eda293
-  sym_scripts_persona_harness_driver_mjs_stamp_fe5b01e89dacaf6f["stampedName"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_stamp_fe5b01e89dacaf6f
-  sym_scripts_persona_harness_driver_mjs_waitF_935caf8085f4b2d0["waitForPluginReady"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_waitF_935caf8085f4b2d0
-  sym_scripts_persona_harness_driver_mjs_waitF_46b92cb0cc3b6e37["waitForPort"]:::symbol
-  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_waitF_46b92cb0cc3b6e37
+  sym_scripts_persona_harness_driver_mjs_dismi_dea7292110fdd034["dismissModal"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_dismi_dea7292110fdd034
+  sym_scripts_persona_harness_driver_mjs_dumpC_efb866f123e09fcb["dumpCommandPickerStructure"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_dumpC_efb866f123e09fcb
+  sym_scripts_persona_harness_driver_mjs_ensur_863e2a22febfa8b6["ensureVaultOpen"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_ensur_863e2a22febfa8b6
+  sym_scripts_persona_harness_driver_mjs_findM_a258c8dc754d3081["findMainPage"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_findM_a258c8dc754d3081
+  sym_scripts_persona_harness_driver_mjs_isObs_b7dc8325ba9e3c12["isObsidianRunning"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_isObs_b7dc8325ba9e3c12
+  sym_scripts_persona_harness_driver_mjs_launc_53b5ed68b99421f7["launchOrAttach"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_launc_53b5ed68b99421f7
+  sym_scripts_persona_harness_driver_mjs_openP_f581f66c0c555807["openPaletteAndType"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openP_f581f66c0c555807
+  sym_scripts_persona_harness_driver_mjs_openP_86e7d158ba8bc93c["openPluginCommandPicker"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openP_86e7d158ba8bc93c
+  sym_scripts_persona_harness_driver_mjs_openP_458fde181f9e05a5["openPluginCommandPickerViaRibbon"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openP_458fde181f9e05a5
+  sym_scripts_persona_harness_driver_mjs_openV_a02657c39d051ff0["openVaultFile"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_openV_a02657c39d051ff0
+  sym_scripts_persona_harness_driver_mjs_readV_f57c0450833cf227["readVisibleMenuItems"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_readV_f57c0450833cf227
+  sym_scripts_persona_harness_driver_mjs_right_bf13d8471c668d07["rightClickEditor"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_right_bf13d8471c668d07
+  sym_scripts_persona_harness_driver_mjs_right_974ed1107fb3c9b7["rightClickEditorWithSelection"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_right_974ed1107fb3c9b7
+  sym_scripts_persona_harness_driver_mjs_right_00932a68cd82c624["rightClickFileInTree"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_right_00932a68cd82c624
+  sym_scripts_persona_harness_driver_mjs_runCo_f3bf8f8c31ac4236["runCommand"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_runCo_f3bf8f8c31ac4236
+  sym_scripts_persona_harness_driver_mjs_stamp_164cfcae341a77d6["stampedName"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_stamp_164cfcae341a77d6
+  sym_scripts_persona_harness_driver_mjs_waitF_13e80134ba64cf69["waitForPluginReady"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_waitF_13e80134ba64cf69
+  sym_scripts_persona_harness_driver_mjs_waitF_b96b2823b8c0ae14["waitForPort"]:::symbol
+  file_scripts_persona_harness_driver_mjs_2550b6f3326049f5 --> sym_scripts_persona_harness_driver_mjs_waitF_b96b2823b8c0ae14
   file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406["scripts/persona-harness/persona-layout-ab.mjs"]:::component
-  sym_scripts_persona_harness_persona_layout_a_3e042a7a52f05635["argVal"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_3e042a7a52f05635
-  sym_scripts_persona_harness_persona_layout_a_61ecedb3b0abff3b["generatePersonaDeck"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_61ecedb3b0abff3b
-  sym_scripts_persona_harness_persona_layout_a_6b1b77cbf86f5500["getLivePage"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_6b1b77cbf86f5500
-  sym_scripts_persona_harness_persona_layout_a_60bc51556ecccb4d["judgeClaude"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_60bc51556ecccb4d
-  sym_scripts_persona_harness_persona_layout_a_61cbe1c99a2b8c96["judgeGemini"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_61cbe1c99a2b8c96
-  sym_scripts_persona_harness_persona_layout_a_1b085ab4fbdc6e19["judgeLive"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_1b085ab4fbdc6e19
-  sym_scripts_persona_harness_persona_layout_a_337750e2aae2fa21["judgeOpenAI"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_337750e2aae2fa21
-  sym_scripts_persona_harness_persona_layout_a_606cf439757be2c4["judgeSlide"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_606cf439757be2c4
-  sym_scripts_persona_harness_persona_layout_a_2c0f53a778b31394["providerFamily"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_2c0f53a778b31394
-  sym_scripts_persona_harness_persona_layout_a_af828d9252ed50a8["readKey"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_af828d9252ed50a8
-  sym_scripts_persona_harness_persona_layout_a_a52862956daa10b4["readMainProvider"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_a52862956daa10b4
-  sym_scripts_persona_harness_persona_layout_a_b926008c3747ec47["renderSlides"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_b926008c3747ec47
-  sym_scripts_persona_harness_persona_layout_a_e2e6b8fb0c84a9bb["resolveJudge"]:::symbol
-  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_e2e6b8fb0c84a9bb
+  sym_scripts_persona_harness_persona_layout_a_583e89a8b1faa94a["argVal"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_583e89a8b1faa94a
+  sym_scripts_persona_harness_persona_layout_a_a37b1cae0eff9d0c["generatePersonaDeck"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_a37b1cae0eff9d0c
+  sym_scripts_persona_harness_persona_layout_a_83ed56030a6de7af["getLivePage"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_83ed56030a6de7af
+  sym_scripts_persona_harness_persona_layout_a_3dcd561e2ba6d0c3["judgeClaude"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_3dcd561e2ba6d0c3
+  sym_scripts_persona_harness_persona_layout_a_42b59d44a35e33e2["judgeGemini"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_42b59d44a35e33e2
+  sym_scripts_persona_harness_persona_layout_a_4c172f72cec1db84["judgeLive"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_4c172f72cec1db84
+  sym_scripts_persona_harness_persona_layout_a_65fe4017826b86a2["judgeOpenAI"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_65fe4017826b86a2
+  sym_scripts_persona_harness_persona_layout_a_4dca3d1b06feb4d2["judgeSlide"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_4dca3d1b06feb4d2
+  sym_scripts_persona_harness_persona_layout_a_c9ceaf1401a172ae["providerFamily"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_c9ceaf1401a172ae
+  sym_scripts_persona_harness_persona_layout_a_896d6786d4b1644a["readKey"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_896d6786d4b1644a
+  sym_scripts_persona_harness_persona_layout_a_f2f3d50e73ceadea["readMainProvider"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_f2f3d50e73ceadea
+  sym_scripts_persona_harness_persona_layout_a_5502c8760cd582a8["renderSlides"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_5502c8760cd582a8
+  sym_scripts_persona_harness_persona_layout_a_1821a00b6d36c5d6["resolveJudge"]:::symbol
+  file_scripts_persona_harness_persona_layout_a_d8e9f4afeaa1d406 --> sym_scripts_persona_harness_persona_layout_a_1821a00b6d36c5d6
   file_scripts_persona_harness_pres_websearch_t_7ae60737479be114["scripts/persona-harness/pres-websearch-throttle.mjs"]:::component
-  sym_scripts_persona_harness_pres_websearch_t_79826c96390d5deb["clearNotices"]:::symbol
-  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_79826c96390d5deb
-  sym_scripts_persona_harness_pres_websearch_t_967d3f81e212002f["closeAll"]:::symbol
-  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_967d3f81e212002f
-  sym_scripts_persona_harness_pres_websearch_t_7415b42e23dbf615["dismissSecondaryModals"]:::symbol
-  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_7415b42e23dbf615
-  sym_scripts_persona_harness_pres_websearch_t_3f8876debafcbf07["mark"]:::symbol
-  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_3f8876debafcbf07
-  sym_scripts_persona_harness_pres_websearch_t_f68be942df2b6dc1["shot"]:::symbol
-  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_f68be942df2b6dc1
+  sym_scripts_persona_harness_pres_websearch_t_9f658cee1d9f7524["clearNotices"]:::symbol
+  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_9f658cee1d9f7524
+  sym_scripts_persona_harness_pres_websearch_t_428fc9b7b475410e["closeAll"]:::symbol
+  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_428fc9b7b475410e
+  sym_scripts_persona_harness_pres_websearch_t_57a4c110926845c7["dismissSecondaryModals"]:::symbol
+  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_57a4c110926845c7
+  sym_scripts_persona_harness_pres_websearch_t_6e7cf380b776afd0["mark"]:::symbol
+  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_6e7cf380b776afd0
+  sym_scripts_persona_harness_pres_websearch_t_7bbcd02911092223["shot"]:::symbol
+  file_scripts_persona_harness_pres_websearch_t_7ae60737479be114 --> sym_scripts_persona_harness_pres_websearch_t_7bbcd02911092223
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2282,66 +2283,66 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_pptx_export_ec3b7ce8e61d886d ["pptx-export"]
   file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac["src/services/pptxExport/htmlToRichSlideParser.ts"]:::component
-  sym_src_services_pptxExport_htmlToRichSlideP_0b689b27db07d820["detectSlideType"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_0b689b27db07d820
-  sym_src_services_pptxExport_htmlToRichSlideP_099045ab031c8fb7["extractElements"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_099045ab031c8fb7
-  sym_src_services_pptxExport_htmlToRichSlideP_d291b6f39498c8d8["firstText"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_d291b6f39498c8d8
-  sym_src_services_pptxExport_htmlToRichSlideP_286f7cd74428c850["htmlToRichSlides"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_286f7cd74428c850
-  sym_src_services_pptxExport_htmlToRichSlideP_9485297fb30708e4["isSemanticBlock"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_9485297fb30708e4
-  sym_src_services_pptxExport_htmlToRichSlideP_c47a863a7ad82061["parseSlide"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_c47a863a7ad82061
-  sym_src_services_pptxExport_htmlToRichSlideP_9c7f351c1ab52b38["toStatCard"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_9c7f351c1ab52b38
-  sym_src_services_pptxExport_htmlToRichSlideP_1878f5fc7d5a01ff["toTable"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_1878f5fc7d5a01ff
-  sym_src_services_pptxExport_htmlToRichSlideP_a003348b5f3c80fb["walkBlockChildren"]:::symbol
-  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_a003348b5f3c80fb
+  sym_src_services_pptxExport_htmlToRichSlideP_43ca8ecc528dd6d0["detectSlideType"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_43ca8ecc528dd6d0
+  sym_src_services_pptxExport_htmlToRichSlideP_86a3986c53a66763["extractElements"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_86a3986c53a66763
+  sym_src_services_pptxExport_htmlToRichSlideP_ff3ca9480ac8cc9b["firstText"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_ff3ca9480ac8cc9b
+  sym_src_services_pptxExport_htmlToRichSlideP_682d4eed7459fb75["htmlToRichSlides"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_682d4eed7459fb75
+  sym_src_services_pptxExport_htmlToRichSlideP_25d2f8de9c7bea60["isSemanticBlock"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_25d2f8de9c7bea60
+  sym_src_services_pptxExport_htmlToRichSlideP_966c87cfa86582ed["parseSlide"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_966c87cfa86582ed
+  sym_src_services_pptxExport_htmlToRichSlideP_c45172303dfb42f3["toStatCard"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_c45172303dfb42f3
+  sym_src_services_pptxExport_htmlToRichSlideP_c0bb618ddecc4447["toTable"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_c0bb618ddecc4447
+  sym_src_services_pptxExport_htmlToRichSlideP_4051eb1607de658a["walkBlockChildren"]:::symbol
+  file_src_services_pptxExport_htmlToRichSlideP_4592ec82ddd92eac --> sym_src_services_pptxExport_htmlToRichSlideP_4051eb1607de658a
   file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033["src/services/pptxExport/richPptxRenderer.ts"]:::component
-  sym_src_services_pptxExport_richPptxRenderer_2b924ce3163d3811["clampFixedFont"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_2b924ce3163d3811
-  sym_src_services_pptxExport_richPptxRenderer_b6f00c8d9d36b0a6["estimateTextHeight"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_b6f00c8d9d36b0a6
-  sym_src_services_pptxExport_richPptxRenderer_8bd8164ec96c7117["fontFloor"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_8bd8164ec96c7117
-  sym_src_services_pptxExport_richPptxRenderer_4ef153a87dac9597["lightenedFill"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_4ef153a87dac9597
-  sym_src_services_pptxExport_richPptxRenderer_d1873d1447aa2eff["renderClosingSlide"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_d1873d1447aa2eff
-  sym_src_services_pptxExport_richPptxRenderer_7edfe2ce1f2bc70a["renderColumn"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_7edfe2ce1f2bc70a
-  sym_src_services_pptxExport_richPptxRenderer_e5bf1d622917036f["renderContentSlide"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_e5bf1d622917036f
-  sym_src_services_pptxExport_richPptxRenderer_541e001e27d776e5["renderElement"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_541e001e27d776e5
-  sym_src_services_pptxExport_richPptxRenderer_6a1f58993d54203a["renderImage"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_6a1f58993d54203a
-  sym_src_services_pptxExport_richPptxRenderer_3617f11b9df2fc62["renderList"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_3617f11b9df2fc62
-  sym_src_services_pptxExport_richPptxRenderer_2c91732139f82559["renderRichPptx"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_2c91732139f82559
-  sym_src_services_pptxExport_richPptxRenderer_56d83e8dec5ce5a5["renderSectionSlide"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_56d83e8dec5ce5a5
-  sym_src_services_pptxExport_richPptxRenderer_6ace6c3b91a0fab3["renderStatCard"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_6ace6c3b91a0fab3
-  sym_src_services_pptxExport_richPptxRenderer_9fa0cafc9e521c87["renderStatsGrid"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_9fa0cafc9e521c87
-  sym_src_services_pptxExport_richPptxRenderer_aeab0ded8973d1fd["renderTable"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_aeab0ded8973d1fd
-  sym_src_services_pptxExport_richPptxRenderer_c970038a4e5bb9ab["renderText"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_c970038a4e5bb9ab
-  sym_src_services_pptxExport_richPptxRenderer_2ed5091f8caa7ad5["renderTitleSlide"]:::symbol
-  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_2ed5091f8caa7ad5
+  sym_src_services_pptxExport_richPptxRenderer_527bb014138a5331["clampFixedFont"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_527bb014138a5331
+  sym_src_services_pptxExport_richPptxRenderer_b5a7a1c4a5a9c3ba["estimateTextHeight"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_b5a7a1c4a5a9c3ba
+  sym_src_services_pptxExport_richPptxRenderer_c64758080d2580b1["fontFloor"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_c64758080d2580b1
+  sym_src_services_pptxExport_richPptxRenderer_b6d47234a909f72f["lightenedFill"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_b6d47234a909f72f
+  sym_src_services_pptxExport_richPptxRenderer_2f7b7b88785f3943["renderClosingSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_2f7b7b88785f3943
+  sym_src_services_pptxExport_richPptxRenderer_1d912c9b726d3208["renderColumn"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_1d912c9b726d3208
+  sym_src_services_pptxExport_richPptxRenderer_1f10620f5d3ed875["renderContentSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_1f10620f5d3ed875
+  sym_src_services_pptxExport_richPptxRenderer_5d070413582a27bc["renderElement"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_5d070413582a27bc
+  sym_src_services_pptxExport_richPptxRenderer_7e8f1f5685767125["renderImage"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_7e8f1f5685767125
+  sym_src_services_pptxExport_richPptxRenderer_3c09ebc4a79daaae["renderList"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_3c09ebc4a79daaae
+  sym_src_services_pptxExport_richPptxRenderer_7b0680fc3ad26578["renderRichPptx"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_7b0680fc3ad26578
+  sym_src_services_pptxExport_richPptxRenderer_2b61ed4992b141f4["renderSectionSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_2b61ed4992b141f4
+  sym_src_services_pptxExport_richPptxRenderer_150dde0a8fab590e["renderStatCard"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_150dde0a8fab590e
+  sym_src_services_pptxExport_richPptxRenderer_14ca0c09cc5c2349["renderStatsGrid"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_14ca0c09cc5c2349
+  sym_src_services_pptxExport_richPptxRenderer_a563d5848a4a979c["renderTable"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_a563d5848a4a979c
+  sym_src_services_pptxExport_richPptxRenderer_1e7cfd3ff1c6476c["renderText"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_1e7cfd3ff1c6476c
+  sym_src_services_pptxExport_richPptxRenderer_7b7737a3b47ff63c["renderTitleSlide"]:::symbol
+  file_src_services_pptxExport_richPptxRenderer_1a6d14b46da09033 --> sym_src_services_pptxExport_richPptxRenderer_7b7737a3b47ff63c
   file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f["src/services/pptxExport/richSlideTypes.ts"]:::component
-  sym_src_services_pptxExport_richSlideTypes_t_afc9bbd82ddb696c["isRichSlide"]:::symbol
-  file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f --> sym_src_services_pptxExport_richSlideTypes_t_afc9bbd82ddb696c
-  sym_src_services_pptxExport_richSlideTypes_t_6984f6b235952e40["isRichSlideArray"]:::symbol
-  file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f --> sym_src_services_pptxExport_richSlideTypes_t_6984f6b235952e40
-  sym_src_services_pptxExport_richSlideTypes_t_5e42398e9e826acb["isSlideElement"]:::symbol
-  file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f --> sym_src_services_pptxExport_richSlideTypes_t_5e42398e9e826acb
+  sym_src_services_pptxExport_richSlideTypes_t_9536e06c0fceebf3["isRichSlide"]:::symbol
+  file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f --> sym_src_services_pptxExport_richSlideTypes_t_9536e06c0fceebf3
+  sym_src_services_pptxExport_richSlideTypes_t_11638281226a4667["isRichSlideArray"]:::symbol
+  file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f --> sym_src_services_pptxExport_richSlideTypes_t_11638281226a4667
+  sym_src_services_pptxExport_richSlideTypes_t_3949cb4e05417b97["isSlideElement"]:::symbol
+  file_src_services_pptxExport_richSlideTypes_t_d16fa49bf8b5118f --> sym_src_services_pptxExport_richSlideTypes_t_3949cb4e05417b97
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2392,34 +2393,34 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_progress_b5f90a96e680140d ["progress"]
   file_src_services_progress_elapsed_ts_233bf9b2594d3f1f["src/services/progress/elapsed.ts"]:::component
-  sym_src_services_progress_elapsed_ts_formatE_21f096add1baa956["formatElapsed"]:::symbol
-  file_src_services_progress_elapsed_ts_233bf9b2594d3f1f --> sym_src_services_progress_elapsed_ts_formatE_21f096add1baa956
+  sym_src_services_progress_elapsed_ts_formatE_840ef27071de56fe["formatElapsed"]:::symbol
+  file_src_services_progress_elapsed_ts_233bf9b2594d3f1f --> sym_src_services_progress_elapsed_ts_formatE_840ef27071de56fe
   file_src_services_progress_progressIndicatorD_4c8cb877d3ccb27b["src/services/progress/progressIndicatorDom.ts"]:::component
-  sym_src_services_progress_progressIndicatorD_dc06e9077d48779f["buildProgressIndicator"]:::symbol
-  file_src_services_progress_progressIndicatorD_4c8cb877d3ccb27b --> sym_src_services_progress_progressIndicatorD_dc06e9077d48779f
+  sym_src_services_progress_progressIndicatorD_6e36c77907e58391["buildProgressIndicator"]:::symbol
+  file_src_services_progress_progressIndicatorD_4c8cb877d3ccb27b --> sym_src_services_progress_progressIndicatorD_6e36c77907e58391
   file_src_services_progress_progressReporter_t_b607ab8e650327e7["src/services/progress/progressReporter.ts"]:::component
-  sym_src_services_progress_progressReporter_t_3ae7832ab225e482["formatDuration"]:::symbol
-  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_3ae7832ab225e482
-  sym_src_services_progress_progressReporter_t_9803947d507e7f14["neverAbortSignal"]:::symbol
-  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_9803947d507e7f14
-  sym_src_services_progress_progressReporter_t_345261e9c2798644["normalizeError"]:::symbol
-  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_345261e9c2798644
-  sym_src_services_progress_progressReporter_t_ba1ebdc55ca46c5d["ProgressReporter"]:::symbol
-  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_ba1ebdc55ca46c5d
+  sym_src_services_progress_progressReporter_t_6ea48cd2ec427d93["formatDuration"]:::symbol
+  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_6ea48cd2ec427d93
+  sym_src_services_progress_progressReporter_t_85afc791d7f5078b["neverAbortSignal"]:::symbol
+  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_85afc791d7f5078b
+  sym_src_services_progress_progressReporter_t_bbb4f2e3c521a3af["normalizeError"]:::symbol
+  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_bbb4f2e3c521a3af
+  sym_src_services_progress_progressReporter_t_76b47eecb81cb3bb["ProgressReporter"]:::symbol
+  file_src_services_progress_progressReporter_t_b607ab8e650327e7 --> sym_src_services_progress_progressReporter_t_76b47eecb81cb3bb
   file_src_services_progress_statusBarBroker_ts_7b2629c73a0b237e["src/services/progress/statusBarBroker.ts"]:::component
-  sym_src_services_progress_statusBarBroker_ts_0a7be96a9218a664["Broker"]:::symbol
-  file_src_services_progress_statusBarBroker_ts_7b2629c73a0b237e --> sym_src_services_progress_statusBarBroker_ts_0a7be96a9218a664
+  sym_src_services_progress_statusBarBroker_ts_68fe997273aeeb63["Broker"]:::symbol
+  file_src_services_progress_statusBarBroker_ts_7b2629c73a0b237e --> sym_src_services_progress_statusBarBroker_ts_68fe997273aeeb63
   file_src_services_progress_withProgress_ts_0a304ee7a302515e["src/services/progress/withProgress.ts"]:::component
-  sym_src_services_progress_withProgress_ts_is_465963fc47865cf2["isAbortError"]:::symbol
-  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_is_465963fc47865cf2
-  sym_src_services_progress_withProgress_ts_is_57809cc56e356e17["isCancelSentinel"]:::symbol
-  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_is_57809cc56e356e17
-  sym_src_services_progress_withProgress_ts_is_f6902f57995c8208["isTerminalState"]:::symbol
-  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_is_f6902f57995c8208
-  sym_src_services_progress_withProgress_ts_wi_2f0f585ccdf61cbc["withProgress"]:::symbol
-  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_wi_2f0f585ccdf61cbc
-  sym_src_services_progress_withProgress_ts_wi_08337e256117b810["withProgressResult"]:::symbol
-  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_wi_08337e256117b810
+  sym_src_services_progress_withProgress_ts_is_0aadf7465de76e57["isAbortError"]:::symbol
+  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_is_0aadf7465de76e57
+  sym_src_services_progress_withProgress_ts_is_0e4373676052b9de["isCancelSentinel"]:::symbol
+  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_is_0e4373676052b9de
+  sym_src_services_progress_withProgress_ts_is_db2fd8d9cbed94f8["isTerminalState"]:::symbol
+  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_is_db2fd8d9cbed94f8
+  sym_src_services_progress_withProgress_ts_wi_d5fa93ee209085d7["withProgress"]:::symbol
+  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_wi_d5fa93ee209085d7
+  sym_src_services_progress_withProgress_ts_wi_b897122c7e3c41e0["withProgressResult"]:::symbol
+  file_src_services_progress_withProgress_ts_0a304ee7a302515e --> sym_src_services_progress_withProgress_ts_wi_b897122c7e3c41e0
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2453,42 +2454,42 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_prompts_eb7526362ee7678c ["prompts"]
   file_src_services_prompts_auditPrompts_ts_0566684b4c9b8213["src/services/prompts/auditPrompts.ts"]:::component
-  sym_src_services_prompts_auditPrompts_ts_bui_4206bd1cee9ea09d["buildIntegrationAuditPrompt"]:::symbol
-  file_src_services_prompts_auditPrompts_ts_0566684b4c9b8213 --> sym_src_services_prompts_auditPrompts_ts_bui_4206bd1cee9ea09d
-  sym_src_services_prompts_auditPrompts_ts_bui_f565e96e64fd3eff["buildMinutesAuditPrompt"]:::symbol
-  file_src_services_prompts_auditPrompts_ts_0566684b4c9b8213 --> sym_src_services_prompts_auditPrompts_ts_bui_f565e96e64fd3eff
+  sym_src_services_prompts_auditPrompts_ts_bui_be6b26230b999304["buildIntegrationAuditPrompt"]:::symbol
+  file_src_services_prompts_auditPrompts_ts_0566684b4c9b8213 --> sym_src_services_prompts_auditPrompts_ts_bui_be6b26230b999304
+  sym_src_services_prompts_auditPrompts_ts_bui_f14c504ad6741098["buildMinutesAuditPrompt"]:::symbol
+  file_src_services_prompts_auditPrompts_ts_0566684b4c9b8213 --> sym_src_services_prompts_auditPrompts_ts_bui_f14c504ad6741098
   file_src_services_prompts_canvasPrompts_ts_5388899e80c10d66["src/services/prompts/canvasPrompts.ts"]:::component
-  sym_src_services_prompts_canvasPrompts_ts_bu_67fd8b75a43db60d["buildClusterPrompt"]:::symbol
-  file_src_services_prompts_canvasPrompts_ts_5388899e80c10d66 --> sym_src_services_prompts_canvasPrompts_ts_bu_67fd8b75a43db60d
-  sym_src_services_prompts_canvasPrompts_ts_bu_69a3580281e655f9["buildEdgeLabelPrompt"]:::symbol
-  file_src_services_prompts_canvasPrompts_ts_5388899e80c10d66 --> sym_src_services_prompts_canvasPrompts_ts_bu_69a3580281e655f9
+  sym_src_services_prompts_canvasPrompts_ts_bu_8ca797be7c5f7df9["buildClusterPrompt"]:::symbol
+  file_src_services_prompts_canvasPrompts_ts_5388899e80c10d66 --> sym_src_services_prompts_canvasPrompts_ts_bu_8ca797be7c5f7df9
+  sym_src_services_prompts_canvasPrompts_ts_bu_0b8bd11b91fffe0e["buildEdgeLabelPrompt"]:::symbol
+  file_src_services_prompts_canvasPrompts_ts_5388899e80c10d66 --> sym_src_services_prompts_canvasPrompts_ts_bu_0b8bd11b91fffe0e
   file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2["src/services/prompts/chatPrompts.ts"]:::component
-  sym_src_services_prompts_chatPrompts_ts_buil_8919dd7fc1777b9d["buildChatFileNamePrompt"]:::symbol
-  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_8919dd7fc1777b9d
-  sym_src_services_prompts_chatPrompts_ts_buil_ddb102c73325874c["buildCompactionPrompt"]:::symbol
-  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_ddb102c73325874c
-  sym_src_services_prompts_chatPrompts_ts_buil_f249f7c40549ed69["buildNoteChatPrompt"]:::symbol
-  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_f249f7c40549ed69
-  sym_src_services_prompts_chatPrompts_ts_buil_45e6764ea996efac["buildVaultFallbackPrompt"]:::symbol
-  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_45e6764ea996efac
+  sym_src_services_prompts_chatPrompts_ts_buil_590fad99cb76823e["buildChatFileNamePrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_590fad99cb76823e
+  sym_src_services_prompts_chatPrompts_ts_buil_1899f1e5bc2f1012["buildCompactionPrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_1899f1e5bc2f1012
+  sym_src_services_prompts_chatPrompts_ts_buil_c017ff095a9751af["buildNoteChatPrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_c017ff095a9751af
+  sym_src_services_prompts_chatPrompts_ts_buil_054eaf5bc481824d["buildVaultFallbackPrompt"]:::symbol
+  file_src_services_prompts_chatPrompts_ts_ce6b54b0407945e2 --> sym_src_services_prompts_chatPrompts_ts_buil_054eaf5bc481824d
   file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b["src/services/prompts/diagramPrompts.ts"]:::component
-  sym_src_services_prompts_diagramPrompts_ts_b_5337c21181d2437a["buildDiagramPrompt"]:::symbol
-  file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b --> sym_src_services_prompts_diagramPrompts_ts_b_5337c21181d2437a
-  sym_src_services_prompts_diagramPrompts_ts_c_b4073ffb0a81a590["cleanMermaidOutput"]:::symbol
-  file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b --> sym_src_services_prompts_diagramPrompts_ts_c_b4073ffb0a81a590
-  sym_src_services_prompts_diagramPrompts_ts_w_73c4828da73b54d4["wrapInCodeFence"]:::symbol
-  file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b --> sym_src_services_prompts_diagramPrompts_ts_w_73c4828da73b54d4
+  sym_src_services_prompts_diagramPrompts_ts_b_0e4b7945ddcd7afd["buildDiagramPrompt"]:::symbol
+  file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b --> sym_src_services_prompts_diagramPrompts_ts_b_0e4b7945ddcd7afd
+  sym_src_services_prompts_diagramPrompts_ts_c_2e5188d7b312bf1f["cleanMermaidOutput"]:::symbol
+  file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b --> sym_src_services_prompts_diagramPrompts_ts_c_2e5188d7b312bf1f
+  sym_src_services_prompts_diagramPrompts_ts_w_971940989b84338b["wrapInCodeFence"]:::symbol
+  file_src_services_prompts_diagramPrompts_ts_4eeed0c95c43f04b --> sym_src_services_prompts_diagramPrompts_ts_w_971940989b84338b
   file_src_services_prompts_dictionaryPrompts_t_7881162b52c1bd76["src/services/prompts/dictionaryPrompts.ts"]:::component
-  sym_src_services_prompts_dictionaryPrompts_t_2e75db0561ce7d7f["buildTermExtractionPrompt"]:::symbol
-  file_src_services_prompts_dictionaryPrompts_t_7881162b52c1bd76 --> sym_src_services_prompts_dictionaryPrompts_t_2e75db0561ce7d7f
+  sym_src_services_prompts_dictionaryPrompts_t_e22715744f3c488d["buildTermExtractionPrompt"]:::symbol
+  file_src_services_prompts_dictionaryPrompts_t_7881162b52c1bd76 --> sym_src_services_prompts_dictionaryPrompts_t_e22715744f3c488d
   file_src_services_prompts_digitisePrompts_ts_d6cddbcb9ed62cbb["src/services/prompts/digitisePrompts.ts"]:::component
-  sym_src_services_prompts_digitisePrompts_ts__2f2dfd15ad7ffcc2["buildDigitisePrompt"]:::symbol
-  file_src_services_prompts_digitisePrompts_ts_d6cddbcb9ed62cbb --> sym_src_services_prompts_digitisePrompts_ts__2f2dfd15ad7ffcc2
-  sym_src_services_prompts_digitisePrompts_ts__95c8d9caf273abb7["getModeHint"]:::symbol
-  file_src_services_prompts_digitisePrompts_ts_d6cddbcb9ed62cbb --> sym_src_services_prompts_digitisePrompts_ts__95c8d9caf273abb7
+  sym_src_services_prompts_digitisePrompts_ts__65398361d8b7cff6["buildDigitisePrompt"]:::symbol
+  file_src_services_prompts_digitisePrompts_ts_d6cddbcb9ed62cbb --> sym_src_services_prompts_digitisePrompts_ts__65398361d8b7cff6
+  sym_src_services_prompts_digitisePrompts_ts__6d2756c35cf253df["getModeHint"]:::symbol
+  file_src_services_prompts_digitisePrompts_ts_d6cddbcb9ed62cbb --> sym_src_services_prompts_digitisePrompts_ts__6d2756c35cf253df
   file_src_services_prompts_flashcardPrompts_ts_e23a34be80b3dd59["src/services/prompts/flashcardPrompts.ts"]:::component
-  sym_src_services_prompts_flashcardPrompts_ts_7613d6ba8fb81a48["buildFlashcardPrompt"]:::symbol
-  file_src_services_prompts_flashcardPrompts_ts_e23a34be80b3dd59 --> sym_src_services_prompts_flashcardPrompts_ts_7613d6ba8fb81a48
+  sym_src_services_prompts_flashcardPrompts_ts_2ba91f8a6f533177["buildFlashcardPrompt"]:::symbol
+  file_src_services_prompts_flashcardPrompts_ts_e23a34be80b3dd59 --> sym_src_services_prompts_flashcardPrompts_ts_2ba91f8a6f533177
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2641,71 +2642,71 @@ _Domain has 129 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_research_66f62d1807d3821a ["research"]
   file_src_services_research_academicUtils_ts_154da840b7c11b3e["src/services/research/academicUtils.ts"]:::component
-  sym_src_services_research_academicUtils_ts_b_2a990e22288e63fc["buildAcademicQueries"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_b_2a990e22288e63fc
-  sym_src_services_research_academicUtils_ts_b_4645bdc440b331d8["buildAuthorYearRef"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_b_4645bdc440b331d8
-  sym_src_services_research_academicUtils_ts_e_502b102988d9449f["enrichWithAcademicMetadata"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_502b102988d9449f
-  sym_src_services_research_academicUtils_ts_e_e05637baa84aac03["extractAuthors"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_e05637baa84aac03
-  sym_src_services_research_academicUtils_ts_e_61233eac4c039f03["extractDOI"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_61233eac4c039f03
-  sym_src_services_research_academicUtils_ts_e_99c78566df3ea57f["extractYear"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_99c78566df3ea57f
-  sym_src_services_research_academicUtils_ts_f_4e046869fea67451["formatAcademicCitation"]:::symbol
-  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_f_4e046869fea67451
+  sym_src_services_research_academicUtils_ts_b_035200792d30c26d["buildAcademicQueries"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_b_035200792d30c26d
+  sym_src_services_research_academicUtils_ts_b_496e9502eda177ca["buildAuthorYearRef"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_b_496e9502eda177ca
+  sym_src_services_research_academicUtils_ts_e_74cbe53f541e62a8["enrichWithAcademicMetadata"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_74cbe53f541e62a8
+  sym_src_services_research_academicUtils_ts_e_e04aae631cb4323d["extractAuthors"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_e04aae631cb4323d
+  sym_src_services_research_academicUtils_ts_e_7b95e5d145e2bfb8["extractDOI"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_7b95e5d145e2bfb8
+  sym_src_services_research_academicUtils_ts_e_aecbf5200be8cbd5["extractYear"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_e_aecbf5200be8cbd5
+  sym_src_services_research_academicUtils_ts_f_69146d3937eb8441["formatAcademicCitation"]:::symbol
+  file_src_services_research_academicUtils_ts_154da840b7c11b3e --> sym_src_services_research_academicUtils_ts_f_69146d3937eb8441
   file_src_services_research_adapters_brightdat_6f81eea21b88796d["src/services/research/adapters/brightdataSerpAdapter.ts"]:::component
-  sym_src_services_research_adapters_brightdat_9b849ea88f5f139f["BrightDataSerpAdapter"]:::symbol
-  file_src_services_research_adapters_brightdat_6f81eea21b88796d --> sym_src_services_research_adapters_brightdat_9b849ea88f5f139f
+  sym_src_services_research_adapters_brightdat_8016dbcd0f401862["BrightDataSerpAdapter"]:::symbol
+  file_src_services_research_adapters_brightdat_6f81eea21b88796d --> sym_src_services_research_adapters_brightdat_8016dbcd0f401862
   file_src_services_research_adapters_claudeWeb_695e89d59a62f028["src/services/research/adapters/claudeWebSearchAdapter.ts"]:::component
-  sym_src_services_research_adapters_claudeWeb_566e37037c058695["ClaudeWebSearchAdapter"]:::symbol
-  file_src_services_research_adapters_claudeWeb_695e89d59a62f028 --> sym_src_services_research_adapters_claudeWeb_566e37037c058695
-  sym_src_services_research_adapters_claudeWeb_b79610b13ff16583["resolveLatestSonnetSentinel"]:::symbol
-  file_src_services_research_adapters_claudeWeb_695e89d59a62f028 --> sym_src_services_research_adapters_claudeWeb_b79610b13ff16583
+  sym_src_services_research_adapters_claudeWeb_3af9d559d49f3b2a["ClaudeWebSearchAdapter"]:::symbol
+  file_src_services_research_adapters_claudeWeb_695e89d59a62f028 --> sym_src_services_research_adapters_claudeWeb_3af9d559d49f3b2a
+  sym_src_services_research_adapters_claudeWeb_6121c0510a3cbd76["resolveLatestSonnetSentinel"]:::symbol
+  file_src_services_research_adapters_claudeWeb_695e89d59a62f028 --> sym_src_services_research_adapters_claudeWeb_6121c0510a3cbd76
   file_src_services_research_adapters_tavilyAda_1644c5bfc029e45c["src/services/research/adapters/tavilyAdapter.ts"]:::component
-  sym_src_services_research_adapters_tavilyAda_7c6e01eb6cdf7f76["TavilyAdapter"]:::symbol
-  file_src_services_research_adapters_tavilyAda_1644c5bfc029e45c --> sym_src_services_research_adapters_tavilyAda_7c6e01eb6cdf7f76
+  sym_src_services_research_adapters_tavilyAda_b5af3074ea03a5b3["TavilyAdapter"]:::symbol
+  file_src_services_research_adapters_tavilyAda_1644c5bfc029e45c --> sym_src_services_research_adapters_tavilyAda_b5af3074ea03a5b3
   file_src_services_research_brightdata_cdpClie_f350d4e51950eed5["src/services/research/brightdata/cdpClient.ts"]:::component
-  sym_src_services_research_brightdata_cdpClie_55e57522bc189a26["CDPClient"]:::symbol
-  file_src_services_research_brightdata_cdpClie_f350d4e51950eed5 --> sym_src_services_research_brightdata_cdpClie_55e57522bc189a26
+  sym_src_services_research_brightdata_cdpClie_76c18dd2cdb74e24["CDPClient"]:::symbol
+  file_src_services_research_brightdata_cdpClie_f350d4e51950eed5 --> sym_src_services_research_brightdata_cdpClie_76c18dd2cdb74e24
   file_src_services_research_brightdata_scrapin_ad4cd89549e2ee5a["src/services/research/brightdata/scrapingBrowser.ts"]:::component
-  sym_src_services_research_brightdata_scrapin_624e2564b4638fa1["ScrapingBrowser"]:::symbol
-  file_src_services_research_brightdata_scrapin_ad4cd89549e2ee5a --> sym_src_services_research_brightdata_scrapin_624e2564b4638fa1
+  sym_src_services_research_brightdata_scrapin_141961a0a1c0e93f["ScrapingBrowser"]:::symbol
+  file_src_services_research_brightdata_scrapin_ad4cd89549e2ee5a --> sym_src_services_research_brightdata_scrapin_141961a0a1c0e93f
   file_src_services_research_brightdata_webUnlo_4519dbf41bfd6713["src/services/research/brightdata/webUnlocker.ts"]:::component
-  sym_src_services_research_brightdata_webUnlo_3d0f09e518c59261["WebUnlocker"]:::symbol
-  file_src_services_research_brightdata_webUnlo_4519dbf41bfd6713 --> sym_src_services_research_brightdata_webUnlo_3d0f09e518c59261
+  sym_src_services_research_brightdata_webUnlo_4d9e5c980ed1709f["WebUnlocker"]:::symbol
+  file_src_services_research_brightdata_webUnlo_4519dbf41bfd6713 --> sym_src_services_research_brightdata_webUnlo_4d9e5c980ed1709f
   file_src_services_research_researchOrchestrat_212e4f05476de7aa["src/services/research/researchOrchestrator.ts"]:::component
-  sym_src_services_research_researchOrchestrat_bd24828e56462793["buildResearchSynthesisOptions"]:::symbol
-  file_src_services_research_researchOrchestrat_212e4f05476de7aa --> sym_src_services_research_researchOrchestrat_bd24828e56462793
-  sym_src_services_research_researchOrchestrat_fa46b5cd1974bf89["researchDeepThinkingAvailable"]:::symbol
-  file_src_services_research_researchOrchestrat_212e4f05476de7aa --> sym_src_services_research_researchOrchestrat_fa46b5cd1974bf89
-  sym_src_services_research_researchOrchestrat_5d599bc374032d50["ResearchOrchestrator"]:::symbol
-  file_src_services_research_researchOrchestrat_212e4f05476de7aa --> sym_src_services_research_researchOrchestrat_5d599bc374032d50
+  sym_src_services_research_researchOrchestrat_c57ce0e59d85ebcc["buildResearchSynthesisOptions"]:::symbol
+  file_src_services_research_researchOrchestrat_212e4f05476de7aa --> sym_src_services_research_researchOrchestrat_c57ce0e59d85ebcc
+  sym_src_services_research_researchOrchestrat_62761e66a70c020d["researchDeepThinkingAvailable"]:::symbol
+  file_src_services_research_researchOrchestrat_212e4f05476de7aa --> sym_src_services_research_researchOrchestrat_62761e66a70c020d
+  sym_src_services_research_researchOrchestrat_08736ceea5fd4251["ResearchOrchestrator"]:::symbol
+  file_src_services_research_researchOrchestrat_212e4f05476de7aa --> sym_src_services_research_researchOrchestrat_08736ceea5fd4251
   file_src_services_research_researchSearchServ_369211f9ce7d773e["src/services/research/researchSearchService.ts"]:::component
-  sym_src_services_research_researchSearchServ_40360e6702041d4c["ResearchSearchService"]:::symbol
-  file_src_services_research_researchSearchServ_369211f9ce7d773e --> sym_src_services_research_researchSearchServ_40360e6702041d4c
+  sym_src_services_research_researchSearchServ_1dba2d78e4ef7595["ResearchSearchService"]:::symbol
+  file_src_services_research_researchSearchServ_369211f9ce7d773e --> sym_src_services_research_researchSearchServ_1dba2d78e4ef7595
   file_src_services_research_researchUsageServi_f37aac926d07aa52["src/services/research/researchUsageService.ts"]:::component
-  sym_src_services_research_researchUsageServi_ea0958014b75e84c["createEmptyLedger"]:::symbol
-  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_ea0958014b75e84c
-  sym_src_services_research_researchUsageServi_a24f3a269d29fcec["getCurrentMonth"]:::symbol
-  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_a24f3a269d29fcec
-  sym_src_services_research_researchUsageServi_6e511dd3db0b76bc["getTodayKey"]:::symbol
-  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_6e511dd3db0b76bc
-  sym_src_services_research_researchUsageServi_282b7936aceb21cc["ResearchUsageService"]:::symbol
-  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_282b7936aceb21cc
+  sym_src_services_research_researchUsageServi_f151afc4acd530dd["createEmptyLedger"]:::symbol
+  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_f151afc4acd530dd
+  sym_src_services_research_researchUsageServi_1121a619c4a0a5e6["getCurrentMonth"]:::symbol
+  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_1121a619c4a0a5e6
+  sym_src_services_research_researchUsageServi_73243b9623a35030["getTodayKey"]:::symbol
+  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_73243b9623a35030
+  sym_src_services_research_researchUsageServi_935998b450b4195d["ResearchUsageService"]:::symbol
+  file_src_services_research_researchUsageServi_f37aac926d07aa52 --> sym_src_services_research_researchUsageServi_935998b450b4195d
   file_src_services_research_sourceQualityServi_e03b645ed8347d54["src/services/research/sourceQualityService.ts"]:::component
-  sym_src_services_research_sourceQualityServi_6d621794d10d9097["computeDepth"]:::symbol
-  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_6d621794d10d9097
-  sym_src_services_research_sourceQualityServi_d9b9e7cba121b043["computeFreshness"]:::symbol
-  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_d9b9e7cba121b043
-  sym_src_services_research_sourceQualityServi_3d877de08c41306e["lookupAuthority"]:::symbol
-  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_3d877de08c41306e
-  sym_src_services_research_sourceQualityServi_9063426f3c529755["SourceQualityService"]:::symbol
-  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_9063426f3c529755
+  sym_src_services_research_sourceQualityServi_412221fe62b91bd9["computeDepth"]:::symbol
+  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_412221fe62b91bd9
+  sym_src_services_research_sourceQualityServi_5a7315dd07b53870["computeFreshness"]:::symbol
+  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_5a7315dd07b53870
+  sym_src_services_research_sourceQualityServi_dc6ead414110023c["lookupAuthority"]:::symbol
+  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_dc6ead414110023c
+  sym_src_services_research_sourceQualityServi_8ab50b63f39fcdf8["SourceQualityService"]:::symbol
+  file_src_services_research_sourceQualityServi_e03b645ed8347d54 --> sym_src_services_research_sourceQualityServi_8ab50b63f39fcdf8
   file_src_services_research_zoteroBridgeServic_c6d2642865c3ac2c["src/services/research/zoteroBridgeService.ts"]:::component
-  sym_src_services_research_zoteroBridgeServic_7eb8df50473486fa["ZoteroBridgeService"]:::symbol
-  file_src_services_research_zoteroBridgeServic_c6d2642865c3ac2c --> sym_src_services_research_zoteroBridgeServic_7eb8df50473486fa
+  sym_src_services_research_zoteroBridgeServic_1a2485759e842352["ZoteroBridgeService"]:::symbol
+  file_src_services_research_zoteroBridgeServic_c6d2642865c3ac2c --> sym_src_services_research_zoteroBridgeServic_1a2485759e842352
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2754,47 +2755,47 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_root_scripts_b0314aef615bcb58 ["root-scripts"]
   file_esbuild_config_mjs_d8ef2c570139a24c["esbuild.config.mjs"]:::component
-  sym_esbuild_config_mjs_deployArtifacts_ead2104d96e6982f["deployArtifacts"]:::symbol
-  file_esbuild_config_mjs_d8ef2c570139a24c --> sym_esbuild_config_mjs_deployArtifacts_ead2104d96e6982f
-  sym_esbuild_config_mjs_loadDeployTargets_9c4ae239faf97799["loadDeployTargets"]:::symbol
-  file_esbuild_config_mjs_d8ef2c570139a24c --> sym_esbuild_config_mjs_loadDeployTargets_9c4ae239faf97799
+  sym_esbuild_config_mjs_deployArtifacts_80109a30e0eab386["deployArtifacts"]:::symbol
+  file_esbuild_config_mjs_d8ef2c570139a24c --> sym_esbuild_config_mjs_deployArtifacts_80109a30e0eab386
+  sym_esbuild_config_mjs_loadDeployTargets_c7cfd2d5ccd0886e["loadDeployTargets"]:::symbol
+  file_esbuild_config_mjs_d8ef2c570139a24c --> sym_esbuild_config_mjs_loadDeployTargets_c7cfd2d5ccd0886e
   file_test_nested_tags_implementation_js_c723f65c24f6176b["test-nested-tags-implementation.js"]:::component
-  sym_test_nested_tags_implementation_js_gener_e0d77fb2cc33a150["generateReport"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_gener_e0d77fb2cc33a150
-  sym_test_nested_tags_implementation_js_log_393b2d91e57a45ce["log"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_log_393b2d91e57a45ce
-  sym_test_nested_tags_implementation_js_runAl_fff71ac8604e7ae8["runAllTests"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_runAl_fff71ac8604e7ae8
-  sym_test_nested_tags_implementation_js_testB_4623a0a452f3959c["testBuildOutput"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testB_4623a0a452f3959c
-  sym_test_nested_tags_implementation_js_testC_b9424c3726bf3e03["testChineseTranslations"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testC_b9424c3726bf3e03
-  sym_test_nested_tags_implementation_js_testC_211d54039b71a34c["testConsistency"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testC_211d54039b71a34c
-  sym_test_nested_tags_implementation_js_testE_8ae695802cbaf545["testEnglishTranslations"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testE_8ae695802cbaf545
-  sym_test_nested_tags_implementation_js_testF_0f19187c79c69fed["testFailed"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testF_0f19187c79c69fed
-  sym_test_nested_tags_implementation_js_testP_f92d7f86fe1e166a["testPassed"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testP_f92d7f86fe1e166a
-  sym_test_nested_tags_implementation_js_testP_750f998298fa783d["testPromptEnhancements"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testP_750f998298fa783d
-  sym_test_nested_tags_implementation_js_testS_31fc522f99a15ae4["testSettingsSchema"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testS_31fc522f99a15ae4
-  sym_test_nested_tags_implementation_js_testT_d55ec4cdb6c3308b["testTranslationTypes"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testT_d55ec4cdb6c3308b
-  sym_test_nested_tags_implementation_js_testU_0eb899ef4e911798["testUISettings"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testU_0eb899ef4e911798
-  sym_test_nested_tags_implementation_js_testW_edcb47d8ebda7490["testWarning"]:::symbol
-  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testW_edcb47d8ebda7490
+  sym_test_nested_tags_implementation_js_gener_2b7832d703672700["generateReport"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_gener_2b7832d703672700
+  sym_test_nested_tags_implementation_js_log_a2ece4494f2247f5["log"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_log_a2ece4494f2247f5
+  sym_test_nested_tags_implementation_js_runAl_f2480a34b27f9f90["runAllTests"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_runAl_f2480a34b27f9f90
+  sym_test_nested_tags_implementation_js_testB_6228daae3047c878["testBuildOutput"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testB_6228daae3047c878
+  sym_test_nested_tags_implementation_js_testC_97c1bdd7a787cf9b["testChineseTranslations"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testC_97c1bdd7a787cf9b
+  sym_test_nested_tags_implementation_js_testC_a0f5b369f72655bc["testConsistency"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testC_a0f5b369f72655bc
+  sym_test_nested_tags_implementation_js_testE_fdb743cec7ec8ef5["testEnglishTranslations"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testE_fdb743cec7ec8ef5
+  sym_test_nested_tags_implementation_js_testF_48c068c4c4225c1a["testFailed"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testF_48c068c4c4225c1a
+  sym_test_nested_tags_implementation_js_testP_f8c9cfbd035e4d06["testPassed"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testP_f8c9cfbd035e4d06
+  sym_test_nested_tags_implementation_js_testP_fda19bcf49e98afd["testPromptEnhancements"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testP_fda19bcf49e98afd
+  sym_test_nested_tags_implementation_js_testS_b1d82280ad70c7e2["testSettingsSchema"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testS_b1d82280ad70c7e2
+  sym_test_nested_tags_implementation_js_testT_af87fb2474e1ad5a["testTranslationTypes"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testT_af87fb2474e1ad5a
+  sym_test_nested_tags_implementation_js_testU_bd795288ce2ff53c["testUISettings"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testU_bd795288ce2ff53c
+  sym_test_nested_tags_implementation_js_testW_abbfcc4f51f39715["testWarning"]:::symbol
+  file_test_nested_tags_implementation_js_c723f65c24f6176b --> sym_test_nested_tags_implementation_js_testW_abbfcc4f51f39715
   file_version_bump_mjs_9526247655642004["version-bump.mjs"]:::component
-  sym_version_bump_mjs_computeVersionBump_168a62b4a94b2422["computeVersionBump"]:::symbol
-  file_version_bump_mjs_9526247655642004 --> sym_version_bump_mjs_computeVersionBump_168a62b4a94b2422
-  sym_version_bump_mjs_main_7128e51258cad28b["main"]:::symbol
-  file_version_bump_mjs_9526247655642004 --> sym_version_bump_mjs_main_7128e51258cad28b
+  sym_version_bump_mjs_computeVersionBump_786034710bc77bd9["computeVersionBump"]:::symbol
+  file_version_bump_mjs_9526247655642004 --> sym_version_bump_mjs_computeVersionBump_786034710bc77bd9
+  sym_version_bump_mjs_main_b61c7f739a01d760["main"]:::symbol
+  file_version_bump_mjs_9526247655642004 --> sym_version_bump_mjs_main_b61c7f739a01d760
   file_vitest_config_ts_2ee894bf23aa44ff["vitest.config.ts"]:::component
-  sym_vitest_config_ts_markdownTextPlugin_349555ce769ec0bb["markdownTextPlugin"]:::symbol
-  file_vitest_config_ts_2ee894bf23aa44ff --> sym_vitest_config_ts_markdownTextPlugin_349555ce769ec0bb
+  sym_vitest_config_ts_markdownTextPlugin_49dfc05d74e11d1e["markdownTextPlugin"]:::symbol
+  file_vitest_config_ts_2ee894bf23aa44ff --> sym_vitest_config_ts_markdownTextPlugin_49dfc05d74e11d1e
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2835,37 +2836,37 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_services_ef1c4b45f2ed7632 ["services"]
   file_src_services_agentConnectors_chatExport__ea4c658b98bad3de["src/services/agentConnectors/chatExport.ts"]:::component
-  sym_src_services_agentConnectors_chatExport__8be151bff69d22d6["buildChatExport"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__8be151bff69d22d6
-  sym_src_services_agentConnectors_chatExport__a7e41959adda96f1["bytesOf"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__a7e41959adda96f1
-  sym_src_services_agentConnectors_chatExport__14116bd62f66c3f3["capLine"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__14116bd62f66c3f3
-  sym_src_services_agentConnectors_chatExport__1594bf85594aec14["header"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__1594bf85594aec14
-  sym_src_services_agentConnectors_chatExport__21d5cbdb1e0d85b3["isOwnExport"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__21d5cbdb1e0d85b3
-  sym_src_services_agentConnectors_chatExport__4e782472fbfff89f["noteLine"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__4e782472fbfff89f
-  sym_src_services_agentConnectors_chatExport__c0472a8d744b5a4c["oneLine"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__c0472a8d744b5a4c
-  sym_src_services_agentConnectors_chatExport__1e1e05197079a917["split"]:::symbol
-  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__1e1e05197079a917
+  sym_src_services_agentConnectors_chatExport__28a35978a864c422["buildChatExport"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__28a35978a864c422
+  sym_src_services_agentConnectors_chatExport__690b165c2363812b["bytesOf"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__690b165c2363812b
+  sym_src_services_agentConnectors_chatExport__67f7970dd7abf6ef["capLine"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__67f7970dd7abf6ef
+  sym_src_services_agentConnectors_chatExport__8f9a8781579dd543["header"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__8f9a8781579dd543
+  sym_src_services_agentConnectors_chatExport__107eae8dc9ea205c["isOwnExport"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__107eae8dc9ea205c
+  sym_src_services_agentConnectors_chatExport__d0e357446494d4ba["noteLine"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__d0e357446494d4ba
+  sym_src_services_agentConnectors_chatExport__8e62aefaff632026["oneLine"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__8e62aefaff632026
+  sym_src_services_agentConnectors_chatExport__08438c6645fd1c01["split"]:::symbol
+  file_src_services_agentConnectors_chatExport__ea4c658b98bad3de --> sym_src_services_agentConnectors_chatExport__08438c6645fd1c01
   file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7["src/services/agentConnectors/connectorBundle.ts"]:::component
-  sym_src_services_agentConnectors_connectorBu_cec100de3b0503dd["absoluteGeneratedPath"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_cec100de3b0503dd
-  sym_src_services_agentConnectors_connectorBu_07b5ebb272b9a6e2["buildBundleManifest"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_07b5ebb272b9a6e2
-  sym_src_services_agentConnectors_connectorBu_96162f5875fd3aaf["buildCodexConfig"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_96162f5875fd3aaf
-  sym_src_services_agentConnectors_connectorBu_ca3680234396aa84["buildConnectorBundle"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_ca3680234396aa84
-  sym_src_services_agentConnectors_connectorBu_6643a8e54c8163a4["buildServerFileText"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_6643a8e54c8163a4
-  sym_src_services_agentConnectors_connectorBu_f6e094cf9be639f4["isOwnBundle"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_f6e094cf9be639f4
-  sym_src_services_agentConnectors_connectorBu_4a8d6ebea5b8e4c9["isOwnServerFile"]:::symbol
-  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_4a8d6ebea5b8e4c9
+  sym_src_services_agentConnectors_connectorBu_0826f115c97f9f22["absoluteGeneratedPath"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_0826f115c97f9f22
+  sym_src_services_agentConnectors_connectorBu_28211f7ed6d6f17f["buildBundleManifest"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_28211f7ed6d6f17f
+  sym_src_services_agentConnectors_connectorBu_5ff01b5a6e52b44c["buildCodexConfig"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_5ff01b5a6e52b44c
+  sym_src_services_agentConnectors_connectorBu_e8c42d20ff14db99["buildConnectorBundle"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_e8c42d20ff14db99
+  sym_src_services_agentConnectors_connectorBu_0a290b73ededef27["buildServerFileText"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_0a290b73ededef27
+  sym_src_services_agentConnectors_connectorBu_56853fef743a4138["isOwnBundle"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_56853fef743a4138
+  sym_src_services_agentConnectors_connectorBu_23435011493ace19["isOwnServerFile"]:::symbol
+  file_src_services_agentConnectors_connectorBu_ebe82455fc24c3f7 --> sym_src_services_agentConnectors_connectorBu_23435011493ace19
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -2874,7 +2875,7 @@ classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
 classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 ```
 
-_Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+_Domain has 1151 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
 
 ### Symbols in this domain
 
@@ -3191,79 +3192,81 @@ _Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`buildCaptureFolderContext`](../src/services/captureInbox/captureClassify.ts#L51) | function | `src/services/captureInbox/captureClassify.ts` | 51-66 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxClassify.test.ts` |
 | [`isolateContent`](../src/services/captureInbox/captureClassify.ts#L26) | function | `src/services/captureInbox/captureClassify.ts` | 26-28 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxClassify.test.ts` |
 | [`parseProposal`](../src/services/captureInbox/captureClassify.ts#L80) | function | `src/services/captureInbox/captureClassify.ts` | 80-98 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxClassify.test.ts` |
-| [`captureBlocker`](../src/services/captureInbox/captureConfig.ts#L58) | function | `src/services/captureInbox/captureConfig.ts` | 58-68 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +2 more |
-| [`captureOutputRoots`](../src/services/captureInbox/captureConfig.ts#L41) | function | `src/services/captureInbox/captureConfig.ts` | 41-49 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +2 more |
-| [`readCaptureConfig`](../src/services/captureInbox/captureConfig.ts#L19) | function | `src/services/captureInbox/captureConfig.ts` | 19-35 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +2 more |
-| [`remapSharedScope`](../src/services/captureInbox/captureConfig.ts#L82) | function | `src/services/captureInbox/captureConfig.ts` | 82-96 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +2 more |
+| [`captureBlocker`](../src/services/captureInbox/captureConfig.ts#L58) | function | `src/services/captureInbox/captureConfig.ts` | 58-68 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +3 more |
+| [`captureOutputRoots`](../src/services/captureInbox/captureConfig.ts#L41) | function | `src/services/captureInbox/captureConfig.ts` | 41-49 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +3 more |
+| [`captureSetupConfirmed`](../src/services/captureInbox/captureConfig.ts#L75) | function | `src/services/captureInbox/captureConfig.ts` | 75-77 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +3 more |
+| [`readCaptureConfig`](../src/services/captureInbox/captureConfig.ts#L19) | function | `src/services/captureInbox/captureConfig.ts` | 19-35 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +3 more |
+| [`remapSharedScope`](../src/services/captureInbox/captureConfig.ts#L91) | function | `src/services/captureInbox/captureConfig.ts` | 91-105 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +3 more |
 | [`buildRuntimeDeps`](../src/services/captureInbox/captureDepsFactory.ts#L25) | function | `src/services/captureInbox/captureDepsFactory.ts` | 25-95 |  | `src/commands/captureInboxCommands.ts` |
-| [`addAlias`](../src/services/captureInbox/captureJournal.ts#L44) | function | `src/services/captureInbox/captureJournal.ts` | 44-46 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`alreadyHandled`](../src/services/captureInbox/captureJournal.ts#L145) | function | `src/services/captureInbox/captureJournal.ts` | 145-154 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`awaitingCount`](../src/services/captureInbox/captureJournal.ts#L92) | function | `src/services/captureInbox/captureJournal.ts` | 92-94 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`bump`](../src/services/captureInbox/captureJournal.ts#L179) | function | `src/services/captureInbox/captureJournal.ts` | 179-181 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`bumpBucket`](../src/services/captureInbox/captureJournal.ts#L183) | function | `src/services/captureInbox/captureJournal.ts` | 183-186 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`canStartProcessing`](../src/services/captureInbox/captureJournal.ts#L97) | function | `src/services/captureInbox/captureJournal.ts` | 97-99 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`countTerminal`](../src/services/captureInbox/captureJournal.ts#L305) | function | `src/services/captureInbox/captureJournal.ts` | 305-307 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`decodeJournal`](../src/services/captureInbox/captureJournal.ts#L240) | function | `src/services/captureInbox/captureJournal.ts` | 240-299 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`entriesInState`](../src/services/captureInbox/captureJournal.ts#L301) | function | `src/services/captureInbox/captureJournal.ts` | 301-303 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`finish`](../src/services/captureInbox/captureJournal.ts#L110) | function | `src/services/captureInbox/captureJournal.ts` | 110-117 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`forgetSkip`](../src/services/captureInbox/captureJournal.ts#L123) | function | `src/services/captureInbox/captureJournal.ts` | 123-129 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`getEntry`](../src/services/captureInbox/captureJournal.ts#L23) | function | `src/services/captureInbox/captureJournal.ts` | 23-25 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`heldPaths`](../src/services/captureInbox/captureJournal.ts#L102) | function | `src/services/captureInbox/captureJournal.ts` | 102-104 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`isRecord`](../src/services/captureInbox/captureJournal.ts#L233) | function | `src/services/captureInbox/captureJournal.ts` | 233-233 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`pruneFinished`](../src/services/captureInbox/captureJournal.ts#L161) | function | `src/services/captureInbox/captureJournal.ts` | 161-175 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`pruneTombstones`](../src/services/captureInbox/captureJournal.ts#L131) | function | `src/services/captureInbox/captureJournal.ts` | 131-139 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`reconcile`](../src/services/captureInbox/captureJournal.ts#L202) | function | `src/services/captureInbox/captureJournal.ts` | 202-225 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`rekey`](../src/services/captureInbox/captureJournal.ts#L49) | function | `src/services/captureInbox/captureJournal.ts` | 49-73 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`rekeyTree`](../src/services/captureInbox/captureJournal.ts#L79) | function | `src/services/captureInbox/captureJournal.ts` | 79-89 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`removeEntry`](../src/services/captureInbox/captureJournal.ts#L38) | function | `src/services/captureInbox/captureJournal.ts` | 38-42 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`resolveId`](../src/services/captureInbox/captureJournal.ts#L28) | function | `src/services/captureInbox/captureJournal.ts` | 28-30 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`upsertEntry`](../src/services/captureInbox/captureJournal.ts#L32) | function | `src/services/captureInbox/captureJournal.ts` | 32-36 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
+| [`addAlias`](../src/services/captureInbox/captureJournal.ts#L44) | function | `src/services/captureInbox/captureJournal.ts` | 44-46 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`alreadyHandled`](../src/services/captureInbox/captureJournal.ts#L145) | function | `src/services/captureInbox/captureJournal.ts` | 145-154 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`awaitingCount`](../src/services/captureInbox/captureJournal.ts#L92) | function | `src/services/captureInbox/captureJournal.ts` | 92-94 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`bump`](../src/services/captureInbox/captureJournal.ts#L179) | function | `src/services/captureInbox/captureJournal.ts` | 179-181 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`bumpBucket`](../src/services/captureInbox/captureJournal.ts#L183) | function | `src/services/captureInbox/captureJournal.ts` | 183-186 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`canStartProcessing`](../src/services/captureInbox/captureJournal.ts#L97) | function | `src/services/captureInbox/captureJournal.ts` | 97-99 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`countTerminal`](../src/services/captureInbox/captureJournal.ts#L305) | function | `src/services/captureInbox/captureJournal.ts` | 305-307 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`decodeJournal`](../src/services/captureInbox/captureJournal.ts#L240) | function | `src/services/captureInbox/captureJournal.ts` | 240-299 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`entriesInState`](../src/services/captureInbox/captureJournal.ts#L301) | function | `src/services/captureInbox/captureJournal.ts` | 301-303 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`finish`](../src/services/captureInbox/captureJournal.ts#L110) | function | `src/services/captureInbox/captureJournal.ts` | 110-117 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`forgetSkip`](../src/services/captureInbox/captureJournal.ts#L123) | function | `src/services/captureInbox/captureJournal.ts` | 123-129 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`getEntry`](../src/services/captureInbox/captureJournal.ts#L23) | function | `src/services/captureInbox/captureJournal.ts` | 23-25 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`heldPaths`](../src/services/captureInbox/captureJournal.ts#L102) | function | `src/services/captureInbox/captureJournal.ts` | 102-104 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`isRecord`](../src/services/captureInbox/captureJournal.ts#L233) | function | `src/services/captureInbox/captureJournal.ts` | 233-233 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`pruneFinished`](../src/services/captureInbox/captureJournal.ts#L161) | function | `src/services/captureInbox/captureJournal.ts` | 161-175 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`pruneTombstones`](../src/services/captureInbox/captureJournal.ts#L131) | function | `src/services/captureInbox/captureJournal.ts` | 131-139 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`reconcile`](../src/services/captureInbox/captureJournal.ts#L202) | function | `src/services/captureInbox/captureJournal.ts` | 202-225 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`rekey`](../src/services/captureInbox/captureJournal.ts#L49) | function | `src/services/captureInbox/captureJournal.ts` | 49-73 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`rekeyTree`](../src/services/captureInbox/captureJournal.ts#L79) | function | `src/services/captureInbox/captureJournal.ts` | 79-89 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`removeEntry`](../src/services/captureInbox/captureJournal.ts#L38) | function | `src/services/captureInbox/captureJournal.ts` | 38-42 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`resolveId`](../src/services/captureInbox/captureJournal.ts#L28) | function | `src/services/captureInbox/captureJournal.ts` | 28-30 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`upsertEntry`](../src/services/captureInbox/captureJournal.ts#L32) | function | `src/services/captureInbox/captureJournal.ts` | 32-36 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
 | [`CaptureJournalStore`](../src/services/captureInbox/captureJournalStore.ts#L35) | class | `src/services/captureInbox/captureJournalStore.ts` | 35-229 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxJournalStore.test.ts` |
 | [`checkDestination`](../src/services/captureInbox/capturePolicy.ts#L65) | function | `src/services/captureInbox/capturePolicy.ts` | 65-80 |  | `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/captureInbox/captureProcessor.ts`, +5 more |
 | [`machineTextExclusion`](../src/services/captureInbox/capturePolicy.ts#L94) | function | `src/services/captureInbox/capturePolicy.ts` | 94-96 |  | `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/captureInbox/captureProcessor.ts`, +5 more |
 | [`pathExclusion`](../src/services/captureInbox/capturePolicy.ts#L86) | function | `src/services/captureInbox/capturePolicy.ts` | 86-88 |  | `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/captureInbox/captureProcessor.ts`, +5 more |
 | [`validateCaptureSetup`](../src/services/captureInbox/capturePolicy.ts#L33) | function | `src/services/captureInbox/capturePolicy.ts` | 33-60 |  | `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/captureInbox/captureProcessor.ts`, +5 more |
 | [`withHeldPaths`](../src/services/captureInbox/capturePolicy.ts#L103) | function | `src/services/captureInbox/capturePolicy.ts` | 103-106 |  | `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/captureInbox/captureProcessor.ts`, +5 more |
-| [`assertSameBytes`](../src/services/captureInbox/captureProcessor.ts#L102) | function | `src/services/captureInbox/captureProcessor.ts` | 102-106 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`basename`](../src/services/captureInbox/captureProcessor.ts#L89) | function | `src/services/captureInbox/captureProcessor.ts` | 89-89 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`Cancelled`](../src/services/captureInbox/captureProcessor.ts#L110) | class | `src/services/captureInbox/captureProcessor.ts` | 110-110 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`classify`](../src/services/captureInbox/captureProcessor.ts#L422) | function | `src/services/captureInbox/captureProcessor.ts` | 422-440 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`handleFailure`](../src/services/captureInbox/captureProcessor.ts#L442) | function | `src/services/captureInbox/captureProcessor.ts` | 442-472 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`markerPresent`](../src/services/captureInbox/captureProcessor.ts#L117) | function | `src/services/captureInbox/captureProcessor.ts` | 117-122 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`markStage`](../src/services/captureInbox/captureProcessor.ts#L246) | function | `src/services/captureInbox/captureProcessor.ts` | 246-253 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`newEntry`](../src/services/captureInbox/captureProcessor.ts#L241) | function | `src/services/captureInbox/captureProcessor.ts` | 241-243 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`NonRetriable`](../src/services/captureInbox/captureProcessor.ts#L109) | class | `src/services/captureInbox/captureProcessor.ts` | 109-109 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`processAgain`](../src/services/captureInbox/captureProcessor.ts#L483) | function | `src/services/captureInbox/captureProcessor.ts` | 483-488 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`processOne`](../src/services/captureInbox/captureProcessor.ts#L320) | function | `src/services/captureInbox/captureProcessor.ts` | 320-420 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`providerFailure`](../src/services/captureInbox/captureProcessor.ts#L97) | function | `src/services/captureInbox/captureProcessor.ts` | 97-99 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`readAttachment`](../src/services/captureInbox/captureProcessor.ts#L312) | function | `src/services/captureInbox/captureProcessor.ts` | 312-318 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`retryCapture`](../src/services/captureInbox/captureProcessor.ts#L475) | function | `src/services/captureInbox/captureProcessor.ts` | 475-480 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`runJobs`](../src/services/captureInbox/captureProcessor.ts#L259) | function | `src/services/captureInbox/captureProcessor.ts` | 259-286 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`Skip`](../src/services/captureInbox/captureProcessor.ts#L111) | class | `src/services/captureInbox/captureProcessor.ts` | 111-115 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`stillAllowed`](../src/services/captureInbox/captureProcessor.ts#L295) | function | `src/services/captureInbox/captureProcessor.ts` | 295-309 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`syncEntries`](../src/services/captureInbox/captureProcessor.ts#L134) | function | `src/services/captureInbox/captureProcessor.ts` | 134-239 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`toRefs`](../src/services/captureInbox/captureProcessor.ts#L124) | function | `src/services/captureInbox/captureProcessor.ts` | 124-126 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
-| [`buildQueue`](../src/services/captureInbox/captureQueueModel.ts#L65) | function | `src/services/captureInbox/captureQueueModel.ts` | 65-87 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`formatAge`](../src/services/captureInbox/captureQueueModel.ts#L165) | function | `src/services/captureInbox/captureQueueModel.ts` | 165-172 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`isProcessed`](../src/services/captureInbox/captureQueueModel.ts#L48) | function | `src/services/captureInbox/captureQueueModel.ts` | 48-48 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`isWaitingRow`](../src/services/captureInbox/captureQueueModel.ts#L90) | function | `src/services/captureInbox/captureQueueModel.ts` | 90-90 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`processedCount`](../src/services/captureInbox/captureQueueModel.ts#L51) | function | `src/services/captureInbox/captureQueueModel.ts` | 51-53 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`queueCounts`](../src/services/captureInbox/captureQueueModel.ts#L116) | function | `src/services/captureInbox/captureQueueModel.ts` | 116-126 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`rowTitle`](../src/services/captureInbox/captureQueueModel.ts#L39) | function | `src/services/captureInbox/captureQueueModel.ts` | 39-43 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`settleSeconds`](../src/services/captureInbox/captureQueueModel.ts#L59) | function | `src/services/captureInbox/captureQueueModel.ts` | 59-63 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`skippedSummary`](../src/services/captureInbox/captureQueueModel.ts#L149) | function | `src/services/captureInbox/captureQueueModel.ts` | 149-162 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`splitQueue`](../src/services/captureInbox/captureQueueModel.ts#L96) | function | `src/services/captureInbox/captureQueueModel.ts` | 96-100 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`stillInInbox`](../src/services/captureInbox/captureQueueModel.ts#L46) | function | `src/services/captureInbox/captureQueueModel.ts` | 46-46 |  | `src/commands/captureInboxCommands.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, +1 more |
-| [`CaptureRuntime`](../src/services/captureInbox/captureRuntime.ts#L56) | class | `src/services/captureInbox/captureRuntime.ts` | 56-268 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRuntime.test.ts` |
-| [`yieldTick`](../src/services/captureInbox/captureRuntime.ts#L52) | function | `src/services/captureInbox/captureRuntime.ts` | 52-52 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRuntime.test.ts` |
+| [`assertSameBytes`](../src/services/captureInbox/captureProcessor.ts#L109) | function | `src/services/captureInbox/captureProcessor.ts` | 109-113 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`basename`](../src/services/captureInbox/captureProcessor.ts#L93) | function | `src/services/captureInbox/captureProcessor.ts` | 93-93 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`Cancelled`](../src/services/captureInbox/captureProcessor.ts#L117) | class | `src/services/captureInbox/captureProcessor.ts` | 117-117 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`classify`](../src/services/captureInbox/captureProcessor.ts#L440) | function | `src/services/captureInbox/captureProcessor.ts` | 440-466 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`handleFailure`](../src/services/captureInbox/captureProcessor.ts#L468) | function | `src/services/captureInbox/captureProcessor.ts` | 468-498 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`markerPresent`](../src/services/captureInbox/captureProcessor.ts#L124) | function | `src/services/captureInbox/captureProcessor.ts` | 124-129 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`markStage`](../src/services/captureInbox/captureProcessor.ts#L262) | function | `src/services/captureInbox/captureProcessor.ts` | 262-269 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`newEntry`](../src/services/captureInbox/captureProcessor.ts#L257) | function | `src/services/captureInbox/captureProcessor.ts` | 257-259 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`NonRetriable`](../src/services/captureInbox/captureProcessor.ts#L116) | class | `src/services/captureInbox/captureProcessor.ts` | 116-116 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`processAgain`](../src/services/captureInbox/captureProcessor.ts#L509) | function | `src/services/captureInbox/captureProcessor.ts` | 509-514 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`processOne`](../src/services/captureInbox/captureProcessor.ts#L336) | function | `src/services/captureInbox/captureProcessor.ts` | 336-438 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`providerFailure`](../src/services/captureInbox/captureProcessor.ts#L101) | function | `src/services/captureInbox/captureProcessor.ts` | 101-106 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`readAttachment`](../src/services/captureInbox/captureProcessor.ts#L328) | function | `src/services/captureInbox/captureProcessor.ts` | 328-334 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`retryCapture`](../src/services/captureInbox/captureProcessor.ts#L501) | function | `src/services/captureInbox/captureProcessor.ts` | 501-506 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`runJobs`](../src/services/captureInbox/captureProcessor.ts#L275) | function | `src/services/captureInbox/captureProcessor.ts` | 275-302 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`Skip`](../src/services/captureInbox/captureProcessor.ts#L118) | class | `src/services/captureInbox/captureProcessor.ts` | 118-122 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`stillAllowed`](../src/services/captureInbox/captureProcessor.ts#L311) | function | `src/services/captureInbox/captureProcessor.ts` | 311-325 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`syncEntries`](../src/services/captureInbox/captureProcessor.ts#L141) | function | `src/services/captureInbox/captureProcessor.ts` | 141-255 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`toRefs`](../src/services/captureInbox/captureProcessor.ts#L131) | function | `src/services/captureInbox/captureProcessor.ts` | 131-133 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `tests/captureInboxProcessor.test.ts` |
+| [`buildQueue`](../src/services/captureInbox/captureQueueModel.ts#L76) | function | `src/services/captureInbox/captureQueueModel.ts` | 76-101 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`formatAge`](../src/services/captureInbox/captureQueueModel.ts#L180) | function | `src/services/captureInbox/captureQueueModel.ts` | 180-187 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`isProcessed`](../src/services/captureInbox/captureQueueModel.ts#L54) | function | `src/services/captureInbox/captureQueueModel.ts` | 54-54 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`isWaitingRow`](../src/services/captureInbox/captureQueueModel.ts#L104) | function | `src/services/captureInbox/captureQueueModel.ts` | 104-104 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`processedCount`](../src/services/captureInbox/captureQueueModel.ts#L57) | function | `src/services/captureInbox/captureQueueModel.ts` | 57-59 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`queueCounts`](../src/services/captureInbox/captureQueueModel.ts#L130) | function | `src/services/captureInbox/captureQueueModel.ts` | 130-141 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`rowTitle`](../src/services/captureInbox/captureQueueModel.ts#L45) | function | `src/services/captureInbox/captureQueueModel.ts` | 45-49 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`settleRemainingMs`](../src/services/captureInbox/captureQueueModel.ts#L70) | function | `src/services/captureInbox/captureQueueModel.ts` | 70-74 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`settleSeconds`](../src/services/captureInbox/captureQueueModel.ts#L65) | function | `src/services/captureInbox/captureQueueModel.ts` | 65-67 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`skippedSummary`](../src/services/captureInbox/captureQueueModel.ts#L164) | function | `src/services/captureInbox/captureQueueModel.ts` | 164-177 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`splitQueue`](../src/services/captureInbox/captureQueueModel.ts#L110) | function | `src/services/captureInbox/captureQueueModel.ts` | 110-114 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`stillInInbox`](../src/services/captureInbox/captureQueueModel.ts#L52) | function | `src/services/captureInbox/captureQueueModel.ts` | 52-52 |  | `src/commands/captureInboxCommands.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/ui/components/CaptureInboxStatusBar.ts`, +3 more |
+| [`CaptureRuntime`](../src/services/captureInbox/captureRuntime.ts#L59) | class | `src/services/captureInbox/captureRuntime.ts` | 59-310 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRuntime.test.ts`, `tests/personaRetestFixes.test.ts` |
+| [`yieldTick`](../src/services/captureInbox/captureRuntime.ts#L55) | function | `src/services/captureInbox/captureRuntime.ts` | 55-55 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRuntime.test.ts`, `tests/personaRetestFixes.test.ts` |
 | [`scan`](../src/services/captureInbox/captureScanner.ts#L114) | function | `src/services/captureInbox/captureScanner.ts` | 114-243 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/services/captureInbox/captureVaultPort.ts`, +2 more |
 | [`scanInbox`](../src/services/captureInbox/captureScanner.ts#L105) | function | `src/services/captureInbox/captureScanner.ts` | 105-112 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureRuntime.ts`, `src/services/captureInbox/captureVaultPort.ts`, +2 more |
 | [`canTransition`](../src/services/captureInbox/captureStateMachine.ts#L24) | function | `src/services/captureInbox/captureStateMachine.ts` | 24-26 |  | `src/services/captureInbox/captureJournal.ts`, `tests/captureInboxStateMachine.test.ts` |
 | [`isHeld`](../src/services/captureInbox/captureStateMachine.ts#L37) | function | `src/services/captureInbox/captureStateMachine.ts` | 37-39 |  | `src/services/captureInbox/captureJournal.ts`, `tests/captureInboxStateMachine.test.ts` |
 | [`isRunnable`](../src/services/captureInbox/captureStateMachine.ts#L42) | function | `src/services/captureInbox/captureStateMachine.ts` | 42-44 |  | `src/services/captureInbox/captureJournal.ts`, `tests/captureInboxStateMachine.test.ts` |
 | [`transition`](../src/services/captureInbox/captureStateMachine.ts#L47) | function | `src/services/captureInbox/captureStateMachine.ts` | 47-55 |  | `src/services/captureInbox/captureJournal.ts`, `tests/captureInboxStateMachine.test.ts` |
-| [`emptyCounters`](../src/services/captureInbox/captureTypes.ts#L196) | function | `src/services/captureInbox/captureTypes.ts` | 196-198 |  | `src/services/captureInbox/captureJournal.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
-| [`emptyJournal`](../src/services/captureInbox/captureTypes.ts#L200) | function | `src/services/captureInbox/captureTypes.ts` | 200-202 |  | `src/services/captureInbox/captureJournal.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +13 more |
+| [`emptyCounters`](../src/services/captureInbox/captureTypes.ts#L201) | function | `src/services/captureInbox/captureTypes.ts` | 201-203 |  | `src/services/captureInbox/captureJournal.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
+| [`emptyJournal`](../src/services/captureInbox/captureTypes.ts#L205) | function | `src/services/captureInbox/captureTypes.ts` | 205-207 |  | `src/services/captureInbox/captureJournal.ts`, `src/services/captureInbox/captureJournalStore.ts`, `src/services/captureInbox/captureProcessor.ts`, +14 more |
 | [`createVaultPort`](../src/services/captureInbox/captureVaultPort.ts#L68) | function | `src/services/captureInbox/captureVaultPort.ts` | 68-158 |  | `src/services/captureInbox/captureDepsFactory.ts`, `tests/captureInboxRuntime.test.ts` |
 | [`extractLinkTargets`](../src/services/captureInbox/captureVaultPort.ts#L48) | function | `src/services/captureInbox/captureVaultPort.ts` | 48-64 |  | `src/services/captureInbox/captureDepsFactory.ts`, `tests/captureInboxRuntime.test.ts` |
 | [`looksLikeMedia`](../src/services/captureInbox/captureVaultPort.ts#L66) | function | `src/services/captureInbox/captureVaultPort.ts` | 66-66 |  | `src/services/captureInbox/captureDepsFactory.ts`, `tests/captureInboxRuntime.test.ts` |
@@ -3328,22 +3331,27 @@ _Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`extensionOf`](../src/services/captureInbox/mediaSignature.ts#L17) | function | `src/services/captureInbox/mediaSignature.ts` | 17-21 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureScanner.ts`, `src/services/captureInbox/captureVaultPort.ts`, +1 more |
 | [`isKnownUnsupportedMedia`](../src/services/captureInbox/mediaSignature.ts#L81) | function | `src/services/captureInbox/mediaSignature.ts` | 81-83 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureScanner.ts`, `src/services/captureInbox/captureVaultPort.ts`, +1 more |
 | [`matches`](../src/services/captureInbox/mediaSignature.ts#L37) | function | `src/services/captureInbox/mediaSignature.ts` | 37-75 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureScanner.ts`, `src/services/captureInbox/captureVaultPort.ts`, +1 more |
-| [`selectForRun`](../src/services/captureInbox/runSelection.ts#L18) | function | `src/services/captureInbox/runSelection.ts` | 18-28 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRunSelection.test.ts` |
+| [`endSentence`](../src/services/captureInbox/providerErrorText.ts#L22) | function | `src/services/captureInbox/providerErrorText.ts` | 22-25 |  | `src/services/captureInbox/captureProcessor.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, `src/ui/modals/CaptureReviewModal.ts`, +1 more |
+| [`friendlyProviderError`](../src/services/captureInbox/providerErrorText.ts#L16) | function | `src/services/captureInbox/providerErrorText.ts` | 16-19 |  | `src/services/captureInbox/captureProcessor.ts`, `src/ui/modals/CaptureInboxQueueModal.ts`, `src/ui/modals/CaptureReviewModal.ts`, +1 more |
+| [`runNoticeLines`](../src/services/captureInbox/runNotice.ts#L19) | function | `src/services/captureInbox/runNotice.ts` | 19-33 |  | `src/commands/captureInboxCommands.ts`, `tests/personaRetestFixes.test.ts` |
+| [`outlayOf`](../src/services/captureInbox/runSelection.ts#L51) | function | `src/services/captureInbox/runSelection.ts` | 51-73 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRunSelection.test.ts` |
+| [`selectForRun`](../src/services/captureInbox/runSelection.ts#L19) | function | `src/services/captureInbox/runSelection.ts` | 19-29 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxRunSelection.test.ts` |
 | [`assess`](../src/services/captureInbox/stabilityTracker.ts#L31) | function | `src/services/captureInbox/stabilityTracker.ts` | 31-75 |  | `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxStability.test.ts` |
 | [`observationsChanged`](../src/services/captureInbox/stabilityTracker.ts#L98) | function | `src/services/captureInbox/stabilityTracker.ts` | 98-110 |  | `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxStability.test.ts` |
 | [`recordSelfWrite`](../src/services/captureInbox/stabilityTracker.ts#L86) | function | `src/services/captureInbox/stabilityTracker.ts` | 86-92 |  | `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxStability.test.ts` |
 | [`sameAsObserved`](../src/services/captureInbox/stabilityTracker.ts#L78) | function | `src/services/captureInbox/stabilityTracker.ts` | 78-80 |  | `src/services/captureInbox/captureProcessor.ts`, `tests/captureInboxStability.test.ts` |
-| [`ownText`](../src/services/captureInbox/textFirst.ts#L68) | function | `src/services/captureInbox/textFirst.ts` | 68-80 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`planSources`](../src/services/captureInbox/textFirst.ts#L115) | function | `src/services/captureInbox/textFirst.ts` | 115-147 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`squash`](../src/services/captureInbox/textFirst.ts#L28) | function | `src/services/captureInbox/textFirst.ts` | 28-28 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`stripNoise`](../src/services/captureInbox/textFirst.ts#L16) | function | `src/services/captureInbox/textFirst.ts` | 16-26 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`usableText`](../src/services/captureInbox/textFirst.ts#L64) | function | `src/services/captureInbox/textFirst.ts` | 64-66 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`userText`](../src/services/captureInbox/textFirst.ts#L35) | function | `src/services/captureInbox/textFirst.ts` | 35-58 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`wordCount`](../src/services/captureInbox/textFirst.ts#L82) | function | `src/services/captureInbox/textFirst.ts` | 82-84 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTextFirst.test.ts` |
-| [`clean`](../src/services/captureInbox/titleSanitiser.ts#L15) | function | `src/services/captureInbox/titleSanitiser.ts` | 15-26 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTitle.test.ts` |
-| [`sanitiseTitle`](../src/services/captureInbox/titleSanitiser.ts#L31) | function | `src/services/captureInbox/titleSanitiser.ts` | 31-36 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTitle.test.ts` |
-| [`uniquePath`](../src/services/captureInbox/titleSanitiser.ts#L39) | function | `src/services/captureInbox/titleSanitiser.ts` | 39-49 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTitle.test.ts` |
-| [`usable`](../src/services/captureInbox/titleSanitiser.ts#L28) | function | `src/services/captureInbox/titleSanitiser.ts` | 28-28 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureWriter.ts`, `tests/captureInboxTitle.test.ts` |
+| [`ownText`](../src/services/captureInbox/textFirst.ts#L68) | function | `src/services/captureInbox/textFirst.ts` | 68-80 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`planSources`](../src/services/captureInbox/textFirst.ts#L115) | function | `src/services/captureInbox/textFirst.ts` | 115-147 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`squash`](../src/services/captureInbox/textFirst.ts#L28) | function | `src/services/captureInbox/textFirst.ts` | 28-28 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`stripNoise`](../src/services/captureInbox/textFirst.ts#L16) | function | `src/services/captureInbox/textFirst.ts` | 16-26 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`usableText`](../src/services/captureInbox/textFirst.ts#L64) | function | `src/services/captureInbox/textFirst.ts` | 64-66 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`userText`](../src/services/captureInbox/textFirst.ts#L35) | function | `src/services/captureInbox/textFirst.ts` | 35-58 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`wordCount`](../src/services/captureInbox/textFirst.ts#L82) | function | `src/services/captureInbox/textFirst.ts` | 82-84 |  | `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, `src/services/captureInbox/runSelection.ts`, +1 more |
+| [`clean`](../src/services/captureInbox/titleSanitiser.ts#L15) | function | `src/services/captureInbox/titleSanitiser.ts` | 15-26 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, +2 more |
+| [`sanitiseTitle`](../src/services/captureInbox/titleSanitiser.ts#L49) | function | `src/services/captureInbox/titleSanitiser.ts` | 49-54 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, +2 more |
+| [`titleSeed`](../src/services/captureInbox/titleSanitiser.ts#L33) | function | `src/services/captureInbox/titleSanitiser.ts` | 33-44 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, +2 more |
+| [`uniquePath`](../src/services/captureInbox/titleSanitiser.ts#L57) | function | `src/services/captureInbox/titleSanitiser.ts` | 57-67 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, +2 more |
+| [`usable`](../src/services/captureInbox/titleSanitiser.ts#L46) | function | `src/services/captureInbox/titleSanitiser.ts` | 46-46 |  | `src/services/captureInbox/captureClassify.ts`, `src/services/captureInbox/captureProcessor.ts`, `src/services/captureInbox/captureWriter.ts`, +2 more |
 | [`capString`](../src/services/chunkingOrchestrator.ts#L352) | function | `src/services/chunkingOrchestrator.ts` | 352-358 |  | `src/commands/summarizeCommands.ts`, `tests/chunkingOrchestrator.test.ts`, `tests/promptCachingSummarisePresentation.test.ts` |
 | [`executeMapPhase`](../src/services/chunkingOrchestrator.ts#L201) | function | `src/services/chunkingOrchestrator.ts` | 201-233 |  | `src/commands/summarizeCommands.ts`, `tests/chunkingOrchestrator.test.ts`, `tests/promptCachingSummarisePresentation.test.ts` |
 | [`flattenBuilt`](../src/services/chunkingOrchestrator.ts#L72) | function | `src/services/chunkingOrchestrator.ts` | 72-74 |  | `src/commands/summarizeCommands.ts`, `tests/chunkingOrchestrator.test.ts`, `tests/promptCachingSummarisePresentation.test.ts` |
@@ -3430,29 +3438,29 @@ _Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`parseResponse`](../src/services/diarization/deepgramAdapter.ts#L275) | function | `src/services/diarization/deepgramAdapter.ts` | 275-334 |  | `src/ui/coordinators/AudioAttachCoordinator.ts`, `tests/diarization/deepgramAdapter.test.ts` |
 | [`DictionaryService`](../src/services/dictionaryService.ts#L35) | class | `src/services/dictionaryService.ts` | 35-655 |  | `src/ui/modals/MinutesCreationModal.ts`, `tests/dictionaryService.test.ts` |
 | [`DocumentExtractionService`](../src/services/documentExtractionService.ts#L25) | class | `src/services/documentExtractionService.ts` | 25-396 |  | `src/commands/integrationCommands.ts`, `src/commands/summarizeCommands.ts`, `src/commands/translateCommands.ts`, +6 more |
-| [`buildCandidateIndex`](../src/services/embedScanService.ts#L474) | function | `src/services/embedScanService.ts` | 474-492 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`classifyExtension`](../src/services/embedScanService.ts#L138) | function | `src/services/embedScanService.ts` | 138-148 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`collectOccurrences`](../src/services/embedScanService.ts#L426) | function | `src/services/embedScanService.ts` | 426-468 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`decodeMarkdownDestination`](../src/services/embedScanService.ts#L258) | function | `src/services/embedScanService.ts` | 258-264 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`extractReferencesFromLine`](../src/services/embedScanService.ts#L332) | function | `src/services/embedScanService.ts` | 332-334 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`extractReferenceSpansFromLine`](../src/services/embedScanService.ts#L270) | function | `src/services/embedScanService.ts` | 270-326 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`findPossiblyOrphanedFiles`](../src/services/embedScanService.ts#L723) | function | `src/services/embedScanService.ts` | 723-735 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`formatFileSize`](../src/services/embedScanService.ts#L759) | function | `src/services/embedScanService.ts` | 759-765 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`getCanvasFilesInFolder`](../src/services/embedScanService.ts#L784) | function | `src/services/embedScanService.ts` | 784-794 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`getEmbedTypeIcon`](../src/services/embedScanService.ts#L770) | function | `src/services/embedScanService.ts` | 770-779 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`getExtensionFromPath`](../src/services/embedScanService.ts#L748) | function | `src/services/embedScanService.ts` | 748-752 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`getMarkdownFilesInFolder`](../src/services/embedScanService.ts#L799) | function | `src/services/embedScanService.ts` | 799-809 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`hasEmbedTypeExtension`](../src/services/embedScanService.ts#L740) | function | `src/services/embedScanService.ts` | 740-743 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`isBlank`](../src/services/embedScanService.ts#L208) | function | `src/services/embedScanService.ts` | 208-208 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`isExternalUrl`](../src/services/embedScanService.ts#L339) | function | `src/services/embedScanService.ts` | 339-341 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`normalizeEmbedPath`](../src/services/embedScanService.ts#L156) | function | `src/services/embedScanService.ts` | 156-168 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`obsidianTargetsFor`](../src/services/embedScanService.ts#L515) | function | `src/services/embedScanService.ts` | 515-546 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`parseCanvasFileRefs`](../src/services/embedScanService.ts#L356) | function | `src/services/embedScanService.ts` | 356-379 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`parseCanvasTextNodes`](../src/services/embedScanService.ts#L382) | function | `src/services/embedScanService.ts` | 382-398 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`pointsAtNonMarkdown`](../src/services/embedScanService.ts#L416) | function | `src/services/embedScanService.ts` | 416-419 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`readMarkdownDestination`](../src/services/embedScanService.ts#L216) | function | `src/services/embedScanService.ts` | 216-255 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`referenceLinktext`](../src/services/embedScanService.ts#L406) | function | `src/services/embedScanService.ts` | 406-413 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
-| [`scanNotes`](../src/services/embedScanService.ts#L554) | function | `src/services/embedScanService.ts` | 554-713 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +13 more |
+| [`buildCandidateIndex`](../src/services/embedScanService.ts#L474) | function | `src/services/embedScanService.ts` | 474-494 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`classifyExtension`](../src/services/embedScanService.ts#L138) | function | `src/services/embedScanService.ts` | 138-148 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`collectOccurrences`](../src/services/embedScanService.ts#L426) | function | `src/services/embedScanService.ts` | 426-468 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`decodeMarkdownDestination`](../src/services/embedScanService.ts#L258) | function | `src/services/embedScanService.ts` | 258-264 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`extractReferencesFromLine`](../src/services/embedScanService.ts#L332) | function | `src/services/embedScanService.ts` | 332-334 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`extractReferenceSpansFromLine`](../src/services/embedScanService.ts#L270) | function | `src/services/embedScanService.ts` | 270-326 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`findPossiblyOrphanedFiles`](../src/services/embedScanService.ts#L725) | function | `src/services/embedScanService.ts` | 725-737 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`formatFileSize`](../src/services/embedScanService.ts#L761) | function | `src/services/embedScanService.ts` | 761-767 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`getCanvasFilesInFolder`](../src/services/embedScanService.ts#L786) | function | `src/services/embedScanService.ts` | 786-796 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`getEmbedTypeIcon`](../src/services/embedScanService.ts#L772) | function | `src/services/embedScanService.ts` | 772-781 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`getExtensionFromPath`](../src/services/embedScanService.ts#L750) | function | `src/services/embedScanService.ts` | 750-754 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`getMarkdownFilesInFolder`](../src/services/embedScanService.ts#L801) | function | `src/services/embedScanService.ts` | 801-811 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`hasEmbedTypeExtension`](../src/services/embedScanService.ts#L742) | function | `src/services/embedScanService.ts` | 742-745 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`isBlank`](../src/services/embedScanService.ts#L208) | function | `src/services/embedScanService.ts` | 208-208 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`isExternalUrl`](../src/services/embedScanService.ts#L339) | function | `src/services/embedScanService.ts` | 339-341 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`normalizeEmbedPath`](../src/services/embedScanService.ts#L156) | function | `src/services/embedScanService.ts` | 156-168 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`obsidianTargetsFor`](../src/services/embedScanService.ts#L517) | function | `src/services/embedScanService.ts` | 517-548 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`parseCanvasFileRefs`](../src/services/embedScanService.ts#L356) | function | `src/services/embedScanService.ts` | 356-379 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`parseCanvasTextNodes`](../src/services/embedScanService.ts#L382) | function | `src/services/embedScanService.ts` | 382-398 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`pointsAtNonMarkdown`](../src/services/embedScanService.ts#L416) | function | `src/services/embedScanService.ts` | 416-419 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`readMarkdownDestination`](../src/services/embedScanService.ts#L216) | function | `src/services/embedScanService.ts` | 216-255 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`referenceLinktext`](../src/services/embedScanService.ts#L406) | function | `src/services/embedScanService.ts` | 406-413 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
+| [`scanNotes`](../src/services/embedScanService.ts#L556) | function | `src/services/embedScanService.ts` | 556-715 |  | `src/commands/embedScanCommands.ts`, `src/services/attachmentEligibility.ts`, `src/services/attachmentUnlinkService.ts`, +14 more |
 | [`byEnableFriction`](../src/services/featureProjection.ts#L41) | function | `src/services/featureProjection.ts` | 41-43 |  | `src/ui/settings/FeaturesSettingsSection.ts`, `tests/crossSurfaceTaxonomy.test.ts`, `tests/featureProjection.test.ts` |
 | [`isExternalAccount`](../src/services/featureProjection.ts#L36) | function | `src/services/featureProjection.ts` | 36-38 |  | `src/ui/settings/FeaturesSettingsSection.ts`, `tests/crossSurfaceTaxonomy.test.ts`, `tests/featureProjection.test.ts` |
 | [`projectSettingsGroups`](../src/services/featureProjection.ts#L51) | function | `src/services/featureProjection.ts` | 51-70 |  | `src/ui/settings/FeaturesSettingsSection.ts`, `tests/crossSurfaceTaxonomy.test.ts`, `tests/featureProjection.test.ts` |
@@ -3468,46 +3476,46 @@ _Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`MetadataTooLarge`](../src/services/inboxSweep/noteSnapshot.ts#L30) | class | `src/services/inboxSweep/noteSnapshot.ts` | 30-30 |  | `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepGuard.ts`, `src/services/inboxSweep/sweepService.ts`, +3 more |
 | [`normaliseTag`](../src/services/inboxSweep/noteSnapshot.ts#L44) | function | `src/services/inboxSweep/noteSnapshot.ts` | 44-46 |  | `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepGuard.ts`, `src/services/inboxSweep/sweepService.ts`, +3 more |
 | [`parseSnapshotMetadata`](../src/services/inboxSweep/noteSnapshot.ts#L49) | function | `src/services/inboxSweep/noteSnapshot.ts` | 49-79 |  | `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepGuard.ts`, `src/services/inboxSweep/sweepService.ts`, +3 more |
-| [`checkSource`](../src/services/inboxSweep/sweepCommit.ts#L322) | function | `src/services/inboxSweep/sweepCommit.ts` | 322-336 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`commitFiltered`](../src/services/inboxSweep/sweepCommit.ts#L220) | function | `src/services/inboxSweep/sweepCommit.ts` | 220-238 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`commitReview`](../src/services/inboxSweep/sweepCommit.ts#L198) | function | `src/services/inboxSweep/sweepCommit.ts` | 198-200 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`commitReviewGuarded`](../src/services/inboxSweep/sweepCommit.ts#L202) | function | `src/services/inboxSweep/sweepCommit.ts` | 202-210 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`commitReviewUnsafe`](../src/services/inboxSweep/sweepCommit.ts#L212) | function | `src/services/inboxSweep/sweepCommit.ts` | 212-218 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`finishLocked`](../src/services/inboxSweep/sweepCommit.ts#L241) | function | `src/services/inboxSweep/sweepCommit.ts` | 241-241 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`finishRecord`](../src/services/inboxSweep/sweepCommit.ts#L244) | function | `src/services/inboxSweep/sweepCommit.ts` | 244-246 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`finishUnsafe`](../src/services/inboxSweep/sweepCommit.ts#L248) | function | `src/services/inboxSweep/sweepCommit.ts` | 248-296 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`heldInboxCount`](../src/services/inboxSweep/sweepCommit.ts#L80) | function | `src/services/inboxSweep/sweepCommit.ts` | 80-85 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`mergeExportStates`](../src/services/inboxSweep/sweepCommit.ts#L121) | function | `src/services/inboxSweep/sweepCommit.ts` | 121-136 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`newRunId`](../src/services/inboxSweep/sweepCommit.ts#L87) | function | `src/services/inboxSweep/sweepCommit.ts` | 87-89 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`newTaskId`](../src/services/inboxSweep/sweepCommit.ts#L91) | function | `src/services/inboxSweep/sweepCommit.ts` | 91-93 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`repairApprovals`](../src/services/inboxSweep/sweepCommit.ts#L299) | function | `src/services/inboxSweep/sweepCommit.ts` | 299-301 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`repairUnsafe`](../src/services/inboxSweep/sweepCommit.ts#L303) | function | `src/services/inboxSweep/sweepCommit.ts` | 303-317 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`replaceRecord`](../src/services/inboxSweep/sweepCommit.ts#L105) | function | `src/services/inboxSweep/sweepCommit.ts` | 105-110 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`runExclusive`](../src/services/inboxSweep/sweepCommit.ts#L45) | function | `src/services/inboxSweep/sweepCommit.ts` | 45-49 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`save`](../src/services/inboxSweep/sweepCommit.ts#L95) | function | `src/services/inboxSweep/sweepCommit.ts` | 95-103 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`saveRecord`](../src/services/inboxSweep/sweepCommit.ts#L138) | function | `src/services/inboxSweep/sweepCommit.ts` | 138-144 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`sendApproved`](../src/services/inboxSweep/sweepCommit.ts#L338) | function | `src/services/inboxSweep/sweepCommit.ts` | 338-380 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`sweepPolicy`](../src/services/inboxSweep/sweepCommit.ts#L51) | function | `src/services/inboxSweep/sweepCommit.ts` | 51-61 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`sweepRunPolicy`](../src/services/inboxSweep/sweepCommit.ts#L69) | function | `src/services/inboxSweep/sweepCommit.ts` | 69-74 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
-| [`writeSection`](../src/services/inboxSweep/sweepCommit.ts#L148) | function | `src/services/inboxSweep/sweepCommit.ts` | 148-179 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`checkSource`](../src/services/inboxSweep/sweepCommit.ts#L323) | function | `src/services/inboxSweep/sweepCommit.ts` | 323-337 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`commitFiltered`](../src/services/inboxSweep/sweepCommit.ts#L221) | function | `src/services/inboxSweep/sweepCommit.ts` | 221-239 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`commitReview`](../src/services/inboxSweep/sweepCommit.ts#L199) | function | `src/services/inboxSweep/sweepCommit.ts` | 199-201 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`commitReviewGuarded`](../src/services/inboxSweep/sweepCommit.ts#L203) | function | `src/services/inboxSweep/sweepCommit.ts` | 203-211 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`commitReviewUnsafe`](../src/services/inboxSweep/sweepCommit.ts#L213) | function | `src/services/inboxSweep/sweepCommit.ts` | 213-219 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`finishLocked`](../src/services/inboxSweep/sweepCommit.ts#L242) | function | `src/services/inboxSweep/sweepCommit.ts` | 242-242 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`finishRecord`](../src/services/inboxSweep/sweepCommit.ts#L245) | function | `src/services/inboxSweep/sweepCommit.ts` | 245-247 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`finishUnsafe`](../src/services/inboxSweep/sweepCommit.ts#L249) | function | `src/services/inboxSweep/sweepCommit.ts` | 249-297 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`heldInboxCount`](../src/services/inboxSweep/sweepCommit.ts#L81) | function | `src/services/inboxSweep/sweepCommit.ts` | 81-86 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`mergeExportStates`](../src/services/inboxSweep/sweepCommit.ts#L122) | function | `src/services/inboxSweep/sweepCommit.ts` | 122-137 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`newRunId`](../src/services/inboxSweep/sweepCommit.ts#L88) | function | `src/services/inboxSweep/sweepCommit.ts` | 88-90 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`newTaskId`](../src/services/inboxSweep/sweepCommit.ts#L92) | function | `src/services/inboxSweep/sweepCommit.ts` | 92-94 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`repairApprovals`](../src/services/inboxSweep/sweepCommit.ts#L300) | function | `src/services/inboxSweep/sweepCommit.ts` | 300-302 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`repairUnsafe`](../src/services/inboxSweep/sweepCommit.ts#L304) | function | `src/services/inboxSweep/sweepCommit.ts` | 304-318 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`replaceRecord`](../src/services/inboxSweep/sweepCommit.ts#L106) | function | `src/services/inboxSweep/sweepCommit.ts` | 106-111 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`runExclusive`](../src/services/inboxSweep/sweepCommit.ts#L46) | function | `src/services/inboxSweep/sweepCommit.ts` | 46-50 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`save`](../src/services/inboxSweep/sweepCommit.ts#L96) | function | `src/services/inboxSweep/sweepCommit.ts` | 96-104 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`saveRecord`](../src/services/inboxSweep/sweepCommit.ts#L139) | function | `src/services/inboxSweep/sweepCommit.ts` | 139-145 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`sendApproved`](../src/services/inboxSweep/sweepCommit.ts#L339) | function | `src/services/inboxSweep/sweepCommit.ts` | 339-381 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`sweepPolicy`](../src/services/inboxSweep/sweepCommit.ts#L52) | function | `src/services/inboxSweep/sweepCommit.ts` | 52-62 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`sweepRunPolicy`](../src/services/inboxSweep/sweepCommit.ts#L70) | function | `src/services/inboxSweep/sweepCommit.ts` | 70-75 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
+| [`writeSection`](../src/services/inboxSweep/sweepCommit.ts#L149) | function | `src/services/inboxSweep/sweepCommit.ts` | 149-180 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/ui/modals/CaptureInboxSetupModal.ts`, +6 more |
 | [`exclusionReason`](../src/services/inboxSweep/sweepGuard.ts#L70) | function | `src/services/inboxSweep/sweepGuard.ts` | 70-93 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/capturePolicy.ts`, +9 more |
 | [`guardSnapshot`](../src/services/inboxSweep/sweepGuard.ts#L96) | function | `src/services/inboxSweep/sweepGuard.ts` | 96-101 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/capturePolicy.ts`, +9 more |
 | [`parseProperty`](../src/services/inboxSweep/sweepGuard.ts#L56) | function | `src/services/inboxSweep/sweepGuard.ts` | 56-62 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/capturePolicy.ts`, +9 more |
 | [`policyRevisionOf`](../src/services/inboxSweep/sweepGuard.ts#L43) | function | `src/services/inboxSweep/sweepGuard.ts` | 43-54 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/capturePolicy.ts`, +9 more |
 | [`propertiesAreReadable`](../src/services/inboxSweep/sweepGuard.ts#L65) | function | `src/services/inboxSweep/sweepGuard.ts` | 65-67 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/capturePolicy.ts`, +9 more |
 | [`stillAllowed`](../src/services/inboxSweep/sweepGuard.ts#L107) | function | `src/services/inboxSweep/sweepGuard.ts` | 107-109 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureConfig.ts`, `src/services/captureInbox/capturePolicy.ts`, +9 more |
-| [`dropAlreadyReported`](../src/services/inboxSweep/sweepItemIdentity.ts#L129) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 129-149 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`isReportedItem`](../src/services/inboxSweep/sweepItemIdentity.ts#L111) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 111-113 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`itemKeys`](../src/services/inboxSweep/sweepItemIdentity.ts#L33) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 33-37 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`keysOfTask`](../src/services/inboxSweep/sweepItemIdentity.ts#L53) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 53-53 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`legacyTaskKeys`](../src/services/inboxSweep/sweepItemIdentity.ts#L46) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 46-51 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`normaliseItemText`](../src/services/inboxSweep/sweepItemIdentity.ts#L18) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 18-26 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`overlap`](../src/services/inboxSweep/sweepItemIdentity.ts#L76) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 76-83 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`recordReportedItems`](../src/services/inboxSweep/sweepItemIdentity.ts#L116) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 116-123 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`renameReportedItems`](../src/services/inboxSweep/sweepItemIdentity.ts#L152) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 152-161 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`reportedKeysFor`](../src/services/inboxSweep/sweepItemIdentity.ts#L59) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 59-68 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`reportedMatch`](../src/services/inboxSweep/sweepItemIdentity.ts#L96) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 96-108 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
-| [`splitKey`](../src/services/inboxSweep/sweepItemIdentity.ts#L70) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 70-73 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +5 more |
+| [`dropAlreadyReported`](../src/services/inboxSweep/sweepItemIdentity.ts#L135) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 135-155 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`isReportedItem`](../src/services/inboxSweep/sweepItemIdentity.ts#L117) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 117-119 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`itemKeys`](../src/services/inboxSweep/sweepItemIdentity.ts#L33) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 33-37 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`keysOfTask`](../src/services/inboxSweep/sweepItemIdentity.ts#L53) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 53-53 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`legacyTaskKeys`](../src/services/inboxSweep/sweepItemIdentity.ts#L46) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 46-51 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`normaliseItemText`](../src/services/inboxSweep/sweepItemIdentity.ts#L18) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 18-26 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`overlap`](../src/services/inboxSweep/sweepItemIdentity.ts#L76) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 76-83 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`recordReportedItems`](../src/services/inboxSweep/sweepItemIdentity.ts#L122) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 122-129 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`renameReportedItems`](../src/services/inboxSweep/sweepItemIdentity.ts#L158) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 158-167 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`reportedKeysFor`](../src/services/inboxSweep/sweepItemIdentity.ts#L59) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 59-68 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`reportedMatch`](../src/services/inboxSweep/sweepItemIdentity.ts#L101) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 101-114 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
+| [`splitKey`](../src/services/inboxSweep/sweepItemIdentity.ts#L70) | function | `src/services/inboxSweep/sweepItemIdentity.ts` | 70-73 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/sweepService.ts`, +6 more |
 | [`applyDispositions`](../src/services/inboxSweep/sweepLedger.ts#L92) | function | `src/services/inboxSweep/sweepLedger.ts` | 92-98 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +9 more |
 | [`applyExportResults`](../src/services/inboxSweep/sweepLedger.ts#L111) | function | `src/services/inboxSweep/sweepLedger.ts` | 111-122 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +9 more |
 | [`exportable`](../src/services/inboxSweep/sweepLedger.ts#L101) | function | `src/services/inboxSweep/sweepLedger.ts` | 101-103 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +9 more |
@@ -3520,17 +3528,18 @@ _Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat tab
 | [`remap`](../src/services/inboxSweep/sweepLedger.ts#L143) | function | `src/services/inboxSweep/sweepLedger.ts` | 143-149 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +9 more |
 | [`renameApprovals`](../src/services/inboxSweep/sweepLedger.ts#L165) | function | `src/services/inboxSweep/sweepLedger.ts` | 165-183 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +9 more |
 | [`renameLedger`](../src/services/inboxSweep/sweepLedger.ts#L152) | function | `src/services/inboxSweep/sweepLedger.ts` | 152-161 |  | `src/commands/inboxSweepCommands.ts`, `src/services/captureInbox/captureDepsFactory.ts`, `src/services/inboxSweep/sweepCommit.ts`, +9 more |
-| [`appendSection`](../src/services/inboxSweep/sweepReport.ts#L128) | function | `src/services/inboxSweep/sweepReport.ts` | 128-138 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`findSection`](../src/services/inboxSweep/sweepReport.ts#L89) | function | `src/services/inboxSweep/sweepReport.ts` | 89-125 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`isLinkSafePath`](../src/services/inboxSweep/sweepReport.ts#L51) | function | `src/services/inboxSweep/sweepReport.ts` | 51-53 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`reconcileReport`](../src/services/inboxSweep/sweepReport.ts#L141) | function | `src/services/inboxSweep/sweepReport.ts` | 141-147 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`renderSection`](../src/services/inboxSweep/sweepReport.ts#L68) | function | `src/services/inboxSweep/sweepReport.ts` | 68-79 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`renderTaskLine`](../src/services/inboxSweep/sweepReport.ts#L59) | function | `src/services/inboxSweep/sweepReport.ts` | 59-65 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`safeContext`](../src/services/inboxSweep/sweepReport.ts#L46) | function | `src/services/inboxSweep/sweepReport.ts` | 46-48 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`sanitizeInline`](../src/services/inboxSweep/sweepReport.ts#L36) | function | `src/services/inboxSweep/sweepReport.ts` | 36-44 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`sourceRef`](../src/services/inboxSweep/sweepReport.ts#L55) | function | `src/services/inboxSweep/sweepReport.ts` | 55-57 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`startMarker`](../src/services/inboxSweep/sweepReport.ts#L32) | function | `src/services/inboxSweep/sweepReport.ts` | 32-32 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
-| [`validateReportPath`](../src/services/inboxSweep/sweepReport.ts#L153) | function | `src/services/inboxSweep/sweepReport.ts` | 153-160 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +3 more |
+| [`appendSection`](../src/services/inboxSweep/sweepReport.ts#L147) | function | `src/services/inboxSweep/sweepReport.ts` | 147-158 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`findSection`](../src/services/inboxSweep/sweepReport.ts#L89) | function | `src/services/inboxSweep/sweepReport.ts` | 89-125 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`isLinkSafePath`](../src/services/inboxSweep/sweepReport.ts#L51) | function | `src/services/inboxSweep/sweepReport.ts` | 51-53 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`numberRepeatedHeading`](../src/services/inboxSweep/sweepReport.ts#L130) | function | `src/services/inboxSweep/sweepReport.ts` | 130-144 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`reconcileReport`](../src/services/inboxSweep/sweepReport.ts#L161) | function | `src/services/inboxSweep/sweepReport.ts` | 161-167 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`renderSection`](../src/services/inboxSweep/sweepReport.ts#L68) | function | `src/services/inboxSweep/sweepReport.ts` | 68-79 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`renderTaskLine`](../src/services/inboxSweep/sweepReport.ts#L59) | function | `src/services/inboxSweep/sweepReport.ts` | 59-65 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`safeContext`](../src/services/inboxSweep/sweepReport.ts#L46) | function | `src/services/inboxSweep/sweepReport.ts` | 46-48 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`sanitizeInline`](../src/services/inboxSweep/sweepReport.ts#L36) | function | `src/services/inboxSweep/sweepReport.ts` | 36-44 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`sourceRef`](../src/services/inboxSweep/sweepReport.ts#L55) | function | `src/services/inboxSweep/sweepReport.ts` | 55-57 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`startMarker`](../src/services/inboxSweep/sweepReport.ts#L32) | function | `src/services/inboxSweep/sweepReport.ts` | 32-32 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
+| [`validateReportPath`](../src/services/inboxSweep/sweepReport.ts#L173) | function | `src/services/inboxSweep/sweepReport.ts` | 173-180 |  | `src/commands/inboxSweepCommands.ts`, `src/services/inboxSweep/sweepCommit.ts`, `src/services/inboxSweep/tasksExportService.ts`, +4 more |
 | [`capture`](../src/services/inboxSweep/sweepService.ts#L98) | function | `src/services/inboxSweep/sweepService.ts` | 98-104 |  | `src/commands/inboxSweepCommands.ts`, `tests/sweepReportedItems.test.ts`, `tests/sweepService.test.ts` |
 | [`coherentPolicy`](../src/services/inboxSweep/sweepService.ts#L86) | function | `src/services/inboxSweep/sweepService.ts` | 86-95 |  | `src/commands/inboxSweepCommands.ts`, `tests/sweepReportedItems.test.ts`, `tests/sweepService.test.ts` |
 | [`estimateSweep`](../src/services/inboxSweep/sweepService.ts#L59) | function | `src/services/inboxSweep/sweepService.ts` | 59-66 |  | `src/commands/inboxSweepCommands.ts`, `tests/sweepReportedItems.test.ts`, `tests/sweepService.test.ts` |
@@ -4032,21 +4041,21 @@ _Domain has 1143 symbols (>50). Diagram shows top-15 by file order; see flat tab
 flowchart TB
 subgraph dom_sketch_f416b363c6c5f070 ["sketch"]
   file_src_services_sketch_sketchExport_ts_2b12349d14769b66["src/services/sketch/sketchExport.ts"]:::component
-  sym_src_services_sketch_sketchExport_ts_buil_b44b9863d90f17b4["buildSketchEmbed"]:::symbol
-  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_buil_b44b9863d90f17b4
-  sym_src_services_sketch_sketchExport_ts_canv_38059d70491b96bc["canvasToBlob"]:::symbol
-  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_canv_38059d70491b96bc
-  sym_src_services_sketch_sketchExport_ts_crop_4173a45233d8510b["cropCanvasToContent"]:::symbol
-  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_crop_4173a45233d8510b
-  sym_src_services_sketch_sketchExport_ts_expo_faec5ae9e5288f2f["exportSketchToVault"]:::symbol
-  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_expo_faec5ae9e5288f2f
+  sym_src_services_sketch_sketchExport_ts_buil_965b752fd77af7fb["buildSketchEmbed"]:::symbol
+  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_buil_965b752fd77af7fb
+  sym_src_services_sketch_sketchExport_ts_canv_d81d980bd4ec01f5["canvasToBlob"]:::symbol
+  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_canv_d81d980bd4ec01f5
+  sym_src_services_sketch_sketchExport_ts_crop_d878545ed66ea2a5["cropCanvasToContent"]:::symbol
+  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_crop_d878545ed66ea2a5
+  sym_src_services_sketch_sketchExport_ts_expo_15c47f48dc11dcfd["exportSketchToVault"]:::symbol
+  file_src_services_sketch_sketchExport_ts_2b12349d14769b66 --> sym_src_services_sketch_sketchExport_ts_expo_15c47f48dc11dcfd
   file_src_services_sketch_strokeManager_ts_836839d84d32aa64["src/services/sketch/strokeManager.ts"]:::component
-  sym_src_services_sketch_strokeManager_ts_cla_55df149afa25f32d["clampPressure"]:::symbol
-  file_src_services_sketch_strokeManager_ts_836839d84d32aa64 --> sym_src_services_sketch_strokeManager_ts_cla_55df149afa25f32d
-  sym_src_services_sketch_strokeManager_ts_dis_6d4067537c6c966b["distToSegmentSq"]:::symbol
-  file_src_services_sketch_strokeManager_ts_836839d84d32aa64 --> sym_src_services_sketch_strokeManager_ts_dis_6d4067537c6c966b
-  sym_src_services_sketch_strokeManager_ts_Str_db0c8ec335393e85["StrokeManager"]:::symbol
-  file_src_services_sketch_strokeManager_ts_836839d84d32aa64 --> sym_src_services_sketch_strokeManager_ts_Str_db0c8ec335393e85
+  sym_src_services_sketch_strokeManager_ts_cla_ba2f1d3993a87a0a["clampPressure"]:::symbol
+  file_src_services_sketch_strokeManager_ts_836839d84d32aa64 --> sym_src_services_sketch_strokeManager_ts_cla_ba2f1d3993a87a0a
+  sym_src_services_sketch_strokeManager_ts_dis_4bb6873c467043f9["distToSegmentSq"]:::symbol
+  file_src_services_sketch_strokeManager_ts_836839d84d32aa64 --> sym_src_services_sketch_strokeManager_ts_dis_4bb6873c467043f9
+  sym_src_services_sketch_strokeManager_ts_Str_c2c826e2b7837124["StrokeManager"]:::symbol
+  file_src_services_sketch_strokeManager_ts_836839d84d32aa64 --> sym_src_services_sketch_strokeManager_ts_Str_c2c826e2b7837124
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -4075,10 +4084,10 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_src_25a6634263c1b1f6 ["src"]
   file_src_main_ts_4fab5baaca5c14d2["src/main.ts"]:::component
-  sym_src_main_ts_AIOrganiserPlugin_e494edb2b3b89d65["AIOrganiserPlugin"]:::symbol
-  file_src_main_ts_4fab5baaca5c14d2 --> sym_src_main_ts_AIOrganiserPlugin_e494edb2b3b89d65
-  sym_src_main_ts_formatElapsedForNotice_c0db44c74a102d1d["formatElapsedForNotice"]:::symbol
-  file_src_main_ts_4fab5baaca5c14d2 --> sym_src_main_ts_formatElapsedForNotice_c0db44c74a102d1d
+  sym_src_main_ts_AIOrganiserPlugin_0b3e135230869d89["AIOrganiserPlugin"]:::symbol
+  file_src_main_ts_4fab5baaca5c14d2 --> sym_src_main_ts_AIOrganiserPlugin_0b3e135230869d89
+  sym_src_main_ts_formatElapsedForNotice_20f25ff6b00e5899["formatElapsedForNotice"]:::symbol
+  file_src_main_ts_4fab5baaca5c14d2 --> sym_src_main_ts_formatElapsedForNotice_20f25ff6b00e5899
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -4102,46 +4111,46 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_tests_59830ebc3a418411 ["tests"]
   file_tests_academicUtils_test_ts_104652d87e004083["tests/academicUtils.test.ts"]:::component
-  sym_tests_academicUtils_test_ts_makeResult_676d35c0b544dd92["makeResult"]:::symbol
-  file_tests_academicUtils_test_ts_104652d87e004083 --> sym_tests_academicUtils_test_ts_makeResult_676d35c0b544dd92
+  sym_tests_academicUtils_test_ts_makeResult_f6a7e109fc1180de["makeResult"]:::symbol
+  file_tests_academicUtils_test_ts_104652d87e004083 --> sym_tests_academicUtils_test_ts_makeResult_f6a7e109fc1180de
   file_tests_adapterConformance_test_ts_d932211805c9e890["tests/adapterConformance.test.ts"]:::component
-  sym_tests_adapterConformance_test_ts_baseCon_39cf332cde96e84e["baseConfig"]:::symbol
-  file_tests_adapterConformance_test_ts_d932211805c9e890 --> sym_tests_adapterConformance_test_ts_baseCon_39cf332cde96e84e
+  sym_tests_adapterConformance_test_ts_baseCon_fe5224384227e193["baseConfig"]:::symbol
+  file_tests_adapterConformance_test_ts_d932211805c9e890 --> sym_tests_adapterConformance_test_ts_baseCon_fe5224384227e193
   file_tests_agentIndexProjection_test_ts_a6d64797686bab61["tests/agentIndexProjection.test.ts"]:::component
-  sym_tests_agentIndexProjection_test_ts_lines_080485545c9c3fc5["lines"]:::symbol
-  file_tests_agentIndexProjection_test_ts_a6d64797686bab61 --> sym_tests_agentIndexProjection_test_ts_lines_080485545c9c3fc5
-  sym_tests_agentIndexProjection_test_ts_rec_4fe647202e74c32d["rec"]:::symbol
-  file_tests_agentIndexProjection_test_ts_a6d64797686bab61 --> sym_tests_agentIndexProjection_test_ts_rec_4fe647202e74c32d
-  sym_tests_agentIndexProjection_test_ts_scope_0d17e060e9c1462b["scopeExcluding"]:::symbol
-  file_tests_agentIndexProjection_test_ts_a6d64797686bab61 --> sym_tests_agentIndexProjection_test_ts_scope_0d17e060e9c1462b
+  sym_tests_agentIndexProjection_test_ts_lines_2bb09837a53fa76b["lines"]:::symbol
+  file_tests_agentIndexProjection_test_ts_a6d64797686bab61 --> sym_tests_agentIndexProjection_test_ts_lines_2bb09837a53fa76b
+  sym_tests_agentIndexProjection_test_ts_rec_ae3490f06186faea["rec"]:::symbol
+  file_tests_agentIndexProjection_test_ts_a6d64797686bab61 --> sym_tests_agentIndexProjection_test_ts_rec_ae3490f06186faea
+  sym_tests_agentIndexProjection_test_ts_scope_481903f41203cba5["scopeExcluding"]:::symbol
+  file_tests_agentIndexProjection_test_ts_a6d64797686bab61 --> sym_tests_agentIndexProjection_test_ts_scope_481903f41203cba5
   file_tests_agentIndexService_test_ts_5bcbc88f4b730d99["tests/agentIndexService.test.ts"]:::component
-  sym_tests_agentIndexService_test_ts_makeAdap_d20ffd672d0ecc3b["makeAdapter"]:::symbol
-  file_tests_agentIndexService_test_ts_5bcbc88f4b730d99 --> sym_tests_agentIndexService_test_ts_makeAdap_d20ffd672d0ecc3b
-  sym_tests_agentIndexService_test_ts_makePlug_d62bf4b465de37c9["makePlugin"]:::symbol
-  file_tests_agentIndexService_test_ts_5bcbc88f4b730d99 --> sym_tests_agentIndexService_test_ts_makePlug_d62bf4b465de37c9
+  sym_tests_agentIndexService_test_ts_makeAdap_a800a0fef923eee2["makeAdapter"]:::symbol
+  file_tests_agentIndexService_test_ts_5bcbc88f4b730d99 --> sym_tests_agentIndexService_test_ts_makeAdap_a800a0fef923eee2
+  sym_tests_agentIndexService_test_ts_makePlug_c966db432fea0961["makePlugin"]:::symbol
+  file_tests_agentIndexService_test_ts_5bcbc88f4b730d99 --> sym_tests_agentIndexService_test_ts_makePlug_c966db432fea0961
   file_tests_agentInstructions_test_ts_a22466792592c74e["tests/agentInstructions.test.ts"]:::component
-  sym_tests_agentInstructions_test_ts_settings_9109b585fae19614["settings"]:::symbol
-  file_tests_agentInstructions_test_ts_a22466792592c74e --> sym_tests_agentInstructions_test_ts_settings_9109b585fae19614
+  sym_tests_agentInstructions_test_ts_settings_bfc15e96ca0e1700["settings"]:::symbol
+  file_tests_agentInstructions_test_ts_a22466792592c74e --> sym_tests_agentInstructions_test_ts_settings_bfc15e96ca0e1700
   file_tests_agentInstructionsWriter_test_ts_3ad303ce91c6fcf5["tests/agentInstructionsWriter.test.ts"]:::component
-  sym_tests_agentInstructionsWriter_test_ts_ma_12b4de8e575fc921["makePlugin"]:::symbol
-  file_tests_agentInstructionsWriter_test_ts_3ad303ce91c6fcf5 --> sym_tests_agentInstructionsWriter_test_ts_ma_12b4de8e575fc921
+  sym_tests_agentInstructionsWriter_test_ts_ma_fc4b55ebe3c4989f["makePlugin"]:::symbol
+  file_tests_agentInstructionsWriter_test_ts_3ad303ce91c6fcf5 --> sym_tests_agentInstructionsWriter_test_ts_ma_fc4b55ebe3c4989f
   file_tests_apiKeyHelpersAudioNarration_test_t_3b02f6b30033a386["tests/apiKeyHelpersAudioNarration.test.ts"]:::component
-  sym_tests_apiKeyHelpersAudioNarration_test_t_c3b53ed1a3e81e61["makePlugin"]:::symbol
-  file_tests_apiKeyHelpersAudioNarration_test_t_3b02f6b30033a386 --> sym_tests_apiKeyHelpersAudioNarration_test_t_c3b53ed1a3e81e61
+  sym_tests_apiKeyHelpersAudioNarration_test_t_748b411b5440eba2["makePlugin"]:::symbol
+  file_tests_apiKeyHelpersAudioNarration_test_t_3b02f6b30033a386 --> sym_tests_apiKeyHelpersAudioNarration_test_t_748b411b5440eba2
   file_tests_apiKeyHelpersClaudeWebSearch_test__d1c244cb802a5c8c["tests/apiKeyHelpersClaudeWebSearch.test.ts"]:::component
-  sym_tests_apiKeyHelpersClaudeWebSearch_test__ef75ff72a7c23c4c["makePlugin"]:::symbol
-  file_tests_apiKeyHelpersClaudeWebSearch_test__d1c244cb802a5c8c --> sym_tests_apiKeyHelpersClaudeWebSearch_test__ef75ff72a7c23c4c
+  sym_tests_apiKeyHelpersClaudeWebSearch_test__a84a6c054bd69c7c["makePlugin"]:::symbol
+  file_tests_apiKeyHelpersClaudeWebSearch_test__d1c244cb802a5c8c --> sym_tests_apiKeyHelpersClaudeWebSearch_test__a84a6c054bd69c7c
   file_tests_applyFeatureFlags_test_ts_65132614cf98fee2["tests/applyFeatureFlags.test.ts"]:::component
-  sym_tests_applyFeatureFlags_test_ts_makePlug_c63b1c6eef113c3d["makePlugin"]:::symbol
-  file_tests_applyFeatureFlags_test_ts_65132614cf98fee2 --> sym_tests_applyFeatureFlags_test_ts_makePlug_c63b1c6eef113c3d
+  sym_tests_applyFeatureFlags_test_ts_makePlug_cf99391b15e6561a["makePlugin"]:::symbol
+  file_tests_applyFeatureFlags_test_ts_65132614cf98fee2 --> sym_tests_applyFeatureFlags_test_ts_makePlug_cf99391b15e6561a
   file_tests_applyNoteEdit_test_ts_0da7e5d111a9d2fd["tests/applyNoteEdit.test.ts"]:::component
-  sym_tests_applyNoteEdit_test_ts_makeFile_9769543c9ce65352["makeFile"]:::symbol
-  file_tests_applyNoteEdit_test_ts_0da7e5d111a9d2fd --> sym_tests_applyNoteEdit_test_ts_makeFile_9769543c9ce65352
-  sym_tests_applyNoteEdit_test_ts_makePlugin_3a8b347b548f7f1e["makePlugin"]:::symbol
-  file_tests_applyNoteEdit_test_ts_0da7e5d111a9d2fd --> sym_tests_applyNoteEdit_test_ts_makePlugin_3a8b347b548f7f1e
+  sym_tests_applyNoteEdit_test_ts_makeFile_133bb74d09865b29["makeFile"]:::symbol
+  file_tests_applyNoteEdit_test_ts_0da7e5d111a9d2fd --> sym_tests_applyNoteEdit_test_ts_makeFile_133bb74d09865b29
+  sym_tests_applyNoteEdit_test_ts_makePlugin_0a0a7aed0718e6f6["makePlugin"]:::symbol
+  file_tests_applyNoteEdit_test_ts_0da7e5d111a9d2fd --> sym_tests_applyNoteEdit_test_ts_makePlugin_0a0a7aed0718e6f6
   file_tests_appsScriptClient_test_ts_c29fa6678d526ac9["tests/appsScriptClient.test.ts"]:::component
-  sym_tests_appsScriptClient_test_ts_json_91cf88a1e4f51a15["json"]:::symbol
-  file_tests_appsScriptClient_test_ts_c29fa6678d526ac9 --> sym_tests_appsScriptClient_test_ts_json_91cf88a1e4f51a15
+  sym_tests_appsScriptClient_test_ts_json_3f507f8b0af4f273["json"]:::symbol
+  file_tests_appsScriptClient_test_ts_c29fa6678d526ac9 --> sym_tests_appsScriptClient_test_ts_json_3f507f8b0af4f273
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -4150,7 +4159,7 @@ classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
 classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 ```
 
-_Domain has 891 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+_Domain has 893 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
 
 ### Symbols in this domain
 
@@ -4292,7 +4301,7 @@ _Domain has 891 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`ready`](../tests/captureInboxSharedSettings.test.ts#L18) | function | `tests/captureInboxSharedSettings.test.ts` | 18-18 |  | _(internal)_ |
 | [`s`](../tests/captureInboxSharedSettings.test.ts#L17) | function | `tests/captureInboxSharedSettings.test.ts` | 17-17 |  | _(internal)_ |
 | [`entry`](../tests/captureInboxStateMachine.test.ts#L10) | function | `tests/captureInboxStateMachine.test.ts` | 10-12 |  | _(internal)_ |
-| [`plugin`](../tests/captureInboxSweepInterop.test.ts#L12) | function | `tests/captureInboxSweepInterop.test.ts` | 12-19 |  | _(internal)_ |
+| [`plugin`](../tests/captureInboxSweepInterop.test.ts#L12) | function | `tests/captureInboxSweepInterop.test.ts` | 12-20 |  | _(internal)_ |
 | [`plan`](../tests/captureInboxTextFirst.test.ts#L8) | function | `tests/captureInboxTextFirst.test.ts` | 8-8 |  | _(internal)_ |
 | [`mk`](../tests/captureInboxUi.test.ts#L13) | function | `tests/captureInboxUi.test.ts` | 13-15 |  | _(internal)_ |
 | [`FakePort`](../tests/captureInboxWriter.test.ts#L19) | class | `tests/captureInboxWriter.test.ts` | 19-51 |  | _(internal)_ |
@@ -4813,6 +4822,8 @@ _Domain has 891 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`mockLib`](../tests/pdfPageRenderer.test.ts#L15) | function | `tests/pdfPageRenderer.test.ts` | 15-42 |  | _(internal)_ |
 | [`createArrayBuffer`](../tests/pdfService.test.ts#L43) | function | `tests/pdfService.test.ts` | 43-45 |  | _(internal)_ |
 | [`createMockApp`](../tests/pdfService.test.ts#L33) | function | `tests/pdfService.test.ts` | 33-41 |  | _(internal)_ |
+| [`mk`](../tests/personaRetestFixes.test.ts#L25) | function | `tests/personaRetestFixes.test.ts` | 25-27 |  | _(internal)_ |
+| [`world`](../tests/personaRetestFixes.test.ts#L36) | function | `tests/personaRetestFixes.test.ts` | 36-57 |  | _(internal)_ |
 | [`asPlugin`](../tests/pluginDataStore.test.ts#L38) | function | `tests/pluginDataStore.test.ts` | 38-38 |  | _(internal)_ |
 | [`makePlugin`](../tests/pluginDataStore.test.ts#L18) | function | `tests/pluginDataStore.test.ts` | 18-35 |  | _(internal)_ |
 | [`findByRole`](../tests/PolishSelectorModal.test.ts#L68) | function | `tests/PolishSelectorModal.test.ts` | 68-75 |  | _(internal)_ |
@@ -5056,65 +5067,65 @@ _Domain has 891 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_tests_mocks_5513330abaaebfe0 ["tests-mocks"]
   file_tests_mocks_mockSecretStorage_ts_579fb23f69b1f705["tests/mocks/mockSecretStorage.ts"]:::component
-  sym_tests_mocks_mockSecretStorage_ts_MockSec_c7e6810aa07cf7af["MockSecretStorage"]:::symbol
-  file_tests_mocks_mockSecretStorage_ts_579fb23f69b1f705 --> sym_tests_mocks_mockSecretStorage_ts_MockSec_c7e6810aa07cf7af
+  sym_tests_mocks_mockSecretStorage_ts_MockSec_9bdf32902835d195["MockSecretStorage"]:::symbol
+  file_tests_mocks_mockSecretStorage_ts_579fb23f69b1f705 --> sym_tests_mocks_mockSecretStorage_ts_MockSec_9bdf32902835d195
   file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8["tests/mocks/obsidian.ts"]:::component
-  sym_tests_mocks_obsidian_ts_AbstractInputSug_64e1514d4ad0669c["AbstractInputSuggest"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_AbstractInputSug_64e1514d4ad0669c
-  sym_tests_mocks_obsidian_ts_App_87e9808a77f9e941["App"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_App_87e9808a77f9e941
-  sym_tests_mocks_obsidian_ts_clearMockNotices_8171e12646e06637["clearMockNotices"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_clearMockNotices_8171e12646e06637
-  sym_tests_mocks_obsidian_ts_createTFile_37adc5458d0e7cd1["createTFile"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_createTFile_37adc5458d0e7cd1
-  sym_tests_mocks_obsidian_ts_createTFolder_a665cf0574a0aa26["createTFolder"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_createTFolder_a665cf0574a0aa26
-  sym_tests_mocks_obsidian_ts_Editor_a36767625f5541fd["Editor"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Editor_a36767625f5541fd
-  sym_tests_mocks_obsidian_ts_FileSystemAdapte_d4a18ac74f58ec1b["FileSystemAdapter"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_FileSystemAdapte_d4a18ac74f58ec1b
-  sym_tests_mocks_obsidian_ts_FuzzySuggestModa_4233f24a671b8e90["FuzzySuggestModal"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_FuzzySuggestModa_4233f24a671b8e90
-  sym_tests_mocks_obsidian_ts_ItemView_f81c3c592290c714["ItemView"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_ItemView_f81c3c592290c714
-  sym_tests_mocks_obsidian_ts_MarkdownView_96d5f0baae5dd246["MarkdownView"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MarkdownView_96d5f0baae5dd246
-  sym_tests_mocks_obsidian_ts_MockButton_e76b34d15c196855["MockButton"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockButton_e76b34d15c196855
-  sym_tests_mocks_obsidian_ts_MockDropdown_d59c7371e244e366["MockDropdown"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockDropdown_d59c7371e244e366
-  sym_tests_mocks_obsidian_ts_MockHTMLElement_e44450a13fec01cb["MockHTMLElement"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockHTMLElement_e44450a13fec01cb
-  sym_tests_mocks_obsidian_ts_MockSlider_28c47d3b91c33fde["MockSlider"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockSlider_28c47d3b91c33fde
-  sym_tests_mocks_obsidian_ts_MockTextAreaComp_393d642488d716d9["MockTextAreaComponent"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockTextAreaComp_393d642488d716d9
-  sym_tests_mocks_obsidian_ts_MockTextComponen_73e5da458f27ef32["MockTextComponent"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockTextComponen_73e5da458f27ef32
-  sym_tests_mocks_obsidian_ts_MockToggle_ee07df14399a9919["MockToggle"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockToggle_ee07df14399a9919
-  sym_tests_mocks_obsidian_ts_Modal_577689bc1626fbe0["Modal"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Modal_577689bc1626fbe0
-  sym_tests_mocks_obsidian_ts_normalizePath_19883330047cd51d["normalizePath"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_normalizePath_19883330047cd51d
-  sym_tests_mocks_obsidian_ts_Notice_220f28a9ca22b394["Notice"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Notice_220f28a9ca22b394
-  sym_tests_mocks_obsidian_ts_Plugin_fc87119f4f68d20c["Plugin"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Plugin_fc87119f4f68d20c
-  sym_tests_mocks_obsidian_ts_PluginSettingTab_3fd9cafc01308475["PluginSettingTab"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_PluginSettingTab_3fd9cafc01308475
-  sym_tests_mocks_obsidian_ts_setIcon_a857bc8a22226d6f["setIcon"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_setIcon_a857bc8a22226d6f
-  sym_tests_mocks_obsidian_ts_Setting_8023c6c9c7f57881["Setting"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Setting_8023c6c9c7f57881
-  sym_tests_mocks_obsidian_ts_setTooltip_1eb617d664953fbb["setTooltip"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_setTooltip_1eb617d664953fbb
-  sym_tests_mocks_obsidian_ts_TFile_de45cf933b8d0677["TFile"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_TFile_de45cf933b8d0677
-  sym_tests_mocks_obsidian_ts_TFolder_a4352bf497a08f79["TFolder"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_TFolder_a4352bf497a08f79
-  sym_tests_mocks_obsidian_ts_WorkspaceLeaf_f625081d5e92bc66["WorkspaceLeaf"]:::symbol
-  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_WorkspaceLeaf_f625081d5e92bc66
+  sym_tests_mocks_obsidian_ts_AbstractInputSug_08f6df0cb5fad08e["AbstractInputSuggest"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_AbstractInputSug_08f6df0cb5fad08e
+  sym_tests_mocks_obsidian_ts_App_1bf3d818607edf03["App"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_App_1bf3d818607edf03
+  sym_tests_mocks_obsidian_ts_clearMockNotices_b11e84e09a5d4139["clearMockNotices"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_clearMockNotices_b11e84e09a5d4139
+  sym_tests_mocks_obsidian_ts_createTFile_54461c8ea0553d81["createTFile"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_createTFile_54461c8ea0553d81
+  sym_tests_mocks_obsidian_ts_createTFolder_a3077b4e6ddd297e["createTFolder"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_createTFolder_a3077b4e6ddd297e
+  sym_tests_mocks_obsidian_ts_Editor_c50d829f203f9005["Editor"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Editor_c50d829f203f9005
+  sym_tests_mocks_obsidian_ts_FileSystemAdapte_9904cca0dfe3b97e["FileSystemAdapter"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_FileSystemAdapte_9904cca0dfe3b97e
+  sym_tests_mocks_obsidian_ts_FuzzySuggestModa_f84510cd9e41ff5a["FuzzySuggestModal"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_FuzzySuggestModa_f84510cd9e41ff5a
+  sym_tests_mocks_obsidian_ts_ItemView_aba7c049eb79ee15["ItemView"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_ItemView_aba7c049eb79ee15
+  sym_tests_mocks_obsidian_ts_MarkdownView_2d98ad074f3eea88["MarkdownView"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MarkdownView_2d98ad074f3eea88
+  sym_tests_mocks_obsidian_ts_MockButton_1be7cc980f7dcec9["MockButton"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockButton_1be7cc980f7dcec9
+  sym_tests_mocks_obsidian_ts_MockDropdown_bac131db5b01ce66["MockDropdown"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockDropdown_bac131db5b01ce66
+  sym_tests_mocks_obsidian_ts_MockHTMLElement_9d33220d81367d12["MockHTMLElement"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockHTMLElement_9d33220d81367d12
+  sym_tests_mocks_obsidian_ts_MockSlider_f448715c8ee3377d["MockSlider"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockSlider_f448715c8ee3377d
+  sym_tests_mocks_obsidian_ts_MockTextAreaComp_7bb0df0f9e5cc53d["MockTextAreaComponent"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockTextAreaComp_7bb0df0f9e5cc53d
+  sym_tests_mocks_obsidian_ts_MockTextComponen_80f09d3f2a575943["MockTextComponent"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockTextComponen_80f09d3f2a575943
+  sym_tests_mocks_obsidian_ts_MockToggle_d8ef62f6d48919b6["MockToggle"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_MockToggle_d8ef62f6d48919b6
+  sym_tests_mocks_obsidian_ts_Modal_089f51971f0394bc["Modal"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Modal_089f51971f0394bc
+  sym_tests_mocks_obsidian_ts_normalizePath_e8b5a0a2a86521c2["normalizePath"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_normalizePath_e8b5a0a2a86521c2
+  sym_tests_mocks_obsidian_ts_Notice_218fc34c3fd104cc["Notice"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Notice_218fc34c3fd104cc
+  sym_tests_mocks_obsidian_ts_Plugin_52b82b056d0eb63e["Plugin"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Plugin_52b82b056d0eb63e
+  sym_tests_mocks_obsidian_ts_PluginSettingTab_bf1256ab92ad0805["PluginSettingTab"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_PluginSettingTab_bf1256ab92ad0805
+  sym_tests_mocks_obsidian_ts_setIcon_9ef48d225c17508b["setIcon"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_setIcon_9ef48d225c17508b
+  sym_tests_mocks_obsidian_ts_Setting_ef1b6735e560a1ab["Setting"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_Setting_ef1b6735e560a1ab
+  sym_tests_mocks_obsidian_ts_setTooltip_7048f451ef56272c["setTooltip"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_setTooltip_7048f451ef56272c
+  sym_tests_mocks_obsidian_ts_TFile_ad0f20977364c2a8["TFile"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_TFile_ad0f20977364c2a8
+  sym_tests_mocks_obsidian_ts_TFolder_8d84ffe2f7286f67["TFolder"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_TFolder_8d84ffe2f7286f67
+  sym_tests_mocks_obsidian_ts_WorkspaceLeaf_877085f23b478074["WorkspaceLeaf"]:::symbol
+  file_tests_mocks_obsidian_ts_e722ec2c95d6a7f8 --> sym_tests_mocks_obsidian_ts_WorkspaceLeaf_877085f23b478074
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -5128,34 +5139,34 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 | Symbol | Kind | Path | Lines | Purpose | File imported by |
 |---|---|---|---|---|---|
 | [`MockSecretStorage`](../tests/mocks/mockSecretStorage.ts#L6) | class | `tests/mocks/mockSecretStorage.ts` | 6-65 |  | `tests/secretStorageService.test.ts` |
-| [`AbstractInputSuggest`](../tests/mocks/obsidian.ts#L60) | class | `tests/mocks/obsidian.ts` | 60-73 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`App`](../tests/mocks/obsidian.ts#L117) | class | `tests/mocks/obsidian.ts` | 117-155 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`clearMockNotices`](../tests/mocks/obsidian.ts#L104) | function | `tests/mocks/obsidian.ts` | 104-106 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`createTFile`](../tests/mocks/obsidian.ts#L20) | function | `tests/mocks/obsidian.ts` | 20-28 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`createTFolder`](../tests/mocks/obsidian.ts#L43) | function | `tests/mocks/obsidian.ts` | 43-48 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`Editor`](../tests/mocks/obsidian.ts#L109) | class | `tests/mocks/obsidian.ts` | 109-109 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`FileSystemAdapter`](../tests/mocks/obsidian.ts#L53) | class | `tests/mocks/obsidian.ts` | 53-56 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`FuzzySuggestModal`](../tests/mocks/obsidian.ts#L310) | class | `tests/mocks/obsidian.ts` | 310-321 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`ItemView`](../tests/mocks/obsidian.ts#L295) | class | `tests/mocks/obsidian.ts` | 295-308 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MarkdownView`](../tests/mocks/obsidian.ts#L112) | class | `tests/mocks/obsidian.ts` | 112-115 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockButton`](../tests/mocks/obsidian.ts#L465) | class | `tests/mocks/obsidian.ts` | 465-485 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockDropdown`](../tests/mocks/obsidian.ts#L432) | class | `tests/mocks/obsidian.ts` | 432-455 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockHTMLElement`](../tests/mocks/obsidian.ts#L158) | class | `tests/mocks/obsidian.ts` | 158-250 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockSlider`](../tests/mocks/obsidian.ts#L457) | class | `tests/mocks/obsidian.ts` | 457-463 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockTextAreaComponent`](../tests/mocks/obsidian.ts#L428) | class | `tests/mocks/obsidian.ts` | 428-430 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockTextComponent`](../tests/mocks/obsidian.ts#L409) | class | `tests/mocks/obsidian.ts` | 409-426 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`MockToggle`](../tests/mocks/obsidian.ts#L381) | class | `tests/mocks/obsidian.ts` | 381-407 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`Modal`](../tests/mocks/obsidian.ts#L252) | class | `tests/mocks/obsidian.ts` | 252-279 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`normalizePath`](../tests/mocks/obsidian.ts#L487) | function | `tests/mocks/obsidian.ts` | 487-489 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`Notice`](../tests/mocks/obsidian.ts#L75) | class | `tests/mocks/obsidian.ts` | 75-101 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`Plugin`](../tests/mocks/obsidian.ts#L506) | class | `tests/mocks/obsidian.ts` | 506-520 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`PluginSettingTab`](../tests/mocks/obsidian.ts#L522) | class | `tests/mocks/obsidian.ts` | 522-533 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`setIcon`](../tests/mocks/obsidian.ts#L491) | function | `tests/mocks/obsidian.ts` | 491-493 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`Setting`](../tests/mocks/obsidian.ts#L323) | class | `tests/mocks/obsidian.ts` | 323-379 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`setTooltip`](../tests/mocks/obsidian.ts#L495) | function | `tests/mocks/obsidian.ts` | 495-497 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`TFile`](../tests/mocks/obsidian.ts#L9) | class | `tests/mocks/obsidian.ts` | 9-17 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`TFolder`](../tests/mocks/obsidian.ts#L30) | class | `tests/mocks/obsidian.ts` | 30-40 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
-| [`WorkspaceLeaf`](../tests/mocks/obsidian.ts#L281) | class | `tests/mocks/obsidian.ts` | 281-293 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +106 more |
+| [`AbstractInputSuggest`](../tests/mocks/obsidian.ts#L60) | class | `tests/mocks/obsidian.ts` | 60-73 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`App`](../tests/mocks/obsidian.ts#L117) | class | `tests/mocks/obsidian.ts` | 117-155 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`clearMockNotices`](../tests/mocks/obsidian.ts#L104) | function | `tests/mocks/obsidian.ts` | 104-106 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`createTFile`](../tests/mocks/obsidian.ts#L20) | function | `tests/mocks/obsidian.ts` | 20-28 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`createTFolder`](../tests/mocks/obsidian.ts#L43) | function | `tests/mocks/obsidian.ts` | 43-48 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`Editor`](../tests/mocks/obsidian.ts#L109) | class | `tests/mocks/obsidian.ts` | 109-109 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`FileSystemAdapter`](../tests/mocks/obsidian.ts#L53) | class | `tests/mocks/obsidian.ts` | 53-56 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`FuzzySuggestModal`](../tests/mocks/obsidian.ts#L310) | class | `tests/mocks/obsidian.ts` | 310-321 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`ItemView`](../tests/mocks/obsidian.ts#L295) | class | `tests/mocks/obsidian.ts` | 295-308 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MarkdownView`](../tests/mocks/obsidian.ts#L112) | class | `tests/mocks/obsidian.ts` | 112-115 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockButton`](../tests/mocks/obsidian.ts#L465) | class | `tests/mocks/obsidian.ts` | 465-485 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockDropdown`](../tests/mocks/obsidian.ts#L432) | class | `tests/mocks/obsidian.ts` | 432-455 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockHTMLElement`](../tests/mocks/obsidian.ts#L158) | class | `tests/mocks/obsidian.ts` | 158-250 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockSlider`](../tests/mocks/obsidian.ts#L457) | class | `tests/mocks/obsidian.ts` | 457-463 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockTextAreaComponent`](../tests/mocks/obsidian.ts#L428) | class | `tests/mocks/obsidian.ts` | 428-430 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockTextComponent`](../tests/mocks/obsidian.ts#L409) | class | `tests/mocks/obsidian.ts` | 409-426 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`MockToggle`](../tests/mocks/obsidian.ts#L381) | class | `tests/mocks/obsidian.ts` | 381-407 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`Modal`](../tests/mocks/obsidian.ts#L252) | class | `tests/mocks/obsidian.ts` | 252-279 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`normalizePath`](../tests/mocks/obsidian.ts#L487) | function | `tests/mocks/obsidian.ts` | 487-489 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`Notice`](../tests/mocks/obsidian.ts#L75) | class | `tests/mocks/obsidian.ts` | 75-101 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`Plugin`](../tests/mocks/obsidian.ts#L506) | class | `tests/mocks/obsidian.ts` | 506-520 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`PluginSettingTab`](../tests/mocks/obsidian.ts#L522) | class | `tests/mocks/obsidian.ts` | 522-533 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`setIcon`](../tests/mocks/obsidian.ts#L491) | function | `tests/mocks/obsidian.ts` | 491-493 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`Setting`](../tests/mocks/obsidian.ts#L323) | class | `tests/mocks/obsidian.ts` | 323-379 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`setTooltip`](../tests/mocks/obsidian.ts#L495) | function | `tests/mocks/obsidian.ts` | 495-497 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`TFile`](../tests/mocks/obsidian.ts#L9) | class | `tests/mocks/obsidian.ts` | 9-17 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`TFolder`](../tests/mocks/obsidian.ts#L30) | class | `tests/mocks/obsidian.ts` | 30-40 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
+| [`WorkspaceLeaf`](../tests/mocks/obsidian.ts#L281) | class | `tests/mocks/obsidian.ts` | 281-293 |  | `tests/PolishSelectorModal.test.ts`, `tests/agentInstructionsWriter.test.ts`, `tests/applyFeatureFlags.test.ts`, +107 more |
 
 ---
 
@@ -5165,103 +5176,103 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_tts_317e938a489b10da ["tts"]
   file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922["src/services/tts/azureSpeechTtsEngine.ts"]:::component
-  sym_src_services_tts_azureSpeechTtsEngine_ts_df60a8a488de7da9["AzureSpeechTtsEngine"]:::symbol
-  file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922 --> sym_src_services_tts_azureSpeechTtsEngine_ts_df60a8a488de7da9
-  sym_src_services_tts_azureSpeechTtsEngine_ts_cd76a90509c52c23["createAzureSpeechTtsEngine"]:::symbol
-  file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922 --> sym_src_services_tts_azureSpeechTtsEngine_ts_cd76a90509c52c23
-  sym_src_services_tts_azureSpeechTtsEngine_ts_6e683a541ec92dc4["makeAzureSpeechError"]:::symbol
-  file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922 --> sym_src_services_tts_azureSpeechTtsEngine_ts_6e683a541ec92dc4
+  sym_src_services_tts_azureSpeechTtsEngine_ts_12cbc8578c1a7b87["AzureSpeechTtsEngine"]:::symbol
+  file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922 --> sym_src_services_tts_azureSpeechTtsEngine_ts_12cbc8578c1a7b87
+  sym_src_services_tts_azureSpeechTtsEngine_ts_37a4c04fb1a290e9["createAzureSpeechTtsEngine"]:::symbol
+  file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922 --> sym_src_services_tts_azureSpeechTtsEngine_ts_37a4c04fb1a290e9
+  sym_src_services_tts_azureSpeechTtsEngine_ts_0bbe7286bfecbea1["makeAzureSpeechError"]:::symbol
+  file_src_services_tts_azureSpeechTtsEngine_ts_b919cfb2dd1ea922 --> sym_src_services_tts_azureSpeechTtsEngine_ts_0bbe7286bfecbea1
   file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35["src/services/tts/cognitiveSpeechTtsEngine.ts"]:::component
-  sym_src_services_tts_cognitiveSpeechTtsEngin_b0d76a34f0875cbd["CognitiveSpeechTtsEngine"]:::symbol
-  file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35 --> sym_src_services_tts_cognitiveSpeechTtsEngin_b0d76a34f0875cbd
-  sym_src_services_tts_cognitiveSpeechTtsEngin_776a590556e88a58["createCognitiveSpeechTtsEngine"]:::symbol
-  file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35 --> sym_src_services_tts_cognitiveSpeechTtsEngin_776a590556e88a58
-  sym_src_services_tts_cognitiveSpeechTtsEngin_ff97d1291d154f68["makeError"]:::symbol
-  file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35 --> sym_src_services_tts_cognitiveSpeechTtsEngin_ff97d1291d154f68
+  sym_src_services_tts_cognitiveSpeechTtsEngin_e04d5faf0112fd38["CognitiveSpeechTtsEngine"]:::symbol
+  file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35 --> sym_src_services_tts_cognitiveSpeechTtsEngin_e04d5faf0112fd38
+  sym_src_services_tts_cognitiveSpeechTtsEngin_60bfe2a0c2112bc3["createCognitiveSpeechTtsEngine"]:::symbol
+  file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35 --> sym_src_services_tts_cognitiveSpeechTtsEngin_60bfe2a0c2112bc3
+  sym_src_services_tts_cognitiveSpeechTtsEngin_b5fbc31ddc114e20["makeError"]:::symbol
+  file_src_services_tts_cognitiveSpeechTtsEngin_f8e506624dc13d35 --> sym_src_services_tts_cognitiveSpeechTtsEngin_b5fbc31ddc114e20
   file_src_services_tts_fingerprint_ts_8d1791bdb45aa61b["src/services/tts/fingerprint.ts"]:::component
-  sym_src_services_tts_fingerprint_ts_CryptoUn_5a1848d886feeff7["CryptoUnavailableError"]:::symbol
-  file_src_services_tts_fingerprint_ts_8d1791bdb45aa61b --> sym_src_services_tts_fingerprint_ts_CryptoUn_5a1848d886feeff7
-  sym_src_services_tts_fingerprint_ts_sha256He_46ccdb3184ff9e94["sha256Hex"]:::symbol
-  file_src_services_tts_fingerprint_ts_8d1791bdb45aa61b --> sym_src_services_tts_fingerprint_ts_sha256He_46ccdb3184ff9e94
+  sym_src_services_tts_fingerprint_ts_CryptoUn_a79d09f18da709e5["CryptoUnavailableError"]:::symbol
+  file_src_services_tts_fingerprint_ts_8d1791bdb45aa61b --> sym_src_services_tts_fingerprint_ts_CryptoUn_a79d09f18da709e5
+  sym_src_services_tts_fingerprint_ts_sha256He_e61f44401260304f["sha256Hex"]:::symbol
+  file_src_services_tts_fingerprint_ts_8d1791bdb45aa61b --> sym_src_services_tts_fingerprint_ts_sha256He_e61f44401260304f
   file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e["src/services/tts/gptAudioTtsEngine.ts"]:::component
-  sym_src_services_tts_gptAudioTtsEngine_ts_co_b805fe7aefc7264a["compareVersionDesc"]:::symbol
-  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_co_b805fe7aefc7264a
-  sym_src_services_tts_gptAudioTtsEngine_ts_cr_cb9f10afc1bed06a["createGptAudioTtsEngine"]:::symbol
-  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_cr_cb9f10afc1bed06a
-  sym_src_services_tts_gptAudioTtsEngine_ts_Gp_a73086099c675209["GptAudioTtsEngine"]:::symbol
-  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_Gp_a73086099c675209
-  sym_src_services_tts_gptAudioTtsEngine_ts_ma_132f0cde21cee243["makeError"]:::symbol
-  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_ma_132f0cde21cee243
-  sym_src_services_tts_gptAudioTtsEngine_ts_re_0e1ee2238b0760dd["resolveGptAudioModel"]:::symbol
-  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_re_0e1ee2238b0760dd
+  sym_src_services_tts_gptAudioTtsEngine_ts_co_75c2ccb61c0e0e7a["compareVersionDesc"]:::symbol
+  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_co_75c2ccb61c0e0e7a
+  sym_src_services_tts_gptAudioTtsEngine_ts_cr_c652937fc713f0a2["createGptAudioTtsEngine"]:::symbol
+  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_cr_c652937fc713f0a2
+  sym_src_services_tts_gptAudioTtsEngine_ts_Gp_2f672388c3521b05["GptAudioTtsEngine"]:::symbol
+  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_Gp_2f672388c3521b05
+  sym_src_services_tts_gptAudioTtsEngine_ts_ma_daa94bd28f95f8c4["makeError"]:::symbol
+  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_ma_daa94bd28f95f8c4
+  sym_src_services_tts_gptAudioTtsEngine_ts_re_8999137c62ac14a3["resolveGptAudioModel"]:::symbol
+  file_src_services_tts_gptAudioTtsEngine_ts_9afbc684d8d5a12e --> sym_src_services_tts_gptAudioTtsEngine_ts_re_8999137c62ac14a3
   file_src_services_tts_mp3Writer_ts_21132e7ba727167b["src/services/tts/mp3Writer.ts"]:::component
-  sym_src_services_tts_mp3Writer_ts_Mp3Writer_8e67fd2905f3bb70["Mp3Writer"]:::symbol
-  file_src_services_tts_mp3Writer_ts_21132e7ba727167b --> sym_src_services_tts_mp3Writer_ts_Mp3Writer_8e67fd2905f3bb70
+  sym_src_services_tts_mp3Writer_ts_Mp3Writer_4924723e1286679c["Mp3Writer"]:::symbol
+  file_src_services_tts_mp3Writer_ts_21132e7ba727167b --> sym_src_services_tts_mp3Writer_ts_Mp3Writer_4924723e1286679c
   file_src_services_tts_pcmUtils_ts_30e8a84ced493917["src/services/tts/pcmUtils.ts"]:::component
-  sym_src_services_tts_pcmUtils_ts_applyGainWi_400af614e1b5f4eb["applyGainWithLimit"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_applyGainWi_400af614e1b5f4eb
-  sym_src_services_tts_pcmUtils_ts_base64ToUin_b4c0744ded3ef1dd["base64ToUint8Array"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_base64ToUin_b4c0744ded3ef1dd
-  sym_src_services_tts_pcmUtils_ts_clampGain_4db6a2e4ee8f2671["clampGain"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_clampGain_4db6a2e4ee8f2671
-  sym_src_services_tts_pcmUtils_ts_computeBloc_fb61a3929109d5e7["computeBlockRms"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_computeBloc_fb61a3929109d5e7
-  sym_src_services_tts_pcmUtils_ts_computeDesi_95c592f64544896b["computeDesiredGain"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_computeDesi_95c592f64544896b
-  sym_src_services_tts_pcmUtils_ts_downsampleP_5d63346e0b2c45e4["downsamplePcm16"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_downsampleP_5d63346e0b2c45e4
-  sym_src_services_tts_pcmUtils_ts_dynamicNorm_818908b7a849a67e["dynamicNormalize"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_dynamicNorm_818908b7a849a67e
-  sym_src_services_tts_pcmUtils_ts_pcmBytesToI_3bd4ec698e33401d["pcmBytesToInt16"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_pcmBytesToI_3bd4ec698e33401d
-  sym_src_services_tts_pcmUtils_ts_smoothGain_a6362be25cbb30c3["smoothGain"]:::symbol
-  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_smoothGain_a6362be25cbb30c3
+  sym_src_services_tts_pcmUtils_ts_applyGainWi_0b26844622534280["applyGainWithLimit"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_applyGainWi_0b26844622534280
+  sym_src_services_tts_pcmUtils_ts_base64ToUin_9730b594b86ba2dc["base64ToUint8Array"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_base64ToUin_9730b594b86ba2dc
+  sym_src_services_tts_pcmUtils_ts_clampGain_4e725e3f04107fb5["clampGain"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_clampGain_4e725e3f04107fb5
+  sym_src_services_tts_pcmUtils_ts_computeBloc_45c123534178ad8d["computeBlockRms"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_computeBloc_45c123534178ad8d
+  sym_src_services_tts_pcmUtils_ts_computeDesi_2d7274715b03868f["computeDesiredGain"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_computeDesi_2d7274715b03868f
+  sym_src_services_tts_pcmUtils_ts_downsampleP_77de1d50c858d1d5["downsamplePcm16"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_downsampleP_77de1d50c858d1d5
+  sym_src_services_tts_pcmUtils_ts_dynamicNorm_9e0c4a74f03d9b16["dynamicNormalize"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_dynamicNorm_9e0c4a74f03d9b16
+  sym_src_services_tts_pcmUtils_ts_pcmBytesToI_3e8aeaf5bf7fcb71["pcmBytesToInt16"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_pcmBytesToI_3e8aeaf5bf7fcb71
+  sym_src_services_tts_pcmUtils_ts_smoothGain_7c7926b569c0c842["smoothGain"]:::symbol
+  file_src_services_tts_pcmUtils_ts_30e8a84ced493917 --> sym_src_services_tts_pcmUtils_ts_smoothGain_7c7926b569c0c842
   file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641["src/services/tts/ssmlBuilder.ts"]:::component
-  sym_src_services_tts_ssmlBuilder_ts_buildSsm_dae0d537ce9eeb57["buildSsml"]:::symbol
-  file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641 --> sym_src_services_tts_ssmlBuilder_ts_buildSsm_dae0d537ce9eeb57
-  sym_src_services_tts_ssmlBuilder_ts_escapeXm_02a89c89b29336c5["escapeXml"]:::symbol
-  file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641 --> sym_src_services_tts_ssmlBuilder_ts_escapeXm_02a89c89b29336c5
-  sym_src_services_tts_ssmlBuilder_ts_voiceLoc_9c348e2175f47bb2["voiceLocale"]:::symbol
-  file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641 --> sym_src_services_tts_ssmlBuilder_ts_voiceLoc_9c348e2175f47bb2
+  sym_src_services_tts_ssmlBuilder_ts_buildSsm_9d31b0848420f10b["buildSsml"]:::symbol
+  file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641 --> sym_src_services_tts_ssmlBuilder_ts_buildSsm_9d31b0848420f10b
+  sym_src_services_tts_ssmlBuilder_ts_escapeXm_3edf29ceb0482095["escapeXml"]:::symbol
+  file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641 --> sym_src_services_tts_ssmlBuilder_ts_escapeXm_3edf29ceb0482095
+  sym_src_services_tts_ssmlBuilder_ts_voiceLoc_9851fc86f781b5ac["voiceLocale"]:::symbol
+  file_src_services_tts_ssmlBuilder_ts_e8c159ff5b418641 --> sym_src_services_tts_ssmlBuilder_ts_voiceLoc_9851fc86f781b5ac
   file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd["src/services/tts/ttsChunker.ts"]:::component
-  sym_src_services_tts_ttsChunker_ts_hardSplit_9d29ac070de9d2a5["hardSplit"]:::symbol
-  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_hardSplit_9d29ac070de9d2a5
-  sym_src_services_tts_ttsChunker_ts_normalise_e56e473818ba41f8["normaliseNewlines"]:::symbol
-  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_normalise_e56e473818ba41f8
-  sym_src_services_tts_ttsChunker_ts_splitForT_0de6f2d85ef213c6["splitForTts"]:::symbol
-  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_splitForT_0de6f2d85ef213c6
-  sym_src_services_tts_ttsChunker_ts_splitPara_4822aaf6b1578747["splitParagraphIntoSentences"]:::symbol
-  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_splitPara_4822aaf6b1578747
+  sym_src_services_tts_ttsChunker_ts_hardSplit_cafd6b87ac023d53["hardSplit"]:::symbol
+  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_hardSplit_cafd6b87ac023d53
+  sym_src_services_tts_ttsChunker_ts_normalise_7faa936f64067775["normaliseNewlines"]:::symbol
+  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_normalise_7faa936f64067775
+  sym_src_services_tts_ttsChunker_ts_splitForT_e993272d5a7d5723["splitForTts"]:::symbol
+  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_splitForT_e993272d5a7d5723
+  sym_src_services_tts_ttsChunker_ts_splitPara_4f87a1e5b90eba3c["splitParagraphIntoSentences"]:::symbol
+  file_src_services_tts_ttsChunker_ts_c6cf6df57b5747cd --> sym_src_services_tts_ttsChunker_ts_splitPara_4f87a1e5b90eba3c
   file_src_services_tts_ttsEngine_ts_6fb27139742af612["src/services/tts/ttsEngine.ts"]:::component
-  sym_src_services_tts_ttsEngine_ts_createGemi_202f437e8203f725["createGeminiTtsEngine"]:::symbol
-  file_src_services_tts_ttsEngine_ts_6fb27139742af612 --> sym_src_services_tts_ttsEngine_ts_createGemi_202f437e8203f725
-  sym_src_services_tts_ttsEngine_ts_GeminiTtsE_0168999b3aca00c7["GeminiTtsEngine"]:::symbol
-  file_src_services_tts_ttsEngine_ts_6fb27139742af612 --> sym_src_services_tts_ttsEngine_ts_GeminiTtsE_0168999b3aca00c7
-  sym_src_services_tts_ttsEngine_ts_makeGemini_e81c3903ee5d2ab9["makeGeminiError"]:::symbol
-  file_src_services_tts_ttsEngine_ts_6fb27139742af612 --> sym_src_services_tts_ttsEngine_ts_makeGemini_e81c3903ee5d2ab9
+  sym_src_services_tts_ttsEngine_ts_createGemi_ef73354d0fe1ced8["createGeminiTtsEngine"]:::symbol
+  file_src_services_tts_ttsEngine_ts_6fb27139742af612 --> sym_src_services_tts_ttsEngine_ts_createGemi_ef73354d0fe1ced8
+  sym_src_services_tts_ttsEngine_ts_GeminiTtsE_5c5cfb8f3e6d2b0b["GeminiTtsEngine"]:::symbol
+  file_src_services_tts_ttsEngine_ts_6fb27139742af612 --> sym_src_services_tts_ttsEngine_ts_GeminiTtsE_5c5cfb8f3e6d2b0b
+  sym_src_services_tts_ttsEngine_ts_makeGemini_5fd8dce2258d5228["makeGeminiError"]:::symbol
+  file_src_services_tts_ttsEngine_ts_6fb27139742af612 --> sym_src_services_tts_ttsEngine_ts_makeGemini_5fd8dce2258d5228
   file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4["src/services/tts/ttsProviderRegistry.ts"]:::component
-  sym_src_services_tts_ttsProviderRegistry_ts__dc72864022c7533a["getProvider"]:::symbol
-  file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4 --> sym_src_services_tts_ttsProviderRegistry_ts__dc72864022c7533a
-  sym_src_services_tts_ttsProviderRegistry_ts__3a31e6fd596657d0["listProviders"]:::symbol
-  file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4 --> sym_src_services_tts_ttsProviderRegistry_ts__3a31e6fd596657d0
-  sym_src_services_tts_ttsProviderRegistry_ts__b66f109a5ff79ddd["resolveGeminiTtsModel"]:::symbol
-  file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4 --> sym_src_services_tts_ttsProviderRegistry_ts__b66f109a5ff79ddd
+  sym_src_services_tts_ttsProviderRegistry_ts__4c8068e6b333c39e["getProvider"]:::symbol
+  file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4 --> sym_src_services_tts_ttsProviderRegistry_ts__4c8068e6b333c39e
+  sym_src_services_tts_ttsProviderRegistry_ts__b50ce304ec46f328["listProviders"]:::symbol
+  file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4 --> sym_src_services_tts_ttsProviderRegistry_ts__b50ce304ec46f328
+  sym_src_services_tts_ttsProviderRegistry_ts__67782359b7a0fd8f["resolveGeminiTtsModel"]:::symbol
+  file_src_services_tts_ttsProviderRegistry_ts_1cec94384dc7a1c4 --> sym_src_services_tts_ttsProviderRegistry_ts__67782359b7a0fd8f
   file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee["src/services/tts/ttsRetry.ts"]:::component
-  sym_src_services_tts_ttsRetry_ts_abortableSl_69e9cce6a7435e26["abortableSleep"]:::symbol
-  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_abortableSl_69e9cce6a7435e26
-  sym_src_services_tts_ttsRetry_ts_computeDela_84bca9337afb3961["computeDelay"]:::symbol
-  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_computeDela_84bca9337afb3961
-  sym_src_services_tts_ttsRetry_ts_isAbort_72eca405f7e66887["isAbort"]:::symbol
-  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_isAbort_72eca405f7e66887
-  sym_src_services_tts_ttsRetry_ts_isRetryable_db9a2ef4e9eaef9c["isRetryable"]:::symbol
-  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_isRetryable_db9a2ef4e9eaef9c
-  sym_src_services_tts_ttsRetry_ts_retryWithBa_45998c55eb883690["retryWithBackoff"]:::symbol
-  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_retryWithBa_45998c55eb883690
+  sym_src_services_tts_ttsRetry_ts_abortableSl_c6af4beba6db9970["abortableSleep"]:::symbol
+  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_abortableSl_c6af4beba6db9970
+  sym_src_services_tts_ttsRetry_ts_computeDela_ed5c0e72b8c5ae75["computeDelay"]:::symbol
+  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_computeDela_ed5c0e72b8c5ae75
+  sym_src_services_tts_ttsRetry_ts_isAbort_ebd11ff0f01c6463["isAbort"]:::symbol
+  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_isAbort_ebd11ff0f01c6463
+  sym_src_services_tts_ttsRetry_ts_isRetryable_3ce67858181ba645["isRetryable"]:::symbol
+  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_isRetryable_3ce67858181ba645
+  sym_src_services_tts_ttsRetry_ts_retryWithBa_3aeaa5b2c44f7abe["retryWithBackoff"]:::symbol
+  file_src_services_tts_ttsRetry_ts_69a7c4128b2ecdee --> sym_src_services_tts_ttsRetry_ts_retryWithBa_3aeaa5b2c44f7abe
   file_src_services_tts_voiceCatalogService_ts_cda00922335f963e["src/services/tts/voiceCatalogService.ts"]:::component
-  sym_src_services_tts_voiceCatalogService_ts__5b7005ab01b6d082["isVoiceValid"]:::symbol
-  file_src_services_tts_voiceCatalogService_ts_cda00922335f963e --> sym_src_services_tts_voiceCatalogService_ts__5b7005ab01b6d082
-  sym_src_services_tts_voiceCatalogService_ts__3adfbf239f1e74d4["listVoices"]:::symbol
-  file_src_services_tts_voiceCatalogService_ts_cda00922335f963e --> sym_src_services_tts_voiceCatalogService_ts__3adfbf239f1e74d4
+  sym_src_services_tts_voiceCatalogService_ts__b13d2580ac43e97b["isVoiceValid"]:::symbol
+  file_src_services_tts_voiceCatalogService_ts_cda00922335f963e --> sym_src_services_tts_voiceCatalogService_ts__b13d2580ac43e97b
+  sym_src_services_tts_voiceCatalogService_ts__7e68dc6c7742900c["listVoices"]:::symbol
+  file_src_services_tts_voiceCatalogService_ts_cda00922335f963e --> sym_src_services_tts_voiceCatalogService_ts__7e68dc6c7742900c
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -5326,37 +5337,37 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_ui_d3ef7de562f9a4a3 ["ui"]
   file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232["src/ui/components/AudioAttachHelper.ts"]:::component
-  sym_src_ui_components_AudioAttachHelper_ts_d_ad516e1320887c86["describeItemState"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_d_ad516e1320887c86
-  sym_src_ui_components_AudioAttachHelper_ts_f_0ebdc20b4dc3be3c["flush"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_f_0ebdc20b4dc3be3c
-  sym_src_ui_components_AudioAttachHelper_ts_r_0acb86af18c99e27["renderAudioAttach"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_0acb86af18c99e27
-  sym_src_ui_components_AudioAttachHelper_ts_r_a2fcbe39a599cbd6["renderDetectedPrompt"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_a2fcbe39a599cbd6
-  sym_src_ui_components_AudioAttachHelper_ts_r_c0b57c10a006b55c["renderDiarizationToggle"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_c0b57c10a006b55c
-  sym_src_ui_components_AudioAttachHelper_ts_r_da34f6b114750796["renderInto"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_da34f6b114750796
-  sym_src_ui_components_AudioAttachHelper_ts_r_611b112721308ab6["renderItemControls"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_611b112721308ab6
-  sym_src_ui_components_AudioAttachHelper_ts_r_5b8e4fe009fa9353["renderItems"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_5b8e4fe009fa9353
-  sym_src_ui_components_AudioAttachHelper_ts_r_8b725413d679a830["renderTrioButton"]:::symbol
-  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_8b725413d679a830
+  sym_src_ui_components_AudioAttachHelper_ts_d_75803114003dad03["describeItemState"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_d_75803114003dad03
+  sym_src_ui_components_AudioAttachHelper_ts_f_f08de4748b2f1406["flush"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_f_f08de4748b2f1406
+  sym_src_ui_components_AudioAttachHelper_ts_r_75befe50a22c3bee["renderAudioAttach"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_75befe50a22c3bee
+  sym_src_ui_components_AudioAttachHelper_ts_r_e221649815418d2a["renderDetectedPrompt"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_e221649815418d2a
+  sym_src_ui_components_AudioAttachHelper_ts_r_3428ec1599afa598["renderDiarizationToggle"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_3428ec1599afa598
+  sym_src_ui_components_AudioAttachHelper_ts_r_23d3af83bc516667["renderInto"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_23d3af83bc516667
+  sym_src_ui_components_AudioAttachHelper_ts_r_f703316b49a85a8d["renderItemControls"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_f703316b49a85a8d
+  sym_src_ui_components_AudioAttachHelper_ts_r_ac0321703678f7b7["renderItems"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_ac0321703678f7b7
+  sym_src_ui_components_AudioAttachHelper_ts_r_f7cf098b26dbcded["renderTrioButton"]:::symbol
+  file_src_ui_components_AudioAttachHelper_ts_ce5053d5d4a16232 --> sym_src_ui_components_AudioAttachHelper_ts_r_f7cf098b26dbcded
   file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3["src/ui/components/audioPlayerEnhancer.ts"]:::component
-  sym_src_ui_components_audioPlayerEnhancer_ts_901296028388ba15["attachListenTracking"]:::symbol
-  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_901296028388ba15
-  sym_src_ui_components_audioPlayerEnhancer_ts_be46637cf7626712["attachPlaybackTracking"]:::symbol
-  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_be46637cf7626712
-  sym_src_ui_components_audioPlayerEnhancer_ts_1077350632bb9fcc["createSpeedControls"]:::symbol
-  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_1077350632bb9fcc
-  sym_src_ui_components_audioPlayerEnhancer_ts_097a42367bfd9b33["enhanceAudioPlayersIn"]:::symbol
-  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_097a42367bfd9b33
-  sym_src_ui_components_audioPlayerEnhancer_ts_08cf012855147ace["formatSpeedLabel"]:::symbol
-  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_08cf012855147ace
-  sym_src_ui_components_audioPlayerEnhancer_ts_6e3adfbf747cfa7b["playedSeconds"]:::symbol
-  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_6e3adfbf747cfa7b
+  sym_src_ui_components_audioPlayerEnhancer_ts_d8daa297ef7cdcdc["attachListenTracking"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_d8daa297ef7cdcdc
+  sym_src_ui_components_audioPlayerEnhancer_ts_d68bce8731554453["attachPlaybackTracking"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_d68bce8731554453
+  sym_src_ui_components_audioPlayerEnhancer_ts_a3d3b5db4ffdc329["createSpeedControls"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_a3d3b5db4ffdc329
+  sym_src_ui_components_audioPlayerEnhancer_ts_f20fcccf3c6c16fd["enhanceAudioPlayersIn"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_f20fcccf3c6c16fd
+  sym_src_ui_components_audioPlayerEnhancer_ts_e789b6952dce9ac6["formatSpeedLabel"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_e789b6952dce9ac6
+  sym_src_ui_components_audioPlayerEnhancer_ts_c265ba7c8d6f6635["playedSeconds"]:::symbol
+  file_src_ui_components_audioPlayerEnhancer_ts_e8ea495f5108b4c3 --> sym_src_ui_components_audioPlayerEnhancer_ts_c265ba7c8d6f6635
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -5365,7 +5376,7 @@ classDef dup fill:#ffe8d8,stroke:#c0392b,stroke-width:2px,color:#000
 classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 ```
 
-_Domain has 317 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
+_Domain has 318 symbols (>50). Diagram shows top-15 by file order; see flat table below for the full list._
 
 ### Symbols in this domain
 
@@ -5391,8 +5402,8 @@ _Domain has 317 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`BriefReadChild`](../src/ui/components/briefReadObserver.ts#L99) | class | `src/ui/components/briefReadObserver.ts` | 99-251 |  | `src/main.ts`, `tests/briefReadObserver.test.ts` |
 | [`disposeSession`](../src/ui/components/briefReadObserver.ts#L81) | function | `src/ui/components/briefReadObserver.ts` | 81-89 |  | `src/main.ts`, `tests/briefReadObserver.test.ts` |
 | [`findOwningView`](../src/ui/components/briefReadObserver.ts#L91) | function | `src/ui/components/briefReadObserver.ts` | 91-97 |  | `src/main.ts`, `tests/briefReadObserver.test.ts` |
-| [`CaptureInboxStatusBar`](../src/ui/components/CaptureInboxStatusBar.ts#L29) | class | `src/ui/components/CaptureInboxStatusBar.ts` | 29-79 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxUi.test.ts` |
-| [`statusText`](../src/ui/components/CaptureInboxStatusBar.ts#L16) | function | `src/ui/components/CaptureInboxStatusBar.ts` | 16-27 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxUi.test.ts` |
+| [`CaptureInboxStatusBar`](../src/ui/components/CaptureInboxStatusBar.ts#L38) | class | `src/ui/components/CaptureInboxStatusBar.ts` | 38-88 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxUi.test.ts`, `tests/personaRetestFixes.test.ts` |
+| [`statusText`](../src/ui/components/CaptureInboxStatusBar.ts#L16) | function | `src/ui/components/CaptureInboxStatusBar.ts` | 16-36 |  | `src/commands/captureInboxCommands.ts`, `tests/captureInboxUi.test.ts`, `tests/personaRetestFixes.test.ts` |
 | [`CatchUpStatusBar`](../src/ui/components/CatchUpStatusBar.ts#L32) | class | `src/ui/components/CatchUpStatusBar.ts` | 32-129 |  | `src/main.ts`, `tests/catchUpStatusBar.test.ts` |
 | [`statusBarWanted`](../src/ui/components/CatchUpStatusBar.ts#L22) | function | `src/ui/components/CatchUpStatusBar.ts` | 22-30 |  | `src/main.ts`, `tests/catchUpStatusBar.test.ts` |
 | [`renderProviderBadge`](../src/ui/components/providerBadge.ts#L12) | function | `src/ui/components/providerBadge.ts` | 12-53 |  | `src/ui/modals/UnifiedChatModal.ts`, `tests/providerBadge.test.ts` |
@@ -5456,13 +5467,14 @@ _Domain has 317 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`AudioRecorderModal`](../src/ui/modals/AudioRecorderModal.ts#L41) | class | `src/ui/modals/AudioRecorderModal.ts` | 41-691 |  | `src/commands/summarizeCommands.ts`, `src/ui/modals/MinutesCreationModal.ts`, `src/ui/modals/MultiSourceModal.ts` |
 | [`AudioSelectModal`](../src/ui/modals/AudioSelectModal.ts#L30) | class | `src/ui/modals/AudioSelectModal.ts` | 30-415 |  | `src/commands/summarizeCommands.ts` |
 | [`AzureConfigImportModal`](../src/ui/modals/AzureConfigImportModal.ts#L18) | class | `src/ui/modals/AzureConfigImportModal.ts` | 18-58 |  | `src/ui/settings/LLMSettingsSection.ts` |
-| [`CaptureInboxQueueModal`](../src/ui/modals/CaptureInboxQueueModal.ts#L15) | class | `src/ui/modals/CaptureInboxQueueModal.ts` | 15-124 |  | `src/commands/captureInboxCommands.ts` |
-| [`openCaptureInboxSetup`](../src/ui/modals/CaptureInboxSetupModal.ts#L28) | function | `src/ui/modals/CaptureInboxSetupModal.ts` | 28-117 |  | `src/commands/captureInboxCommands.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts` |
-| [`problemCode`](../src/ui/modals/CaptureInboxSetupModal.ts#L21) | function | `src/ui/modals/CaptureInboxSetupModal.ts` | 21-26 |  | `src/commands/captureInboxCommands.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts` |
-| [`CaptureReviewModal`](../src/ui/modals/CaptureReviewModal.ts#L20) | class | `src/ui/modals/CaptureReviewModal.ts` | 20-230 |  | `src/commands/captureInboxCommands.ts` |
-| [`guidanceMessage`](../src/ui/modals/CaptureReviewModal.ts#L233) | function | `src/ui/modals/CaptureReviewModal.ts` | 233-235 |  | `src/commands/captureInboxCommands.ts` |
-| [`parseTags`](../src/ui/modals/CaptureReviewModal.ts#L18) | function | `src/ui/modals/CaptureReviewModal.ts` | 18-18 |  | `src/commands/captureInboxCommands.ts` |
-| [`CaptureRunConfirmModal`](../src/ui/modals/CaptureRunConfirmModal.ts#L45) | class | `src/ui/modals/CaptureRunConfirmModal.ts` | 45-115 |  | `src/commands/captureInboxCommands.ts` |
+| [`CaptureInboxQueueModal`](../src/ui/modals/CaptureInboxQueueModal.ts#L16) | class | `src/ui/modals/CaptureInboxQueueModal.ts` | 16-148 |  | `src/commands/captureInboxCommands.ts` |
+| [`openCaptureInboxSetup`](../src/ui/modals/CaptureInboxSetupModal.ts#L29) | function | `src/ui/modals/CaptureInboxSetupModal.ts` | 29-120 |  | `src/commands/captureInboxCommands.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts` |
+| [`problemCode`](../src/ui/modals/CaptureInboxSetupModal.ts#L22) | function | `src/ui/modals/CaptureInboxSetupModal.ts` | 22-27 |  | `src/commands/captureInboxCommands.ts`, `src/ui/settings/CaptureInboxSettingsSection.ts` |
+| [`CaptureReviewModal`](../src/ui/modals/CaptureReviewModal.ts#L21) | class | `src/ui/modals/CaptureReviewModal.ts` | 21-234 |  | `src/commands/captureInboxCommands.ts` |
+| [`guidanceMessage`](../src/ui/modals/CaptureReviewModal.ts#L237) | function | `src/ui/modals/CaptureReviewModal.ts` | 237-239 |  | `src/commands/captureInboxCommands.ts` |
+| [`parseTags`](../src/ui/modals/CaptureReviewModal.ts#L19) | function | `src/ui/modals/CaptureReviewModal.ts` | 19-19 |  | `src/commands/captureInboxCommands.ts` |
+| [`audioText`](../src/ui/modals/CaptureRunConfirmModal.ts#L46) | function | `src/ui/modals/CaptureRunConfirmModal.ts` | 46-48 |  | `src/commands/captureInboxCommands.ts` |
+| [`CaptureRunConfirmModal`](../src/ui/modals/CaptureRunConfirmModal.ts#L50) | class | `src/ui/modals/CaptureRunConfirmModal.ts` | 50-120 |  | `src/commands/captureInboxCommands.ts` |
 | [`ChatResumePickerModal`](../src/ui/modals/ChatResumePickerModal.ts#L24) | class | `src/ui/modals/ChatResumePickerModal.ts` | 24-307 |  | `src/ui/modals/UnifiedChatModal.ts` |
 | [`ChatSearchModal`](../src/ui/modals/ChatSearchModal.ts#L41) | class | `src/ui/modals/ChatSearchModal.ts` | 41-339 |  | `src/ui/modals/UnifiedChatModal.ts` |
 | [`ClearTagsScopeModal`](../src/ui/modals/ClearTagsScopeModal.ts#L13) | class | `src/ui/modals/ClearTagsScopeModal.ts` | 13-108 |  | `src/commands/clearCommands.ts` |
@@ -5485,7 +5497,7 @@ _Domain has 317 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`ConfirmationModal`](../src/ui/modals/ConfirmationModal.ts#L4) | class | `src/ui/modals/ConfirmationModal.ts` | 4-43 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/captureInboxCommands.ts`, `src/commands/cloudInventoryCommands.ts`, +7 more |
 | [`ContentSizeModal`](../src/ui/modals/ContentSizeModal.ts#L11) | class | `src/ui/modals/ContentSizeModal.ts` | 11-95 |  | `src/commands/summarizeCommands.ts` |
 | [`CostConfirmModal`](../src/ui/modals/CostConfirmModal.ts#L20) | class | `src/ui/modals/CostConfirmModal.ts` | 20-131 |  | `src/commands/audioNarrationCommands.ts` |
-| [`DashboardCreationModal`](../src/ui/modals/DashboardCreationModal.ts#L13) | class | `src/ui/modals/DashboardCreationModal.ts` | 13-183 |  | `src/commands/dashboardCommands.ts` |
+| [`DashboardCreationModal`](../src/ui/modals/DashboardCreationModal.ts#L13) | class | `src/ui/modals/DashboardCreationModal.ts` | 13-177 |  | `src/commands/dashboardCommands.ts` |
 | [`DiarizationPrivacyModal`](../src/ui/modals/DiarizationPrivacyModal.ts#L18) | class | `src/ui/modals/DiarizationPrivacyModal.ts` | 18-93 |  | `src/ui/modals/MinutesCreationModal.ts`, `src/ui/modals/TranscribeOnlyModal.ts`, `tests/diarizationPrivacyModal.test.ts` |
 | [`DocumentMultiPickerModal`](../src/ui/modals/DocumentMultiPickerModal.ts#L59) | class | `src/ui/modals/DocumentMultiPickerModal.ts` | 59-370 |  | `src/ui/coordinators/AudioAttachCoordinator.ts`, `src/ui/modals/MinutesCreationModal.ts`, `tests/documentMultiPickerModal.test.ts` |
 | [`actionLabel`](../src/ui/modals/EmbedScanKeptPanel.ts#L47) | function | `src/ui/modals/EmbedScanKeptPanel.ts` | 47-57 |  | `src/ui/modals/EmbedScanResultsModal.ts`, `tests/embedScanKeptPanel.test.ts` |
@@ -5697,39 +5709,39 @@ _Domain has 317 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_ui_chat_3cda4b911c8bb099 ["ui-chat"]
   file_src_ui_chat_FreeChatModeHandler_ts_2422d8a3e6a14ca9["src/ui/chat/FreeChatModeHandler.ts"]:::component
-  sym_src_ui_chat_FreeChatModeHandler_ts_FreeC_11d6981cbbb9f1e0["FreeChatModeHandler"]:::symbol
-  file_src_ui_chat_FreeChatModeHandler_ts_2422d8a3e6a14ca9 --> sym_src_ui_chat_FreeChatModeHandler_ts_FreeC_11d6981cbbb9f1e0
+  sym_src_ui_chat_FreeChatModeHandler_ts_FreeC_d671852c8aa737c4["FreeChatModeHandler"]:::symbol
+  file_src_ui_chat_FreeChatModeHandler_ts_2422d8a3e6a14ca9 --> sym_src_ui_chat_FreeChatModeHandler_ts_FreeC_d671852c8aa737c4
   file_src_ui_chat_HighlightModeHandler_ts_01d5d90ae5706e4f["src/ui/chat/HighlightModeHandler.ts"]:::component
-  sym_src_ui_chat_HighlightModeHandler_ts_High_dcf80e1034b3bf4e["HighlightModeHandler"]:::symbol
-  file_src_ui_chat_HighlightModeHandler_ts_01d5d90ae5706e4f --> sym_src_ui_chat_HighlightModeHandler_ts_High_dcf80e1034b3bf4e
+  sym_src_ui_chat_HighlightModeHandler_ts_High_f32f7c2958ea9d7b["HighlightModeHandler"]:::symbol
+  file_src_ui_chat_HighlightModeHandler_ts_01d5d90ae5706e4f --> sym_src_ui_chat_HighlightModeHandler_ts_High_f32f7c2958ea9d7b
   file_src_ui_chat_NoteModeHandler_ts_570b906c649bd5e7["src/ui/chat/NoteModeHandler.ts"]:::component
-  sym_src_ui_chat_NoteModeHandler_ts_NoteModeH_1209f3690c2f4bfd["NoteModeHandler"]:::symbol
-  file_src_ui_chat_NoteModeHandler_ts_570b906c649bd5e7 --> sym_src_ui_chat_NoteModeHandler_ts_NoteModeH_1209f3690c2f4bfd
+  sym_src_ui_chat_NoteModeHandler_ts_NoteModeH_72f16b471c30dbea["NoteModeHandler"]:::symbol
+  file_src_ui_chat_NoteModeHandler_ts_570b906c649bd5e7 --> sym_src_ui_chat_NoteModeHandler_ts_NoteModeH_72f16b471c30dbea
   file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90["src/ui/chat/presentation/CreatePanel.ts"]:::component
-  sym_src_ui_chat_presentation_CreatePanel_ts__69fbc055a2632c67["addAudiencePill"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__69fbc055a2632c67
-  sym_src_ui_chat_presentation_CreatePanel_ts__00527891f814b78a["addLengthPill"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__00527891f814b78a
-  sym_src_ui_chat_presentation_CreatePanel_ts__add8337c3b123b0a["addPlanPill"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__add8337c3b123b0a
-  sym_src_ui_chat_presentation_CreatePanel_ts__77a923bda68e7dc3["addSourceButton"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__77a923bda68e7dc3
-  sym_src_ui_chat_presentation_CreatePanel_ts__a1993265dadec9d1["addSpeedPill"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__a1993265dadec9d1
-  sym_src_ui_chat_presentation_CreatePanel_ts__0af65b9c0c28193c["describeFailure"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__0af65b9c0c28193c
-  sym_src_ui_chat_presentation_CreatePanel_ts__65fb16105b2847d3["describeSource"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__65fb16105b2847d3
-  sym_src_ui_chat_presentation_CreatePanel_ts__84618601f84451e1["handleChange"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__84618601f84451e1
-  sym_src_ui_chat_presentation_CreatePanel_ts__739e458c23dd1c09["kindIconChar"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__739e458c23dd1c09
-  sym_src_ui_chat_presentation_CreatePanel_ts__c0e70ac5f47b6c6d["rebuildSourcesList"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__c0e70ac5f47b6c6d
-  sym_src_ui_chat_presentation_CreatePanel_ts__7f5fdca67238a5c1["renderAudienceRow"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__7f5fdca67238a5c1
-  sym_src_ui_chat_presentation_CreatePanel_ts__646d4dd99398b40e["renderCreatePanel"]:::symbol
-  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__646d4dd99398b40e
+  sym_src_ui_chat_presentation_CreatePanel_ts__9835224019ee5a2c["addAudiencePill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__9835224019ee5a2c
+  sym_src_ui_chat_presentation_CreatePanel_ts__e32737f104248c24["addLengthPill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__e32737f104248c24
+  sym_src_ui_chat_presentation_CreatePanel_ts__b261e9b11e11575c["addPlanPill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__b261e9b11e11575c
+  sym_src_ui_chat_presentation_CreatePanel_ts__9a80e6824bfff1a1["addSourceButton"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__9a80e6824bfff1a1
+  sym_src_ui_chat_presentation_CreatePanel_ts__155dc7756dd97350["addSpeedPill"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__155dc7756dd97350
+  sym_src_ui_chat_presentation_CreatePanel_ts__fa9c13434fdad184["describeFailure"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__fa9c13434fdad184
+  sym_src_ui_chat_presentation_CreatePanel_ts__12f3e09ac451373e["describeSource"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__12f3e09ac451373e
+  sym_src_ui_chat_presentation_CreatePanel_ts__f0be16769b84c063["handleChange"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__f0be16769b84c063
+  sym_src_ui_chat_presentation_CreatePanel_ts__87914a6a7afa2ea4["kindIconChar"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__87914a6a7afa2ea4
+  sym_src_ui_chat_presentation_CreatePanel_ts__ae5e019fb7efd559["rebuildSourcesList"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__ae5e019fb7efd559
+  sym_src_ui_chat_presentation_CreatePanel_ts__6c1e7dafcb93655f["renderAudienceRow"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__6c1e7dafcb93655f
+  sym_src_ui_chat_presentation_CreatePanel_ts__b2e142f816d5a67c["renderCreatePanel"]:::symbol
+  file_src_ui_chat_presentation_CreatePanel_ts_ac333bb3316dfe90 --> sym_src_ui_chat_presentation_CreatePanel_ts__b2e142f816d5a67c
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -5805,42 +5817,42 @@ _Domain has 52 symbols (>50). Diagram shows top-15 by file order; see flat table
 flowchart TB
 subgraph dom_utils_6fd8973412caa256 ["utils"]
   file_src_utils_abortableRequestUrl_ts_5eb36cb5dc18c699["src/utils/abortableRequestUrl.ts"]:::component
-  sym_src_utils_abortableRequestUrl_ts_abortab_bb1b4387ace4c583["abortableRequestUrl"]:::symbol
-  file_src_utils_abortableRequestUrl_ts_5eb36cb5dc18c699 --> sym_src_utils_abortableRequestUrl_ts_abortab_bb1b4387ace4c583
+  sym_src_utils_abortableRequestUrl_ts_abortab_e549dd728f1a6335["abortableRequestUrl"]:::symbol
+  file_src_utils_abortableRequestUrl_ts_5eb36cb5dc18c699 --> sym_src_utils_abortableRequestUrl_ts_abortab_e549dd728f1a6335
   file_src_utils_abortableSleep_ts_d3afdb28a777e908["src/utils/abortableSleep.ts"]:::component
-  sym_src_utils_abortableSleep_ts_abortableSle_ba1244c81e2b24d6["abortableSleep"]:::symbol
-  file_src_utils_abortableSleep_ts_d3afdb28a777e908 --> sym_src_utils_abortableSleep_ts_abortableSle_ba1244c81e2b24d6
+  sym_src_utils_abortableSleep_ts_abortableSle_17a489121608cc3d["abortableSleep"]:::symbol
+  file_src_utils_abortableSleep_ts_d3afdb28a777e908 --> sym_src_utils_abortableSleep_ts_abortableSle_17a489121608cc3d
   file_src_utils_adapterUtils_ts_4709e157e68e5fae["src/utils/adapterUtils.ts"]:::component
-  sym_src_utils_adapterUtils_ts_extractTextFro_35f7e04c514e5d21["extractTextFromParts"]:::symbol
-  file_src_utils_adapterUtils_ts_4709e157e68e5fae --> sym_src_utils_adapterUtils_ts_extractTextFro_35f7e04c514e5d21
+  sym_src_utils_adapterUtils_ts_extractTextFro_20bc63801cfa1aa8["extractTextFromParts"]:::symbol
+  file_src_utils_adapterUtils_ts_4709e157e68e5fae --> sym_src_utils_adapterUtils_ts_extractTextFro_20bc63801cfa1aa8
   file_src_utils_batchProcessor_ts_4e13b9865f4c1cff["src/utils/batchProcessor.ts"]:::component
-  sym_src_utils_batchProcessor_ts_BatchProcess_0eea907acb94af1e["BatchProcessor"]:::symbol
-  file_src_utils_batchProcessor_ts_4e13b9865f4c1cff --> sym_src_utils_batchProcessor_ts_BatchProcess_0eea907acb94af1e
+  sym_src_utils_batchProcessor_ts_BatchProcess_06f2f3ede456e4f0["BatchProcessor"]:::symbol
+  file_src_utils_batchProcessor_ts_4e13b9865f4c1cff --> sym_src_utils_batchProcessor_ts_BatchProcess_06f2f3ede456e4f0
   file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd["src/utils/busyIndicator.ts"]:::component
-  sym_src_utils_busyIndicator_ts_hideBusy_0391a69923de75a8["hideBusy"]:::symbol
-  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_hideBusy_0391a69923de75a8
-  sym_src_utils_busyIndicator_ts_resetBusyStat_e4937c1fb3e2ad43["resetBusyState"]:::symbol
-  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_resetBusyStat_e4937c1fb3e2ad43
-  sym_src_utils_busyIndicator_ts_showBusy_ecf8696de2a4d41f["showBusy"]:::symbol
-  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_showBusy_ecf8696de2a4d41f
-  sym_src_utils_busyIndicator_ts_withBusyIndic_579174097a487ddf["withBusyIndicator"]:::symbol
-  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_withBusyIndic_579174097a487ddf
+  sym_src_utils_busyIndicator_ts_hideBusy_b7a18b00f8b8bfc0["hideBusy"]:::symbol
+  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_hideBusy_b7a18b00f8b8bfc0
+  sym_src_utils_busyIndicator_ts_resetBusyStat_358f12bdcd613dd6["resetBusyState"]:::symbol
+  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_resetBusyStat_358f12bdcd613dd6
+  sym_src_utils_busyIndicator_ts_showBusy_a222d8080914ef17["showBusy"]:::symbol
+  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_showBusy_a222d8080914ef17
+  sym_src_utils_busyIndicator_ts_withBusyIndic_6639b544b07a89c3["withBusyIndicator"]:::symbol
+  file_src_utils_busyIndicator_ts_d5a8fdfc12d4c9fd --> sym_src_utils_busyIndicator_ts_withBusyIndic_6639b544b07a89c3
   file_src_utils_chatExportUtils_ts_b06d3137cffd9fea["src/utils/chatExportUtils.ts"]:::component
-  sym_src_utils_chatExportUtils_ts_base64ToUtf_3838fcba94680bdc["base64ToUtf8"]:::symbol
-  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_base64ToUtf_3838fcba94680bdc
-  sym_src_utils_chatExportUtils_ts_extractConv_cdfb4899b44c8ad0["extractConversationState"]:::symbol
-  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_extractConv_cdfb4899b44c8ad0
-  sym_src_utils_chatExportUtils_ts_formatConve_396ac08b9d4cc9f8["formatConversationHistory"]:::symbol
-  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_formatConve_396ac08b9d4cc9f8
-  sym_src_utils_chatExportUtils_ts_formatExpor_33a673befe6a7ca5["formatExportMarkdown"]:::symbol
-  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_formatExpor_33a673befe6a7ca5
-  sym_src_utils_chatExportUtils_ts_serializeCo_3e73da8078c2bda9["serializeConversationNote"]:::symbol
-  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_serializeCo_3e73da8078c2bda9
-  sym_src_utils_chatExportUtils_ts_utf8ToBase6_297536e7fef99ecd["utf8ToBase64"]:::symbol
-  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_utf8ToBase6_297536e7fef99ecd
+  sym_src_utils_chatExportUtils_ts_base64ToUtf_73a14e58fa2b9720["base64ToUtf8"]:::symbol
+  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_base64ToUtf_73a14e58fa2b9720
+  sym_src_utils_chatExportUtils_ts_extractConv_63859158b0ddfdaf["extractConversationState"]:::symbol
+  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_extractConv_63859158b0ddfdaf
+  sym_src_utils_chatExportUtils_ts_formatConve_01836b2f0fa5b823["formatConversationHistory"]:::symbol
+  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_formatConve_01836b2f0fa5b823
+  sym_src_utils_chatExportUtils_ts_formatExpor_4cd3858a7aa05078["formatExportMarkdown"]:::symbol
+  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_formatExpor_4cd3858a7aa05078
+  sym_src_utils_chatExportUtils_ts_serializeCo_914513e5a77b9e5c["serializeConversationNote"]:::symbol
+  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_serializeCo_914513e5a77b9e5c
+  sym_src_utils_chatExportUtils_ts_utf8ToBase6_2815199dce8264db["utf8ToBase64"]:::symbol
+  file_src_utils_chatExportUtils_ts_b06d3137cffd9fea --> sym_src_utils_chatExportUtils_ts_utf8ToBase6_2815199dce8264db
   file_src_utils_companionUtils_ts_79bf2da4f1953d29["src/utils/companionUtils.ts"]:::component
-  sym_src_utils_companionUtils_ts_processCompa_bcfa846e1e1fda00["processCompanionOutput"]:::symbol
-  file_src_utils_companionUtils_ts_79bf2da4f1953d29 --> sym_src_utils_companionUtils_ts_processCompa_bcfa846e1e1fda00
+  sym_src_utils_companionUtils_ts_processCompa_3f632559bbad121a["processCompanionOutput"]:::symbol
+  file_src_utils_companionUtils_ts_79bf2da4f1953d29 --> sym_src_utils_companionUtils_ts_processCompa_3f632559bbad121a
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -5959,7 +5971,7 @@ _Domain has 291 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`stripEmailFooter`](../src/utils/htmlToMarkdown.ts#L184) | function | `src/utils/htmlToMarkdown.ts` | 184-202 |  | `src/services/newsletter/newsletterService.ts`, `src/services/webContentService.ts` |
 | [`stripHiddenElements`](../src/utils/htmlToMarkdown.ts#L31) | function | `src/utils/htmlToMarkdown.ts` | 31-44 |  | `src/services/newsletter/newsletterService.ts`, `src/services/webContentService.ts` |
 | [`LanguageUtils`](../src/utils/languageUtils.ts#L6) | class | `src/utils/languageUtils.ts` | 6-55 |  | `src/services/prompts/tagPrompts.ts`, `src/ui/settings/InterfaceSettingsSection.ts` |
-| [`Logger`](../src/utils/logger.ts#L7) | class | `src/utils/logger.ts` | 7-26 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/audioNarrationCommands.ts`, `src/commands/captureInboxCommands.ts`, +193 more |
+| [`Logger`](../src/utils/logger.ts#L7) | class | `src/utils/logger.ts` | 7-26 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/audioNarrationCommands.ts`, `src/commands/captureInboxCommands.ts`, +194 more |
 | [`mapWithConcurrency`](../src/utils/mapWithConcurrency.ts#L14) | function | `src/utils/mapWithConcurrency.ts` | 14-33 |  | `src/services/audioNarration/llmMarkdownEnhancer.ts`, `src/services/export/brand/brandRenderContext.ts`, `tests/mapWithConcurrency.test.ts` |
 | [`expandLeadingWhitespace`](../src/utils/markdownFences.ts#L21) | function | `src/utils/markdownFences.ts` | 21-26 |  | `src/services/kindle/kindleNoteBuilder.ts`, `src/utils/pendingSection.ts`, `tests/markdownFences.test.ts` |
 | [`FenceTracker`](../src/utils/markdownFences.ts#L30) | class | `src/utils/markdownFences.ts` | 30-72 |  | `src/services/kindle/kindleNoteBuilder.ts`, `src/utils/pendingSection.ts`, `tests/markdownFences.test.ts` |
@@ -6052,7 +6064,7 @@ _Domain has 291 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 | [`visibleText`](../src/utils/ownedBlock.ts#L35) | function | `src/utils/ownedBlock.ts` | 35-39 |  | `src/services/agentIndex/agentInstructionsWriter.ts`, `src/services/captureInbox/enrichmentBlock.ts`, `src/services/cloudInventory/inventoryBlock.ts`, +1 more |
 | [`addUrlsToPendingSection`](../src/utils/pendingSection.ts#L65) | function | `src/utils/pendingSection.ts` | 65-83 |  | `src/ui/chat/ResearchModeHandler.ts`, `tests/markdownFences.test.ts`, `tests/pendingSection.test.ts` |
 | [`scan`](../src/utils/pendingSection.ts#L22) | function | `src/utils/pendingSection.ts` | 22-58 |  | `src/ui/chat/ResearchModeHandler.ts`, `tests/markdownFences.test.ts`, `tests/pendingSection.test.ts` |
-| [`plural`](../src/utils/plural.ts#L9) | function | `src/utils/plural.ts` | 9-16 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +17 more |
+| [`plural`](../src/utils/plural.ts#L9) | function | `src/utils/plural.ts` | 9-16 |  | `src/commands/agentConnectorCommands.ts`, `src/commands/agentIndexCommands.ts`, `src/commands/captureInboxCommands.ts`, +18 more |
 | [`extractCssUrls`](../src/utils/presentationSanitizePolicy.ts#L272) | function | `src/utils/presentationSanitizePolicy.ts` | 272-285 |  | `src/services/chat/presentationSanitizer.ts`, `src/utils/svgSanitize.ts`, `tests/presentationSanitizer.test.ts` |
 | [`hasOnlyAllowedUrlTokens`](../src/utils/presentationSanitizePolicy.ts#L293) | function | `src/utils/presentationSanitizePolicy.ts` | 293-303 |  | `src/services/chat/presentationSanitizer.ts`, `src/utils/svgSanitize.ts`, `tests/presentationSanitizer.test.ts` |
 | [`isAllowedAnchorTarget`](../src/utils/presentationSanitizePolicy.ts#L259) | function | `src/utils/presentationSanitizePolicy.ts` | 259-262 |  | `src/services/chat/presentationSanitizer.ts`, `src/utils/svgSanitize.ts`, `tests/presentationSanitizer.test.ts` |
@@ -6155,57 +6167,57 @@ _Domain has 291 symbols (>50). Diagram shows top-15 by file order; see flat tabl
 flowchart TB
 subgraph dom_validators_66d18af4cf3d7363 ["validators"]
   file_src_services_validators_integrationAudit_c0395e8b8c5856ec["src/services/validators/integrationAuditor.ts"]:::component
-  sym_src_services_validators_integrationAudit_0466a0c7e257d4f0["auditIntegrationWithLLM"]:::symbol
-  file_src_services_validators_integrationAudit_c0395e8b8c5856ec --> sym_src_services_validators_integrationAudit_0466a0c7e257d4f0
-  sym_src_services_validators_integrationAudit_a165d529a90897ef["resolveAuditService"]:::symbol
-  file_src_services_validators_integrationAudit_c0395e8b8c5856ec --> sym_src_services_validators_integrationAudit_a165d529a90897ef
+  sym_src_services_validators_integrationAudit_b128fe24d62e125c["auditIntegrationWithLLM"]:::symbol
+  file_src_services_validators_integrationAudit_c0395e8b8c5856ec --> sym_src_services_validators_integrationAudit_b128fe24d62e125c
+  sym_src_services_validators_integrationAudit_4ad33f2bd5a08db5["resolveAuditService"]:::symbol
+  file_src_services_validators_integrationAudit_c0395e8b8c5856ec --> sym_src_services_validators_integrationAudit_4ad33f2bd5a08db5
   file_src_services_validators_integrationValid_9adc523480e9bbde["src/services/validators/integrationValidator.ts"]:::component
-  sym_src_services_validators_integrationValid_a6d413fa89543f56["checkContentPreservation"]:::symbol
-  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_a6d413fa89543f56
-  sym_src_services_validators_integrationValid_82d405c4be68b347["checkEmbedPreservation"]:::symbol
-  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_82d405c4be68b347
-  sym_src_services_validators_integrationValid_b987758fbd39e321["checkFormatCompliance"]:::symbol
-  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_b987758fbd39e321
-  sym_src_services_validators_integrationValid_d6548f5aa750c5f3["checkLengthSanity"]:::symbol
-  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_d6548f5aa750c5f3
-  sym_src_services_validators_integrationValid_f23b0ff9ede94c01["stripPreamble"]:::symbol
-  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_f23b0ff9ede94c01
-  sym_src_services_validators_integrationValid_953e7506a734b2a1["validateIntegrationOutput"]:::symbol
-  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_953e7506a734b2a1
+  sym_src_services_validators_integrationValid_c59d8e22e28f650a["checkContentPreservation"]:::symbol
+  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_c59d8e22e28f650a
+  sym_src_services_validators_integrationValid_8e33c41fb4635ac2["checkEmbedPreservation"]:::symbol
+  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_8e33c41fb4635ac2
+  sym_src_services_validators_integrationValid_fb4cdc1279a3978f["checkFormatCompliance"]:::symbol
+  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_fb4cdc1279a3978f
+  sym_src_services_validators_integrationValid_b0f8d138774afb9e["checkLengthSanity"]:::symbol
+  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_b0f8d138774afb9e
+  sym_src_services_validators_integrationValid_efe6878ffe784198["stripPreamble"]:::symbol
+  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_efe6878ffe784198
+  sym_src_services_validators_integrationValid_98f4cae309266c6f["validateIntegrationOutput"]:::symbol
+  file_src_services_validators_integrationValid_9adc523480e9bbde --> sym_src_services_validators_integrationValid_98f4cae309266c6f
   file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31["src/services/validators/minutesAuditor.ts"]:::component
-  sym_src_services_validators_minutesAuditor_t_5e82197c75bb6222["auditMinutesWithLLM"]:::symbol
-  file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31 --> sym_src_services_validators_minutesAuditor_t_5e82197c75bb6222
-  sym_src_services_validators_minutesAuditor_t_e47040c541fff4b8["makeSkipResult"]:::symbol
-  file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31 --> sym_src_services_validators_minutesAuditor_t_e47040c541fff4b8
-  sym_src_services_validators_minutesAuditor_t_93fc7c29f6f4c48d["resolveAuditService"]:::symbol
-  file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31 --> sym_src_services_validators_minutesAuditor_t_93fc7c29f6f4c48d
+  sym_src_services_validators_minutesAuditor_t_cca430925b6d4533["auditMinutesWithLLM"]:::symbol
+  file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31 --> sym_src_services_validators_minutesAuditor_t_cca430925b6d4533
+  sym_src_services_validators_minutesAuditor_t_1a5f39a4cd35569d["makeSkipResult"]:::symbol
+  file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31 --> sym_src_services_validators_minutesAuditor_t_1a5f39a4cd35569d
+  sym_src_services_validators_minutesAuditor_t_5b4e4e3a6d270e1b["resolveAuditService"]:::symbol
+  file_src_services_validators_minutesAuditor_t_6904f47dc6ac4c31 --> sym_src_services_validators_minutesAuditor_t_5b4e4e3a6d270e1b
   file_src_services_validators_minutesValidator_670d8646515c90a6["src/services/validators/minutesValidator.ts"]:::component
-  sym_src_services_validators_minutesValidator_99d7921ba96fd4e4["auditConfidence"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_99d7921ba96fd4e4
-  sym_src_services_validators_minutesValidator_18250d3becbd4ca6["crossRefOwners"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_18250d3becbd4ca6
-  sym_src_services_validators_minutesValidator_64a4bd9c798fcf37["isParseableDate"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_64a4bd9c798fcf37
-  sym_src_services_validators_minutesValidator_153cd27342104d9d["validateActions"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_153cd27342104d9d
-  sym_src_services_validators_minutesValidator_3daf3c1405e43fa0["validateDecisions"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_3daf3c1405e43fa0
-  sym_src_services_validators_minutesValidator_5fd420ce51ca0f4e["validateDeferredItems"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_5fd420ce51ca0f4e
-  sym_src_services_validators_minutesValidator_a99e97f4b0efef81["validateGTD"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_a99e97f4b0efef81
-  sym_src_services_validators_minutesValidator_7d83a6e1eec53bcf["validateMetadata"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_7d83a6e1eec53bcf
-  sym_src_services_validators_minutesValidator_e6a55418c17d549b["validateMinutesJSON"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_e6a55418c17d549b
-  sym_src_services_validators_minutesValidator_a4b3eaf9ea9db441["validateNotablePoints"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_a4b3eaf9ea9db441
-  sym_src_services_validators_minutesValidator_22240e1ef8be20f1["validateOpenQuestions"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_22240e1ef8be20f1
-  sym_src_services_validators_minutesValidator_13a70e9c33d8d83b["validateParticipants"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_13a70e9c33d8d83b
-  sym_src_services_validators_minutesValidator_560b4390f13042d0["validateRisks"]:::symbol
-  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_560b4390f13042d0
+  sym_src_services_validators_minutesValidator_a8f1cebd1d9b0ca6["auditConfidence"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_a8f1cebd1d9b0ca6
+  sym_src_services_validators_minutesValidator_63862e8e8c0526e5["crossRefOwners"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_63862e8e8c0526e5
+  sym_src_services_validators_minutesValidator_acdd83b660408f86["isParseableDate"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_acdd83b660408f86
+  sym_src_services_validators_minutesValidator_ca0b9fa840d8cc05["validateActions"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_ca0b9fa840d8cc05
+  sym_src_services_validators_minutesValidator_78203d089ae8feb0["validateDecisions"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_78203d089ae8feb0
+  sym_src_services_validators_minutesValidator_c655f0f4e6408815["validateDeferredItems"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_c655f0f4e6408815
+  sym_src_services_validators_minutesValidator_35df5fc2db5d7797["validateGTD"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_35df5fc2db5d7797
+  sym_src_services_validators_minutesValidator_c7732e7c0a5371c2["validateMetadata"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_c7732e7c0a5371c2
+  sym_src_services_validators_minutesValidator_b678ac27fcd6b480["validateMinutesJSON"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_b678ac27fcd6b480
+  sym_src_services_validators_minutesValidator_8e0d711d35b3fe85["validateNotablePoints"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_8e0d711d35b3fe85
+  sym_src_services_validators_minutesValidator_cd3a33e42bd4d5cd["validateOpenQuestions"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_cd3a33e42bd4d5cd
+  sym_src_services_validators_minutesValidator_f923b292f94c2eb6["validateParticipants"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_f923b292f94c2eb6
+  sym_src_services_validators_minutesValidator_2b2a5f9ce0ddf1ed["validateRisks"]:::symbol
+  file_src_services_validators_minutesValidator_670d8646515c90a6 --> sym_src_services_validators_minutesValidator_2b2a5f9ce0ddf1ed
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000
@@ -6251,51 +6263,51 @@ classDef violation fill:#ffd6d6,stroke:#c0392b,stroke-width:2px,color:#000
 flowchart TB
 subgraph dom_vector_store_8964adba1a30fa79 ["vector-store"]
   file_src_services_vector_attachmentFingerprin_efd90f51df7380ea["src/services/vector/attachmentFingerprint.ts"]:::component
-  sym_src_services_vector_attachmentFingerprin_ba8c517a12430a95["computeAttachmentContentHash"]:::symbol
-  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_ba8c517a12430a95
-  sym_src_services_vector_attachmentFingerprin_1cad92fa09d57dfa["fingerprintCacheKey"]:::symbol
-  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_1cad92fa09d57dfa
-  sym_src_services_vector_attachmentFingerprin_2e1a603b3b788620["fingerprintOf"]:::symbol
-  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_2e1a603b3b788620
-  sym_src_services_vector_attachmentFingerprin_1fef18a1602cecd3["sampleBytes"]:::symbol
-  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_1fef18a1602cecd3
-  sym_src_services_vector_attachmentFingerprin_fe6b8b3bd13c0d84["SingleFlightCache"]:::symbol
-  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_fe6b8b3bd13c0d84
+  sym_src_services_vector_attachmentFingerprin_41faef0293859922["computeAttachmentContentHash"]:::symbol
+  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_41faef0293859922
+  sym_src_services_vector_attachmentFingerprin_1cef189a199fb977["fingerprintCacheKey"]:::symbol
+  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_1cef189a199fb977
+  sym_src_services_vector_attachmentFingerprin_39b1f2a504f4092b["fingerprintOf"]:::symbol
+  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_39b1f2a504f4092b
+  sym_src_services_vector_attachmentFingerprin_942cfaeb56ac40ec["sampleBytes"]:::symbol
+  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_942cfaeb56ac40ec
+  sym_src_services_vector_attachmentFingerprin_600e84949d8a5e3a["SingleFlightCache"]:::symbol
+  file_src_services_vector_attachmentFingerprin_efd90f51df7380ea --> sym_src_services_vector_attachmentFingerprin_600e84949d8a5e3a
   file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a["src/services/vector/attachmentTextIndexer.ts"]:::component
-  sym_src_services_vector_attachmentTextIndexe_1fb94e83c6faf5b5["collectAttachmentChunks"]:::symbol
-  file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a --> sym_src_services_vector_attachmentTextIndexe_1fb94e83c6faf5b5
-  sym_src_services_vector_attachmentTextIndexe_e3ee47b5b826f967["collectAttachmentChunksInner"]:::symbol
-  file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a --> sym_src_services_vector_attachmentTextIndexe_e3ee47b5b826f967
-  sym_src_services_vector_attachmentTextIndexe_c21d70b6fa9bbf61["withTimeout"]:::symbol
-  file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a --> sym_src_services_vector_attachmentTextIndexe_c21d70b6fa9bbf61
+  sym_src_services_vector_attachmentTextIndexe_342b37f9e618ad1d["collectAttachmentChunks"]:::symbol
+  file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a --> sym_src_services_vector_attachmentTextIndexe_342b37f9e618ad1d
+  sym_src_services_vector_attachmentTextIndexe_189f7f6a5c66835e["collectAttachmentChunksInner"]:::symbol
+  file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a --> sym_src_services_vector_attachmentTextIndexe_189f7f6a5c66835e
+  sym_src_services_vector_attachmentTextIndexe_e6e26cd052c6fa8b["withTimeout"]:::symbol
+  file_src_services_vector_attachmentTextIndexe_715066a11ae67f8a --> sym_src_services_vector_attachmentTextIndexe_e6e26cd052c6fa8b
   file_src_services_vector_embeddingQueue_ts_642b8d9ad42d78e6["src/services/vector/embeddingQueue.ts"]:::component
-  sym_src_services_vector_embeddingQueue_ts_Em_faef8ef2e87ca159["EmbeddingQueue"]:::symbol
-  file_src_services_vector_embeddingQueue_ts_642b8d9ad42d78e6 --> sym_src_services_vector_embeddingQueue_ts_Em_faef8ef2e87ca159
-  sym_src_services_vector_embeddingQueue_ts_Ge_e69356c08b4f6490["GenericEmbeddingQueue"]:::symbol
-  file_src_services_vector_embeddingQueue_ts_642b8d9ad42d78e6 --> sym_src_services_vector_embeddingQueue_ts_Ge_e69356c08b4f6490
+  sym_src_services_vector_embeddingQueue_ts_Em_9708d830801bc00f["EmbeddingQueue"]:::symbol
+  file_src_services_vector_embeddingQueue_ts_642b8d9ad42d78e6 --> sym_src_services_vector_embeddingQueue_ts_Em_9708d830801bc00f
+  sym_src_services_vector_embeddingQueue_ts_Ge_eef21da1faa12b7d["GenericEmbeddingQueue"]:::symbol
+  file_src_services_vector_embeddingQueue_ts_642b8d9ad42d78e6 --> sym_src_services_vector_embeddingQueue_ts_Ge_eef21da1faa12b7d
   file_src_services_vector_hashUtils_ts_1ce9997df507b41b["src/services/vector/hashUtils.ts"]:::component
-  sym_src_services_vector_hashUtils_ts_createC_e895526ae13e81d8["createContentHash"]:::symbol
-  file_src_services_vector_hashUtils_ts_1ce9997df507b41b --> sym_src_services_vector_hashUtils_ts_createC_e895526ae13e81d8
+  sym_src_services_vector_hashUtils_ts_createC_b2d3402e553e6a5e["createContentHash"]:::symbol
+  file_src_services_vector_hashUtils_ts_1ce9997df507b41b --> sym_src_services_vector_hashUtils_ts_createC_b2d3402e553e6a5e
   file_src_services_vector_simpleVectorStore_ts_510ae72be1ba7a96["src/services/vector/simpleVectorStore.ts"]:::component
-  sym_src_services_vector_simpleVectorStore_ts_76606eb048641f7f["SimpleFileChangeTracker"]:::symbol
-  file_src_services_vector_simpleVectorStore_ts_510ae72be1ba7a96 --> sym_src_services_vector_simpleVectorStore_ts_76606eb048641f7f
-  sym_src_services_vector_simpleVectorStore_ts_1237a2aa5e6b71d1["SimpleVectorStore"]:::symbol
-  file_src_services_vector_simpleVectorStore_ts_510ae72be1ba7a96 --> sym_src_services_vector_simpleVectorStore_ts_1237a2aa5e6b71d1
+  sym_src_services_vector_simpleVectorStore_ts_0f493c047f729729["SimpleFileChangeTracker"]:::symbol
+  file_src_services_vector_simpleVectorStore_ts_510ae72be1ba7a96 --> sym_src_services_vector_simpleVectorStore_ts_0f493c047f729729
+  sym_src_services_vector_simpleVectorStore_ts_1caeb0413383b2d5["SimpleVectorStore"]:::symbol
+  file_src_services_vector_simpleVectorStore_ts_510ae72be1ba7a96 --> sym_src_services_vector_simpleVectorStore_ts_1caeb0413383b2d5
   file_src_services_vector_vectorMath_ts_58a5c74570292f5d["src/services/vector/vectorMath.ts"]:::component
-  sym_src_services_vector_vectorMath_ts_cosine_82729c51365f32f4["cosineSimilarity"]:::symbol
-  file_src_services_vector_vectorMath_ts_58a5c74570292f5d --> sym_src_services_vector_vectorMath_ts_cosine_82729c51365f32f4
+  sym_src_services_vector_vectorMath_ts_cosine_007b1c6640b02bac["cosineSimilarity"]:::symbol
+  file_src_services_vector_vectorMath_ts_58a5c74570292f5d --> sym_src_services_vector_vectorMath_ts_cosine_007b1c6640b02bac
   file_src_services_vector_vectorStoreService_t_2c15a9cc434812f7["src/services/vector/vectorStoreService.ts"]:::component
-  sym_src_services_vector_vectorStoreService_t_15d26a88adc88829["SearchCache"]:::symbol
-  file_src_services_vector_vectorStoreService_t_2c15a9cc434812f7 --> sym_src_services_vector_vectorStoreService_t_15d26a88adc88829
-  sym_src_services_vector_vectorStoreService_t_1ee053df73c1f0e3["VectorStoreService"]:::symbol
-  file_src_services_vector_vectorStoreService_t_2c15a9cc434812f7 --> sym_src_services_vector_vectorStoreService_t_1ee053df73c1f0e3
+  sym_src_services_vector_vectorStoreService_t_793525fb3c89bb95["SearchCache"]:::symbol
+  file_src_services_vector_vectorStoreService_t_2c15a9cc434812f7 --> sym_src_services_vector_vectorStoreService_t_793525fb3c89bb95
+  sym_src_services_vector_vectorStoreService_t_79e7f29148df1fc4["VectorStoreService"]:::symbol
+  file_src_services_vector_vectorStoreService_t_2c15a9cc434812f7 --> sym_src_services_vector_vectorStoreService_t_79e7f29148df1fc4
   file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3["src/services/vector/voyVectorStore.ts"]:::component
-  sym_src_services_vector_voyVectorStore_ts_en_14c6ca10f050af43["ensureVoyWasmReady"]:::symbol
-  file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3 --> sym_src_services_vector_voyVectorStore_ts_en_14c6ca10f050af43
-  sym_src_services_vector_voyVectorStore_ts_Si_d61c24017ce9b74c["SimpleFileChangeTracker"]:::symbol
-  file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3 --> sym_src_services_vector_voyVectorStore_ts_Si_d61c24017ce9b74c
-  sym_src_services_vector_voyVectorStore_ts_Vo_d0d897cc57ff276a["VoyVectorStore"]:::symbol
-  file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3 --> sym_src_services_vector_voyVectorStore_ts_Vo_d0d897cc57ff276a
+  sym_src_services_vector_voyVectorStore_ts_en_a404c2eb0a4a7321["ensureVoyWasmReady"]:::symbol
+  file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3 --> sym_src_services_vector_voyVectorStore_ts_en_a404c2eb0a4a7321
+  sym_src_services_vector_voyVectorStore_ts_Si_022882c1c0cafef1["SimpleFileChangeTracker"]:::symbol
+  file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3 --> sym_src_services_vector_voyVectorStore_ts_Si_022882c1c0cafef1
+  sym_src_services_vector_voyVectorStore_ts_Vo_4c23fe0662b2b9b1["VoyVectorStore"]:::symbol
+  file_src_services_vector_voyVectorStore_ts_bdcfcf961ca6a1f3 --> sym_src_services_vector_voyVectorStore_ts_Vo_4c23fe0662b2b9b1
 end
 classDef container fill:#f5f5f5,stroke:#333,stroke-width:2px,color:#000
 classDef component fill:#e8f0ff,stroke:#3178c6,color:#000

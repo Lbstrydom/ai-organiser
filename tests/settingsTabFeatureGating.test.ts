@@ -35,6 +35,7 @@ vi.mock('../src/ui/settings/CloudInventorySettingsSection', () => ({ CloudInvent
 vi.mock('../src/ui/settings/InboxSweepSettingsSection', () => ({ InboxSweepSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/CaptureInboxSettingsSection', () => ({ CaptureInboxSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/GoogleTasksSettingsSection', () => ({ GoogleTasksSettingsSection: class { display() {} } }));
+vi.mock('../src/ui/settings/ProjectsSettingsSection', () => ({ ProjectsSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/VaultUpkeepSettingsSection', () => ({ VaultUpkeepSettingsSection: class { display() {} } }));
 vi.mock('../src/ui/settings/AgentConnectorsSettingsSection', () => ({ AgentConnectorsSettingsSection: class { display() {} } }));
 // Features control panel renders OUTSIDE renderIfEnabled (it is the gate) — stub it too so

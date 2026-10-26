@@ -306,6 +306,14 @@ Repo-wide rules that bind *every* subsystem are in
 | Connect an AI app | Guides for Claude Desktop, Codex and command-line agents that state what each route enforces; a chat-project vault map built from the index scope; the plugin never edits another app's config | Changing a guide, a snippet, the export, or any claim about what is enforced |
 | Read-only connector | A dependency-free local MCP server (both protocol eras) that serves only notes inside the index scope; scope read per request and fail-closed; revocation published and verified; `.mcpb` bundle for Claude Desktop, file plus TOML for Codex | Touching the server source (**mirror any change to `isInIndexScope`**), the scope publisher, containment, or the bundle |
 
+### [Projects, Operations and the Google Script Row](docs/features/projects.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Project service | The only code that knows what a project is: `aio-id` / `aio-role` identity, adopt an existing note by one reviewed insertion, duplicate detection, one source-to-project resolver, the shared `paraRoots` setting (validated only) and the shared project picker | Touching project identity, adding a project consumer (**add it to `projectServiceActive` and `operationIndexActive`, once**), or any code that needs "which project is this" |
+| Operation index | Per-operation summary files reconciled with the authoritative domain journals; cross-device blocking and an explicit take-over; lazy storage | Adding a long-running operation that should show up as interrupted, or touching the cross-device rules |
+| Google script row | `normaliseModulePing` capability checks (legacy v1 gets its v1 capabilities) and one status row in Integrations | Adding a script module or a feature that needs a script capability |
+
 ### [Content Pipeline & Note Writes](docs/features/content-pipeline.md)
 
 | Subsystem | What it is | Read it when |
