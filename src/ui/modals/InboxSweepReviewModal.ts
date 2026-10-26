@@ -142,7 +142,8 @@ export class InboxSweepReviewModal extends Modal {
             const box1 = check();
             // The row cannot be ticked while it is incomplete, and a tick set earlier is taken back.
             if (box1) { box1.disabled = !verdict.ok || row.reported; if (!verdict.ok && box1.checked) { box1.checked = false; row.checked = false; } }
-            this.renderFooter();
+            // The footer does not exist yet while the rows are first drawn.
+            if (this.footer) this.renderFooter();
         };
         this.cleanups.push(listen(dest, 'change', () => {
             const value = dest.value;
