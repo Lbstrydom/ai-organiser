@@ -238,3 +238,21 @@ describe('audit round 1 pins', () => {
     expect(r.preselect).toBeUndefined();
   });
 });
+
+describe('audit round 2 pins', () => {
+  it('an autolink is the AI\'s own text, not a placeholder', () => {
+    const p = parseHandoff(`## Handoff\nProject ID: ${ID}\n### Questions\n- <https://example.com/spec>\n- <text>\n`, CTX);
+    expect(p.questions.map((q) => q.text)).toEqual(['<https://example.com/spec>']);
+  });
+  it('a reassembled comment cannot forge a marker', () => {
+    const out = addUnderHeading('# P\n', 'Decisions', [{ id: 'z1', text: '<!<!--discard-->-- aio:handoff id=b -->' }]);
+    expect(out.ok && out.value.includes('id=b -->')).toBe(false);
+    expect(out.ok && appliedIds(out.value, ['b'])).toEqual(new Set());
+  });
+  it('an open fence in a later section does not block an earlier one', () => {
+    const note = '# P\n\n## Decisions\n\n- a\n\n## Later\n\n```\nopen';
+    const out = addUnderHeading(note, 'Decisions', [{ id: 'y1', text: 'b' }]);
+    expect(out.ok && out.value.startsWith('# P\n\n## Decisions\n\n- a\n- b <!-- aio:handoff id=y1 -->')).toBe(true);
+    expect(addUnderHeading('# P\n\n## Decisions\n\n```\nopen', 'Decisions', [{ id: 'y2', text: 'b' }])).toEqual({ ok: false, error: 'handoff-note-unplaceable' });
+  });
+});

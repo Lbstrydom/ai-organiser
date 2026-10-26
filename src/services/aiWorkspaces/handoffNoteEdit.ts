@@ -23,7 +23,8 @@ export function appliedIds(noteText: string, ids: readonly string[]): Set<string
 
 /** One line of a note's list: single line, no embedded markers, so it cannot break out of the list or forge a marker. */
 function listLine(text: string, id: string): string {
-    const clean = text.replace(/<!--[\s\S]*?-->/g, '').replace(/\s*\n\s*/g, ' ').trim();
+    // Comments are removed, then any comment delimiter left over (one reassembled from the pieces around a removed comment) goes too.
+    const clean = text.replace(/<!--[\s\S]*?-->/g, '').replace(/<!--|-->/g, '').replace(/\s*\n\s*/g, ' ').trim();
     return `- ${clean} ${marker(id)}`;
 }
 
@@ -36,8 +37,8 @@ export function addUnderHeading(noteText: string, heading: string, lines: readon
     if (fresh.length === 0) return ok(noteText);
     const rendered = fresh.map((l) => listLine(l.text, l.id));
     const all = noteText.split('\n');
-    // Text added to a note that ends inside an open code fence would land inside the fence.
-    if (endsInOpenFence(all)) return err('handoff-note-unplaceable');
+    // A note that ends inside an open code fence cannot take new text where the fence swallows the insertion point (checked below).
+    const openFence = endsInOpenFence(all);
     const hidden = nonBodyLines(all);
     let at = -1;
     let level = 0;
@@ -47,6 +48,7 @@ export function addUnderHeading(noteText: string, heading: string, lines: readon
         if (m && m[2].trim().toLowerCase() === heading.toLowerCase()) { at = i; level = m[1].length; break; }
     }
     if (at === -1) {
+        if (openFence) return err('handoff-note-unplaceable');
         const sep = noteText === '' || /\n\n$/.test(noteText) ? '' : noteText.endsWith('\n') ? '\n' : '\n\n';
         return ok(`${noteText}${sep}## ${heading}\n\n${rendered.join('\n')}\n`);
     }
@@ -57,6 +59,8 @@ export function addUnderHeading(noteText: string, heading: string, lines: readon
         const m = HEADING.exec(all[i]);
         if (m && m[1].length <= level) { end = i; break; }
     }
+    // The section reaches the end of a note whose last fence never closes: the insertion would land inside the fence.
+    if (openFence && end === all.length) return err('handoff-note-unplaceable');
     let insertAt = end;
     while (insertAt > at + 1 && all[insertAt - 1].trim() === '') insertAt--;
     const before = all.slice(0, insertAt);

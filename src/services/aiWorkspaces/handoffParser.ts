@@ -64,12 +64,14 @@ const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const LIST_ITEM = /^[-*]\s+(?:\[[ xX]\]\s+)?(.*)$/;
 
 /** Is this line a template placeholder the AI echoed (`<text>`, `<file name>: <one line>`)? */
+/** The contract's own placeholders, and only those: any other angle-bracket text (an autolink, a tag) is the AI's own. */
+const TEMPLATE_TOKEN = /<(text|file name|one line|person|name)>/i;
 const isPlaceholder = (text: string): boolean => {
-    if (!/<[^>]*>/.test(text)) return false;
+    if (!TEMPLATE_TOKEN.test(text)) return false;
     // Only the contract's own template stubs may remain once the placeholders are taken out; any word the AI wrote keeps the item.
     const rest = text
         .replace(/^\s*(suggested|decided)\s*:/i, '')
-        .replace(/<[^>]*>/g, '')
+        .replace(new RegExp(TEMPLATE_TOKEN.source, 'gi'), '')
         .replace(/@context\b/gi, '')
         .replace(/\((waiting:\s*|due:\s*YYYY-MM-DD|draft\|released|claude\|chatgpt)\s*\)/gi, '')
         .replace(/[\s:,()-]+/g, '');
