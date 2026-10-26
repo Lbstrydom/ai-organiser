@@ -110,7 +110,10 @@ export function normaliseRoutingRules(raw: unknown): RoutingRule[] {
         if (d.type === 'list' && typeof d.listId === 'string' && d.listId.trim() !== '') destination = { type: 'list', listId: d.listId.trim() };
         else if (d.type === 'report-only') destination = { type: 'report-only' };
         if (!destination) continue;
-        const context = typeof entry.context === 'string' && /^@[a-z0-9][a-z0-9_-]{0,23}$/.test(entry.context.trim()) ? entry.context.trim() : undefined;
+        const rawContext = typeof entry.context === 'string' ? entry.context.trim() : '';
+        // A context that is present but not valid drops the rule: narrowing a rule must never silently widen it to every item of its kind.
+        if (rawContext !== '' && !/^@[a-z0-9][a-z0-9_-]{0,23}$/.test(rawContext)) continue;
+        const context = rawContext === '' ? undefined : rawContext;
         out.push({ kind: entry.kind as SweepItemKind, ...(context ? { context } : {}), destination });
         if (out.length >= MAX_ROUTING_RULES) break;
     }

@@ -464,7 +464,7 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                         if (!ep.ok) { status.setText(formatGuidance(describeError(t, ep.error))); return; }
                         const ping = await pingTasksScript(ep.value);
                         if (!ping.ok) { status.setText(formatGuidance(describeError(t, ping.error))); return; }
-                        const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds(s));
+                        const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
                         draft.operational = state === 'operational';
                         status.setText(state === 'operational' ? c.operationalLine.replace('{list}', listName()) : state === 'setup' ? c.stillSetup : state === 'outdated' ? formatGuidance(describeError(t, 'script-outdated')) : state === 'lists-outdated' ? formatGuidance(describeError(t, 'tasks-script-lists-outdated')) : c.wrongList);
                     }, status)));

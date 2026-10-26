@@ -39,7 +39,8 @@ export interface TasksModuleConfig {
 /** The configuration the tasks module is deployed with, as a plain object. */
 export function tasksModuleConfig(config: TasksModuleConfig): Record<string, unknown> {
     // The set always holds the main list, so `APPROVED_LIST_ID` and `APPROVED_LIST_IDS` can never disagree.
-    const ids = [...new Set([...(config.approvedListId ? [config.approvedListId] : []), ...config.approvedListIds])];
+    // A setup deployment (no main list) approves nothing, whatever set was passed: it can never create a task.
+    const ids = config.approvedListId ? [...new Set([config.approvedListId, ...config.approvedListIds])] : [];
     return { SECRET: config.secret, APPROVED_LIST_ID: config.approvedListId ?? '', APPROVED_LIST_IDS: ids, SCRIPT_VERSION: TASKS_MODULE_VERSION, CAPABILITIES: [...TASKS_V2_CAPABILITIES] };
 }
 

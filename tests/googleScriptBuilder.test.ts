@@ -63,6 +63,10 @@ describe('buildTasksScriptV2 text', () => {
     expect(() => buildTasksScriptV2({ secret: '  ', approvedListId: null, approvedListIds: [] })).toThrow();
   });
 
+  it('a setup deployment approves no list even when a set is passed, so it can never create a task', () => {
+    expect(tasksModuleConfig({ secret: 's', approvedListId: null, approvedListIds: ['A', 'B'] }).APPROVED_LIST_IDS).toEqual([]);
+  });
+
   it('the list set always holds the main list, so the two config fields cannot disagree', () => {
     expect(tasksModuleConfig({ secret: 's', approvedListId: 'M', approvedListIds: ['X'] }).APPROVED_LIST_IDS).toEqual(['M', 'X']);
     expect(tasksModuleConfig({ secret: 's', approvedListId: null, approvedListIds: [] })).toMatchObject({ APPROVED_LIST_ID: '', APPROVED_LIST_IDS: [] });

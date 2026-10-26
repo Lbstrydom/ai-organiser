@@ -85,11 +85,12 @@ describe('routing rules', () => {
       { kind: 'project', destination: { type: 'list', listId: '' } },
       { kind: 'project', destination: { type: 'agenda' } },
       { kind: 'project', context: 'bad context', destination: { type: 'report-only' } },
+      { kind: 'project', context: '@ok', destination: { type: 'report-only' } },
       null,
     ];
     expect(normaliseRoutingRules(raw)).toEqual([
       { kind: 'next_action', context: '@home', destination: { type: 'list', listId: 'L' } },
-      { kind: 'project', destination: { type: 'report-only' } },
+      { kind: 'project', context: '@ok', destination: { type: 'report-only' } },
     ]);
     expect(normaliseRoutingRules(Array.from({ length: 40 }, () => ({ kind: 'project', destination: { type: 'report-only' } })))).toHaveLength(MAX_ROUTING_RULES);
     expect(normaliseRoutingRules('x')).toEqual([]);
