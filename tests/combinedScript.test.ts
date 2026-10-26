@@ -203,10 +203,19 @@ describe('which secret the inventory uses', () => {
   it('its own secret while it has its own deployment; the shared one only when both URLs are the same deployment', async () => {
     const { inventorySecretFor } = await import('../src/services/googleScript/sharedSecret');
     const url = 'https://script.google.com/macros/s/AKfycbxTEST/exec';
-    expect(await inventorySecretFor(plugin({ inv: 'https://script.google.com/macros/s/OTHER/exec', tasks: url }, { [T]: 't', [I]: 'i' }))).toBe('i');
-    expect(await inventorySecretFor(plugin({ inv: url + '/', tasks: url }, { [T]: 't', [I]: 'i' }))).toBe('t');
-    expect(await inventorySecretFor(plugin({ inv: url, tasks: url }, { [I]: 'i' }))).toBe('i');
-    expect(await inventorySecretFor(plugin({ inv: '', tasks: '' }, { [I]: 'i' }))).toBe('i');
-    expect(await inventorySecretFor(plugin({ inv: '', tasks: '' }, {}))).toBeNull();
+    expect(await inventorySecretFor(plugin({ inv: 'https://script.google.com/macros/s/OTHER/exec', tasks: url }, { [T]: 't', [I]: 'i' }))).toEqual({ ok: true, value: 'i' });
+    expect(await inventorySecretFor(plugin({ inv: url + '/', tasks: url }, { [T]: 't', [I]: 'i' }))).toEqual({ ok: true, value: 't' });
+    // same deployment but no Tasks secret: the standalone inventory secret belongs to another deployment and is never tried
+    expect(await inventorySecretFor(plugin({ inv: url, tasks: url }, { [I]: 'i' }))).toEqual({ ok: true, value: null });
+    expect(await inventorySecretFor(plugin({ inv: '', tasks: '' }, { [I]: 'i' }))).toEqual({ ok: true, value: 'i' });
+    expect(await inventorySecretFor(plugin({ inv: '', tasks: '' }, {}))).toEqual({ ok: true, value: null });
+    // a storage failure is a failure, not "no secret"
+    const broken = { settings: { cloudInventoryScriptUrl: '', tasksScriptUrl: '' }, secretStorageService: { getSecret: async () => { throw new Error('locked'); } } } as never;
+    expect(await inventorySecretFor(broken)).toEqual({ ok: false, error: 'secret-storage-failed' });
+    // the deployment id in the path is case-sensitive; the host is not
+    const { sameDeployment } = await import('../src/services/googleScript/sharedSecret');
+    expect(sameDeployment('https://Script.Google.com/macros/s/AbC/exec', 'https://script.google.com/macros/s/AbC/exec/')).toBe(true);
+    expect(sameDeployment('https://script.google.com/macros/s/AbC/exec', 'https://script.google.com/macros/s/abc/exec')).toBe(false);
+    expect(sameDeployment('', '')).toBe(false);
   });
 });

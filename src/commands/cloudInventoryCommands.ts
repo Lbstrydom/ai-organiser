@@ -44,7 +44,10 @@ function randomSecret(): string {
 
 /** The stored secret, or null when none exists yet. */
 export async function getInventorySecret(plugin: AIOrganiserPlugin): Promise<string | null> {
-    return inventorySecretFor(plugin);
+    const found = await inventorySecretFor(plugin);
+    // Callers treat a rejection as the storage failure it is, as they did before the shared secret existed.
+    if (!found.ok) throw new Error(found.error);
+    return found.value;
 }
 
 /** The stored secret, creating and storing a new one the first time. */

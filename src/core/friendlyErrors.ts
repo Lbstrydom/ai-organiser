@@ -90,6 +90,7 @@ export const GUIDANCE_CODES = [
     'project-frontmatter-unreadable',
     'project-adopt-failed',
     'script-capability-missing',
+    'secret-storage-failed',
     'ai-share-empty',
     'pack-over-budget',
     'pack-links-unverified',

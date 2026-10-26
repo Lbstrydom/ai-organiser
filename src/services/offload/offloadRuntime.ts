@@ -62,7 +62,9 @@ export function basePath(plugin: AIOrganiserPlugin): string | null {
 async function listFolder(plugin: AIOrganiserPlugin, folderId: string): Promise<Result<RemoteListFile[]>> {
     const url = validateScriptUrl(plugin.settings.cloudInventoryScriptUrl);
     if (!url.ok) return err(url.error);
-    const secret = await inventorySecretFor(plugin);
+    const found = await inventorySecretFor(plugin);
+    if (!found.ok) return err(found.error);
+    const secret = found.value;
     if (!secret) return err('no-secret');
     const fetchPage = makeFetchPage(url.value, secret);
     const out: RemoteListFile[] = [];
