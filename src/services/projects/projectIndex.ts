@@ -90,7 +90,7 @@ export interface BuildOptions {
 
 export function buildProjectIndex(notes: readonly NoteIdentity[], options: BuildOptions = {}): ProjectIndex {
     const roots = options.roots ?? [];
-    const byId = new Map<string, string[]>();
+    const carriers = new Map<string, string[]>();
     const projects: ProjectRef[] = [];
     const anchors: AnchorRef[] = [];
     const unadopted: UnadoptedNote[] = [];
@@ -100,12 +100,13 @@ export function buildProjectIndex(notes: readonly NoteIdentity[], options: Build
         const id = fm[AIO_ID_KEY];
         if (!isAioId(id)) { unadopted.push({ path: note.path, reason: 'invalid-id' }); continue; }
         const aioId = id.trim().toLowerCase();
+        // Identity is counted before the role is judged: a note with an id and no role still carries that id.
+        carriers.set(aioId, [...(carriers.get(aioId) ?? []), note.path]);
         const role = roleOf(fm);
         if (!role) {
             unadopted.push({ path: note.path, reason: Object.hasOwn(fm, AIO_ROLE_KEY) ? 'unknown-role' : 'no-role' });
             continue;
         }
-        byId.set(aioId, [...(byId.get(aioId) ?? []), note.path]);
         anchors.push({ aioId, notePath: note.path, role });
         if (role === 'project') {
             projects.push({
@@ -118,7 +119,7 @@ export function buildProjectIndex(notes: readonly NoteIdentity[], options: Build
             });
         }
     }
-    const duplicates = new Map([...byId].filter(([, paths]) => paths.length > 1));
+    const duplicates = new Map([...carriers].map(([id, paths]): [string, string[]] => [id, [...paths].sort()]).filter(([, paths]) => paths.length > 1));
     const byPath = (a: { notePath: string }, b: { notePath: string }): number => a.notePath.localeCompare(b.notePath);
     return { projects: projects.sort(byPath), anchors: anchors.sort(byPath), duplicates, unadopted: unadopted.sort((a, b) => a.path.localeCompare(b.path)) };
 }

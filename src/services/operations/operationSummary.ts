@@ -25,6 +25,9 @@ export interface OperationSummary {
     resources?: string[];
 }
 
+/** At most this many resource keys per operation. More is refused, never truncated: a conflict check must see every key. */
+export const MAX_RESOURCES = 32;
+
 /** Finished entries older than this are pruned; unfinished ones never are. */
 export const PRUNE_FINISHED_AFTER_MS = 30 * 24 * 60 * 60 * 1000;
 /** Another device's unfinished operation may be taken over only after this long without an update. */
@@ -49,7 +52,8 @@ export function parseSummary(raw: unknown): OperationSummary | null {
     if (!OPERATION_KINDS.includes(r.kind as OperationKind) || !OPERATION_STATUSES.includes(r.status as OperationStatus)) return null;
     if (createdAt === null || updatedAt === null || typeof r.device !== 'string' || r.device === '') return null;
     if (!rec || typeof rec.journal !== 'string' || typeof rec.key !== 'string') return null;
-    const resources = Array.isArray(r.resources) ? r.resources.filter((x): x is string => typeof x === 'string').slice(0, 32) : undefined;
+    if (r.resources !== undefined && (!Array.isArray(r.resources) || r.resources.length > MAX_RESOURCES || !r.resources.every((x) => typeof x === 'string' && x !== ''))) return null;
+    const resources = r.resources as string[] | undefined;
     return {
         opId: r.opId,
         kind: r.kind as OperationKind,
@@ -87,7 +91,8 @@ export type Reconciled =
 export function reconcileWithJournal(summary: OperationSummary, probe: JournalProbe): Reconciled {
     if (probe.state === 'missing') return { kind: 'orphaned', summary };
     if (probe.state === 'unreadable') return { kind: 'unreadable', summary };
-    if (probe.updatedAt > summary.updatedAt && (probe.status !== summary.status)) {
+    // Newer journal activity is adopted even when the status is unchanged (progress within a running operation).
+    if (probe.updatedAt > summary.updatedAt) {
         return { kind: 'repaired', summary: { ...summary, status: probe.status, updatedAt: probe.updatedAt } };
     }
     return { kind: 'ok', summary };

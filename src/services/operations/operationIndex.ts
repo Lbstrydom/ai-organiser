@@ -52,6 +52,8 @@ export class OperationIndex {
     private live = new Set<string>();
     private listeners = new Set<OperationChange>();
     private loaded = false;
+    /** Every load, publish and take-over runs one at a time, so an older write can never land after a newer one. */
+    private queue: Promise<unknown> = Promise.resolve();
 
     constructor(private readonly deps: OperationIndexDeps) {}
 
@@ -61,6 +63,15 @@ export class OperationIndex {
 
     private ctx(): ViewContext {
         return { device: this.deps.device, now: this.now(), live: this.live };
+    }
+
+    private serial<T>(job: () => Promise<Result<T>>): Promise<Result<T>> {
+        const run = this.queue.then(job, job).catch((e: unknown): Result<T> => {
+            logger.warn('Operations', 'An operation step failed', e);
+            return err('operation-store-unreadable');
+        });
+        this.queue = run;
+        return run;
     }
 
     private notify(): void {
@@ -78,66 +89,103 @@ export class OperationIndex {
         return this.loaded;
     }
 
-    /** Read every summary, reconcile with the journals, prune finished entries past retention. Never throws. */
-    async load(): Promise<Result<void>> {
+    /** What the store holds for one operation right now: the summary, null when absent, or an error when it cannot be told. */
+    private async persisted(opId: string): Promise<Result<OperationSummary | null>> {
+        const files = await this.deps.store.list();
+        if (!files.ok) return err('operation-store-unreadable');
+        if (!files.value.includes(fileOf(opId))) return ok(null);
+        const text = await this.deps.store.read(fileOf(opId));
+        if (!text.ok) return err('operation-store-unreadable');
         try {
+            const parsed = parseSummary(JSON.parse(text.value));
+            return parsed && parsed.opId === opId ? ok(parsed) : err('operation-store-unreadable');
+        } catch {
+            return err('operation-store-unreadable');
+        }
+    }
+
+    /**
+     * Read every summary, reconcile with the journals, prune finished entries past retention. Never throws. A summary that
+     * cannot be READ makes the whole load fail and leaves the last trustworthy index as it was (an unreadable record is not an
+     * absent one). A file that is readable but not a valid summary is ignored. A failed repair write or prune removal is logged
+     * and the entry keeps its in-memory value; the next load tries again.
+     */
+    load(): Promise<Result<void>> {
+        return this.serial(async () => {
             const files = await this.deps.store.list();
             if (!files.ok) return err('operation-store-unreadable');
             const next = new Map<string, OperationSummary>();
             const problems = new Map<string, Reconciled['kind']>();
             for (const file of files.value.filter((f) => f.endsWith('.json'))) {
                 const text = await this.deps.store.read(file);
-                if (!text.ok) continue;
+                if (!text.ok) return err('operation-store-unreadable');
                 let parsed: OperationSummary | null = null;
                 try { parsed = parseSummary(JSON.parse(text.value)); } catch { parsed = null; }
-                // A file that is not a valid summary is ignored, never repaired by guessing.
                 if (!parsed || fileOf(parsed.opId) !== file) continue;
                 let summary = parsed;
                 if (this.deps.probe) {
                     const reconciled = reconcileWithJournal(parsed, await this.deps.probe(parsed));
                     summary = reconciled.summary;
                     if (reconciled.kind !== 'ok') problems.set(parsed.opId, reconciled.kind);
-                    if (reconciled.kind === 'repaired') await this.deps.store.write(file, JSON.stringify(summary));
+                    if (reconciled.kind === 'repaired') {
+                        const repaired = await this.deps.store.write(file, JSON.stringify(summary));
+                        if (!repaired.ok) logger.warn('Operations', `Could not save a repaired summary: ${file}`);
+                    }
                 }
                 next.set(summary.opId, summary);
             }
-            const kept = pruneSummaries([...next.values()], this.now());
-            for (const gone of [...next.values()].filter((s) => !kept.includes(s))) {
-                next.delete(gone.opId);
-                await this.deps.store.remove(fileOf(gone.opId));
+            const kept = new Set(pruneSummaries([...next.values()], this.now()).map((x) => x.opId));
+            for (const id of [...next.keys()].filter((k) => !kept.has(k))) {
+                next.delete(id);
+                const removed = await this.deps.store.remove(fileOf(id));
+                if (!removed.ok) logger.warn('Operations', `Could not remove an expired summary: ${id}`);
             }
             this.entries = next;
             this.problems = problems;
             this.loaded = true;
             this.notify();
             return ok(undefined);
-        } catch (e) {
-            logger.warn('Operations', 'Could not load the operation index', e);
-            return err('operation-store-unreadable');
-        }
+        });
     }
 
+    /** Copies only: the index never hands out, or keeps, a caller's object. */
     list(): OperationSummary[] {
-        return [...this.entries.values()].sort((a, b) => b.updatedAt - a.updatedAt);
+        return [...this.entries.values()].map((x) => structuredClone(x)).sort((a, b) => b.updatedAt - a.updatedAt);
     }
 
     get(opId: string): OperationSummary | null {
-        return this.entries.get(opId) ?? null;
+        const found = this.entries.get(opId);
+        return found ? structuredClone(found) : null;
     }
 
-    /** Write or update a summary after a step boundary of its domain journal. Refuses another device's operation. */
-    async publish(summary: OperationSummary): Promise<Result<void>> {
-        const existing = this.entries.get(summary.opId);
-        // Only the owner updates an operation, and a summary always names this device as its owner.
-        if (summary.device !== this.deps.device) return err('operation-not-owner');
-        if (existing && !ownsOperation(existing, this.deps.device)) return err('operation-not-owner');
-        const written = await this.deps.store.write(fileOf(summary.opId), JSON.stringify(summary));
-        if (!written.ok) return err('operation-store-unwritable');
-        this.entries.set(summary.opId, summary);
-        if (isFinished(summary)) this.live.delete(summary.opId); else this.live.add(summary.opId);
-        this.problems.delete(summary.opId);
-        this.notify();
-        return ok(undefined);
+    /**
+     * Write or update a summary after a step boundary of its domain journal. Needs a loaded index; validates the summary the
+     * way a load does; checks the owner against what the store holds NOW (another device may have taken the operation over
+     * since this index was read) and refuses another device's operation.
+     */
+    publish(input: OperationSummary): Promise<Result<void>> {
+        return this.serial(async () => {
+            if (!this.loaded) return err('operation-not-loaded');
+            // The same contract as a load: anything it would reject cannot be written.
+            let summary: OperationSummary | null = null;
+            try { summary = parseSummary(JSON.parse(JSON.stringify(input))); } catch { summary = null; }
+            if (!summary) return err('operation-invalid');
+            if (summary.device !== this.deps.device) return err('operation-not-owner');
+            const stored = await this.persisted(summary.opId);
+            if (!stored.ok) return err(stored.error);
+            if (stored.value && !ownsOperation(stored.value, this.deps.device)) {
+                this.entries.set(stored.value.opId, stored.value);
+                this.notify();
+                return err('operation-not-owner');
+            }
+            const written = await this.deps.store.write(fileOf(summary.opId), JSON.stringify(summary));
+            if (!written.ok) return err('operation-store-unwritable');
+            this.entries.set(summary.opId, summary);
+            if (isFinished(summary)) this.live.delete(summary.opId); else this.live.add(summary.opId);
+            this.problems.delete(summary.opId);
+            this.notify();
+            return ok(undefined);
+        });
     }
 
     /** Unfinished operations of this device that are not running now: the weekly review offers their recovery. */
@@ -166,19 +214,25 @@ export class OperationIndex {
     }
 
     /** The explicit take-over: 24 hours without an update, and the user confirms the plugin is not running elsewhere. */
-    async takeOver(opId: string, confirmedNotRunningElsewhere: boolean): Promise<Result<OperationSummary>> {
-        const s = this.entries.get(opId);
-        if (!s) return err('operation-not-found');
-        const decided = takeOver(s, this.ctx(), confirmedNotRunningElsewhere);
-        if (!decided.ok) return err(decided.error);
-        const written = await this.deps.store.write(fileOf(opId), JSON.stringify(decided.summary));
-        if (!written.ok) return err('operation-store-unwritable');
-        this.entries.set(opId, decided.summary);
-        this.notify();
-        return ok(decided.summary);
+    takeOver(opId: string, confirmedNotRunningElsewhere: boolean): Promise<Result<OperationSummary>> {
+        return this.serial(async () => {
+            if (!this.loaded) return err('operation-not-loaded');
+            // Decided against the store, not the cache: a take-over by a third device may have synced in.
+            const stored = await this.persisted(opId);
+            if (!stored.ok) return err(stored.error);
+            if (!stored.value) return err('operation-not-found');
+            this.entries.set(opId, stored.value);
+            const decided = takeOver(stored.value, this.ctx(), confirmedNotRunningElsewhere);
+            if (!decided.ok) return err(decided.error);
+            const written = await this.deps.store.write(fileOf(opId), JSON.stringify(decided.summary));
+            if (!written.ok) return err('operation-store-unwritable');
+            this.entries.set(opId, decided.summary);
+            this.notify();
+            return ok(structuredClone(decided.summary));
+        });
     }
 
-    /** True when this device still owns the operation (an original device that finds otherwise must stop). */
+    /** True when this device still owns the operation as far as the last read says (a take-over elsewhere shows after the next sync and load). */
     stillOwner(opId: string): boolean {
         return ownsOperation(this.entries.get(opId) ?? null, this.deps.device);
     }
@@ -228,7 +282,10 @@ export function deviceId(plugin: AIOrganiserPlugin): string {
 
 const indexes = new WeakMap<AIOrganiserPlugin, OperationIndex>();
 
-/** The operation index, or null while no consumer is enabled (nothing is created then, not even a folder). */
+/**
+ * The operation index, or null while no consumer is enabled (nothing is created then, not even a folder). The probe is part of
+ * the index and is set by whoever creates it first (the plugin start-up wiring); a later caller cannot replace it.
+ */
 export function getOperationIndex(plugin: AIOrganiserPlugin, probe?: OperationIndexDeps['probe']): OperationIndex | null {
     if (!operationIndexActive(plugin.settings)) return null;
     let index = indexes.get(plugin);

@@ -62,6 +62,14 @@ describe('frontmatterKeys', () => {
   });
 });
 
+describe('frontmatter insertion round trip', () => {
+  it('refuses an insertion that would not read back as the intended strings', () => {
+    // a root mapping written with indentation cannot take unindented keys
+    expect(insertFrontmatterKeys('---\n  a: 1\n  b: 2\n---\nx', [['aio-role', 'project']])).toEqual({ ok: false, error: 'frontmatter-unreadable' });
+    expect(insertFrontmatterKeys('---\na: 1\n---\nx', [['aio-role', 'project']]).ok).toBe(true);
+  });
+});
+
 describe('planAdoption', () => {
   const fixed = () => A;
 
@@ -138,10 +146,20 @@ describe('project index', () => {
 
   it('a copied note gives a duplicate: both are listed, and nothing resolves for that id', () => {
     const dup = buildProjectIndex([...notes, note('Projects/Acme copy.md', { 'aio-id': A, 'aio-role': 'project' })], { roots });
-    expect(dup.duplicates.get(A)).toEqual(['Projects/Acme/Acme.md', 'Projects/Acme copy.md']);
+    expect(dup.duplicates.get(A)).toEqual(['Projects/Acme copy.md', 'Projects/Acme/Acme.md']);
     expect(resolveProject(dup, A)).toEqual({ ok: false, error: 'duplicate-project-id' });
     expect(resolveAnchor(dup, A)).toEqual({ ok: false, error: 'duplicate-project-id' });
     expect(resolveProject(dup, B)).toMatchObject({ ok: true });
+  });
+
+  it('a valid id on a note with no role still counts as a carrier: it collides with an adopted note', () => {
+    const idx = buildProjectIndex([
+      note('P/Acme.md', { 'aio-id': A, 'aio-role': 'project' }),
+      note('Copy/Acme copy.md', { 'aio-id': A }),
+    ]);
+    expect(idx.duplicates.get(A)).toEqual(['Copy/Acme copy.md', 'P/Acme.md']);
+    expect(resolveProject(idx, A)).toEqual({ ok: false, error: 'duplicate-project-id' });
+    expect(idx.unadopted).toEqual([{ path: 'Copy/Acme copy.md', reason: 'no-role' }]);
   });
 
   it('statusOf reads a string or the first string of a list, trimmed', () => {
@@ -303,6 +321,17 @@ describe('ProjectService (faked vault)', () => {
     expect(await service.adoptProject('Projects/Acme.md')).toEqual({ ok: false, error: 'project-already-adopted' });
     expect(await service.adoptProject('Missing.md')).toEqual({ ok: false, error: 'project-not-found' });
     expect(w.vault.get('Projects/Acme.md')).toBe(after);
+  });
+
+  it('adoption refuses a note whose id another note also carries', async () => {
+    const w = world({ 'inbox-sweep': true, 'google-tasks-export': true }, {
+      'P/Acme.md': `---\naio-id: ${A}\naio-role: project\nstatus: active\n---\n`,
+      'Copy/Acme copy.md': `---\naio-id: ${A}\n---\nBody\n`,
+    });
+    const service = getProjectService(w.plugin)!;
+    const before = w.vault.get('Copy/Acme copy.md');
+    expect(await service.adoptProject('Copy/Acme copy.md')).toEqual({ ok: false, error: 'duplicate-project-id' });
+    expect(w.vault.get('Copy/Acme copy.md')).toBe(before);
   });
 
   it('adoptContainer gives an area no status', async () => {

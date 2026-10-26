@@ -1788,7 +1788,7 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
             const tasks = rawTasks.flatMap((t): ApprovalRecord['tasks'] => {
                 const x = t as Record<string, unknown> | null;
                 if (!x || typeof x.id !== 'string' || typeof x.text !== 'string' || typeof x.sourcePath !== 'string' || typeof x.sourceHash !== 'string' || typeof x.state !== 'string' || !states.includes(x.state)) return [];
-                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined, ...(Array.isArray(x.keys) && x.keys.every((k) => typeof k === 'string') ? { keys: x.keys } : {}) }];
+                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined, ...(Array.isArray(x.keys) && x.keys.every((k) => typeof k === 'string') ? { keys: x.keys } : {}), ...(normaliseContexts(x.contexts).length > 0 ? { contexts: normaliseContexts(x.contexts) } : {}) }];
             });
             const dispositions = rawDispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
                 const x = dd as Record<string, unknown> | null;

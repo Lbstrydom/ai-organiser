@@ -128,6 +128,8 @@ export class ProjectService {
             const baseline = await app.vault.read(file);
             const first = planAdoption(baseline, role);
             if (!first.ok) return err(first.error);
+            // An id that two notes carry is not adopted further: the user keeps one first.
+            if (this.index().duplicates.has(first.value.aioId)) return err('duplicate-project-id');
             // The id is fixed by the first plan, so the preview and the write add the same id.
             const fixed = first.value.aioId;
             const res = await applyNoteEdit(this.plugin, {

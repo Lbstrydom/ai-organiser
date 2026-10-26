@@ -79,6 +79,19 @@ describe('settings migration', () => {
   });
 });
 
+describe('approval records survive migration with their context snapshot', () => {
+  it('keeps a custom snapshot, normalised, and adds none for a built-in approval', () => {
+    const task = (extra: Record<string, unknown>) => ({ id: 'aio-00000000-0000-4000-8000-000000000001', text: 'x', context: '@phone', sourcePath: 'a.md', sourceHash: 'h', state: 'reported', ...extra });
+    const record = (tasks: unknown[]) => ({ runId: 'run-aaaaaa', createdAt: '2026-10-26', reportPath: 'R.md', tasks, dispositions: [], reportDone: true, ledgerDone: true });
+    type Migrated = { sweepApprovals: Array<{ tasks: Array<{ contexts?: string[] }> }> };
+    const migrated = migrateOldSettings({ sweepApprovals: [record([task({ contexts: ['@Phone', 'bad'] }), task({ id: 'aio-00000000-0000-4000-8000-000000000002' })])] } as never) as unknown as Migrated;
+    expect(migrated.sweepApprovals[0].tasks[0].contexts).toEqual(['@phone']);
+    expect(Object.hasOwn(migrated.sweepApprovals[0].tasks[1], 'contexts')).toBe(false);
+    const again = migrateOldSettings(migrated as never) as unknown as Migrated;
+    expect(again.sweepApprovals[0].tasks[0].contexts).toEqual(['@phone']);
+  });
+});
+
 describe('prompt and parser', () => {
   it('the default prompt is unchanged: it names exactly the built-in contexts', async () => {
     const note = await guarded('Call Sam on Friday.');

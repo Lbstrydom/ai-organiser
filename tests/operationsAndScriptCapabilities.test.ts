@@ -31,7 +31,10 @@ describe('operation summary: decoding and pruning', () => {
     for (const bad of [null, 'x', {}, { ...good, opId: 'x' }, { ...good, kind: 'nope' }, { ...good, status: 'nope' }, { ...good, createdAt: -1 }, { ...good, updatedAt: 'x' }, { ...good, device: '' }, { ...good, recovery: null }, { ...good, recovery: { journal: 1, key: 'k' } }]) {
       expect(parseSummary(bad)).toBeNull();
     }
-    expect(parseSummary({ ...good, resources: [1, 'a'] })?.resources).toEqual(['a']);
+    // resources are never truncated or filtered: an unrepresentable list is refused whole
+    expect(parseSummary({ ...good, resources: [1, 'a'] })).toBeNull();
+    expect(parseSummary({ ...good, resources: Array.from({ length: 33 }, (_, i) => `r${i}`) })).toBeNull();
+    expect(parseSummary({ ...good, resources: Array.from({ length: 32 }, (_, i) => `r${i}`) })?.resources).toHaveLength(32);
   });
 
   it('prunes finished entries past 30 days and never an unfinished one', () => {
@@ -46,7 +49,9 @@ describe('reconciliation with the domain journal', () => {
     const s = sum({ status: 'running', updatedAt: T0 });
     expect(reconcileWithJournal(s, { state: 'found', status: 'done', updatedAt: T0 + 5 })).toEqual({ kind: 'repaired', summary: { ...s, status: 'done', updatedAt: T0 + 5 } });
     expect(reconcileWithJournal(s, { state: 'found', status: 'done', updatedAt: T0 - 5 }).kind).toBe('ok');
-    expect(reconcileWithJournal(s, { state: 'found', status: 'running', updatedAt: T0 + 5 }).kind).toBe('ok');
+    // newer activity within the same status is adopted too
+    expect(reconcileWithJournal(s, { state: 'found', status: 'running', updatedAt: T0 + 5 })).toEqual({ kind: 'repaired', summary: { ...s, updatedAt: T0 + 5 } });
+    expect(reconcileWithJournal(s, { state: 'found', status: 'running', updatedAt: T0 }).kind).toBe('ok');
   });
 
   it('a summary without a journal is orphaned, an unreadable journal is surfaced; neither is trusted', () => {
@@ -161,7 +166,13 @@ describe('OperationIndex', () => {
     const throwing: OperationStore = { ...broken, list: async () => { throw new Error('boom'); } };
     expect(await new OperationIndex({ store: throwing, device: 'd' }).load()).toEqual({ ok: false, error: 'operation-store-unreadable' });
     const unwritable: OperationStore = { ...broken, list: async () => ok([]) };
-    expect(await new OperationIndex({ store: unwritable, device: 'dev-1' }).publish(sum())).toEqual({ ok: false, error: 'operation-store-unwritable' });
+    const index = new OperationIndex({ store: unwritable, device: 'dev-1' });
+    await index.load();
+    expect(await index.publish(sum())).toEqual({ ok: false, error: 'operation-store-unwritable' });
+    const throwingWrite: OperationStore = { ...unwritable, write: async () => { throw new Error('boom'); } };
+    const index2 = new OperationIndex({ store: throwingWrite, device: 'dev-1' });
+    await index2.load();
+    expect(await index2.publish(sum())).toEqual({ ok: false, error: 'operation-store-unreadable' });
   });
 
   it('only the owner updates an operation, and live tracking follows its status', async () => {
@@ -230,6 +241,83 @@ describe('OperationIndex', () => {
     expect(await store.list()).toEqual({ ok: true, value: ['op-aaaaaa.json'] });
     expect(await store.read('op-aaaaaa.json')).toEqual({ ok: true, value: '{}' });
     expect(adapterOperationStore({ app: { vault: { adapter } } } as never)).toBeNull();
+  });
+});
+
+describe('OperationIndex: integrity', () => {
+  it('needs a load first, and validates what it writes the way a load does', async () => {
+    const f = fakeStore();
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 });
+    expect(await index.publish(sum())).toEqual({ ok: false, error: 'operation-not-loaded' });
+    expect(await index.takeOver('op-aaaaaa', true)).toEqual({ ok: false, error: 'operation-not-loaded' });
+    await index.load();
+    expect(await index.publish(sum({ opId: 'x' }))).toEqual({ ok: false, error: 'operation-invalid' });
+    expect(await index.publish(sum({ resources: Array.from({ length: 40 }, (_, i) => `r${i}`) }))).toEqual({ ok: false, error: 'operation-invalid' });
+    expect(f.calls.write).toBe(0);
+  });
+
+  it('checks the owner against the store, not the cache: a take-over that synced in is respected', async () => {
+    const f = fakeStore(Object.fromEntries([fileOf(sum({ opId: 'op-mine001' }))]));
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 + 1000 });
+    await index.load();
+    expect(index.stillOwner('op-mine001')).toBe(true);
+    // another device takes it over; the file synced in after this index was read
+    f.files.set('op-mine001.json', JSON.stringify(sum({ opId: 'op-mine001', device: 'dev-2', updatedAt: T0 + 500 })));
+    expect(await index.publish(sum({ opId: 'op-mine001', updatedAt: T0 + 900 }))).toEqual({ ok: false, error: 'operation-not-owner' });
+    expect(JSON.parse(f.files.get('op-mine001.json')!).device).toBe('dev-2');
+    expect(index.stillOwner('op-mine001')).toBe(false);
+  });
+
+  it('writes run one at a time, so a slow older write cannot land after a newer one', async () => {
+    const files = new Map<string, string>();
+    const order: string[] = [];
+    const gate: { release: () => void } = { release: () => undefined };
+    const store: OperationStore = {
+      list: async () => ok([...files.keys()]),
+      read: async (f) => ok(files.get(f) ?? ''),
+      write: async (f, t) => {
+        const status = JSON.parse(t).status as string;
+        if (status === 'running') await new Promise<void>((r) => { gate.release = r; });
+        files.set(f, t); order.push(status); return ok(undefined);
+      },
+      remove: async () => ok(undefined),
+    };
+    const index = new OperationIndex({ store, device: 'dev-1', now: () => T0 });
+    await index.load();
+    const first = index.publish(sum({ status: 'running' }));
+    const second = index.publish(sum({ status: 'done', updatedAt: T0 + 5 }));
+    await new Promise((r) => setTimeout(r, 10));
+    gate.release();
+    await Promise.all([first, second]);
+    expect(order).toEqual(['running', 'done']);
+    expect(JSON.parse(files.get('op-aaaaaa.json')!).status).toBe('done');
+  });
+
+  it('an unreadable summary fails the load and keeps the last trustworthy index', async () => {
+    const f = fakeStore(Object.fromEntries([fileOf(sum({ opId: 'op-good001' }))]));
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 });
+    await index.load();
+    expect(index.list().map((s) => s.opId)).toEqual(['op-good001']);
+    f.files.set('op-bad0001.json', JSON.stringify(sum({ opId: 'op-bad0001' })));
+    const flaky: OperationStore = { ...f.store, read: async (file) => (file === 'op-bad0001.json' ? err('operation-store-unreadable') : f.store.read(file)) };
+    const again = new OperationIndex({ store: flaky, device: 'dev-1', now: () => T0 });
+    expect(await again.load()).toEqual({ ok: false, error: 'operation-store-unreadable' });
+    expect(again.isLoaded()).toBe(false);
+    expect(again.list()).toEqual([]);
+    // the first index kept its state
+    expect(index.list().map((s) => s.opId)).toEqual(['op-good001']);
+  });
+
+  it('hands out copies only: mutating what it returns changes nothing inside', async () => {
+    const f = fakeStore();
+    const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 });
+    await index.load();
+    const mine = sum({ resources: ['a'] });
+    await index.publish(mine);
+    mine.status = 'failed';
+    index.get('op-aaaaaa')!.status = 'failed';
+    index.list()[0].resources!.push('b');
+    expect(index.get('op-aaaaaa')).toMatchObject({ status: 'running', resources: ['a'] });
   });
 });
 

@@ -94,6 +94,8 @@ export const GUIDANCE_CODES = [
     'operation-store-unwritable',
     'operation-not-owner',
     'operation-not-found',
+    'operation-not-loaded',
+    'operation-invalid',
     'operation-takeover-too-soon',
     'operation-takeover-unconfirmed',
     'operation-not-takeover',

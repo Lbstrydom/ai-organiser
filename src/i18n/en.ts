@@ -4097,6 +4097,8 @@ export const en: Translations = {
         "operation-store-unreadable": { message: "The list of unfinished operations could not be read.", nextStep: "Nothing was lost. Reload Obsidian and try again." },
         "operation-store-unwritable": { message: "The list of unfinished operations could not be saved.", nextStep: "Check that the plugin folder is writable, then try again." },
         "operation-not-owner": { message: "This operation belongs to another device.", nextStep: "Let it finish there, or take it over from the weekly review once it has been idle for a day." },
+        "operation-not-loaded": { message: "The list of unfinished operations has not been read yet.", nextStep: "Wait a moment and try again." },
+        "operation-invalid": { message: "That operation record is not valid, so it was not saved.", nextStep: "Try again. If it keeps happening, reload Obsidian." },
         "operation-not-found": { message: "That operation is no longer listed.", nextStep: "Refresh the list and try again." },
         "operation-takeover-too-soon": { message: "This operation was updated less than a day ago.", nextStep: "Wait until it has been idle for 24 hours before taking it over." },
         "operation-takeover-unconfirmed": { message: "Taking over needs your confirmation that the plugin is not running on the other device.", nextStep: "Confirm that and try again." },

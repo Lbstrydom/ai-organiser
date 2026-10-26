@@ -64,7 +64,10 @@ export function insertFrontmatterKeys(text: string, entries: ReadonlyArray<reado
     const lines = entries.map(([key, value]) => `${key}: ${yamlScalar(value)}${eol}`).join('');
     const region = findFrontmatter(text);
     if (region === 'unclosed') return err('frontmatter-unreadable');
-    if (region === null) return ok({ text: `---${eol}${lines}---${eol}${text}`, frontmatterCreated: true });
+    if (region === null) {
+        const created = `---${eol}${lines}---${eol}${text}`;
+        return verifyInserted(created, entries) ? ok({ text: created, frontmatterCreated: true }) : err('frontmatter-unreadable');
+    }
     const body = text.slice(region.bodyStart, region.closerStart);
     let parsed: unknown;
     try {
@@ -84,5 +87,12 @@ export function insertFrontmatterKeys(text: string, entries: ReadonlyArray<reado
     }
     const lineHas = (line: string, key: string): boolean => new RegExp(`^${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:`).test(line.replace(/\r$/, ''));
     if (body.split('\n').some((l) => entries.some(([key]) => lineHas(l, key)))) return err('frontmatter-key-exists');
-    return ok({ text: text.slice(0, region.closerStart) + lines + text.slice(region.closerStart), frontmatterCreated: false });
+    const next = text.slice(0, region.closerStart) + lines + text.slice(region.closerStart);
+    return verifyInserted(next, entries) ? ok({ text: next, frontmatterCreated: false }) : err('frontmatter-unreadable');
+}
+
+/** The result must still be a mapping that holds every new key with exactly the string that was meant. */
+function verifyInserted(text: string, entries: ReadonlyArray<readonly [string, string]>): boolean {
+    const record = readFrontmatterRecord(text);
+    return !!record && entries.every(([key, value]) => record[key] === value);
 }
