@@ -11,6 +11,8 @@ import { assertWritable, normalisePath, type ProtectedSource } from '../../core/
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
 import { collectRecords, projectionScope, scopedFiles, scopeConfigFromSettings, scopeHashOf } from '../agentIndex/agentIndexService';
 import { isFeatureEnabled } from '../featureService';
+import { normaliseShareFolders, shareFolderOf, shareOptInActive } from '../aiWorkspaces/aiShareScope';
+import type { ProjectionScope } from '../agentIndex/agentIndexProjection';
 import { logger } from '../../utils/logger';
 import { buildChatExport, CHAT_EXPORT_INSTRUCTIONS, CHAT_EXPORT_NAME_PATTERN, isOwnExport } from './chatExport';
 import { validateVaultPath } from './connectorGuides';
@@ -47,7 +49,9 @@ async function ensureFolder(plugin: AIOrganiserPlugin, dir: string): Promise<voi
 /** The scope and folder a confirmation applies to. Captured when the confirmation is shown, compared before writing. */
 export async function exportRevision(plugin: AIOrganiserPlugin): Promise<string> {
     const s = plugin.settings;
-    return `${await scopeHashOf(scopeConfigFromSettings(s))}|${s.agentConnectorFolder.trim()}|${JSON.stringify(s.protectedFolders)}`;
+    // With the AI sharing opt-in on, the allow-list is part of what a confirmation was given for; off, the revision is what it always was.
+    const share = shareOptInActive(s) ? `|share:${JSON.stringify(normaliseShareFolders(s.aiShareFolders).sort())}` : '';
+    return `${await scopeHashOf(scopeConfigFromSettings(s))}|${s.agentConnectorFolder.trim()}|${JSON.stringify(s.protectedFolders)}${share}`;
 }
 
 export interface ExportSummary {
@@ -65,6 +69,12 @@ export interface ExportSummary {
  * the protected list and the feature switch are checked again right before writing and again before
  * any superseded part is trashed. Never throws.
  */
+/** The vault map's scope with the AI sharing opt-in applied: a note appears only if it is also inside the allow-list. Off: unchanged. */
+function optedInScope(scope: ProjectionScope, s: Parameters<typeof shareOptInActive>[0] & Pick<AIOrganiserPlugin['settings'], 'aiShareFolders'>): ProjectionScope {
+    if (!shareOptInActive(s)) return scope;
+    return { ...scope, isIncluded: (path: string) => scope.isIncluded(path) && shareFolderOf(path, s) !== null };
+}
+
 export async function exportChatProject(plugin: AIOrganiserPlugin, options: { expectedRevision?: string } = {}): Promise<Result<ExportSummary>> {
     try {
         const s = plugin.settings;
@@ -83,7 +93,7 @@ export async function exportChatProject(plugin: AIOrganiserPlugin, options: { ex
         const collected = await collectRecords(plugin.app, scopedFiles(plugin.app, config), config);
         const built = buildChatExport({
             records: collected.records,
-            scope: projectionScope(config),
+            scope: optedInScope(projectionScope(config), s),
             instructions: CHAT_EXPORT_INSTRUCTIONS,
             generatedAt: new Date().toISOString(),
         });

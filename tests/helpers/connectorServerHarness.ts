@@ -14,6 +14,11 @@ export interface ScopeShape {
 	protectedFolders?: string[];
 	indexPath?: string;
 	disabled?: boolean;
+	shareFolders?: string[];
+	requireOptIn?: boolean;
+	packs?: { folder: string; revision: string };
+	/** Written over the document as given (for malformed cases) */
+	raw?: Record<string, unknown>;
 }
 
 export interface TestVault {
@@ -46,6 +51,10 @@ export function makeVault(): TestVault {
 				disabled: scope.disabled ?? false,
 				includeFolders: scope.include ?? [], excludeFolders: scope.exclude ?? [], protectedFolders: scope.protectedFolders ?? [],
 				indexPath: scope.indexPath ?? '.ai-organiser/agent-index.jsonl',
+				...(scope.shareFolders !== undefined ? { shareFolders: scope.shareFolders } : {}),
+				...(scope.requireOptIn ? { requireOptIn: true } : {}),
+				...(scope.packs ? { packs: scope.packs } : {}),
+				...(scope.raw ?? {}),
 			}));
 		},
 		writeIndex(notes, indexPath = '.ai-organiser/agent-index.jsonl') {

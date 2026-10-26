@@ -29,6 +29,9 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
                 ta.inputEl.rows = 4;
             });
 
+        new Setting(this.containerEl).setName(c.optInName).setDesc(c.optInDesc)
+            .addToggle((tg) => tg.setValue(s.aiShareRequireOptIn === true).onChange((v) => { s.aiShareRequireOptIn = v; save(); }));
+
         new Setting(this.containerEl).setName(c.packFolderName).setDesc(c.packFolderDesc)
             .addText((tx) => {
                 tx.setValue(s.aiWorkspacePackFolder).onChange((v) => {

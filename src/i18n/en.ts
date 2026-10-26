@@ -4578,6 +4578,8 @@ export const en: Translations = {
         shareFoldersName: "Folders shared with AI apps",
         shareFoldersDesc: "One folder per line: an Area or project folder. Nothing is shared until you add a folder. Notes in protected, excluded or hidden folders are never included.",
         shareFoldersPlaceholder: "2 Areas/Work\n1 Projects/Website",
+        optInName: "Apply this list to the connector and the vault map",
+        optInDesc: "Off by default, so the connector and the chat vault map keep serving what they serve today. When on, they serve only notes inside the folders listed above (an empty list serves nothing). Packs always follow the list, with or without this switch. Changing it updates the connector's scope straight away; make a new vault map to update that file.",
         packFolderName: "Pack folder",
         packFolderDesc: "Where context packs are saved. Packs are never shared back into other packs.",
         revokeNote: "Removing a folder stops future packs from including it. A pack you already uploaded stays in that app until you delete it there.",

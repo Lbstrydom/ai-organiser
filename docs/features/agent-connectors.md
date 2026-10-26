@@ -52,3 +52,7 @@ A small local MCP server the person saves as a file, so an AI app can search and
 ### Tests (H)
 
 `connectorServer` (the real server as a child process: both eras, framing, containment table, links via junction, hot reload, fail-closed, revocation end to end with the real publisher), `connectorServerSource` (static scan, parity), `connectorBundle` (ZIP written then read back by an independent reader and a real ZIP library when installed, manifest, TOML round trip), `connectorScope` (publisher lifecycle), `connectorFiles`, `connectorSelfTest`.
+
+## AI sharing (opt-in) and the pack tool
+
+See [ai-workspaces](ai-workspaces.md#connector-and-vault-map-ai-sharing-opt-in-pack-tool). Summary: with the opt-in on, the server serves only notes inside the share allow-list (`scopeAllows` / `folderVisible` mirror the plugin; the parity suite covers the opt-in); `get_workspace_pack` is listed only while packs are served and re-checks policy revision, every source and the pack digest before serving. The server now also requires `node:crypto` (a hash only). **Any change to the plugin scope rule must still be mirrored in the server source.**

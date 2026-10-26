@@ -13,6 +13,15 @@ import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { isInIndexScope, scopeConfigFromSettings } from '../agentIndex/agentIndexService';
 import { sha256Hex } from '../attachmentDuplicateService';
 import type { AIOrganiserSettings } from '../../core/settings';
+import { isFeatureEnabled } from '../featureService';
+
+/**
+ * The opt-in for the connector and the vault map: on only while AI workspaces are on AND the person turned the opt-in on. Off, the
+ * connector and the map serve exactly what they always did.
+ */
+export function shareOptInActive(settings: Pick<AIOrganiserSettings, 'featureFlags' | 'aiShareRequireOptIn'>): boolean {
+    return isFeatureEnabled(settings as never, 'ai-workspaces') && settings.aiShareRequireOptIn === true;
+}
 
 /** At most this many allow-list entries. */
 export const MAX_SHARE_FOLDERS = 40;

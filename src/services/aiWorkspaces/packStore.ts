@@ -64,7 +64,7 @@ async function writeOne(plugin: AIOrganiserPlugin, aioId: string, prepared: Prep
         if (!(existing instanceof TFile)) await vault.create(path, prepared.text);
         else if (await vault.read(existing) !== prepared.text) await vault.modify(existing, prepared.text);
         const entry: PackEntry = { id: name.replace(/\.md$/, ''), createdAt: now.toISOString(), path, digest: prepared.digest };
-        const json = `${JSON.stringify({ packId: entry.id, path, digest: entry.digest, createdAt: entry.createdAt, generatorVersion: prepared.generatorVersion, sharePolicyRevision: prepared.sharePolicyRevision }, null, 2)}\n`;
+        const json = `${JSON.stringify({ packId: entry.id, path, digest: entry.digest, createdAt: entry.createdAt, generatorVersion: prepared.generatorVersion, sharePolicyRevision: prepared.sharePolicyRevision, sources: prepared.sources }, null, 2)}\n`;
         const latest = vault.getAbstractFileByPath(pointer);
         if (latest instanceof TFile) await vault.modify(latest, json);
         else await vault.create(pointer, json);
