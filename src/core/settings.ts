@@ -5,6 +5,8 @@ import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, Ov
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
+import { normaliseShareFolders } from '../services/aiWorkspaces/aiShareScope';
+import { normaliseWorkspaces, type WorkspaceRecord } from '../services/aiWorkspaces/workspaceRecord';
 import { normaliseParaRoots, type ParaRoot } from '../services/projects/paraRoots';
 import { isValidDue, normaliseRoutingRules, normaliseTasksLists, type RoutingRule, type TasksListConfig } from '../services/inboxSweep/tasksRouting';
 import type { SweepItemKind } from '../services/prompts/sweepPrompts';
@@ -447,6 +449,14 @@ export interface AIOrganiserSettings {
     agentIndexFrontmatterKeys: string[];
     /** Opt-in: export the text of links to notes that do not exist. */
     agentIndexExportUnresolvedLinks: boolean;
+    /** AI sharing allow-list: Area or project folders whose notes may be shared with an AI app. Empty = nothing (default deny). */
+    aiShareFolders: string[];
+    /** When on, the connector and vault map also honour the allow-list (default off: existing connector users see no change). */
+    aiShareRequireOptIn: boolean;
+    /** Where context packs are written (a plugin output root, never shared back). */
+    aiWorkspacePackFolder: string;
+    /** Workspace records by project or Area id (chat projects, context sources, packs made). */
+    aiWorkspaces: Record<string, WorkspaceRecord>;
     /** Allow the optional "add or update the instructions block" write (default off) */
     agentInstructionsWrite: boolean;
     /** The note that holds the instructions block */
@@ -1068,6 +1078,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     agentIndexIncludeHeadings: false,
     agentIndexFrontmatterKeys: [],
     agentIndexExportUnresolvedLinks: false,
+    aiShareFolders: [],
+    aiShareRequireOptIn: false,
+    aiWorkspacePackFolder: 'AI-Organiser/Workspace packs',
+    aiWorkspaces: {},
     agentInstructionsWrite: false,
     agentInstructionsPath: 'AGENTS.md',
     agentConnectorFolder: '',
@@ -1668,6 +1682,10 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
     old.agentConnectorScopeStale = old.agentConnectorScopeStale === true;
     old.agentConnectorFolder = typeof old.agentConnectorFolder === 'string' ? old.agentConnectorFolder.trim() : d.agentConnectorFolder;
     old.agentInstructionsPath = typeof old.agentInstructionsPath === 'string' && old.agentInstructionsPath.trim() !== '' ? old.agentInstructionsPath.trim() : d.agentInstructionsPath;
+    old.aiShareFolders = normaliseShareFolders(old.aiShareFolders);
+    old.aiShareRequireOptIn = old.aiShareRequireOptIn === true;
+    old.aiWorkspacePackFolder = typeof old.aiWorkspacePackFolder === 'string' && old.aiWorkspacePackFolder.trim() !== '' ? old.aiWorkspacePackFolder.trim() : d.aiWorkspacePackFolder;
+    old.aiWorkspaces = normaliseWorkspaces(old.aiWorkspaces);
 
     old.cloudInventoryScriptUrl = typeof old.cloudInventoryScriptUrl === 'string' ? old.cloudInventoryScriptUrl.trim() : '';
     const pairs = Array.isArray(old.cloudInventoryPairs) ? old.cloudInventoryPairs : [];

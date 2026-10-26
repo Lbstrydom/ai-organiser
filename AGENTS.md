@@ -306,6 +306,12 @@ Repo-wide rules that bind *every* subsystem are in
 | Connect an AI app | Guides for Claude Desktop, Codex and command-line agents that state what each route enforces; a chat-project vault map built from the index scope; the plugin never edits another app's config | Changing a guide, a snippet, the export, or any claim about what is enforced |
 | Read-only connector | A dependency-free local MCP server (both protocol eras) that serves only notes inside the index scope; scope read per request and fail-closed; revocation published and verified; `.mcpb` bundle for Claude Desktop, file plus TOML for Codex | Touching the server source (**mirror any change to `isInIndexScope`**), the scope publisher, containment, or the bundle |
 
+### [AI Workspaces](docs/features/ai-workspaces.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| AI workspaces | Default-deny sharing allow-list (`aiShareFolders`), a per-project workspace record and owned block, deterministic instructions and a dated context pack; a preview bound to a snapshot (hashes + policy revision) stands before any copy or write; the plugin sends nothing | Changing what may be shared, the pack or instructions bytes, the preview binding, or the `## Handoff` contract |
+
 ### [Projects, Operations and the Google Script Row](docs/features/projects.md)
 
 | Subsystem | What it is | Read it when |
