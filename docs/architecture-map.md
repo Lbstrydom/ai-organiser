@@ -1,7 +1,7 @@
 <!-- audit-loop:architectural-map -->
 # Architecture Map — Lbstrydom/ai-organiser
 
-- Generated: 2026-10-26T01:37:03.284Z   commit: 2855dea2dbb7   refresh_id: f679749c-17e4-417c-8784-c22f9ca99bdb
+- Generated: 2026-10-26T03:00:55.644Z   commit: e83e3931cdc5   refresh_id: f679749c-17e4-417c-8784-c22f9ca99bdb
 - Store: `d5a9d07b91225a93 (db=audit_loop)`
 - Drift score: 122 / threshold 20   status: `RED`
 - Domains: 31   Symbols: 4245   Layering violations (dep-cruiser rules): 0
