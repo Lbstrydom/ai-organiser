@@ -33,10 +33,10 @@ export interface RowRouting {
     dueFromText: boolean;
 }
 
-export function defaultRowRouting(item: { kind: SweepItemKind; context: string; text: string }, routing: ReviewRouting): RowRouting {
+export function defaultRowRouting(item: { kind: SweepItemKind; context: string; text: string; due?: string }, routing: ReviewRouting): RowRouting {
     const destination = resolveDestination(routing.rules, item, { tasksListId: routing.mainId, tasksLists: routing.lists });
     const needs = needsDate(destination, routing);
-    const fromText = needs ? isoDateInText(item.text) : null;
+    const fromText = needs ? (item.due && isValidDue(item.due) ? item.due : isoDateInText(item.text)) : null;
     return { destination, due: fromText ?? '', dueFromText: fromText !== null };
 }
 

@@ -20,6 +20,8 @@ export interface SweepItem {
     waitingOn?: string;
     /** A quote from the note that supports the item */
     evidence: string;
+    /** A date the source stated (an AI hand-back's (due: …)); the review only pre-fills it, never invents one */
+    due?: string;
 }
 
 export const MAX_ITEMS_PER_NOTE = 25;

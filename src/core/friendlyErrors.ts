@@ -92,6 +92,7 @@ export const GUIDANCE_CODES = [
     'script-capability-missing',
     'ai-share-empty',
     'pack-over-budget',
+    'handoff-note-unplaceable',
     'pack-links-unverified',
     'pack-preview-stale',
     'pack-folder-missing',

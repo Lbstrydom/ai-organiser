@@ -173,20 +173,22 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
     }
 }
 
-function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[]): Promise<void> {
+/** The sweep review for proposals from any source (a sweep run, or an AI hand-back's next actions). */
+export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[], projectId?: string): Promise<CommitInput | null> {
     // Destination controls only while Google Tasks export is on and the setup has something to choose; the project only when the service resolves one.
     const routing = isFeatureEnabled(plugin.settings, 'google-tasks-export') ? reviewRoutingFor(plugin.settings) : null;
     const service = getProjectService(plugin);
     const projectOf = (path: string): string | null => {
+        if (projectId) return projectId;
         const found = service?.resolveSourceProject(path);
         return found?.kind === 'project' ? found.aioId : null;
     };
-    return new Promise<void>((resolve) => {
+    return new Promise<CommitInput | null>((resolve) => {
         new InboxSweepReviewModal(plugin.app, plugin, notes, (result: CommitInput | null) => {
-            if (!result) { resolve(); return; }
+            if (!result) { resolve(null); return; }
             commit(plugin, result)
                 .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); })
-                .finally(resolve);
+                .finally(() => resolve(result));
         }, contexts, routing, projectOf).open();
     });
 }

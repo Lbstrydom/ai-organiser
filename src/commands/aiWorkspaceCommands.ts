@@ -8,6 +8,9 @@ import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { getProjectService } from '../services/projects/projectService';
 import type { ProjectRef } from '../services/projects/projectIndex';
+import { handbackActive, prepareHandback } from '../services/aiWorkspaces/handbackService';
+import { review } from './inboxSweepCommands';
+import { HandbackReviewModal } from '../ui/modals/HandbackReviewModal';
 import { confirmInstructions, confirmPack, preparePack } from '../services/aiWorkspaces/workspaceService';
 import { AiWorkspaceModal } from '../ui/modals/AiWorkspaceModal';
 import { SharePreviewModal } from '../ui/modals/SharePreviewModal';
@@ -61,6 +64,23 @@ async function share(plugin: AIOrganiserPlugin, project: ProjectRef, mode: 'pack
 
 export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
+    // The hand-back review also needs the capture inbox (its gate is both features); with either off the command does not exist.
+    if (handbackActive(plugin)) {
+        plugin.addCommand({
+            id: 'review-ai-handback',
+            name: t.commands.reviewAiHandback,
+            icon: 'inbox',
+            callback: () => {
+                const file = plugin.app.workspace.getActiveFile();
+                if (!file || file.extension !== 'md') { new Notice(t.handback.openNoteFirst, 5000); return; }
+                void prepareHandback(plugin, file).then((prepared) => {
+                    if (!prepared.ok) { guidance(plugin, prepared.error); return; }
+                    if (prepared.value.parse.status === 'malformed' && prepared.value.parse.reasons.includes('no-section')) { new Notice(t.handback.noHandoffHere, 6000); return; }
+                    new HandbackReviewModal(plugin.app, plugin, prepared.value, (notes, contexts, projectId) => review(plugin, notes, contexts, projectId)).open();
+                });
+            },
+        });
+    }
     plugin.addCommand({
         id: 'edit-ai-workspace',
         name: t.commands.editAiWorkspace,
