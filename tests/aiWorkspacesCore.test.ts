@@ -215,3 +215,11 @@ describe('context pack', () => {
     expect(neutraliseLinks('[[Ghost]] ![[Ghost]]', 'a.md', i)).toBe('[[Ghost]] [not shared]');
   });
 });
+
+describe('markdown links are neutralised like wikilinks', () => {
+  const i = { reasonNotShareable: (p: string) => (p === 'Work/Secret.md' ? ('outside-allow-list' as const) : null), resolveLink: (l: string) => (l === 'ghost.md' ? null : l) };
+  it('hides private targets, images and attachments; leaves web links and anchors', () => {
+    const out = neutraliseLinks('[a](Work/Secret.md) [b](Work/Open.md) ![c](Work/Secret.md) ![d](img.png) [e](https://example.com) [f](#top) [g](<Work/Secret.md#h>) [h](ghost.md)', 'x.md', i);
+    expect(out).toBe('a [not shared] [b](Work/Open.md) [not shared] [attachment not included] [e](https://example.com) [f](#top) g [not shared] h [not shared]');
+  });
+});

@@ -66,6 +66,26 @@ const ATTACHMENT_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|heic|pdf|docx?|pptx?|xlsx?
 
 /** Links and embeds in an included note: attachments are not included; a note the policy does not allow reads `[not shared]`. */
 export function neutraliseLinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
+    return neutraliseWikilinks(neutraliseMarkdownLinks(text, from, input), from, input);
+}
+
+/** `[text](path)` and `![alt](path)` to vault paths: the same rules as wikilinks. Web and mail addresses and in-page anchors are left as written. */
+function neutraliseMarkdownLinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
+    return text.replace(/(!?)\[([^\]\n]*)\]\(\s*(<[^>\n]*>|[^)\s\n]*)[^)\n]*\)/g, (whole, bang: string, label: string, rawTarget: string) => {
+        const target = rawTarget.replace(/^<|>$/g, '');
+        if (target === '' || target.startsWith('#') || /^(https?:|mailto:)/i.test(target)) return whole;
+        let path = target;
+        try { path = decodeURIComponent(target); } catch { /* keep as written */ }
+        path = path.replace(/#.*$/, '');
+        if (ATTACHMENT_EXT.test(path)) return bang ? '[attachment not included]' : `${label} [attachment not included]`;
+        const resolved = input.resolveLink(path, from);
+        if (resolved === null) return bang ? '[not shared]' : `${label} [not shared]`;
+        if (ATTACHMENT_EXT.test(resolved)) return '[attachment not included]';
+        return input.reasonNotShareable(resolved) === null ? whole : bang ? '[not shared]' : `${label} [not shared]`;
+    });
+}
+
+function neutraliseWikilinks(text: string, from: string, input: Pick<PackInput, 'reasonNotShareable' | 'resolveLink'>): string {
     return text.replace(/(!?)\[\[([^\]\n|#]+)(#[^\]\n|]*)?(\|([^\]\n]*))?\]\]/g, (whole, bang: string, target: string, _heading: string | undefined, _alias: string | undefined, alias: string | undefined) => {
         if (ATTACHMENT_EXT.test(target.trim())) return bang ? '[attachment not included]' : `${alias ?? target.trim()} [attachment not included]`;
         const resolved = input.resolveLink(target.trim(), from);

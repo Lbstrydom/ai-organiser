@@ -26,10 +26,16 @@ export function getWorkspace(plugin: AIOrganiserPlugin, aioId: string): Workspac
 
 /** Store the record and bring the block in the note up to date (a reviewed edit the person can decline). */
 export async function saveWorkspace(plugin: AIOrganiserPlugin, record: WorkspaceRecord): Promise<Result<true>> {
+    if (!aiWorkspacesActive(plugin)) return err('unknown');
     const normalised = normaliseWorkspace(record);
     if (!normalised) return err('project-id-invalid');
-    plugin.settings.aiWorkspaces = { ...plugin.settings.aiWorkspaces, [normalised.anchorId]: normalised };
-    await plugin.saveSettings();
+    try {
+        plugin.settings.aiWorkspaces = { ...plugin.settings.aiWorkspaces, [normalised.anchorId]: normalised };
+        await plugin.saveSettings();
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Could not save the workspace record', e);
+        return err('pack-write-failed');
+    }
     return writeBlock(plugin, normalised);
 }
 
@@ -132,14 +138,22 @@ async function currentHashes(plugin: AIOrganiserPlugin, prepared: PreparedPack):
     return out;
 }
 
+/** Refuse a stale preview. Sources are read FIRST and the policy revision taken after, so a revocation during the reads is seen. */
+async function stillFresh(plugin: AIOrganiserPlugin, pack: PreparedPack): Promise<Result<true>> {
+    try {
+        const hashes = await currentHashes(plugin, pack);
+        const s = plugin.settings;
+        return verifyPrepared(pack, { sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder), hashes });
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Could not re-check the preview', e);
+        return err('pack-preview-stale');
+    }
+}
+
 /** After the person confirmed the preview: refuse a stale one, write the pack, record it. */
 export async function confirmPack(plugin: AIOrganiserPlugin, prepared: PreparedWorkspacePack): Promise<Result<PackEntry>> {
     if (!aiWorkspacesActive(plugin)) return err('unknown');
-    const s = plugin.settings;
-    const check = verifyPrepared(prepared.pack, {
-        sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder),
-        hashes: await currentHashes(plugin, prepared.pack),
-    });
+    const check = await stillFresh(plugin, prepared.pack);
     if (!check.ok) return err(check.error);
     const written = await writePack(plugin, prepared.aioId, prepared.pack);
     if (!written.ok) return err(written.error);
@@ -153,10 +167,6 @@ export async function confirmPack(plugin: AIOrganiserPlugin, prepared: PreparedW
 /** Copy needs the same fresh check as a pack: what is copied is what the preview showed. */
 export async function confirmInstructions(plugin: AIOrganiserPlugin, prepared: PreparedWorkspacePack): Promise<Result<string>> {
     if (!aiWorkspacesActive(plugin)) return err('unknown');
-    const s = plugin.settings;
-    const check = verifyPrepared(prepared.pack, {
-        sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder),
-        hashes: await currentHashes(plugin, prepared.pack),
-    });
+    const check = await stillFresh(plugin, prepared.pack);
     return check.ok ? ok(prepared.pack.instructions) : err(check.error);
 }

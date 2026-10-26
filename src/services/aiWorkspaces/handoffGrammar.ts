@@ -8,22 +8,23 @@ export const HANDOFF_SECTIONS = ['Decisions', 'Next actions', 'Deliverables', 'Q
 
 /** The block exactly as the AI is told to write it. */
 export function renderHandoffContract(aioId: string): string {
+    const [decisions, actions, deliverables, questions] = HANDOFF_SECTIONS;
     return [
-        '## Handoff',
+        `## ${HANDOFF_HEADING}`,
         `Project ID: ${aioId}`,
         'Chat project: <name> (claude|chatgpt)',
         '',
-        '### Decisions',
+        `### ${decisions}`,
         '- Suggested: <text>',
         '- Decided: <text>',
         '',
-        '### Next actions',
+        `### ${actions}`,
         '- [ ] <text> @context (waiting: <person>) (due: YYYY-MM-DD)',
         '',
-        '### Deliverables',
+        `### ${deliverables}`,
         '- <file name>: <one line> (draft|released)',
         '',
-        '### Questions',
+        `### ${questions}`,
         '- <text>',
     ].join('\n');
 }

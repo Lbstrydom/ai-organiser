@@ -74,7 +74,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/upkeep/upkeepReport.ts': { count: 2, cls: 'guarded', reason: 'the report is created only after reportPathFor and a writability check, and replaced only over its own signed file through applyNoteEdit' },
 	'src/services/canvas/canvasWritePort.ts': { count: 1, cls: 'guarded', reason: 'the only code that edits an existing canvas; asserts writability of the canvas path before vault.process' },
 	'src/services/offload/offloadRuntime.ts': { count: 1, cls: 'guarded', reason: 'the final trash asserts writability of the source file first; note edits go through applyNoteEdit and canvas edits through the canvas write port' },
-	'src/services/aiWorkspaces/packStore.ts': { count: 5, cls: 'guarded', reason: 'plugin-owned pack output in the chosen visible folder: packFolderPath and assertWritable before every create, only the store\'s own pack-*.md names are ever trashed' },
+	'src/services/aiWorkspaces/packStore.ts': { count: 6, cls: 'guarded', reason: 'plugin-owned pack output in the chosen visible folder: packFolderPath and assertWritable before every create, only the store\'s own pack-*.md names are ever trashed' },
 	'src/services/operations/operationIndex.ts': { count: 3, cls: 'plugin-data', reason: 'operation summaries and their folder live in the plugin folder; nothing is written to a note' },
 	'src/services/offload/offloadJournal.ts': { count: 9, cls: 'plugin-data', reason: 'the offload journal and its temp files live in the plugin folder' },
 

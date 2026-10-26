@@ -1401,7 +1401,7 @@ export const OUTPUT_ROOT_SETTING_KEYS = [
     'minutesOutputFolder', 'exportOutputFolder', 'flashcardFolder', 'chatExportFolder', 'chatRootFolder',
     'presentationOutputFolder', 'canvasOutputFolder', 'webReaderOutputFolder', 'kindleOutputFolder',
     'newsletterOutputFolder', 'notebooklmExportFolder', 'sketchOutputFolder', 'researchOutputFolder',
-    'audioNarrationOutputFolder',
+    'audioNarrationOutputFolder', 'aiWorkspacePackFolder',
 ] as const;
 
 /**
@@ -1412,9 +1412,11 @@ export const OUTPUT_ROOT_SETTING_KEYS = [
 export function getPluginManagedFolders(settings: AIOrganiserSettings): string[] {
     const pluginFolder = normalizeFolderSegment(settings.pluginFolder, DEFAULT_PLUGIN_FOLDER);
     const outputRoot = getEffectiveOutputRoot(settings);
+    // Context packs are plugin output, kept out of tagging and protected folders; only while the feature is on.
+    const packs = settings.featureFlags?.['ai-workspaces'] === true && settings.aiWorkspacePackFolder?.trim() ? [settings.aiWorkspacePackFolder.trim()] : [];
 
     if (outputRoot === pluginFolder) {
-        return [pluginFolder]; // Same root — just exclude pluginFolder
+        return [pluginFolder, ...packs]; // Same root — just exclude pluginFolder
     }
 
     // When split, exclude config root + each managed output subfolder
@@ -1434,6 +1436,7 @@ export function getPluginManagedFolders(settings: AIOrganiserSettings): string[]
         getSketchOutputFullPath(settings),
         getResearchOutputFullPath(settings),
         getOutputSubfolderPath(settings, DEFAULT_RECORDING_FOLDER),
+        ...packs,
     ];
 }
 

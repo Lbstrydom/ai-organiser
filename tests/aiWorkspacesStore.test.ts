@@ -31,6 +31,7 @@ function fakePlugin(over: Record<string, unknown> = {}) {
       parent?.children.push(file);
       return file;
     },
+    read: async (file: TFile) => files.get(file.path)?.text ?? '',
     modify: async (file: TFile, text: string) => { files.set(file.path, { file, text }); },
   };
   const fileManager = {
@@ -51,7 +52,7 @@ const prepared = (digest: string): PreparedPack => ({
 
 describe('pack store', () => {
   it('names a pack by local time and digest', () => {
-    expect(packFileName(new Date(2026, 9, 26, 9, 5), 'abcdef0123456789')).toBe('pack-20261026-0905-abcdef01.md');
+    expect(packFileName(new Date(2026, 9, 26, 9, 5, 7), 'abcdef0123456789')).toBe('pack-20261026-090507-abcdef012345.md');
   });
 
   it('validates the folder: visible, inside the vault, outside protected folders', () => {
@@ -65,29 +66,40 @@ describe('pack store', () => {
 
   it('writes the pack and the latest pointer, and a second identical write adds no file', async () => {
     const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
-    const now = new Date(2026, 9, 26, 9, 5);
-    const first = await writePack(plugin, ID, prepared('aaaaaaaa11'), now);
-    expect(first.ok && first.value.path).toBe(`Packs/${ID}/pack-20261026-0905-aaaaaaaa.md`);
-    const again = await writePack(plugin, ID, prepared('aaaaaaaa11'), now);
+    const now = new Date(2026, 9, 26, 9, 5, 7);
+    const first = await writePack(plugin, ID, prepared('aaaaaaaa1111'), now);
+    expect(first.ok && first.value.path).toBe(`Packs/${ID}/pack-20261026-090507-aaaaaaaa1111.md`);
+    const again = await writePack(plugin, ID, prepared('aaaaaaaa1111'), now);
     expect(again.ok).toBe(true);
     expect([...files.keys()].filter((k) => k.endsWith('.md'))).toHaveLength(1);
-    expect(JSON.parse(files.get(`Packs/${ID}/latest.json`)?.text ?? '{}').digest).toBe('aaaaaaaa11');
+    expect(JSON.parse(files.get(`Packs/${ID}/latest.json`)?.text ?? '{}').digest).toBe('aaaaaaaa1111');
   });
 
   it('keeps the newest five packs and trashes only older pack files of its own', async () => {
     const { plugin, files, trashed } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
-    for (let i = 0; i < 7; i++) await writePack(plugin, ID, prepared(`${String(i).padStart(8, '0')}ff`), new Date(2026, 9, 26, 9, i));
+    for (let i = 0; i < 7; i++) await writePack(plugin, ID, prepared(`${String(i).padStart(10, '0')}ff`), new Date(2026, 9, 26, 9, i));
     // a user file in the same folder is never touched
     await plugin.app.vault.create(`Packs/${ID}/notes.md`, 'mine');
-    await writePack(plugin, ID, prepared('9999999900'), new Date(2026, 9, 26, 10, 0));
-    expect(trashed.every((p: string) => /pack-\d{8}-\d{4}-[0-9a-f]{8}\.md$/.test(p))).toBe(true);
+    await writePack(plugin, ID, prepared('999999999900'), new Date(2026, 9, 26, 10, 0));
+    expect(trashed.every((p: string) => /pack-\d{8}-\d{6}-[0-9a-f]{12}\.md$/.test(p))).toBe(true);
     expect(files.has(`Packs/${ID}/notes.md`)).toBe(true);
     expect([...files.keys()].filter((k) => /pack-/.test(k))).toHaveLength(5);
   });
 
+  it('replaces a file at the same name whose bytes are not the confirmed pack', async () => {
+    const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs' });
+    const now = new Date(2026, 9, 26, 9, 5, 7);
+    const first = await writePack(plugin, ID, prepared('aaaaaaaa1111'), now);
+    if (!first.ok) throw new Error('write');
+    const f = files.get(first.value.path);
+    if (f) f.text = 'edited by hand';
+    await writePack(plugin, ID, prepared('aaaaaaaa1111'), now);
+    expect(files.get(first.value.path)?.text).toBe('pack aaaaaaaa1111');
+  });
+
   it('refuses to write into a protected folder', async () => {
     const { plugin, files } = fakePlugin({ aiWorkspacePackFolder: 'Packs', protectedFolders: ['Packs'] });
-    expect(await writePack(plugin, ID, prepared('bbbbbbbb11'))).toEqual({ ok: false, error: 'protected-path' });
+    expect(await writePack(plugin, ID, prepared('bbbbbbbb1111'))).toEqual({ ok: false, error: 'protected-path' });
     expect(files.size).toBe(0);
   });
 });
