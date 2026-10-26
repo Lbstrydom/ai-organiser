@@ -404,8 +404,8 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
     const verify = async (status: HTMLElement, forList: boolean): Promise<void> => {
         status.setText(c.testing);
         const ep = await endpoint();
-        // A check that could not reach the script leaves nothing learned: readiness and the deployment kind are cleared.
-        const unreached = (code: string): void => { draft.operational = false; draft.combined = false; draft.notReady = 'tasks-wizard-unchecked'; status.setText(formatGuidance(describeError(t, code))); };
+        // A check that could not reach the script clears readiness; the deployment kind stays (not reaching a script says nothing about its kind, and a different link already reset it).
+        const unreached = (code: string): void => { draft.operational = false; draft.notReady = 'tasks-wizard-unchecked'; status.setText(formatGuidance(describeError(t, code))); };
         if (!ep.ok) { unreached(ep.error); return; }
         const ping = await pingTasksScript(ep.value);
         if (!ping.ok) { unreached(ping.error); return; }
