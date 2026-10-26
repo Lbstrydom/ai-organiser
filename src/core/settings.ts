@@ -4,6 +4,7 @@ import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
 import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior, MinutesStyle, DEFAULT_MINUTES_STYLE, MEDIA_SIZE_WARN_BYTES, DEFAULT_RECORDING_FOLDER } from './constants';
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
+import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
@@ -494,6 +495,8 @@ export interface AIOrganiserSettings {
     sweepExcludedTerms: string[];
     /** The user deliberately chose "Nothing to keep out" in the setup */
     sweepNothingToExclude: boolean;
+    /** The contexts the sweep offers, as the user wrote them. `[]` means the built-in set (never written into settings). */
+    sweepContexts: string[];
     /** The living report note that gets one section per run */
     sweepReportPath: string;
     sweepMaxNotes: number;
@@ -1083,6 +1086,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     sweepExcludedProperties: [],
     sweepExcludedTerms: [],
     sweepNothingToExclude: false,
+    sweepContexts: [],
     sweepReportPath: 'Inbox sweep report.md',
     sweepMaxNotes: 20,
     sweepMaxChars: 12000,
@@ -1753,6 +1757,8 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
         old[key] = strings(old[key]);
     }
     old.sweepNothingToExclude = old.sweepNothingToExclude === true;
+    // Idempotent: normalising a normalised list changes nothing, and `[]` stays `[]` (the built-in set is never stored).
+    old.sweepContexts = normaliseContexts(old.sweepContexts);
     old.sweepReportPath = typeof old.sweepReportPath === 'string' && old.sweepReportPath.trim() !== '' ? old.sweepReportPath.trim() : d.sweepReportPath;
     old.sweepMaxNotes = intIn(old.sweepMaxNotes, d.sweepMaxNotes, 1, 200);
     old.sweepMaxChars = intIn(old.sweepMaxChars, d.sweepMaxChars, 500, 100000);

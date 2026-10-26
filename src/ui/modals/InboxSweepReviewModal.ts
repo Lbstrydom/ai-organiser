@@ -7,7 +7,7 @@
  */
 import { App, Modal } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
-import { VALID_GTD_CONTEXTS } from '../../services/validators/constants';
+import { DEFAULT_SWEEP_CONTEXTS, isDefaultContextSet } from '../../services/inboxSweep/sweepContexts';
 import type { NoteProposals } from '../../services/inboxSweep/sweepService';
 import type { SweepItem, SweepItemKind } from '../../services/prompts/sweepPrompts';
 import type { CommitInput } from '../../services/inboxSweep/sweepCommit';
@@ -40,7 +40,7 @@ export class InboxSweepReviewModal extends Modal {
     private settled = false;
     private footer!: HTMLElement;
 
-    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void) {
+    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void, private readonly contexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS) {
         super(app);
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.addClass('ai-organiser-modal-content');
@@ -91,7 +91,7 @@ export class InboxSweepReviewModal extends Modal {
             if (row.item.kind === 'next_action') {
                 const ctx = line.createEl('select', { attr: { 'aria-label': t.itemContext } });
                 ctx.disabled = row.reported;
-                for (const c of ['', ...(VALID_GTD_CONTEXTS as readonly string[])]) {
+                for (const c of ['', ...this.contexts]) {
                     const o = ctx.createEl('option', { text: c || t.noContext, value: c });
                     if (c === row.context) o.selected = true;
                 }
@@ -139,6 +139,8 @@ export class InboxSweepReviewModal extends Modal {
             sourcePath: r.note.path,
             sourceHash: r.note.contentHash,
             keys: itemKeys({ text: r.item.text, evidence: r.item.evidence, edited: r.text.trim() }),
+            // Stamped only for a custom set: a record made under the built-in set is exactly what it always was.
+            ...(isDefaultContextSet(this.contexts) ? {} : { contexts: [...this.contexts] }),
         }));
         const dispositions = this.notes.map((note) => ({ sourcePath: note.path, sourceHash: note.contentHash, markSwept: this.isSwept(note) }));
         this.settled = true;

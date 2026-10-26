@@ -11,7 +11,7 @@ import { Result, ok, err } from '../../core/result';
 import { callScript, type ScriptTransport } from '../appsScriptClient';
 import { approvedListHashOf, MAX_TASKS_PER_REQUEST, TASKS_SCRIPT_MIN_SUPPORTED, TASKS_SCRIPT_VERSION } from './tasksScriptTemplate';
 import { applyExportResults, exportable, type ApprovalRecord, type ApprovedTask, type ExportResult } from './sweepLedger';
-import { sanitizeInline } from './sweepReport';
+import { safeContext, sanitizeInline } from './sweepReport';
 import { logger } from '../../utils/logger';
 
 export interface TasksPing {
@@ -89,7 +89,9 @@ export interface ExportSummary {
 }
 
 function toWire(task: ApprovedTask): { exportId: string; title: string; notes: string } {
-    const title = sanitizeInline(task.context ? `${task.text} ${task.context}` : task.text, 300);
+    // The context is judged against the set the task was approved under, as the report is.
+    const context = safeContext(task.context, task.contexts);
+    const title = sanitizeInline(context ? `${task.text} ${context}` : task.text, 300);
     return { exportId: task.id, title, notes: `From note: ${sanitizeInline(task.sourcePath, 200)}` };
 }
 

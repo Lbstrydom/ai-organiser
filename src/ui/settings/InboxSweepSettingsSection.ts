@@ -6,6 +6,7 @@ import { evaluateSetup, toFolderSet } from '../../core/setupState';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { openInboxSweepSetup, runInboxSweep, sweepBlocker } from '../../commands/inboxSweepCommands';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
+import { contextProblems, normaliseContexts } from '../../services/inboxSweep/sweepContexts';
 
 /**
  * Inbox sweep settings: a status row, a plain summary of what is swept and what is kept out, the
@@ -15,6 +16,37 @@ import { describeError, formatGuidance } from '../../core/friendlyErrors';
 export class InboxSweepSettingsSection extends BaseSettingSection {
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
         super(plugin, containerEl, settingTab);
+    }
+
+    /** The contexts the sweep offers: one per line, validated as the user types; empty means the built-in set. */
+    private renderContexts(parent: HTMLElement): void {
+        const c = this.plugin.t.inboxSweep;
+        const s = this.plugin.settings;
+        const setting = new Setting(parent).setName(c.contextsName).setDesc(c.contextsDesc);
+        const problem = parent.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning' });
+        problem.hide();
+        let area: HTMLTextAreaElement | null = null;
+        const showProblems = (raw: string): void => {
+            const dropped = contextProblems(raw).map((p) => p.line);
+            if (dropped.length === 0) { problem.hide(); return; }
+            problem.setText(c.contextsDropped.replace('{lines}', dropped.join(', ')));
+            problem.show();
+        };
+        setting.addTextArea((ta) => {
+            area = ta.inputEl;
+            ta.inputEl.rows = 4;
+            ta.setValue(s.sweepContexts.join('\n')).onChange((v) => {
+                showProblems(v);
+                s.sweepContexts = normaliseContexts(v);
+                void this.plugin.saveSettings();
+            });
+        });
+        setting.addButton((b) => b.setButtonText(c.contextsReset).onClick(() => {
+            s.sweepContexts = [];
+            if (area) area.value = '';
+            problem.hide();
+            void this.plugin.saveSettings();
+        }));
     }
 
     display(): void {
@@ -50,6 +82,7 @@ export class InboxSweepSettingsSection extends BaseSettingSection {
                 if (Number.isFinite(n) && n > 0) { set(n); void this.plugin.saveSettings(); }
             }));
         };
+        this.renderContexts(details);
         num(c.maxNotesName, () => s.sweepMaxNotes, (n) => { s.sweepMaxNotes = Math.min(200, n); });
         num(c.maxCharsName, () => s.sweepMaxChars, (n) => { s.sweepMaxChars = Math.min(100000, Math.max(500, n)); });
     }

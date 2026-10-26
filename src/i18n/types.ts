@@ -4264,6 +4264,10 @@ export interface Translations {
         advancedTitle: string;
         maxNotesName: string;
         maxCharsName: string;
+        contextsName: string;
+        contextsDesc: string;
+        contextsReset: string;
+        contextsDropped: string;
         wizardTitle: string;
         stepFolders: string;
         foldersHelp: string;

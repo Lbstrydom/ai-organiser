@@ -7,7 +7,7 @@
  * is not in the note drops the item. The response schema degrades instead of failing: over-long text
  * is truncated, unknown contexts become empty, malformed items are dropped and counted.
  */
-import { VALID_GTD_CONTEXTS } from '../validators/constants';
+import { DEFAULT_SWEEP_CONTEXTS } from '../inboxSweep/sweepContexts';
 import type { GuardedSnapshot } from '../inboxSweep/sweepGuard';
 
 export type SweepItemKind = 'next_action' | 'waiting_for' | 'project' | 'someday_maybe';
@@ -36,9 +36,9 @@ export function fenceNoteText(text: string): string {
     return text.replace(/<\s*\/\s*note\s*>/gi, '‹/note›').replace(/<\s*note\s*>/gi, '‹note›');
 }
 
-export function buildSweepPrompt(note: GuardedSnapshot, maxChars: number): string {
+export function buildSweepPrompt(note: GuardedSnapshot, maxChars: number, allowedContexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS): string {
     const text = fenceNoteText(promptText(note, maxChars).text);
-    const contexts = (VALID_GTD_CONTEXTS as readonly string[]).join(', ');
+    const contexts = allowedContexts.join(', ');
     return [
         '<task>',
         'Read the note below and list only the commitments it explicitly states for its author: things the author must do, things the author is waiting for from someone else, projects, and things the author may do someday.',
@@ -93,7 +93,7 @@ export interface ParsedSweep {
 }
 
 /** Turn the model's answer into verified items. Never throws; an unusable answer yields no items. */
-export function parseSweepResponse(raw: string, source: string): ParsedSweep {
+export function parseSweepResponse(raw: string, source: string, allowedContexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS): ParsedSweep {
     const json = extractJson(raw);
     if (!json || typeof json !== 'object') return { items: [], dropped: 0, malformed: true };
     const root = json as { gtd_processing?: unknown };
@@ -116,7 +116,7 @@ export function parseSweepResponse(raw: string, source: string): ParsedSweep {
             const evidence = asText(e?.evidence, MAX_EVIDENCE);
             if (!e || text === '' || !evidenceInSource(evidence, source)) { dropped++; continue; }
             if (items.length >= MAX_ITEMS_PER_NOTE) { dropped++; continue; }
-            const context = kind === 'next_action' && typeof e.context === 'string' && (VALID_GTD_CONTEXTS as readonly string[]).includes(e.context) ? e.context : '';
+            const context = kind === 'next_action' && typeof e.context === 'string' && allowedContexts.includes(e.context) ? e.context : '';
             items.push({ kind, text, context, waitingOn: kind === 'waiting_for' ? asText(e.waiting_on, 80) || undefined : undefined, evidence });
         }
     }

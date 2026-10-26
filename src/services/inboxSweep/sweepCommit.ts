@@ -149,7 +149,7 @@ async function saveRecord(plugin: AIOrganiserPlugin, record: ApprovalRecord): Pr
 async function writeSection(plugin: AIOrganiserPlugin, record: ApprovalRecord): Promise<Result<void>> {
     const path = validateReportPath(record.reportPath, plugin.settings.protectedFolders);
     if (!path.ok) return err(path.error);
-    const section = renderSection(record.runId, record.createdAt, record.tasks.map((t) => ({ id: t.id, text: t.text, context: t.context, sourcePath: t.sourcePath })));
+    const section = renderSection(record.runId, record.createdAt, record.tasks.map((t) => ({ id: t.id, text: t.text, context: t.context, sourcePath: t.sourcePath, contexts: t.contexts })));
     if (!section.ok) return err(section.error);
     const vault = plugin.app.vault;
     const existing = vault.getAbstractFileByPath(path.value);
@@ -182,7 +182,7 @@ async function writeSection(plugin: AIOrganiserPlugin, record: ApprovalRecord): 
 // ─── The four steps ─────────────────────────────────────────────────────────
 
 export interface CommitInput {
-    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string; keys?: string[] }>;
+    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string; keys?: string[]; contexts?: string[] }>;
     dispositions: readonly Disposition[];
 }
 

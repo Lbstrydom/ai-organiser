@@ -32,6 +32,10 @@ Reads the notes in the folders you choose and proposes next actions, waiting-for
 
 - **Rewording and headings.** Close but not identical wording under a different quoted line (the user reworded the line in the note) is `similar`, not new (identical wording stays `exact` whatever the quote): still addable, with the "Looks like one you already added" note. A second report section on the same day is numbered ("Sweep 2026-10-25 (2)") so headings stay distinct; findSection accepts the numbered form and appending stays idempotent.
 
+## Contexts
+
+The `@` contexts the sweep offers for next actions come from one pure module (`inboxSweep/sweepContexts.ts`). The setting `sweepContexts` is the user's own list (one per line in Advanced, at most 12, each `@` plus lower-case letters, digits, `-` or `_`); **`[]` means the built-in set** (`VALID_GTD_CONTEXTS`, imported, never copied, so meeting minutes are untouched). The defaults are never written into settings, so a later change of the built-in set reaches everyone who never customised it, and an unconfigured vault is byte-identical (prompt, parser, report line, dropdown, Google title, stored record; pinned in `tests/sweepContexts.test.ts`). One immutable set per run: `runSweep` reads it once and the prompt, the parser, the review dropdown and the approval all follow that set. An approval made under a custom set stamps it on each task (`ApprovedTask.contexts`); the report line and the Google title judge the context against that snapshot, and a record made under the built-in set carries no such key.
+
 ## Settings
 
 `sweepInboxFolders`, `sweepExcludedFolders`, `sweepExcludedTags`, `sweepExcludedProperties`, `sweepExcludedTerms`, `sweepNothingToExclude`, `sweepReportPath`, `sweepMaxNotes` (20), `sweepMaxChars` (12 000), `sweepLedger`, `sweepApprovals`, `sweepReportedItems`; `tasksScriptUrl`, `tasksListId`, `tasksListName`, `tasksLastTest`. The Tasks secret is in SecretStorage (`ai-organiser-google-tasks-secret`), created when the setup script is first copied.

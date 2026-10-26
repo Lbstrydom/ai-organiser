@@ -33,6 +33,8 @@ export interface ApprovedTask {
     error?: string;
     /** Item identity (see `itemKeys`); absent on tasks approved before item identity existed */
     keys?: string[];
+    /** The context set in force when the item was approved; absent for the built-in set, so an unconfigured record is byte-identical */
+    contexts?: string[];
 }
 
 

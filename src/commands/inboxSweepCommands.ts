@@ -26,6 +26,7 @@ import { freezeHeldMirror, isCaptureActive, isCaptureCorrupt, isHeldMirrorLoaded
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
 import { renameReportedItems, reportedKeysFor } from '../services/inboxSweep/sweepItemIdentity';
 import { validateReportPath } from '../services/inboxSweep/sweepReport';
+import { resolveSweepContexts } from '../services/inboxSweep/sweepContexts';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
 import { buildTasksScript } from '../services/inboxSweep/tasksScriptTemplate';
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
@@ -65,6 +66,7 @@ export function buildSweepDeps(plugin: AIOrganiserPlugin, signal?: AbortSignal):
         },
         policy: () => sweepRunPolicy(plugin),
         ledger: () => plugin.settings.sweepLedger,
+        contexts: () => resolveSweepContexts(plugin.settings),
         reportedKeys: (path) => reportedKeysFor(path, plugin.settings.sweepReportedItems, plugin.settings.sweepApprovals),
         currentPath: (path) => (plugin.app.vault.getAbstractFileByPath(path) instanceof TFile ? path : null),
     };
@@ -159,7 +161,7 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         const heldLine = held > 0 ? ` ${plural(t.summaryHeld, held, 'held').replace('{held}', String(held))}` : '';
         new Notice(`${plural(t.summaryNotice, r.notes.length, 'notes').replace('{kept}', String(kept)).replace('{failed}', String(r.failed))}${heldLine}`, 7000);
         if (r.notes.length === 0) return;
-        await review(plugin, r.notes);
+        await review(plugin, r.notes, r.contexts);
     } catch (e) {
         logger.error('Sweep', 'Sweep failed', e);
         guidanceNotice(plugin, 'unknown');
@@ -169,14 +171,14 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
     }
 }
 
-function review(plugin: AIOrganiserPlugin, notes: NoteProposals[]): Promise<void> {
+function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[]): Promise<void> {
     return new Promise<void>((resolve) => {
         new InboxSweepReviewModal(plugin.app, plugin, notes, (result: CommitInput | null) => {
             if (!result) { resolve(); return; }
             commit(plugin, result)
                 .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); })
                 .finally(resolve);
-        }).open();
+        }, contexts).open();
     });
 }
 

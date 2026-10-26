@@ -12,6 +12,7 @@ import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, ty
 import { isSwept, type SweepLedger } from './sweepLedger';
 import { itemKeys, reportedMatch } from './sweepItemIdentity';
 import { logger } from '../../utils/logger';
+import { DEFAULT_SWEEP_CONTEXTS } from './sweepContexts';
 
 export interface NoteProposals {
     path: string;
@@ -31,6 +32,8 @@ export interface SweepRunResult {
     skippedSwept: number;
     failed: number;
     cancelled: boolean;
+    /** The one context set the whole run used: prompt, parser and the review all follow it */
+    contexts: readonly string[];
 }
 
 export interface SweepDeps {
@@ -42,6 +45,8 @@ export interface SweepDeps {
     /** The CURRENT policy; read again for every note and before every call */
     policy(): SweepPolicy;
     ledger(): SweepLedger;
+    /** The contexts this run offers; read once at its start. Absent: the built-in set. */
+    contexts?(): readonly string[];
     /** Identity keys of the items already reported from this note (absent: none are known) */
     reportedKeys?(path: string): ReadonlySet<string>;
     /** True when the path is still where the snapshot said it was (a rename mid-run changes it) */
@@ -115,7 +120,9 @@ export async function runSweep(deps: SweepDeps, options: SweepOptions): Promise<
 }
 
 async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promise<Result<SweepRunResult>> {
-    const out: SweepRunResult = { notes: [], excluded: {}, skippedSwept: 0, failed: 0, cancelled: false };
+    // One immutable set per run: a setting changed mid-run does not change what the model was told or what the review offers.
+    const contexts: readonly string[] = [...(deps.contexts ? deps.contexts() : DEFAULT_SWEEP_CONTEXTS)];
+    const out: SweepRunResult = { notes: [], excluded: {}, skippedSwept: 0, failed: 0, cancelled: false, contexts };
     const candidates = deps.candidates();
     let processed = 0;
     for (const path of candidates) {
@@ -146,13 +153,13 @@ async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promis
         if (!verified) { out.excluded.unknown = (out.excluded.unknown ?? 0) + 1; continue; }
 
         const { truncated } = promptText(guarded, options.maxChars);
-        const answer = await deps.complete(buildSweepPrompt(guarded, options.maxChars), options.signal);
+        const answer = await deps.complete(buildSweepPrompt(guarded, options.maxChars, contexts), options.signal);
         if (!answer.ok) {
             if (options.signal?.aborted) { out.cancelled = true; break; }
             out.failed++;
             continue;
         }
-        const parsed = parseSweepResponse(answer.value, promptText(guarded, options.maxChars).text);
+        const parsed = parseSweepResponse(answer.value, promptText(guarded, options.maxChars).text, contexts);
         // An answer we cannot read is a failure for this note, never "nothing to do": it stays unswept.
         if (parsed.malformed) { out.failed++; continue; }
         const known = deps.reportedKeys?.(guarded.path);
