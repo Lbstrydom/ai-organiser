@@ -1,4 +1,4 @@
-import { App, ItemView, TFile, WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, Notice, TFile, WorkspaceLeaf } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance, isGuidanceCode } from '../../core/friendlyErrors';
 import { isFeatureEnabled } from '../../services/featureService';
@@ -27,6 +27,7 @@ export class ProcessView extends ItemView {
     private unsubscribe: (() => void) | null = null;
     private timer: number | null = null;
     private reading = false;
+    private closed = false;
 
     constructor(leaf: WorkspaceLeaf, private readonly plugin: AIOrganiserPlugin) {
         super(leaf);
@@ -45,6 +46,7 @@ export class ProcessView extends ItemView {
     }
 
     onClose(): Promise<void> {
+        this.closed = true;
         this.unsubscribe?.();
         this.unsubscribe = null;
         if (this.timer !== null) window.clearTimeout(this.timer);
@@ -58,6 +60,7 @@ export class ProcessView extends ItemView {
     }
 
     private schedule(): void {
+        if (this.closed) return;
         if (this.timer !== null) window.clearTimeout(this.timer);
         this.timer = window.setTimeout(() => { this.timer = null; void this.read(); }, 300);
     }
@@ -73,13 +76,15 @@ export class ProcessView extends ItemView {
     }
 
     private async read(): Promise<void> {
-        if (this.reading) return;
+        if (this.reading || this.closed) return;
         this.reading = true;
         try {
             const groups = await projectProcess(this.adapters());
-            this.draw(groups);
+            // A read that finished after the view was closed draws nothing and leaves no listeners behind.
+            if (!this.closed) this.draw(groups);
         } catch (e) {
             logger.error('Process', 'Could not read the Process view', e);
+            if (!this.closed) this.contentEl.createDiv({ text: formatGuidance(describeError(this.plugin.t, 'unknown')), cls: 'setting-item-description ai-organiser-capture-warning' });
         } finally {
             this.reading = false;
         }
@@ -139,11 +144,12 @@ export class ProcessView extends ItemView {
         try {
             if (route.type === 'command') { (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(`ai-organiser:${route.id}`); return; }
             const file = this.app.vault.getAbstractFileByPath(route.path);
-            if (!(file instanceof TFile)) return;
+            if (!(file instanceof TFile)) { new Notice(this.plugin.t.process.noteMissing, 6000); return; }
             if (route.type === 'handback' && action !== 'open') { await openHandbackReview(this.plugin, file); return; }
             await this.app.workspace.getLeaf(false).openFile(file);
         } catch (e) {
             logger.error('Process', 'Could not open the row', e);
+            new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 8000);
         } finally {
             this.schedule();
         }

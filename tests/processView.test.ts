@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { capRows, handbackItems, heldItems, projectProcess, MAX_ROWS_PER_GROUP, type ProcessAdapter, type ProcessItem } from '../src/services/process/processProjection';
 import { processViewActive } from '../src/ui/views/ProcessView';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
-import { REGISTER_BY_FEATURE } from '../src/commands';
+import { REGISTER_BY_FEATURE, registerCommands } from '../src/commands';
 import { ok, err } from '../src/core/result';
 import { freeze, setState } from '../src/services/aiWorkspaces/handbackJournal';
 import type { ApprovalRecord } from '../src/services/inboxSweep/sweepLedger';
@@ -62,7 +62,15 @@ describe('Process view gate (off path)', () => {
     }
   });
 
-  it('is not a per-feature registrar: it never leaks a command with every feeding feature off', () => {
+  it('registerCommands adds the Process command only while a feeding feature is on', () => {
+    const run = (settings: typeof DEFAULT_SETTINGS) => {
+      const added: string[] = [];
+      const plugin = { settings, t: { commands: { openProcess: 'Open Process' } }, app: { workspace: { on: () => ({}) }, vault: { on: () => ({}) } }, addCommand: (c: { id: string }) => { added.push(c.id); }, registerEvent: () => undefined, register: () => undefined };
+      try { registerCommands(plugin as never); } catch { /* an unrelated registrar needing more of the plugin: the Process step runs before it */ }
+      return added;
+    };
+    expect(run(DEFAULT_SETTINGS)).not.toContain('open-process');
+    expect(run({ ...DEFAULT_SETTINGS, featureFlags: { 'inbox-sweep': true, provider: true } })).toContain('open-process');
     expect(Object.values(REGISTER_BY_FEATURE).flat().map((f) => f?.name)).not.toContain('registerProcessCommands');
   });
 });

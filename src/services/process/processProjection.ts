@@ -7,6 +7,7 @@
  * script-update holds beyond the export's own are not owned by anything yet.)
  */
 import type { Result } from '../../core/result';
+import { logger } from '../../utils/logger';
 import type { CaptureJournal } from '../captureInbox/captureTypes';
 import { buildQueue } from '../captureInbox/captureQueueModel';
 import type { HandbackRecord } from '../aiWorkspaces/handbackJournal';
@@ -54,7 +55,8 @@ export async function projectProcess(adapters: readonly ProcessAdapter[]): Promi
         try {
             const res = await adapter.read();
             out.push(res.ok ? { group: adapter.group, items: res.value } : { group: adapter.group, items: [], error: res.error });
-        } catch {
+        } catch (e) {
+            logger.warn('Process', `The ${adapter.group} group could not be read`, e);
             out.push({ group: adapter.group, items: [], error: 'unknown' });
         }
     }
@@ -87,7 +89,8 @@ export function handbackItems(records: Readonly<Record<string, HandbackRecord>>,
         // Deliverables are listed in the review but never applied in this version, so they do not keep a hand-back open.
         const actionable = Object.values(r.items).filter((i) => i.section !== 'deliverables' && (i.state === 'pending' || i.state === 'failed' || i.state === 'applying')).length;
         if (actionable === 0 || waiting === 0 || !exists(r.notePath)) continue;
-        const failed = Object.values(r.items).some((i) => i.state === 'failed');
+        // Failure is judged on the same items that keep the hand-back open.
+        const failed = Object.values(r.items).some((i) => i.section !== 'deliverables' && i.state === 'failed');
         out.push({
             sourceId: r.id,
             group: 'handbacks',

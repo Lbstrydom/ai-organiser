@@ -4632,6 +4632,7 @@ export const en: Translations = {
         handbackWaiting: "{count} item[s] still to review",
         handbackFailed: "Some items could not be applied. Open the review to retry them.",
         heldGeneric: "The last attempt to send this did not work. Retry sends it again.",
+        noteMissing: "That note is no longer there. Refresh the list.",
         groups: { captures: "Captures to review", handbacks: "AI hand-backs", held: "Held tasks" },
         actions: { review: "Review", retry: "Retry", open: "Open note" },
     },

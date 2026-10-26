@@ -4343,6 +4343,7 @@ export interface Translations {
         handbackWaiting: string;
         handbackFailed: string;
         heldGeneric: string;
+        noteMissing: string;
         groups: Record<'captures' | 'handbacks' | 'held', string>;
         actions: Record<'review' | 'retry' | 'open', string>;
     };

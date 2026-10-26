@@ -10475,6 +10475,7 @@
 /* Process view and the shared action row */
 .ai-organiser-process-head { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-2); }
 .ai-organiser-action-rows { list-style: none; margin: 0; padding: 0; }
-.ai-organiser-action-row { display: flex; align-items: center; justify-content: space-between; gap: var(--size-4-3); padding: var(--size-4-2) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.ai-organiser-action-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--size-4-3); padding: var(--size-4-2) 0; border-bottom: 1px solid var(--background-modifier-border); }
+.ai-organiser-action-row-text { min-width: 0; flex: 1 1 12em; }
 .ai-organiser-action-row-title { font-weight: var(--font-semibold); overflow-wrap: anywhere; }
-.ai-organiser-action-row-buttons { display: flex; gap: var(--size-4-1); flex-shrink: 0; }
+.ai-organiser-action-row-buttons { display: flex; flex-wrap: wrap; gap: var(--size-4-1); }
