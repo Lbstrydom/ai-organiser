@@ -90,7 +90,10 @@ export function rankProjects(signals: MatchSignals, env: MatchEnvironment): Matc
         if (!hit) return { rejected: 'unknown-id', ranked: [] };
         return { exact: hit.project, ranked: [{ project: hit.project, score: 1, reason: 'id' }], preselect: hit.project };
     }
-    const candidates = env.candidates.filter((c) => !env.duplicates.has(c.project.aioId)).slice(0, MAX_CANDIDATES);
+    const eligible = env.candidates.filter((c) => !env.duplicates.has(c.project.aioId));
+    // Ranking reads at most MAX_CANDIDATES; with more than that the margin over an unread competitor cannot be judged, so there is no default.
+    const candidates = eligible.slice(0, MAX_CANDIDATES);
+    const complete = eligible.length <= MAX_CANDIDATES;
     const exactKey = signals.chat ? mappingKey(signals.chat) : null;
     // A block without an app can use the mapping only as a suggestion: it ranks below an exact (app-qualified) hit.
     const looseKey = signals.chat && !signals.chat.app ? null : signals.chat ? mappingKey({ name: signals.chat.name }) : null;
@@ -116,6 +119,6 @@ export function rankProjects(signals: MatchSignals, env: MatchEnvironment): Matc
     // A mapping key that points at several projects is a collision: none of them is exact.
     ranked.sort((a, b) => b.score - a.score || a.project.notePath.localeCompare(b.project.notePath));
     const [first, second] = ranked;
-    const preselect = first && first.score >= PRESELECT_MIN_SCORE && (!second || first.score - second.score >= PRESELECT_MIN_MARGIN) ? first.project : undefined;
+    const preselect = complete && first && first.score >= PRESELECT_MIN_SCORE && (!second || first.score - second.score >= PRESELECT_MIN_MARGIN) ? first.project : undefined;
     return { ranked, ...(preselect ? { preselect } : {}) };
 }

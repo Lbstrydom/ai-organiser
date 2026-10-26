@@ -85,7 +85,11 @@ export function recoverApplying(record: HandbackRecord): HandbackRecord {
 export function prune(records: Record<string, HandbackRecord>): Record<string, HandbackRecord> {
     const all = Object.values(records);
     if (all.length <= MAX_HANDBACK_RECORDS) return records;
-    const open = (r: HandbackRecord): boolean => Object.values(r.items).some((i) => i.state === 'pending' || i.state === 'applying' || i.state === 'failed');
+    // Never dropped while unresolved: an interrupted (applying) or failed item still needs its receipt checked. A hand-back that is
+    // only pending or finished can go: its items are frozen again, from the file, the next time it is opened.
+    const open = (r: HandbackRecord): boolean => Object.values(r.items).some((i) => i.state === 'applying' || i.state === 'failed');
     const sorted = [...all].sort((a, b) => Number(open(b)) - Number(open(a)) || b.createdAt.localeCompare(a.createdAt));
-    return Object.fromEntries(sorted.slice(0, MAX_HANDBACK_RECORDS).map((r) => [r.id, r]));
+    const unresolved = sorted.filter(open);
+    const rest = sorted.filter((r) => !open(r)).slice(0, Math.max(0, MAX_HANDBACK_RECORDS - unresolved.length));
+    return Object.fromEntries([...unresolved, ...rest].map((r) => [r.id, r]));
 }

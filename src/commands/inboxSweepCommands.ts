@@ -186,19 +186,21 @@ export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contex
     return new Promise<CommitInput | null>((resolve) => {
         new InboxSweepReviewModal(plugin.app, plugin, notes, (result: CommitInput | null) => {
             if (!result) { resolve(null); return; }
+            // The approval is only reported back when the commit really saved it: a rejected or failed commit resolves null.
             commit(plugin, result)
-                .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); })
-                .finally(() => resolve(result));
+                .then((saved) => resolve(saved ? result : null))
+                .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); resolve(null); });
         }, contexts, routing, projectOf).open();
     });
 }
 
-async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<void> {
+async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<boolean> {
     const t = plugin.t.inboxSweep;
     const out = await commitReview(plugin, input);
     if (out.error) {
         new Notice(out.stoppedAt === 'persist' ? formatGuidance(describeError(plugin.t, out.error)) : t.commitStopped.replace('{reason}', formatGuidance(describeError(plugin.t, out.error))), 10000);
-        return;
+        // The approval is saved once persisted; a later step that stopped is finished by recovery, so only a failed persist is a failure.
+        return out.stoppedAt !== 'persist';
     }
     const added = input.tasks.length - (out.duplicates ?? 0);
     new Notice(added > 0 ? plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
@@ -206,6 +208,7 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<vo
     if (added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && plugin.settings.tasksListId) {
         await runSendApproved(plugin);
     }
+    return true;
 }
 
 // ─── Google Tasks ───────────────────────────────────────────────────────────

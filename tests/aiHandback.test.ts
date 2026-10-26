@@ -159,7 +159,7 @@ describe('hand-back journal', () => {
     }
     const kept = prune(many);
     expect(Object.keys(kept)).toHaveLength(MAX_HANDBACK_RECORDS);
-    expect(Object.keys(kept).filter((k) => Number(k.slice(1)) < 5)).toHaveLength(0);
+    expect(Object.values(kept).filter((r) => r.items.q.state === 'applied').length).toBeLessThanOrEqual(5);
   });
 });
 
@@ -197,5 +197,44 @@ describe('off path', () => {
     const m = migrateOldSettings({ aiWorkspaceChatMap: { 'claude:x': ID, bad: 'nope' }, aiHandbacks: { z: 1 } } as never);
     expect(m?.aiWorkspaceChatMap).toEqual({ 'claude:x': ID });
     expect(m?.aiHandbacks).toEqual({});
+  });
+});
+
+describe('audit round 1 pins', () => {
+  it('a placeholder is only the contract stub; real words keep the item', () => {
+    const p = parseHandoff(`## Handoff\nProject ID: ${ID}\n### Questions\n- <text>\n- Replace the <name> placeholder in the footer\n### Next actions\n- [ ] <text> @context (waiting: <person>) (due: YYYY-MM-DD)\n`, CTX);
+    expect(p.questions.map((q) => q.text)).toEqual(['Replace the <name> placeholder in the footer']);
+    expect(p.actions).toHaveLength(0);
+  });
+
+  it('the open-fence guard also covers an existing heading', () => {
+    expect(addUnderHeading('# P\n\n## Decisions\n\n- x\n```\nopen', 'Decisions', [{ id: 'e1', text: 'y' }])).toEqual({ ok: false, error: 'handoff-note-unplaceable' });
+  });
+
+  it('pruning never drops an interrupted or failed hand-back', () => {
+    const many: Record<string, ReturnType<typeof freeze>> = {};
+    for (let i = 0; i < MAX_HANDBACK_RECORDS + 20; i++) {
+      let r = freeze(undefined, `h${i}`, 'a.md', `2026-02-${String((i % 28) + 1).padStart(2, '0')}`, [{ id: 'q', section: 'questions' }]);
+      if (i < 3) r = setState(r, 'q', 'applying');
+      if (i === 3) r = setState(r, 'q', 'failed', 'storage');
+      many[r.id] = r;
+    }
+    const kept = prune(many);
+    expect(Object.keys(kept)).toHaveLength(MAX_HANDBACK_RECORDS);
+    for (const k of ['h0', 'h1', 'h2', 'h3']) expect(kept[k]).toBeDefined();
+  });
+
+  it('with more than 500 candidates there is no default', () => {
+    const mk = (n: number) => ({ project: { aioId: `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`, notePath: `P/Website ${n}.md`, folder: 'P', rootKind: 'projects' as const, status: '', pairing: 'none' as const }, chatNames: n === 0 ? ['Site brain'] : [] });
+    const env = { candidates: Array.from({ length: 501 }, (_, i) => mk(i)), duplicates: new Set<string>(), chatMap: {} };
+    expect(rankProjects({ title: 't', fileName: 'f', subfolder: '', chat: { name: 'Site brain', app: 'claude' as const } }, env).preselect).toBeUndefined();
+    expect(rankProjects({ title: 't', fileName: 'f', subfolder: '', chat: { name: 'Site brain', app: 'claude' as const } }, { ...env, candidates: env.candidates.slice(0, 5) }).preselect).toBeDefined();
+  });
+
+  it('a mapping to a project that is not adoptable gives no suggestion', () => {
+    const A = { aioId: ID, notePath: 'P/A.md', folder: 'P', rootKind: 'projects' as const, status: '', pairing: 'none' as const };
+    const r = rankProjects({ title: 'x', fileName: 'y', subfolder: '', chat: { name: 'Gone', app: 'claude' } }, { candidates: [{ project: A, chatNames: [] }], duplicates: new Set(), chatMap: { 'claude:gone': OTHER } });
+    expect(r.ranked).toEqual([]);
+    expect(r.preselect).toBeUndefined();
   });
 });

@@ -36,6 +36,8 @@ export function addUnderHeading(noteText: string, heading: string, lines: readon
     if (fresh.length === 0) return ok(noteText);
     const rendered = fresh.map((l) => listLine(l.text, l.id));
     const all = noteText.split('\n');
+    // Text added to a note that ends inside an open code fence would land inside the fence.
+    if (endsInOpenFence(all)) return err('handoff-note-unplaceable');
     const hidden = nonBodyLines(all);
     let at = -1;
     let level = 0;
@@ -45,7 +47,6 @@ export function addUnderHeading(noteText: string, heading: string, lines: readon
         if (m && m[2].trim().toLowerCase() === heading.toLowerCase()) { at = i; level = m[1].length; break; }
     }
     if (at === -1) {
-        if (endsInOpenFence(all)) return err('handoff-note-unplaceable');
         const sep = noteText === '' || /\n\n$/.test(noteText) ? '' : noteText.endsWith('\n') ? '\n' : '\n\n';
         return ok(`${noteText}${sep}## ${heading}\n\n${rendered.join('\n')}\n`);
     }

@@ -64,7 +64,17 @@ const HEADING = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
 const LIST_ITEM = /^[-*]\s+(?:\[[ xX]\]\s+)?(.*)$/;
 
 /** Is this line a template placeholder the AI echoed (`<text>`, `<file name>: <one line>`)? */
-const isPlaceholder = (text: string): boolean => /<(text|file name|one line|person|name)>/i.test(text) || /^<[^>]*>$/.test(text.trim());
+const isPlaceholder = (text: string): boolean => {
+    if (!/<[^>]*>/.test(text)) return false;
+    // Only the contract's own template stubs may remain once the placeholders are taken out; any word the AI wrote keeps the item.
+    const rest = text
+        .replace(/^\s*(suggested|decided)\s*:/i, '')
+        .replace(/<[^>]*>/g, '')
+        .replace(/@context\b/gi, '')
+        .replace(/\((waiting:\s*|due:\s*YYYY-MM-DD|draft\|released|claude\|chatgpt)\s*\)/gi, '')
+        .replace(/[\s:,()-]+/g, '');
+    return rest === '';
+};
 
 function parseAttributes(raw: string, contexts: ReadonlySet<string>, warnings: HandoffWarning[]): { text: string; contexts: string[]; waiting?: string; due?: string } {
     let text = raw.trim();
