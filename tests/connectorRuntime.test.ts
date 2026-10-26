@@ -103,7 +103,7 @@ describe('exportChatProject', () => {
 		const h = makePlugin(many, {}, { [second]: '# Not an export\n' });
 		expect(await exportChatProject(h.plugin)).toEqual({ ok: false, error: 'connector-file-not-ours' });
 		expect([...h.vault.keys()]).toEqual([second]); // part 1 was not written first
-	});
+	}, 30_000); // two 12,000-note exports: past the 5 s default on a loaded or clean CI runner
 
 	it('does not trash a superseded part once the scope changed', async () => {
 		const dir = 'AI connectors';
