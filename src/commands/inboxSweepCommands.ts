@@ -173,37 +173,43 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
     }
 }
 
-function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[]): Promise<void> {
+/** The sweep review for proposals from any source (a sweep run, or an AI hand-back's next actions). */
+export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[], projectId?: string): Promise<CommitInput | null> {
     // Destination controls only while Google Tasks export is on and the setup has something to choose; the project only when the service resolves one.
     const routing = isFeatureEnabled(plugin.settings, 'google-tasks-export') ? reviewRoutingFor(plugin.settings) : null;
     const service = getProjectService(plugin);
     const projectOf = (path: string): string | null => {
+        if (projectId) return projectId;
         const found = service?.resolveSourceProject(path);
         return found?.kind === 'project' ? found.aioId : null;
     };
-    return new Promise<void>((resolve) => {
+    return new Promise<CommitInput | null>((resolve) => {
         new InboxSweepReviewModal(plugin.app, plugin, notes, (result: CommitInput | null) => {
-            if (!result) { resolve(); return; }
+            if (!result) { resolve(null); return; }
+            // The approval is only reported back when the commit really saved it: a rejected or failed commit resolves null.
             commit(plugin, result)
-                .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); })
-                .finally(resolve);
+                .then((outcome) => {
+                    // The caller is told as soon as the approval is saved; sending to Google is a separate, optional step after that.
+                    resolve(outcome.saved ? result : null);
+                    if (outcome.send) void runSendApproved(plugin);
+                })
+                .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); resolve(null); });
         }, contexts, routing, projectOf).open();
     });
 }
 
-async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<void> {
+async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<{ saved: boolean; send: boolean }> {
     const t = plugin.t.inboxSweep;
     const out = await commitReview(plugin, input);
     if (out.error) {
         new Notice(out.stoppedAt === 'persist' ? formatGuidance(describeError(plugin.t, out.error)) : t.commitStopped.replace('{reason}', formatGuidance(describeError(plugin.t, out.error))), 10000);
-        return;
+        // The approval is saved once persisted; a later step that stopped is finished by recovery, so only a failed persist is a failure.
+        return { saved: out.stoppedAt !== 'persist', send: false };
     }
     const added = input.tasks.length - (out.duplicates ?? 0);
     new Notice(added > 0 ? plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
     if (out.duplicates) new Notice(plural(t.duplicatesSkipped, out.duplicates), 6000);
-    if (added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && plugin.settings.tasksListId) {
-        await runSendApproved(plugin);
-    }
+    return { saved: true, send: added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && !!plugin.settings.tasksListId };
 }
 
 // ─── Google Tasks ───────────────────────────────────────────────────────────
