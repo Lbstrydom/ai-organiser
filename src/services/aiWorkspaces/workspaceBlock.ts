@@ -51,6 +51,7 @@ export function stripWorkspaceBlock(noteText: string): string {
     if (!found.ok || !found.value) return `${noteText.trimEnd()}\n`;
     // Only the join where the block was is tidied; the rest of the note, code included, is exactly as written.
     const before = noteText.slice(0, found.value.start).trimEnd();
-    const after = noteText.slice(found.value.end).trimStart();
+    // Blank lines go; the first real line keeps its own indentation.
+    const after = noteText.slice(found.value.end).replace(/^(?:[ \t]*\r?\n)+/, '');
     return `${before}${before !== '' && after !== '' ? '\n\n' : ''}${after}`.trimEnd() + '\n';
 }

@@ -71,7 +71,8 @@ function isExternalMarker(line: string, at: number): boolean {
     const marker = line.slice(at, at + 2);
     if (marker === '](') return EXTERNAL_TARGET.test(line.slice(at + 2));
     if (marker === '![') {
-        const open = /^!\[[^\]\n]*\]\(/.exec(line.slice(at));
+        // The label may hold escaped brackets or one level of nested ones: ![Diagram [draft]](https://...)
+        const open = /^!\[(?:\\.|[^[\]\\\n]|\[(?:\\.|[^[\]\\\n])*\])*\]\(/.exec(line.slice(at));
         return open !== null && EXTERNAL_TARGET.test(line.slice(at + open[0].length));
     }
     return false;
