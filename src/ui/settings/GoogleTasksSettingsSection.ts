@@ -6,6 +6,7 @@ import { evaluateSetup } from '../../core/setupState';
 import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { openTasksSetup, runSendApproved, tasksConfigKey } from '../../commands/inboxSweepCommands';
 import { exportable, pendingApprovals } from '../../services/inboxSweep/sweepLedger';
+import { renderTasksListsEditor } from './GoogleTasksListsEditor';
 
 /** Google Tasks export settings: a status row, the chosen list, and the send button. */
 export class GoogleTasksSettingsSection extends BaseSettingSection {
@@ -38,5 +39,7 @@ export class GoogleTasksSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.setupButton).setCta().onClick(() => openTasksSetup(this.plugin, () => this.settingTab.display())))
             .addButton((b) => b.setButtonText(c.sendNow).onClick(() => { void runSendApproved(this.plugin); }));
+
+        renderTasksListsEditor(this.containerEl, this.plugin, () => this.settingTab.display());
     }
 }

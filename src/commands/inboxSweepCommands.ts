@@ -21,14 +21,16 @@ import { pluginContext, summarizeText } from '../services/llmFacade';
 import { validateScriptUrl } from '../services/appsScriptClient';
 import { logger } from '../utils/logger';
 import { estimateSweep, runSweep, type NoteProposals, type SweepDeps } from '../services/inboxSweep/sweepService';
-import { commitReview, heldInboxCount, repairApprovals, sendApproved, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
+import { commitReview, heldInboxCount, refreshStatuses, repairApprovals, sendApproved, sweepRunPolicy, type CommitInput } from '../services/inboxSweep/sweepCommit';
 import { freezeHeldMirror, isCaptureActive, isCaptureCorrupt, isHeldMirrorLoaded, unfreezeHeldMirror } from '../services/captureInbox/heldMirror';
 import { renameApprovals, renameLedger } from '../services/inboxSweep/sweepLedger';
 import { renameReportedItems, reportedKeysFor } from '../services/inboxSweep/sweepItemIdentity';
 import { validateReportPath } from '../services/inboxSweep/sweepReport';
 import { resolveSweepContexts } from '../services/inboxSweep/sweepContexts';
+import { reviewRoutingFor } from '../services/inboxSweep/reviewRouting';
+import { getProjectService } from '../services/projects/projectService';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
-import { buildTasksScript } from '../services/inboxSweep/tasksScriptTemplate';
+import { configuredListIds, selectTasksScript } from '../services/inboxSweep/tasksScriptSelect';
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
@@ -172,13 +174,20 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
 }
 
 function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[]): Promise<void> {
+    // Destination controls only while Google Tasks export is on and the setup has something to choose; the project only when the service resolves one.
+    const routing = isFeatureEnabled(plugin.settings, 'google-tasks-export') ? reviewRoutingFor(plugin.settings) : null;
+    const service = getProjectService(plugin);
+    const projectOf = (path: string): string | null => {
+        const found = service?.resolveSourceProject(path);
+        return found?.kind === 'project' ? found.aioId : null;
+    };
     return new Promise<void>((resolve) => {
         new InboxSweepReviewModal(plugin.app, plugin, notes, (result: CommitInput | null) => {
             if (!result) { resolve(); return; }
             commit(plugin, result)
                 .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); })
                 .finally(resolve);
-        }, contexts).open();
+        }, contexts, routing, projectOf).open();
     });
 }
 
@@ -228,8 +237,30 @@ export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> 
         const s = res.value;
         if (s.error) { guidanceNotice(plugin, s.error); return; }
         new Notice(t.sentNotice.replace('{exported}', String(s.exported)).replace('{pending}', String(s.pending)).replace('{blocked}', String(s.blocked.length)), 8000);
+        // Items that were not sent are never silent: each distinct reason is said once, with what to do next.
+        for (const reason of new Set((s.held ?? []).map((h) => h.reason))) guidanceNotice(plugin, reason, 12000);
     } catch (e) {
         logger.error('Sweep', 'Send failed', e);
+        guidanceNotice(plugin, 'unknown');
+    } finally {
+        working.hide();
+        sendingApproved = false;
+    }
+}
+
+/** Refresh the completion of exported tasks (read-only). */
+export async function runRefreshStatus(plugin: AIOrganiserPlugin): Promise<void> {
+    const t = plugin.t.inboxSweep;
+    if (sendingApproved) { new Notice(t.alreadyRunning, 5000); return; }
+    sendingApproved = true;
+    const ctl = new AbortController();
+    const working = cancellableNotice(t.refreshing, plugin.t.modals.cancel, () => ctl.abort());
+    try {
+        const res = await refreshStatuses(plugin, ctl.signal);
+        if (!res.ok) { guidanceNotice(plugin, res.error); return; }
+        new Notice(t.refreshedNotice.replace('{checked}', String(res.value.checked)).replace('{failed}', String(res.value.failed)), 8000);
+    } catch (e) {
+        logger.error('Sweep', 'Status refresh failed', e);
         guidanceNotice(plugin, 'unknown');
     } finally {
         working.hide();
@@ -351,7 +382,7 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
     };
     const copyScript = async (approvedListId: string | null): Promise<void> => {
         const { secret, created } = await ensureTasksSecret(plugin);
-        await navigator.clipboard.writeText(buildTasksScript({ secret, approvedListId }));
+        await navigator.clipboard.writeText(selectTasksScript(s, secret, approvedListId).text);
         new Notice(c.scriptCopied + (created ? ` ${c.secretCreated}` : ''), 8000);
     };
     const run = (task: () => Promise<void>, line?: HTMLElement): void => {
@@ -433,9 +464,9 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                         if (!ep.ok) { status.setText(formatGuidance(describeError(t, ep.error))); return; }
                         const ping = await pingTasksScript(ep.value);
                         if (!ping.ok) { status.setText(formatGuidance(describeError(t, ping.error))); return; }
-                        const state = await classifyTasksScript(ping.value, draft.listId);
+                        const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds(s));
                         draft.operational = state === 'operational';
-                        status.setText(state === 'operational' ? c.operationalLine.replace('{list}', listName()) : state === 'setup' ? c.stillSetup : state === 'outdated' ? formatGuidance(describeError(t, 'script-outdated')) : c.wrongList);
+                        status.setText(state === 'operational' ? c.operationalLine.replace('{list}', listName()) : state === 'setup' ? c.stillSetup : state === 'outdated' ? formatGuidance(describeError(t, 'script-outdated')) : state === 'lists-outdated' ? formatGuidance(describeError(t, 'tasks-script-lists-outdated')) : c.wrongList);
                     }, status)));
                 },
             },
@@ -513,5 +544,6 @@ export function registerInboxSweepCommands(plugin: AIOrganiserPlugin): void {
 export function registerGoogleTasksCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
     plugin.addCommand({ id: 'send-tasks-to-google', name: t.commands.sendTasksToGoogle, icon: 'send', callback: () => { void runSendApproved(plugin); } });
+    plugin.addCommand({ id: 'refresh-task-status', name: t.commands.refreshTaskStatus, icon: 'refresh-cw', callback: () => { void runRefreshStatus(plugin); } });
     plugin.addCommand({ id: 'setup-google-tasks', name: t.commands.setupGoogleTasks, icon: 'list-checks', callback: () => openTasksSetup(plugin) });
 }

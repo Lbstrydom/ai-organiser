@@ -6,6 +6,8 @@ import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
 import { normaliseParaRoots, type ParaRoot } from '../services/projects/paraRoots';
+import { isValidDue, normaliseRoutingRules, normaliseTasksLists, type RoutingRule, type TasksListConfig } from '../services/inboxSweep/tasksRouting';
+import type { SweepItemKind } from '../services/prompts/sweepPrompts';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
 import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
@@ -500,6 +502,14 @@ export interface AIOrganiserSettings {
     sweepContexts: string[];
     /** The user's PARA folders (inbox, projects, areas, reference, archive). `[]` = none set. */
     paraRoots: ParaRoot[];
+    /** The user's other named Google lists, plus the main list's title and "needs a date" flag. `tasksListId` stays the ONE authority for which list is main. */
+    tasksLists: TasksListConfig[];
+    /** First-match routing rules that pre-select a destination in the review (data, not switches). `[]` = everything to the main list. */
+    tasksRoutingRules: RoutingRule[];
+    /** Read the completion of exported tasks back (read-only; needs the v2 script). Default off. */
+    tasksReadBack: boolean;
+    /** Add an obsidian:// link to the note in each task's notes (adds the vault name and note path to the user's own Google account). Default off. */
+    tasksIncludeNoteLink: boolean;
     /** The living report note that gets one section per run */
     sweepReportPath: string;
     sweepMaxNotes: number;
@@ -1091,6 +1101,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     sweepNothingToExclude: false,
     sweepContexts: [],
     paraRoots: [],
+    tasksLists: [],
+    tasksRoutingRules: [],
+    tasksReadBack: false,
+    tasksIncludeNoteLink: false,
     sweepReportPath: 'Inbox sweep report.md',
     sweepMaxNotes: 20,
     sweepMaxChars: 12000,
@@ -1421,6 +1435,27 @@ export function getChatRootFullPath(settings: AIOrganiserSettings): string {
  * Called from loadSettings() in main.ts.
  * All migration logic lives here for testability.
  */
+/** The routed-task fields of a stored approval, validated one by one (an unusable field is dropped, never guessed). */
+function carryRoutedFields(x: Record<string, unknown>): Partial<ApprovalRecord['tasks'][number]> {
+    const out: Partial<ApprovalRecord['tasks'][number]> = {};
+    if (x.routingMode === 'routed') out.routingMode = 'routed';
+    if (typeof x.kind === 'string' && ['next_action', 'waiting_for', 'project', 'someday_maybe'].includes(x.kind)) out.kind = x.kind as SweepItemKind;
+    const dest = x.destination && typeof x.destination === 'object' ? (x.destination as Record<string, unknown>) : null;
+    if (dest?.type === 'list' && typeof dest.listId === 'string' && dest.listId !== '') out.destination = { type: 'list', listId: dest.listId };
+    else if (dest?.type === 'report-only') out.destination = { type: 'report-only' };
+    else if (dest?.type === 'agenda') out.destination = { type: 'agenda' };
+    if (isValidDue(x.due)) out.due = x.due;
+    if (typeof x.needsDateAtApproval === 'boolean') out.needsDateAtApproval = x.needsDateAtApproval;
+    const target = x.target && typeof x.target === 'object' ? (x.target as Record<string, unknown>) : null;
+    if (target && typeof target.listId === 'string' && target.listId !== '') out.target = { listId: target.listId };
+    const wire = x.wire && typeof x.wire === 'object' ? (x.wire as Record<string, unknown>) : null;
+    if (wire && typeof wire.title === 'string' && typeof wire.notes === 'string') out.wire = { title: wire.title, notes: wire.notes, ...(isValidDue(wire.due) ? { due: wire.due } : {}) };
+    if (typeof x.projectId === 'string' && x.projectId !== '') out.projectId = x.projectId;
+    if (x.remoteStatus === 'needsAction' || x.remoteStatus === 'completed' || x.remoteStatus === 'deleted') out.remoteStatus = x.remoteStatus;
+    if (typeof x.checkedAt === 'number' && Number.isFinite(x.checkedAt) && x.checkedAt >= 0) out.checkedAt = x.checkedAt;
+    return out;
+}
+
 export function migrateOldSettings(oldSettings: Record<string, unknown> | null): Record<string, unknown> | null {
     if (!oldSettings) return oldSettings;
 
@@ -1764,6 +1799,11 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
     // Idempotent: normalising a normalised list changes nothing, and `[]` stays `[]` (the built-in set is never stored).
     old.sweepContexts = normaliseContexts(old.sweepContexts);
     old.paraRoots = normaliseParaRoots(old.paraRoots);
+    // The main list is `tasksListId`; the other lists and the rules are data. All of it reconciles on every load (idempotent).
+    old.tasksLists = normaliseTasksLists(old.tasksLists);
+    old.tasksRoutingRules = normaliseRoutingRules(old.tasksRoutingRules);
+    old.tasksReadBack = old.tasksReadBack === true;
+    old.tasksIncludeNoteLink = old.tasksIncludeNoteLink === true;
     old.sweepReportPath = typeof old.sweepReportPath === 'string' && old.sweepReportPath.trim() !== '' ? old.sweepReportPath.trim() : d.sweepReportPath;
     old.sweepMaxNotes = intIn(old.sweepMaxNotes, d.sweepMaxNotes, 1, 200);
     old.sweepMaxChars = intIn(old.sweepMaxChars, d.sweepMaxChars, 500, 100000);
@@ -1777,7 +1817,7 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
     }
     old.sweepLedger = ledger;
 
-    const states = ['approved', 'reported', 'exported', 'failed'];
+    const states = ['approved', 'reported', 'exported', 'failed', 'routed', 'kept'];
     const approvals: ApprovalRecord[] = [];
     if (Array.isArray(old.sweepApprovals)) {
         for (const raw of old.sweepApprovals) {
@@ -1788,7 +1828,7 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
             const tasks = rawTasks.flatMap((t): ApprovalRecord['tasks'] => {
                 const x = t as Record<string, unknown> | null;
                 if (!x || typeof x.id !== 'string' || typeof x.text !== 'string' || typeof x.sourcePath !== 'string' || typeof x.sourceHash !== 'string' || typeof x.state !== 'string' || !states.includes(x.state)) return [];
-                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined, ...(Array.isArray(x.keys) && x.keys.every((k) => typeof k === 'string') ? { keys: x.keys } : {}), ...(normaliseContexts(x.contexts).length > 0 ? { contexts: normaliseContexts(x.contexts) } : {}) }];
+                return [{ id: x.id, text: x.text, context: typeof x.context === 'string' ? x.context : '', sourcePath: x.sourcePath, sourceHash: x.sourceHash, state: x.state as ApprovalRecord['tasks'][number]['state'], error: typeof x.error === 'string' ? x.error : undefined, ...(Array.isArray(x.keys) && x.keys.every((k) => typeof k === 'string') ? { keys: x.keys } : {}), ...(normaliseContexts(x.contexts).length > 0 ? { contexts: normaliseContexts(x.contexts) } : {}), ...carryRoutedFields(x) }];
             });
             const dispositions = rawDispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
                 const x = dd as Record<string, unknown> | null;

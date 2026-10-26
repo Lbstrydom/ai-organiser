@@ -11,6 +11,8 @@
  *   4. export only `reported` items.
  */
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
+import type { SweepItemKind } from '../prompts/sweepPrompts';
+import type { Destination } from './tasksRouting';
 
 export interface LedgerEntry {
     sha256: string;
@@ -20,7 +22,14 @@ export interface LedgerEntry {
 
 export type SweepLedger = Record<string, LedgerEntry>;
 
-export type TaskState = 'approved' | 'reported' | 'exported' | 'failed';
+/**
+ * `routed` and `kept` exist only for tasks approved with a destination (see `routingMode`): an older plugin never exports or
+ * promotes a task in either state, so a routed task can never be sent undated or to the wrong list by it.
+ */
+export type TaskState = 'approved' | 'reported' | 'exported' | 'failed' | 'routed' | 'kept';
+
+/** The last read of a task's completion in Google (read-only; the plugin never changes a Google task) */
+export type RemoteStatus = 'needsAction' | 'completed' | 'deleted';
 
 export interface ApprovedTask {
     id: string;
@@ -35,6 +44,23 @@ export interface ApprovedTask {
     keys?: string[];
     /** The context set in force when the item was approved; absent for the built-in set, so an unconfigured record is byte-identical */
     contexts?: string[];
+    /** Present (as 'routed') only for a task approved with a destination, a date or a list other than the legacy main one */
+    routingMode?: 'routed';
+    kind?: SweepItemKind;
+    destination?: Destination;
+    /** A calendar date YYYY-MM-DD, set only when the chosen list needs one */
+    due?: string;
+    /** Whether the chosen list needed a date when this was approved (a later change of the list setting never strips or demands one) */
+    needsDateAtApproval?: boolean;
+    /** Frozen before the first request: retries and replays always meet the same list */
+    target?: { listId: string };
+    /** The exact outbound payload, frozen with the target and replayed unchanged */
+    wire?: { title: string; notes: string; due?: string };
+    /** The project this action belongs to (from the project service), when it has one */
+    projectId?: string;
+    remoteStatus?: RemoteStatus;
+    /** Epoch ms of the last completion read that reached the task */
+    checkedAt?: number;
 }
 
 
@@ -61,6 +87,12 @@ export function isSwept(ledger: SweepLedger, path: string, hash: string): boolea
     return ledger[path]?.sha256 === hash;
 }
 
+/** The state a task is created in: routed tasks start where an older plugin never acts on them. */
+export function initialTaskState(task: Pick<ApprovedTask, 'routingMode' | 'destination'>): TaskState {
+    if (task.routingMode !== 'routed') return 'approved';
+    return task.destination?.type === 'report-only' ? 'kept' : 'routed';
+}
+
 export function newApproval(input: {
     runId: string;
     now: string;
@@ -74,7 +106,7 @@ export function newApproval(input: {
         createdAt: input.now,
         reportPath: input.reportPath,
         listId: input.listId,
-        tasks: input.tasks.map((t) => ({ ...t, state: 'approved' as const })),
+        tasks: input.tasks.map((t) => ({ ...t, state: initialTaskState(t) })),
         dispositions: [...input.dispositions],
         reportDone: input.tasks.length === 0,
         ledgerDone: false,
@@ -101,12 +133,12 @@ export function applyDispositions(ledger: SweepLedger, record: ApprovalRecord, n
 
 /** Items that may be sent to Google Tasks: reported and not yet exported. */
 export function exportable(record: ApprovalRecord): ApprovedTask[] {
-    return record.tasks.filter((t) => t.state === 'reported' || (t.state === 'failed' && t.error !== 'conflict'));
+    return record.tasks.filter((t) => t.state === 'reported' || t.state === 'routed' || (t.state === 'failed' && t.error !== 'conflict'));
 }
 
 export interface ExportResult {
     exportId: string;
-    status: 'created' | 'exists' | 'error' | 'retry' | 'conflict';
+    status: 'created' | 'exists' | 'error' | 'retry' | 'conflict' | 'target-conflict';
 }
 
 /** Fold the script's per-item answers into the record. `retry` leaves the item as it was. */
@@ -118,14 +150,17 @@ export function applyExportResults(record: ApprovalRecord, results: readonly Exp
             const status = by.get(t.id);
             if (!status || status === 'retry') return t;
             if (status === 'created' || status === 'exists') return { ...t, state: 'exported' as const, error: undefined };
-            return { ...t, state: 'failed' as const, error: status === 'conflict' ? 'conflict' : 'export-failed' };
+            // A routed task stays routed through every retryable outcome (only a confirmed result moves it); `conflict` is terminal.
+            if (t.routingMode === 'routed' && status === 'error') return { ...t, error: 'export-failed' };
+            const terminal = status === 'conflict' || status === 'target-conflict';
+            return { ...t, state: 'failed' as const, error: terminal ? 'conflict' : 'export-failed' };
         }),
     };
 }
 
 /** True when nothing is left to do for this record. */
 export function isComplete(record: ApprovalRecord): boolean {
-    return record.reportDone && record.ledgerDone && record.tasks.every((t) => t.state === 'exported' || (t.state === 'failed' && t.error === 'conflict'));
+    return record.reportDone && record.ledgerDone && record.tasks.every((t) => t.state === 'exported' || t.state === 'kept' || (t.state === 'failed' && t.error === 'conflict'));
 }
 
 /** Records that still have work: an unfinished report or ledger step, or tasks waiting to be exported. */

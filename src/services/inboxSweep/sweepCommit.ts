@@ -29,11 +29,15 @@ import {
     pendingApprovals,
     pruneApprovals,
     type ApprovalRecord,
+    type ApprovedTask,
     type Disposition,
 } from './sweepLedger';
 import { dropAlreadyReported, recordReportedItems } from './sweepItemIdentity';
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
-import { exportApproved, type ExportSummary, type SourceCheck } from './tasksExportService';
+import { exportApproved, pingTasksScript, type ExportSummary, type SourceCheck } from './tasksExportService';
+import { resolveTasksLists, type ExportContext } from './tasksRouting';
+import { refreshTaskStatus, type RefreshOutcome } from './tasksStatusService';
+import { recordExportOperation } from './sweepOperations';
 import { heldMirrorPaths, isCaptureActive, isHeldMirrorLoaded } from '../captureInbox/heldMirror';
 import { withHeldPaths } from '../captureInbox/capturePolicy';
 import { captureSetupConfirmed } from '../captureInbox/captureConfig';
@@ -128,10 +132,12 @@ export function mergeExportStates(current: ApprovalRecord | undefined, incoming:
             // Only an export outcome moves a task, and only a task that is waiting to be exported (or is being
             // retried): one the live record already has as exported stays exported, and one the export did not
             // reach keeps the state it has now.
-            const outcome = next && (next.state === 'exported' || next.state === 'failed');
-            const waiting = t.state === 'reported' || t.state === 'failed';
+            // A routed task that was tried and stays routed also carries news: its frozen target, payload and last error.
+            const outcome = next && (next.state === 'exported' || next.state === 'failed' || (next.routingMode === 'routed' && next.state === 'routed' && (next.target !== undefined || next.error !== undefined)));
+            const waiting = t.state === 'reported' || t.state === 'failed' || t.state === 'routed';
             if (!next || !outcome || !waiting) return t;
-            return { ...t, state: next.state, error: next.error };
+            // Frozen target and payload, and the last read status, come from the export (they are decided there).
+            return { ...t, state: next.state, error: next.error, ...(next.target ? { target: next.target } : {}), ...(next.wire ? { wire: next.wire } : {}) };
         }),
     };
 }
@@ -182,7 +188,7 @@ async function writeSection(plugin: AIOrganiserPlugin, record: ApprovalRecord): 
 // ─── The four steps ─────────────────────────────────────────────────────────
 
 export interface CommitInput {
-    tasks: ReadonlyArray<{ id: string; text: string; context: string; sourcePath: string; sourceHash: string; keys?: string[]; contexts?: string[] }>;
+    tasks: ReadonlyArray<Omit<ApprovedTask, 'state'>>;
     dispositions: readonly Disposition[];
 }
 
@@ -336,6 +342,58 @@ export async function checkSource(plugin: AIOrganiserPlugin, sourcePath: string,
     return snap.contentHash === sourceHash ? 'ok' : 'changed';
 }
 
+/** Does this export need the routing path? Not for a plain one-list setup with legacy tasks (that path is unchanged). */
+export function needsRouting(plugin: AIOrganiserPlugin, open: readonly ApprovalRecord[]): boolean {
+    const s = plugin.settings;
+    const { main, others } = resolveTasksLists(s);
+    if (others.length > 0 || main?.needsDate) return true;
+    return open.some((r) => r.tasks.some((t) => t.routingMode === 'routed'));
+}
+
+/** Merge what a status read learned (and nothing else) into the live record. */
+export function mergeStatusFields(current: ApprovalRecord | undefined, incoming: ApprovalRecord): ApprovalRecord {
+    if (!current) return incoming;
+    return {
+        ...current,
+        tasks: current.tasks.map((t) => {
+            const next = incoming.tasks.find((x) => x.id === t.id);
+            if (!next || t.state !== 'exported' || next.checkedAt === undefined || next.checkedAt === t.checkedAt) return t;
+            return { ...t, remoteStatus: next.remoteStatus, checkedAt: next.checkedAt };
+        }),
+    };
+}
+
+/**
+ * Read the completion of every exported task (read-only). Needs the read-back switch and a script that reports the `status`
+ * capability: without it, only this is unavailable (export keeps working), with guidance.
+ */
+export async function refreshStatuses(plugin: AIOrganiserPlugin, signal?: AbortSignal): Promise<Result<{ checked: number; failed: number }>> {
+    const s = plugin.settings;
+    if (!isFeatureEnabled(s, 'google-tasks-export')) return err('tasks-not-ready');
+    if (!s.tasksReadBack) return err('tasks-readback-off');
+    if (s.tasksListId === '') return err('tasks-no-list');
+    const url = validateScriptUrl(s.tasksScriptUrl);
+    if (!url.ok) return err(url.error);
+    let secret: string | null = null;
+    try { secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS); } catch { secret = null; }
+    if (!secret) return err('no-secret');
+    const ping = await pingTasksScript({ url: url.value, secret, signal });
+    if (!ping.ok) return err(ping.error);
+    if (ping.value.capabilities?.includes('status') !== true) return err('script-capability-missing');
+    let checked = 0;
+    let failed = 0;
+    for (const rec of [...s.sweepApprovals]) {
+        const out: Result<RefreshOutcome> = await refreshTaskStatus(rec, {
+            url: url.value, secret, signal, mainListId: s.tasksListId, now: () => Date.now(),
+            persist: (r) => runExclusive(() => saveRecord(plugin, mergeStatusFields(plugin.settings.sweepApprovals.find((x) => x.runId === r.runId), r))),
+        });
+        if (!out.ok) return err(out.error);
+        checked += out.value.batch.items.filter((i) => i.outcome === 'ok' || i.outcome === 'not-found').length;
+        failed += out.value.batch.errors.length;
+    }
+    return ok({ checked, failed });
+}
+
 export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSignal): Promise<Result<ExportSummary>> {
     const s = plugin.settings;
     if (!isFeatureEnabled(s, 'google-tasks-export')) return err('tasks-not-ready');
@@ -354,12 +412,29 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
     if (repaired.error) return err(repaired.error);
     const open = pendingApprovals(s.sweepApprovals, true);
     const total: ExportSummary = { exported: 0, failed: 0, blocked: [], pending: 0 };
+    // Routing is used only when something needs it (a routed task, another list, a list that needs a date); otherwise the export is
+    // exactly what it always was, with no extra request.
+    let routing: ExportContext | undefined;
+    if (needsRouting(plugin, open)) {
+        const ping = await pingTasksScript({ url: url.value, secret, signal });
+        if (!ping.ok) return err(ping.error);
+        routing = {
+            tasksListId: s.tasksListId,
+            tasksLists: s.tasksLists,
+            approvedListIds: ping.value.approvedListIds ?? (ping.value.approvedListId ? [ping.value.approvedListId] : []),
+            scriptHasMultiList: ping.value.capabilities?.includes('multi-list') === true,
+        };
+    }
+    const noteLink = s.tasksIncludeNoteLink ? (path: string): string => `obsidian://open?vault=${encodeURIComponent(plugin.app.vault.getName())}&file=${encodeURIComponent(path)}` : undefined;
     for (const rec of open) {
+        await recordExportOperation(plugin, rec);
         const out = await exportApproved(rec, {
             url: url.value,
             secret,
             signal,
             listId: s.tasksListId,
+            routing,
+            noteLink,
             checkSource: (task) => checkSource(plugin, task.sourcePath, task.sourceHash),
             persist: (r) => runExclusive(() => saveRecord(plugin, mergeExportStates(plugin.settings.sweepApprovals.find((x) => x.runId === r.runId), r))),
         });
@@ -367,6 +442,8 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
         total.failed += out.summary.failed;
         total.pending += out.summary.pending;
         total.blocked.push(...out.summary.blocked);
+        if (out.summary.held) total.held = [...(total.held ?? []), ...out.summary.held];
+        await recordExportOperation(plugin, plugin.settings.sweepApprovals.find((x) => x.runId === rec.runId) ?? out.record);
         if (out.summary.error) { total.error = out.summary.error; break; }
     }
     const finalSave = await runExclusive(async () => {

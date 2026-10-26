@@ -13,6 +13,7 @@ import type { SweepItem, SweepItemKind } from '../../services/prompts/sweepPromp
 import type { CommitInput } from '../../services/inboxSweep/sweepCommit';
 import { newTaskId } from '../../services/inboxSweep/sweepCommit';
 import { itemKeys } from '../../services/inboxSweep/sweepItemIdentity';
+import { approvalFields, changeDestination, checkRow, defaultRowRouting, needsDate, type ReviewRouting, type RowRouting } from '../../services/inboxSweep/reviewRouting';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
 
@@ -26,6 +27,8 @@ interface Row {
     similar: boolean;
     text: string;
     context: string;
+    /** Destination and date, only when the review offers routing */
+    route?: RowRouting;
 }
 
 const PREFIX: Record<SweepItemKind, string> = { next_action: '', waiting_for: 'Waiting: ', project: 'Project: ', someday_maybe: 'Someday: ' };
@@ -40,11 +43,11 @@ export class InboxSweepReviewModal extends Modal {
     private settled = false;
     private footer!: HTMLElement;
 
-    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void, private readonly contexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS) {
+    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void, private readonly contexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS, private readonly routing: ReviewRouting | null = null, private readonly projectOf: (path: string) => string | null = () => null) {
         super(app);
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.addClass('ai-organiser-modal-content');
-        this.rows = notes.flatMap((note) => note.items.map((item, i) => ({ note, item, checked: false, reported: note.reported?.[i] === true, similar: note.similar?.[i] === true, text: item.text, context: item.context })));
+        this.rows = notes.flatMap((note) => note.items.map((item, i) => ({ note, item, checked: false, reported: note.reported?.[i] === true, similar: note.similar?.[i] === true, text: item.text, context: item.context, ...(this.routing ? { route: defaultRowRouting(item, this.routing) } : {}) })));
     }
 
     private get t() { return this.plugin.t.inboxSweep; }
@@ -99,6 +102,7 @@ export class InboxSweepReviewModal extends Modal {
             } else {
                 line.createSpan({ text: t.kindLabels[row.item.kind], cls: 'setting-item-description' });
             }
+            if (this.routing && row.route && !row.reported) this.renderRouting(line, row);
             if (row.reported) line.createSpan({ text: t.alreadyAdded, cls: 'setting-item-description ai-organiser-sweep-reported' });
             else if (row.similar) line.createSpan({ text: t.looksAdded, cls: 'setting-item-description ai-organiser-sweep-reported' });
             line.createDiv({ text: `“${row.item.evidence}”`, cls: 'setting-item-description ai-organiser-sweep-evidence' });
@@ -113,8 +117,45 @@ export class InboxSweepReviewModal extends Modal {
         this.cleanups.push(listen(box, 'change', () => { if (!this.sweptChoice.has(note.path)) sweptBox.checked = this.isSwept(note); }));
     }
 
+    /** Destination and date, with the reason a row cannot be approved yet beside it. */
+    private renderRouting(line: HTMLElement, row: Row): void {
+        const t = this.t;
+        const routing = this.routing!;
+        const box = line.createDiv({ cls: 'ai-organiser-sweep-routing' });
+        const dest = box.createEl('select', { attr: { 'aria-label': t.destinationLabel } });
+        for (const list of routing.lists) {
+            const o = dest.createEl('option', { text: list.title || list.id, value: `list:${list.id}` });
+            if (row.route!.destination.type === 'list' && row.route!.destination.listId === list.id) o.selected = true;
+        }
+        const keep = dest.createEl('option', { text: t.destinationReportOnly, value: 'report-only' });
+        if (row.route!.destination.type === 'report-only') keep.selected = true;
+        const date = box.createEl('input', { type: 'date', value: row.route!.due, attr: { 'aria-label': t.dateLabel } });
+        const from = box.createSpan({ text: t.dateFromText, cls: 'setting-item-description' });
+        const hint = box.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', attr: { role: 'status' } });
+        const check = (): HTMLInputElement | null => line.querySelector('input[type="checkbox"]');
+        const sync = (): void => {
+            const needs = needsDate(row.route!.destination, routing);
+            date.toggle(needs);
+            from.toggle(needs && row.route!.dueFromText && row.route!.due !== '');
+            const verdict = checkRow(row.route!, routing);
+            hint.setText(verdict.ok ? '' : t.dateNeededHint.replace('{list}', verdict.listTitle));
+            const box1 = check();
+            // The row cannot be ticked while it is incomplete, and a tick set earlier is taken back.
+            if (box1) { box1.disabled = !verdict.ok || row.reported; if (!verdict.ok && box1.checked) { box1.checked = false; row.checked = false; } }
+            this.renderFooter();
+        };
+        this.cleanups.push(listen(dest, 'change', () => {
+            const value = dest.value;
+            row.route = changeDestination(row.route!, value === 'report-only' ? { type: 'report-only' } : { type: 'list', listId: value.slice(5) }, routing);
+            date.value = row.route.due;
+            sync();
+        }));
+        this.cleanups.push(listen(date, 'input', () => { row.route = { ...row.route!, due: date.value, dueFromText: false }; sync(); }));
+        sync();
+    }
+
     private selected(): Row[] {
-        return this.rows.filter((r) => r.checked && !r.reported && r.text.trim() !== '');
+        return this.rows.filter((r) => r.checked && !r.reported && r.text.trim() !== '' && (!this.routing || !r.route || checkRow(r.route, this.routing).ok));
     }
 
     private renderFooter(): void {
@@ -131,6 +172,12 @@ export class InboxSweepReviewModal extends Modal {
         this.footerCleanups.push(listen(cancel, 'click', () => this.close()));
     }
 
+    /** The project the item's note belongs to, when the project service resolves exactly one (never a guess). */
+    private projectFields(path: string): { projectId?: string } {
+        const id = this.projectOf(path);
+        return id ? { projectId: id } : {};
+    }
+
     private finish(): void {
         const tasks = this.selected().map((r) => ({
             id: newTaskId(),
@@ -139,6 +186,9 @@ export class InboxSweepReviewModal extends Modal {
             sourcePath: r.note.path,
             sourceHash: r.note.contentHash,
             keys: itemKeys({ text: r.item.text, evidence: r.item.evidence, edited: r.text.trim() }),
+            // Routing is stamped only when the review offered it; otherwise the task is exactly what it always was.
+            ...(this.routing && r.route ? approvalFields(r.item.kind, r.route, this.routing) : {}),
+            ...this.projectFields(r.note.path),
             // Stamped only for a custom set: a record made under the built-in set is exactly what it always was.
             ...(isDefaultContextSet(this.contexts) ? {} : { contexts: [...this.contexts] }),
         }));

@@ -51,7 +51,7 @@ describe('inbox sweep off path', () => {
 		const plugin = { addCommand: (c: { id: string }) => ids.push(c.id), registerEvent, app: { vault: { on: vi.fn() } }, t: en };
 		registerInboxSweepCommands(plugin as never);
 		registerGoogleTasksCommands(plugin as never);
-		expect(ids).toEqual(['sweep-inbox', 'setup-inbox-sweep', 'send-tasks-to-google', 'setup-google-tasks']);
+		expect(ids).toEqual(['sweep-inbox', 'setup-inbox-sweep', 'send-tasks-to-google', 'refresh-task-status', 'setup-google-tasks']);
 		expect(registerEvent).toHaveBeenCalledTimes(1);
 	});
 
