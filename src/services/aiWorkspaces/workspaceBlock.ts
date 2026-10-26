@@ -41,9 +41,13 @@ export function readWorkspaceBlock(noteText: string): Result<string | null> {
     return ok(found.value ? found.value.text : null);
 }
 
-/** The note body without the workspace block: what a pack's staleness is judged on, so writing the block never makes a pack stale. */
+/**
+ * The note body without the workspace block, as what a pack is judged on. The blank lines the block was added with go too (a run of
+ * blank lines collapses to one and trailing space is dropped), so writing or removing the block never changes this text: a pack is
+ * never made stale by the plugin's own block.
+ */
 export function stripWorkspaceBlock(noteText: string): string {
     const found = findMarkedBlock(noteText, WORKSPACE_MARKERS);
-    if (!found.ok || !found.value) return noteText;
-    return noteText.slice(0, found.value.start) + noteText.slice(found.value.end);
+    const without = !found.ok || !found.value ? noteText : noteText.slice(0, found.value.start) + noteText.slice(found.value.end);
+    return without.replace(/(\r?\n){3,}/g, '\n\n').trimEnd();
 }

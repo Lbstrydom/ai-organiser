@@ -12,6 +12,7 @@ import { guardSnapshot, policyRevisionOf, stillAllowed, type ExclusionReason, ty
 import { isSwept, type SweepLedger } from './sweepLedger';
 import { itemKeys, reportedMatch } from './sweepItemIdentity';
 import { logger } from '../../utils/logger';
+import { looksLikeHandback } from '../aiWorkspaces/handoffParser';
 import { DEFAULT_SWEEP_CONTEXTS } from './sweepContexts';
 
 export interface NoteProposals {
@@ -34,6 +35,8 @@ export interface SweepRunResult {
     cancelled: boolean;
     /** The one context set the whole run used: prompt, parser and the review all follow it */
     contexts: readonly string[];
+    /** AI hand-back notes the sweep left alone (they have their own review) */
+    skippedHandbacks?: number;
 }
 
 export interface SweepDeps {
@@ -134,6 +137,8 @@ async function runSweepUnguarded(deps: SweepDeps, options: SweepOptions): Promis
         if (!judged) { out.failed++; continue; }
         if (!judged.result.allowed) { out.excluded[judged.result.reason] = (out.excluded[judged.result.reason] ?? 0) + 1; continue; }
         if (isSwept(deps.ledger(), path, judged.hash)) { out.skippedSwept++; continue; }
+        // An AI hand-back has its own review; its lines must not come back here as tasks.
+        if (looksLikeHandback(judged.result.snapshot.text)) { out.skippedHandbacks = (out.skippedHandbacks ?? 0) + 1; continue; }
 
         // Immediately before the call the policy and the path must be what they were when the note was
         // judged. A snapshot that fails this is captured and judged again, and the NEW snapshot must pass

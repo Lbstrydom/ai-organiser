@@ -213,6 +213,24 @@ export function parseHandoff(raw: string, contexts: readonly string[]): HandoffP
     return out;
 }
 
+/**
+ * Is this note an AI hand-back, or a note the hand-back review has already written into? Such notes are reviewed with Review AI
+ * hand-back; the sweep leaves them alone so their lines do not come back as tasks. A "## Handoff" heading outside code (level 1-3),
+ * an aio:handoff marker, or the frontmatter flag aio-handback: true.
+ */
+export function looksLikeHandback(text: string): boolean {
+    if (text.includes('<!-- aio:handoff id=')) return true;
+    const normalised = normaliseHandoffText(text);
+    if (/^---\n[\s\S]{0,2000}?\baio-handback:\s*true\b[\s\S]*?\n---/.test(normalised)) return true;
+    const lines = normalised.split('\n');
+    const hidden = nonBodyLines(lines);
+    return lines.some((line, i) => {
+        if (hidden[i]) return false;
+        const m = HEADING.exec(line);
+        return m !== null && m[1].length <= 3 && m[2].trim().toLowerCase() === HANDOFF_HEADING.toLowerCase();
+    });
+}
+
 // ─── Item identity ──────────────────────────────────────────────────────────
 
 const enc = new TextEncoder();

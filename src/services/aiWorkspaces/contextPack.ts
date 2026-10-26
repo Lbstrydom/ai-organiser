@@ -66,8 +66,8 @@ async function sha256(text: string): Promise<string> {
 }
 
 /** Text of one included note: links neutralised from the cache first (positions are in the original text), then drawing blobs and plugin-owned blocks dropped. */
-function includedText(note: PackNote, input: PackInput): Result<string> {
-    const linked = neutraliseByCache(note.text, note.path, input.linksOf(note), input);
+function includedText(note: PackNote, input: PackInput & { inPack: ReadonlySet<string> }): Result<string> {
+    const linked = neutraliseByCache(note.text, note.path, input.linksOf(note), { ...input, inPack: input.inPack });
     if (!linked.ok) return err(linked.error);
     return ok(bodyWithoutOwned(toModelText(linked.value, note.path)));
 }
@@ -79,12 +79,14 @@ export async function buildContextPack(input: PackInput): Promise<Result<Prepare
     for (const s of input.sources) candidates.push({ role: 'Context source', note: s });
     const included: Array<{ role: string; note: PackNote; text: string; hash: string }> = [];
     const seen = new Set<string>();
+    // The notes this pack will hold (shareable ones), so a link to any other note can say it is not in this pack.
+    const inPack = new Set(candidates.filter((c) => input.reasonNotShareable(c.note.path) === null).map((c) => c.note.path));
     for (const c of candidates) {
         if (seen.has(c.note.path)) continue;
         seen.add(c.note.path);
         const reason = input.reasonNotShareable(c.note.path);
         if (reason !== null) { skipped.push({ path: c.note.path, reason }); continue; }
-        const text = includedText(c.note, input);
+        const text = includedText(c.note, { ...input, inPack });
         // A note whose links cannot be checked against its cache is not packed; the preview says why.
         if (!text.ok) { skipped.push({ path: c.note.path, reason: 'links-unverified' }); continue; }
         included.push({ ...c, text: text.value, hash: await sha256(stripWorkspaceBlock(c.note.text)) });
@@ -96,13 +98,10 @@ export async function buildContextPack(input: PackInput): Promise<Result<Prepare
 
     const projectIncluded = included.find((i) => i.note.path === input.project.path);
     const areaIncluded = input.area ? included.find((i) => i.note.path === input.area?.path) : undefined;
-    const instructions = buildWorkspaceInstructions({
-        aioId: input.aioId,
-        projectName: input.projectName,
-        projectNote: projectIncluded?.text ?? '',
-        areaName: input.area?.path,
-        areaNote: areaIncluded?.text,
-    });
+    const instructionInput = { aioId: input.aioId, projectName: input.projectName, projectNote: projectIncluded?.text ?? '', areaName: input.area?.path, areaNote: areaIncluded?.text };
+    // What "copy instructions" puts on the clipboard carries the notes' text; inside the pack the notes follow in full, so they are not repeated.
+    const instructions = buildWorkspaceInstructions(instructionInput);
+    const packInstructions = buildWorkspaceInstructions({ ...instructionInput, notesFollow: true });
     const sources: PackSource[] = included.map((i) => ({ path: i.note.path, contentHash: i.hash }));
     const header = [
         '---',
@@ -115,7 +114,7 @@ export async function buildContextPack(input: PackInput): Promise<Result<Prepare
     const index = ['## Sources', ...sources.map((s) => `- ${s.path} (${s.contentHash.slice(0, 12)})`)].join('\n');
     const sections = included.map((i) => `## ${i.role}: ${i.note.path}\n\n${i.text}`);
     // The generation time is not part of the pack's bytes: a pack of unchanged sources must hash the same.
-    const body = [header, '# Context pack', '## Instructions', instructions, index, ...sections].join('\n\n') + '\n';
+    const body = [header, '# Context pack', '## Instructions', packInstructions, index, ...sections].join('\n\n') + '\n';
     const bytes = byteLength(body);
     if (bytes > PACK_BUDGET_BYTES) return err('pack-over-budget');
     return ok({ instructions, text: body, bytes, digest: await sha256(body), sources, skipped, sharePolicyRevision: input.sharePolicyRevision, generatorVersion: PACK_GENERATOR_VERSION });

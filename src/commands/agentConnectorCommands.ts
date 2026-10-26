@@ -3,6 +3,7 @@
  * copy and never edits another application's files; the export writes only into the folder the
  * person chose, behind a confirmation that names what leaves the computer when they upload it.
  */
+import { optedInScope } from '../services/agentConnectors/connectorRuntime';
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
@@ -39,7 +40,8 @@ async function previewExport(plugin: AIOrganiserPlugin): Promise<Result<{ notes:
     const revision = await exportRevision(plugin);
     const config = scopeConfigFromSettings(s);
     const collected = await collectRecords(plugin.app, scopedFiles(plugin.app, config), config);
-    const built = buildChatExport({ records: collected.records, scope: projectionScope(config), instructions: CHAT_EXPORT_INSTRUCTIONS, generatedAt: '' });
+    // The same scope the written map uses (the sharing opt-in and the pack files), so the confirmation names the number that is really listed.
+    const built = buildChatExport({ records: collected.records, scope: optedInScope(projectionScope(config), s), instructions: CHAT_EXPORT_INSTRUCTIONS, generatedAt: '' });
     if (built.notes === 0) return err('export-nothing-in-scope');
     return ok({ notes: built.notes, revision });
 }

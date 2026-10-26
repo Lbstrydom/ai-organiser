@@ -36,6 +36,7 @@ import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
 import { InboxSweepReviewModal } from '../ui/modals/InboxSweepReviewModal';
 import { draftFromSettings, exclusionCount, lines, propertyLines, previewScope, renderInboxFolders, renderKeepOut, validateKeepOut } from '../ui/setup/inboxScopeSteps';
+import { refreshProcessViews } from '../ui/views/processRefresh';
 import { plural } from '../utils/plural';
 
 // ─── Deps over the live vault ───────────────────────────────────────────────
@@ -162,6 +163,8 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         const kept = Math.max(0, Object.values(r.excluded).reduce((a, b) => a + (b ?? 0), 0) - held);
         const heldLine = held > 0 ? ` ${plural(t.summaryHeld, held, 'held').replace('{held}', String(held))}` : '';
         new Notice(`${plural(t.summaryNotice, r.notes.length, 'notes').replace('{kept}', String(kept)).replace('{failed}', String(r.failed))}${heldLine}`, 7000);
+        // AI hand-backs have their own review: said once, so a note that is missing from the sweep is explained.
+        if (r.skippedHandbacks) new Notice(plural(t.handbackSkipped, r.skippedHandbacks), 9000);
         if (r.notes.length === 0) return;
         await review(plugin, r.notes, r.contexts);
     } catch (e) {
@@ -189,6 +192,7 @@ export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contex
             // The approval is only reported back when the commit really saved it: a rejected or failed commit resolves null.
             commit(plugin, result)
                 .then((outcome) => {
+                    refreshProcessViews(plugin.app);
                     // The caller is told as soon as the approval is saved; sending to Google is a separate, optional step after that.
                     resolve(outcome.saved ? result : null);
                     if (outcome.send) void runSendApproved(plugin);

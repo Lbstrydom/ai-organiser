@@ -181,7 +181,8 @@ describe('context pack', () => {
     expect(res.ok).toBe(true);
     if (!res.ok) return;
     expect(res.value.text).toContain('Secret [not shared]');
-    expect(res.value.text).toContain('[[Open]]');
+    // shareable but not part of this pack: told so, not left as a dead link
+    expect(res.value.text).toContain('Open [not in this pack]');
     expect(res.value.text).toContain('[attachment not included]');
     expect(res.value.sources.map((s) => s.path)).toEqual(['Work/P.md']);
   });
@@ -320,5 +321,89 @@ describe('pack files are never shareable notes', () => {
     const s = settings({ aiShareFolders: ['Work'] });
     expect(isAiShareable('Work/pack-20261026-090507-aaaaaaaaaaaa.md', s, 'Somewhere/Else')).toBe(false);
     expect(notShareableReason('Work/pack-20261026-090507-aaaaaaaaaaaa.md', s, 'Somewhere/Else')).toBe('in-pack-folder');
+  });
+});
+
+describe('external web links are not links the cache missed (persona F1)', () => {
+  const policy = { reasonNotShareable: (p: string) => (p.includes('Private') ? 'outside-allow-list' : null), resolveLink: (l: string) => l };
+  const run = (text: string, list: LinkOccurrence[] = []) => neutraliseByCache(text, 'a.md', list, policy);
+
+  it('a note with a workspace link (and other web links and images) is fine with no cache entries for them', () => {
+    const text = '# P\n\nSee [Acme migration](https://claude.ai/project/abc-123) and ![logo](https://example.com/a.png) and [mail](mailto:a@b.co) and [angle](<https://x.test/a b>).\n';
+    expect(run(text)).toEqual({ ok: true, value: text });
+  });
+
+  it('still fails closed for vault links the cache did not report, even next to a web link', () => {
+    expect(run('[ok](https://example.com) and [secret](Private/plan.md)')).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run('![x](Private/plan.png)')).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run('[x](httpsx://nope) [y](ftp://host/a)')).toEqual({ ok: false, error: 'links-unverified' });
+    expect(run('[[Private plan]] [w](https://example.com)')).toEqual({ ok: false, error: 'links-unverified' });
+  });
+});
+
+describe('a second pack after the workspace link was written (persona F1 regression)', () => {
+  const note = (path: string, text: string) => ({ path, text });
+  const base = (projectText: string) => ({
+    vaultId: 'vault', aioId: ID, projectName: 'P',
+    project: note('Work/P.md', projectText),
+    sources: [] as Array<{ path: string; text: string }>,
+    reasonNotShareable: () => null,
+    resolveLink: (l: string) => l,
+    // Obsidian reports no entry for an external link
+    linksOf: (n: { text: string }) => wikiCache(n.text),
+    sharePolicyRevision: 'rev',
+  });
+
+  it('the first pack builds, the workspace block is written, and the second pack and the instructions still build', async () => {
+    const first = await buildContextPack(base('# P\n\nGoal: ship.\n'));
+    expect(first.ok).toBe(true);
+    const withBlock = '# P\n\nGoal: ship.\n\n<!-- aio:workspace -->\n## AI workspace\n- [Acme migration](https://claude.ai/project/abc-123) (Claude)\n- Last pack: 2026-10-26\n<!-- /aio:workspace -->\n';
+    const second = await buildContextPack(base(withBlock));
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.value.instructions).toContain('Goal: ship.');
+    // the plugin-owned block is not the person's words and is not in the pack
+    expect(second.value.text).not.toContain('claude.ai/project');
+    // the block never makes a pack stale
+    if (first.ok) expect(second.value.sources[0].contentHash).toBe(first.value.sources[0].contentHash);
+  });
+
+  it('a project note that links a web page in its own text also builds', async () => {
+    const res = await buildContextPack(base('# P\n\nSpec: [the spec](https://example.com/spec).\n'));
+    expect(res.ok).toBe(true);
+  });
+});
+
+describe('a pack holds each note once (persona P3)', () => {
+  const note = (path: string, text: string) => ({ path, text });
+  const make = (sources: Array<{ path: string; text: string }> = []) => buildContextPack({
+    vaultId: 'v', aioId: ID, projectName: 'P',
+    project: note('Work/P.md', '# P\n\nUNIQUE-PROJECT-WORDS see [[Budget]] and [[Included]].\n'),
+    area: note('Work/Area.md', '# Area\n\n## AI context\n\nUNIQUE-AREA-RULES\n'),
+    sources,
+    reasonNotShareable: () => null,
+    resolveLink: (l: string) => `Work/${l}.md`,
+    linksOf: (n: { text: string }) => wikiCache(n.text),
+    sharePolicyRevision: 'rev',
+  });
+
+  it('the project and Area words appear once in the pack, while the copied instructions still carry them', async () => {
+    const res = await make();
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.text.match(/UNIQUE-PROJECT-WORDS/g)).toHaveLength(1);
+    expect(res.value.text.match(/UNIQUE-AREA-RULES/g)).toHaveLength(1);
+    expect(res.value.text).toContain('The project note is included in full below.');
+    expect(res.value.instructions).toContain('UNIQUE-PROJECT-WORDS');
+    expect(res.value.instructions).toContain('UNIQUE-AREA-RULES');
+  });
+
+  it('a link to a note that is in the pack stays a link; one that is shareable but not in it says so', async () => {
+    const res = await make([note('Work/Included.md', 'included words')]);
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.value.text).toContain('[[Included]]');
+    expect(res.value.text).toContain('Budget [not in this pack]');
+    expect(res.value.text).not.toContain('[[Budget]]');
   });
 });

@@ -104,6 +104,25 @@ export function handbackItems(records: Readonly<Record<string, HandbackRecord>>,
     return out.sort((a, b) => a.title.localeCompare(b.title));
 }
 
+/**
+ * Hand-back notes in the inbox that have not been opened in the review yet (so the journal knows nothing of them). A note the
+ * journal already has a record for is the journal adapter's business, whatever its state.
+ */
+export function newHandbackItems(candidates: ReadonlyArray<{ path: string }>, records: Readonly<Record<string, HandbackRecord>>): ProcessItem[] {
+    const known = new Set(Object.values(records).map((r) => r.notePath));
+    return candidates
+        .filter((c) => !known.has(c.path))
+        .map((c): ProcessItem => ({
+            sourceId: `new:${c.path}`,
+            group: 'handbacks',
+            title: base(c.path),
+            detail: 'new',
+            actions: ['review', 'open'],
+            route: { type: 'handback', path: c.path },
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title));
+}
+
 /** Tasks the export could not or did not send: failed, or routed with a stable reason. */
 export function heldItems(approvals: readonly ApprovalRecord[]): ProcessItem[] {
     const out: ProcessItem[] = [];

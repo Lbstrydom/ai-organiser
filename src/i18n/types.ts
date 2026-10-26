@@ -4317,6 +4317,8 @@ export interface Translations {
         sourcePlaceholder: string;
         removeSource: string;
         releasedName: string;
+        releasedDesc: string;
+        sourceOutsideWarning: string;
         save: string;
         blockTitle: string;
         blockNone: string;
@@ -4348,6 +4350,7 @@ export interface Translations {
         allClear: string;
         moreRows: string;
         handbackWaiting: string;
+        handbackNew: string;
         handbackFailed: string;
         heldGeneric: string;
         noteMissing: string;
@@ -4375,6 +4378,7 @@ export interface Translations {
         deliverableNote: string;
         moreItems: string;
         warnings: string;
+        warningLines: Record<'unknown-key' | 'bad-date' | 'conflicting-project' | 'extra-block' | 'capped' | 'missing-claim' | 'long-item', string>;
         chooseFirst: string;
         nothingTicked: string;
         appliedNotice: string;
@@ -4447,6 +4451,7 @@ export interface Translations {
         nothingToSweep: string;
         nothingToSweepHeld: string;
         summaryHeld: string;
+        handbackSkipped: string;
         summaryNotice: string;
         reportConflictNotice: string;
         commitStopped: string;
