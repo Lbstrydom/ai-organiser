@@ -153,7 +153,7 @@ describe('OperationIndex', () => {
     });
     await index.load();
     expect(index.get('op-fix001')).toMatchObject({ status: 'done', updatedAt: T0 + 5 });
-    expect(JSON.parse(f.files.get('op-fix001.json')!)).toMatchObject({ status: 'done' });
+    expect(JSON.parse(f.files.get('op-fix001.json')!)).toMatchObject({ status: 'running' });
     expect(index.problemOf('op-fix001')).toBe('repaired');
     expect(index.problemOf('op-orph01')).toBe('orphaned');
     expect(index.problemOf('op-bad001')).toBe('unreadable');
@@ -320,12 +320,13 @@ describe('OperationIndex: integrity', () => {
     expect(index.list().map((s) => s.opId)).toEqual(['op-good001']);
   });
 
-  it('only this device repairs its own summaries on disk', async () => {
+  it('a load never writes: journal repairs live in memory until the owner publishes', async () => {
     const f = fakeStore(Object.fromEntries([fileOf(sum({ opId: 'op-mine001' })), fileOf(sum({ opId: 'op-theirs1', device: 'dev-2' }))]));
     const index = new OperationIndex({ store: f.store, device: 'dev-1', now: () => T0 + 10, probe: async () => ({ state: 'found', status: 'done', updatedAt: T0 + 5 }) });
     await index.load();
-    expect(JSON.parse(f.files.get('op-mine001.json')!).status).toBe('done');
-    expect(JSON.parse(f.files.get('op-theirs1.json')!).status).toBe('running');
+    expect(f.calls.write).toBe(0);
+    expect(JSON.parse(f.files.get('op-mine001.json')!).status).toBe('running');
+    expect(index.get('op-mine001')?.status).toBe('done');
     expect(index.get('op-theirs1')?.status).toBe('done');
   });
 
@@ -367,6 +368,9 @@ describe('ping normalisation', () => {
     const combined = { ok: true, modules: { tasks: { version: 2, capabilities: ['upsert', 'lists', 'status'] }, inventory: { version: 1, capabilities: ['list'] } } };
     expect(normaliseModulePing('tasks', combined)).toEqual({ module: 'tasks', version: 2, capabilities: ['upsert', 'lists', 'status'], legacy: false });
     expect(normaliseModulePing('inventory', combined)?.capabilities).toEqual(['list']);
+    // the same minimum version as a standalone answer
+    expect(normaliseModulePing('tasks', { ok: true, modules: { tasks: { version: 0, capabilities: ['upsert'] } } })).toBeNull();
+    expect(normaliseModulePing('tasks', { ok: true, modules: { tasks: { version: 1.5, capabilities: ['upsert'] } } })).toBeNull();
     // a module the combined script does not carry has no capabilities
     expect(normaliseModulePing('inventory', { ok: true, modules: { tasks: { version: 2, capabilities: [] } } })).toBeNull();
   });

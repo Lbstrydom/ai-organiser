@@ -107,8 +107,8 @@ export class OperationIndex {
     /**
      * Read every summary, reconcile with the journals, prune finished entries past retention. Never throws. A summary that
      * cannot be READ makes the whole load fail and leaves the last trustworthy index as it was (an unreadable record is not an
-     * absent one). A file that is readable but not a valid summary is ignored. A failed repair write or prune removal is logged
-     * and the entry keeps its in-memory value; the next load tries again.
+     * absent one). A file that is readable but not a valid summary is ignored. A journal repair is kept in memory only; a failed
+     * prune removal is logged and tried again by the next load.
      */
     load(): Promise<Result<void>> {
         return this.serial(async () => {
@@ -127,11 +127,8 @@ export class OperationIndex {
                     const reconciled = reconcileWithJournal(parsed, await this.deps.probe(parsed));
                     summary = reconciled.summary;
                     if (reconciled.kind !== 'ok') problems.set(parsed.opId, reconciled.kind);
-                    // Only this device's own summaries are repaired on disk: another device's entry is its owner's to write.
-                    if (reconciled.kind === 'repaired' && parsed.device === this.deps.device) {
-                        const repaired = await this.deps.store.write(file, JSON.stringify(summary));
-                        if (!repaired.ok) logger.warn('Operations', `Could not save a repaired summary: ${file}`);
-                    }
+                    // A load never writes a summary: a repair lives in memory, and its owner saves it at its next publish. That keeps
+                    // every write behind the owner check, and a repair can never overwrite a take-over that synced in meanwhile.
                 }
                 next.set(summary.opId, summary);
             }

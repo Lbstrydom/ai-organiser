@@ -43,10 +43,10 @@ export function normaliseModulePing(module: ScriptModule, response: unknown): Mo
         if (!isRecord(modules) || !isRecord(modules[module])) return null;
         const m = modules[module];
         const caps = strings(m.capabilities);
-        return typeof m.version === 'number' && Number.isFinite(m.version) && caps ? { module, version: m.version, capabilities: caps, legacy: false } : null;
+        return typeof m.version === 'number' && Number.isInteger(m.version) && m.version >= 1 && caps ? { module, version: m.version, capabilities: caps, legacy: false } : null;
     }
     const version = response.scriptVersion;
-    if (typeof version !== 'number' || !Number.isFinite(version) || version < 1) return null;
+    if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) return null;
     if (response.capabilities !== undefined) {
         const caps = strings(response.capabilities);
         return caps ? { module, version, capabilities: caps, legacy: false } : null;
