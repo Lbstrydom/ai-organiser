@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { capRows, handbackItems, heldItems, projectProcess, MAX_ROWS_PER_GROUP, type ProcessAdapter, type ProcessItem } from '../src/services/process/processProjection';
-import { processViewActive } from '../src/ui/views/ProcessView';
+import { processViewActive } from '../src/services/process/processGate';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { REGISTER_BY_FEATURE, registerCommands } from '../src/commands';
 import { ok, err } from '../src/core/result';

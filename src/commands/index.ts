@@ -36,7 +36,7 @@ import { registerCaptureInboxCommands } from './captureInboxCommands';
 import { registerProjectCommands } from './projectCommands';
 import { registerAiWorkspaceCommands } from './aiWorkspaceCommands';
 import { registerProcessCommands } from './processCommands';
-import { processViewActive } from '../ui/views/ProcessView';
+import { processViewActive } from '../services/process/processGate';
 import { registerContextMenu } from '../ui/contextMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';

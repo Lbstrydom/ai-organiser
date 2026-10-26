@@ -13,10 +13,6 @@ import { logger } from '../../utils/logger';
 
 export const PROCESS_VIEW_TYPE = 'ai-organiser-process';
 
-/** Which features make the Process view worth having. Any one is enough; with none, the view and its command do not exist. */
-export const processViewActive = (settings: Parameters<typeof isFeatureEnabled>[0]): boolean =>
-    isFeatureEnabled(settings, 'capture-inbox') || isFeatureEnabled(settings, 'inbox-sweep') || isFeatureEnabled(settings, 'ai-workspaces');
-
 /**
  * Process: one list of what is waiting to be clarified, grouped by owner. It reads the owners' state (never keeps its own)
  * and each row opens the owner's existing review. It re-reads when its window is shown, when the capture journal changes
@@ -71,7 +67,8 @@ export class ProcessView extends ItemView {
         const ctl = isFeatureEnabled(s, 'capture-inbox') ? getCaptureController(this.plugin) : null;
         if (ctl) out.push({ group: 'captures', read: () => ok(captureItems(ctl.store.get(), Date.now(), ctl.stabilityMs())) });
         if (handbackActive(this.plugin)) out.push({ group: 'handbacks', read: () => ok(handbackItems(s.aiHandbacks, (p) => this.app.vault.getAbstractFileByPath(p) instanceof TFile)) });
-        if (isFeatureEnabled(s, 'inbox-sweep')) out.push({ group: 'held', read: () => ok(heldItems(s.sweepApprovals)) });
+        // Held rows are about the Google export and their Retry is its command, so the group exists only while that export does.
+        if (isFeatureEnabled(s, 'google-tasks-export')) out.push({ group: 'held', read: () => ok(heldItems(s.sweepApprovals)) });
         return out;
     }
 
