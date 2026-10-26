@@ -355,6 +355,11 @@ describe('refreshTaskStatus', () => {
     const merged = mergeStatusFields(live, read);
     expect(merged.tasks.map((t) => [t.text, t.remoteStatus, t.checkedAt])).toEqual([['Task 1', 'completed', 5], ['Task 2', 'completed', 6]]);
     expect(mergeStatusFields(undefined, read)).toBe(read);
+    // monotonic: an older observation never replaces a newer one, an equal one changes nothing
+    const newer = { ...live, tasks: live.tasks.map((t) => ({ ...t, remoteStatus: 'needsAction' as const, checkedAt: 100 })) };
+    const older = { ...live, tasks: live.tasks.map((t) => ({ ...t, remoteStatus: 'completed' as const, checkedAt: 50 })) };
+    expect(mergeStatusFields(newer, older).tasks.map((t) => [t.remoteStatus, t.checkedAt])).toEqual([['needsAction', 100], ['needsAction', 100]]);
+    expect(mergeStatusFields(newer, newer)).toEqual(newer);
   });
 });
 

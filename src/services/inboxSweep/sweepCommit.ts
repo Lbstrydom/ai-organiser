@@ -358,7 +358,7 @@ export function mergeStatusFields(current: ApprovalRecord | undefined, incoming:
         ...current,
         tasks: current.tasks.map((t) => {
             const next = incoming.tasks.find((x) => x.id === t.id);
-            if (!next || t.state !== 'exported' || next.checkedAt === undefined || next.checkedAt === t.checkedAt) return t;
+            if (!next || t.state !== 'exported' || next.checkedAt === undefined || (t.checkedAt !== undefined && next.checkedAt <= t.checkedAt)) return t;
             return { ...t, remoteStatus: next.remoteStatus, checkedAt: next.checkedAt };
         }),
     };
