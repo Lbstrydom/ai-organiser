@@ -1378,6 +1378,7 @@ export interface Translations {
         copyAiInstructions: string;
         createContextPack: string;
         reviewAiHandback: string;
+        openProcess: string;
         reviewCaptures: string;
         setupCaptureInbox: string;
         sendTasksToGoogle: string;
@@ -4332,6 +4333,19 @@ export interface Translations {
         workspaceSavedNotice: string;
         noProjects: string;
         packLimitNote: string;
+    };
+    process: {
+        title: string;
+        refresh: string;
+        nothingEnabled: string;
+        allClear: string;
+        moreRows: string;
+        handbackWaiting: string;
+        handbackFailed: string;
+        heldGeneric: string;
+        noteMissing: string;
+        groups: Record<'captures' | 'handbacks' | 'held', string>;
+        actions: Record<'review' | 'retry' | 'open', string>;
     };
     handback: {
         title: string;

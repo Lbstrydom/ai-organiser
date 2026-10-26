@@ -341,6 +341,7 @@ Repo-wide rules that bind *every* subsystem are in
 | Unified feature taxonomy | Workflow stages shared by settings and the picker, CI-enforced | Adding a feature or a picker leaf |
 | Settings UI map | Where each settings group lives, and the collapsible mechanics | Adding a settings section |
 | Command picker architecture | Cross-listing, requirement gating, the view-model | Adding or moving a picker leaf |
+| Process view | Read-only projection of what waits for the person (captures, AI hand-backs, held tasks), one adapter per owner, rows open the owner's own window; exists only while a feeding feature is on | Adding a group, an adapter, or a row action |
 
 ## Cross-Cutting Invariants
 
