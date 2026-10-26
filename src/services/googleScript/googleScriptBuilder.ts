@@ -217,6 +217,11 @@ function tasks_handle_(req) {
 }
 `;
 
+/** The tasks module's functions with the shared limits filled in; the standalone script and the combined script embed this same text. */
+export function tasksModuleFunctions(): string {
+    return TASKS_MODULE_FUNCTIONS.replace('__STATUS_MAX_ITEMS__', String(MAX_STATUS_ITEMS)).replace('__STATUS_BUDGET_MS__', String(STATUS_BUDGET_MS));
+}
+
 /** The standalone tasks v2 script: the module behind the shared prelude. */
 export function buildTasksScriptV2(config: TasksModuleConfig): string {
     // A script with no secret would accept any caller. This is a programming error, not user input.
@@ -235,7 +240,7 @@ export function buildTasksScriptV2(config: TasksModuleConfig): string {
         'function fail_(code, message) {',
         '  return out_({ ok: false, error: { code: code, message: message } });',
         '}',
-        TASKS_MODULE_FUNCTIONS.replace('__STATUS_MAX_ITEMS__', String(MAX_STATUS_ITEMS)).replace('__STATUS_BUDGET_MS__', String(STATUS_BUDGET_MS)),
+        tasksModuleFunctions(),
         'function doPost(e) {',
         '  var req;',
         '  try {',

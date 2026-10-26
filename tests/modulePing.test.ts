@@ -11,7 +11,7 @@ describe('pingModule', () => {
   it('asks for a ping with the secret in the body channel and normalises the answer', async () => {
     callScript.mockResolvedValueOnce({ ok: true, value: { ok: true, scriptVersion: 1, approvedListId: 'L', listHash: 'h' } });
     expect(await pingModule('tasks', endpoint)).toEqual({ ok: true, value: { module: 'tasks', version: 1, capabilities: ['upsert', 'lists'], legacy: true } });
-    expect(callScript).toHaveBeenLastCalledWith(expect.objectContaining({ ...endpoint, body: { op: 'ping' } }));
+    expect(callScript).toHaveBeenLastCalledWith(expect.objectContaining({ ...endpoint, body: { op: 'ping', module: 'tasks' } }));
   });
 
   it('a transport failure keeps its stable code; an unreadable answer is a bad response', async () => {

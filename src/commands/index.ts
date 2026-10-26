@@ -34,6 +34,7 @@ import { registerAgentConnectorCommands } from './agentConnectorCommands';
 import { registerGoogleTasksCommands, registerInboxSweepCommands } from './inboxSweepCommands';
 import { registerCaptureInboxCommands } from './captureInboxCommands';
 import { registerProjectCommands } from './projectCommands';
+import { registerGoogleScriptCommands } from './googleScriptCommands';
 import { registerAiWorkspaceCommands } from './aiWorkspaceCommands';
 import { registerProcessCommands } from './processCommands';
 import { processViewActive } from '../services/process/processGate';
@@ -87,7 +88,7 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     'agent-connectors': [registerAgentConnectorCommands],
     'inbox-sweep': [registerInboxSweepCommands],
     'capture-inbox': [registerCaptureInboxCommands],
-    'google-tasks-export': [registerGoogleTasksCommands, registerProjectCommands],
+    'google-tasks-export': [registerGoogleTasksCommands, registerProjectCommands, registerGoogleScriptCommands],
     'ai-workspaces': [registerAiWorkspaceCommands],
 };
 
