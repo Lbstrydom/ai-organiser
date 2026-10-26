@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -30,6 +30,9 @@ const baseTexts = (): Record<string, string | null> => ({
 
 const verdictFor = (head: Record<string, string | null>, labels: string[], base = baseTexts()) =>
 	evaluate({ ...findVersionChanges(base, head), labels });
+
+// These tests spawn git and node child processes; under full-suite load the 5 s default is too tight.
+vi.setConfig({ testTimeout: 30_000 });
 
 describe('fingerprint: explicit outcomes, never a comparable stand-in for a failure', () => {
 	it('reports an absent file as absent', () => {
