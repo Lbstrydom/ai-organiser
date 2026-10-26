@@ -1395,6 +1395,7 @@ export const en: Translations = {
         setupInboxSweep: "Set up inbox sweep",
         processCaptureInbox: "Process capture inbox",
         adoptProject: "Adopt note as project",
+        copyCombinedGoogleScript: "Copy combined Google script",
         refreshTaskStatus: "Refresh task status",
         openProject: "Open project",
         editAiWorkspace: "Edit AI workspace",
@@ -4619,6 +4620,10 @@ export const en: Translations = {
         workspaceSavedNotice: "AI workspace saved.",
         noProjects: "No adopted projects yet. Open a project note and choose Adopt note as project.",
         packLimitNote: "The newest five packs are kept.",
+    },
+    googleScript: {
+        copiedTasks: "Combined Google script copied (Google Tasks). In script.google.com open a new project, paste it over the code, turn on the Google Tasks API service, deploy it as a web app and paste the web app address into Google Tasks settings.",
+        copiedBoth: "Combined Google script copied (Google Tasks and the Drive inventory, one secret). Paste it into a new project at script.google.com, turn on the Google Tasks API and Drive API services, deploy it as a web app, then paste the same web app address into the Google Tasks settings and the Drive inventory settings.",
     },
     integrationStatus: {
         title: "Google script",

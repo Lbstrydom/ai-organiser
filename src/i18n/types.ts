@@ -1373,6 +1373,7 @@ export interface Translations {
         processCaptureInbox: string;
         adoptProject: string;
         refreshTaskStatus: string;
+        copyCombinedGoogleScript: string;
         openProject: string;
         editAiWorkspace: string;
         copyAiInstructions: string;
@@ -4331,6 +4332,10 @@ export interface Translations {
         workspaceSavedNotice: string;
         noProjects: string;
         packLimitNote: string;
+    };
+    googleScript: {
+        copiedTasks: string;
+        copiedBoth: string;
     };
     integrationStatus: {
         title: string;

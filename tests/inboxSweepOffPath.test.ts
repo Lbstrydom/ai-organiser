@@ -8,6 +8,7 @@ import { isFeatureEnabled } from '../src/services/featureService';
 import { DEFAULT_SETTINGS, migrateOldSettings } from '../src/core/settings';
 import { REGISTER_BY_FEATURE, registerCommands } from '../src/commands/index';
 import { registerGoogleTasksCommands, registerInboxSweepCommands } from '../src/commands/inboxSweepCommands';
+import { registerGoogleScriptCommands } from '../src/commands/googleScriptCommands';
 import { registerProjectCommands } from '../src/commands/projectCommands';
 import { evaluateSetup } from '../src/core/setupState';
 import { en } from '../src/i18n/en';
@@ -30,7 +31,7 @@ describe('inbox sweep off path', () => {
 
 	it('registers through its features only, and nothing when off', () => {
 		expect(REGISTER_BY_FEATURE['inbox-sweep']).toEqual([registerInboxSweepCommands]);
-		expect(REGISTER_BY_FEATURE['google-tasks-export']).toEqual([registerGoogleTasksCommands, registerProjectCommands]);
+		expect(REGISTER_BY_FEATURE['google-tasks-export']).toEqual([registerGoogleTasksCommands, registerProjectCommands, registerGoogleScriptCommands]);
 		const addCommand = vi.fn();
 		const registerEvent = vi.fn();
 		const plugin = {

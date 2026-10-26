@@ -33,3 +33,11 @@ The **integration status row** (`ui/settings/IntegrationStatusRow.ts`, top of In
 ## Tests
 
 `projectIdentity` (keys, adoption, index, resolvers, PARA roots, the service over a faked vault, registration and off path), `operationsAndScriptCapabilities`, `modulePing`, `protectedWriteSites` (the operation store is a `plugin-data` site).
+
+## Combined Google script
+
+`googleScript/combinedScript.ts` builds one Apps Script deployment with the Tasks module v2 and (optionally) the Drive inventory module behind one `doPost`, one URL and one secret. Command **Copy combined Google script** (registered under `google-tasks-export`); it also stores the Tasks secret as the inventory secret so both clients keep working once both URLs point at the deployment. The standalone scripts are untouched and **pinned byte for byte** by stored copies (`tests/fixtures/`, `inventoryScriptV1.txt`, `tasksScriptV2.operational.txt`, plus the v1 Tasks fixtures); combining is a choice, never a default.
+
+- Operations keep their names and route by operation (`upsert`/`lists`/`status` = Tasks, `list` = inventory). `ping` with no `module` answers only `{ ok, modules: { tasks?, inventory? } }`; with `module: 'tasks'` or `'inventory'` it also carries that module's standalone fields, so the existing clients read it unchanged (the three ping requests now name their module; standalone scripts ignore the extra field). A module the script lacks answers `module-missing` and has no capabilities in `normaliseModulePing`.
+- Module functions are prefixed (`tasks_`, `inv_`) and cache keys have their own prefix, so modules cannot collide. A test runs the script against fake Tasks, Drive and Cache services: auth before any Google call, approved lists and roots enforced, no write APIs present.
+- Owner steps: [docs/google-script/README.md](../google-script/README.md) (paste and deploy; a placeholder template of the script sits beside it) and [docs/rollout-s1.md](../rollout-s1.md).

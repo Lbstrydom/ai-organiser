@@ -65,7 +65,7 @@ export interface ModuleEndpoint {
 
 /** Ask a deployed script what it can do. Never throws. */
 export async function pingModule(module: ScriptModule, endpoint: ModuleEndpoint): Promise<Result<ModuleInfo>> {
-    const res = await callScript<unknown>({ ...endpoint, body: { op: 'ping' }, maxAttempts: 2 });
+    const res = await callScript<unknown>({ ...endpoint, body: { op: 'ping', module }, maxAttempts: 2 });
     if (!res.ok) return err(res.error);
     const info = normaliseModulePing(module, res.value);
     return info ? ok(info) : err('script-bad-response');
