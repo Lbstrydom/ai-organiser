@@ -2,7 +2,7 @@ import { App, Modal, Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { applyHandback, type PreparedHandback, type ReviewActions } from '../../services/aiWorkspaces/handbackService';
-import type { HandoffSection } from '../../services/aiWorkspaces/handoffParser';
+import { parseItemRef, type HandoffSection } from '../../services/aiWorkspaces/handoffParser';
 import { plural } from '../../utils/plural';
 import { refreshProcessViews } from '../views/processRefresh';
 import { logger } from '../../utils/logger';
@@ -26,6 +26,7 @@ export class HandbackReviewModal extends Modal {
     onOpen(): void {
         this.projectId = this.prepared.match.exact?.aioId ?? this.prepared.match.preselect?.aioId ?? '';
         this.containerEl.addClass('ai-organiser-modal-container');
+        this.modalEl.addClass('ai-organiser-handback-review');
         this.draw();
     }
 
@@ -86,12 +87,19 @@ export class HandbackReviewModal extends Modal {
         if (parse.warnings.length > 0) {
             el.createDiv({ text: plural(t.warnings, parse.warnings.length), cls: 'setting-item-description' });
             const list = el.createEl('ul', { cls: 'setting-item-description' });
-            for (const w of parse.warnings) list.createEl('li', { text: t.warningLines[w.code].replace('{detail}', w.detail) });
+            for (const w of parse.warnings) list.createEl('li', { text: t.warningLines[w.code].replace('{detail}', this.describeDetail(w.detail)) });
         }
 
         new Setting(el)
             .addButton((b) => b.setButtonText(t.cancel).onClick(() => this.close()))
             .addButton((b) => b.setCta().setButtonText(t.apply).onClick(() => { void this.apply(); }));
+    }
+
+    /** The parser names an item as "section:ordinal"; the reader sees "Decisions, item 1". Other details pass through. */
+    private describeDetail(detail: string): string {
+        const t = this.plugin.t.handback;
+        const ref = parseItemRef(detail);
+        return ref ? t.itemRef.replace('{section}', t.sections[ref.section]).replace('{n}', String(ref.number)) : detail;
     }
 
     private async apply(): Promise<void> {

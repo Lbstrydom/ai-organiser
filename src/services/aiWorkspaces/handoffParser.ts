@@ -252,3 +252,9 @@ export function itemId(handbackId: string, item: Pick<HandoffItem, 'section' | '
 export function handbackIdOf(noteText: string): Promise<string> {
     return sha256(normaliseHandoffText(noteText)).then((h) => h.slice(0, 24));
 }
+
+/** Reads the "section:ordinal" item detail some warnings carry; number is 1-based for display. Null for any other detail. */
+export function parseItemRef(detail: string): { section: HandoffSection; number: number } | null {
+    const m = /^(decisions|actions|deliverables|questions):(\d+)$/.exec(detail);
+    return m ? { section: m[1] as HandoffSection, number: Number(m[2]) + 1 } : null;
+}

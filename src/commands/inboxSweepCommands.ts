@@ -416,7 +416,7 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         const ping = await pingTasksScript(ep.value);
         if (!ping.ok) { unreached(ping.error); return; }
         draft.combined = ping.value.combined === true;
-        if (!forList) { draft.status = c.connected; status.setText(c.connected); return; }
+        if (!forList) { draft.status = draft.combined ? c.connectedCombined : c.connected; status.setText(draft.status); return; }
         const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
         draft.operational = state === 'operational';
         draft.notReady = state === 'setup' ? 'tasks-wizard-setup' : state === 'outdated' ? 'script-outdated' : state === 'lists-outdated' ? 'tasks-script-lists-outdated' : 'tasks-wizard-wrong-list';

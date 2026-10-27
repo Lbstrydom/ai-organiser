@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseHandoff, itemId, handbackIdOf, MAX_ITEMS_PER_SECTION } from '../src/services/aiWorkspaces/handoffParser';
+import { parseHandoff, itemId, handbackIdOf, MAX_ITEMS_PER_SECTION, parseItemRef } from '../src/services/aiWorkspaces/handoffParser';
 import { renderHandoffContract } from '../src/services/aiWorkspaces/handoffGrammar';
 import { mappingKey, normaliseChatMap, rankProjects, type MatchEnvironment } from '../src/services/aiWorkspaces/handoffMatch';
 import { freeze, normaliseHandbacks, prune, recoverApplying, setState, MAX_HANDBACK_RECORDS } from '../src/services/aiWorkspaces/handbackJournal';
@@ -269,4 +269,15 @@ describe('audit round 2 pins', () => {
     expect(out.ok && out.value.startsWith('# P\n\n## Decisions\n\n- a\n- b <!-- aio:handoff id=y1 -->')).toBe(true);
     expect(addUnderHeading('# P\n\n## Decisions\n\n```\nopen', 'Decisions', [{ id: 'y2', text: 'b' }])).toEqual({ ok: false, error: 'handoff-note-unplaceable' });
   });
+});
+
+describe('parseItemRef (warning details shown to the reader)', () => {
+    it('turns the internal section:ordinal detail into a 1-based item number', () => {
+        expect(parseItemRef('decisions:0')).toEqual({ section: 'decisions', number: 1 });
+        expect(parseItemRef('actions:4')).toEqual({ section: 'actions', number: 5 });
+    });
+    it('leaves any other detail alone', () => {
+        expect(parseItemRef('Random heading')).toBeNull();
+        expect(parseItemRef('12')).toBeNull();
+    });
 });
