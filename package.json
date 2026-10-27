@@ -54,6 +54,7 @@
   "license": "GPL-3.0-or-later",
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
+    "@babel/parser": "^8.0.8",
     "@babel/traverse": "^8.0.4",
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.41.0",
@@ -79,15 +80,18 @@
     "happy-dom": "^20.10.6",
     "jsdom": "^29.1.1",
     "micromatch": "^4.0.8",
+    "minimatch": "^10.2.6",
     "obsidian": "latest",
     "pdfjs-dist": "5.6.205",
     "pg": "^8.22.0",
+    "picomatch": "^4.0.7",
     "proper-lockfile": "^4.1.2",
     "ts-morph": "^28.0.0",
     "tslib": "^2.8.0",
     "typescript": "^5.0.0",
     "typescript-eslint": "^8.58.0",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "yaml": "^2.9.1"
   },
   "dependencies": {
     "@breezystack/lamejs": "^1.2.7",
