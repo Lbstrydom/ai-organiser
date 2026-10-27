@@ -4378,6 +4378,8 @@ export interface Translations {
         deliverableNote: string;
         moreItems: string;
         warnings: string;
+        /** Names an item in a warning line, e.g. "Decisions, item 1" */
+        itemRef: string;
         warningLines: Record<'unknown-key' | 'bad-date' | 'conflicting-project' | 'extra-block' | 'capped' | 'missing-claim' | 'long-item', string>;
         chooseFirst: string;
         nothingTicked: string;
@@ -4703,6 +4705,7 @@ export interface Translations {
         testConnection: string;
         testing: string;
         connected: string;
+        connectedCombined: string;
         notTested: string;
         stepList: string;
         listHelp: string;

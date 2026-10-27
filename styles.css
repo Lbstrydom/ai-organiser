@@ -10486,6 +10486,11 @@
 .ai-organiser-wrap-row .setting-item-control { flex: 1 1 100%; flex-wrap: wrap; justify-content: flex-start; max-width: 100%; min-width: 0; }
 .ai-organiser-wrap-row .setting-item-control input[type="text"],
 .ai-organiser-wrap-row .setting-item-control select { flex: 1 1 8em; min-width: 0; max-width: 100%; text-overflow: ellipsis; }
+/* Hand-back review: long note paths and item text wrap, so the modal never scrolls sideways at phone width */
+.ai-organiser-handback-review { overflow-x: hidden; }
+.ai-organiser-handback-review .setting-item-info { min-width: 0; }
+.ai-organiser-handback-review .setting-item-name,
+.ai-organiser-handback-review .setting-item-description { overflow-wrap: anywhere; }
 .ai-organiser-project-picker-button { white-space: normal; height: auto; width: 100%; text-align: left; overflow-wrap: anywhere; }
 .ai-organiser-project-picker-detail { overflow-wrap: anywhere; }
 .ai-organiser-project-picker-list { list-style: none; margin: 0; padding: 0; }
