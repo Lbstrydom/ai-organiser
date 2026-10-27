@@ -966,6 +966,51 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 33
+        },
+        {
+          "column_name": "dismiss_reason_class",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 34
+        },
+        {
+          "column_name": "first_decided_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 35
+        },
+        {
+          "column_name": "fix_recorded_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 36
+        },
+        {
+          "column_name": "fixed_before_adjudication",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 37
+        },
+        {
+          "column_name": "fix_verified_commit",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 38
         }
       ]
     },
@@ -1350,6 +1395,83 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 14
+        },
+        {
+          "column_name": "training_eligible",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 15
+        },
+        {
+          "column_name": "training_eligibility_reason",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 16
+        },
+        {
+          "column_name": "training_eligibility_approved_by",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 17
+        },
+        {
+          "column_name": "training_eligibility_set_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 18
+        }
+      ]
+    },
+    {
+      "table_name": "audit_run_diffs",
+      "columns": [
+        {
+          "column_name": "diff_ref",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "diff_text",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "bytes",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
         }
       ]
     },
@@ -1868,6 +1990,87 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 57
+        },
+        {
+          "column_name": "diff_ref",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 58
+        },
+        {
+          "column_name": "diff_base_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 59
+        },
+        {
+          "column_name": "diff_bytes",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 60
+        },
+        {
+          "column_name": "diff_truncated",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 61
+        },
+        {
+          "column_name": "diff_redactions",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 62
+        },
+        {
+          "column_name": "diff_capture_status",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 63
+        },
+        {
+          "column_name": "work_item_id",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 64
+        },
+        {
+          "column_name": "tool_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 65
+        },
+        {
+          "column_name": "policy_version",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 66
         }
       ]
     },
@@ -3682,6 +3885,33 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 17
+        },
+        {
+          "column_name": "event_origin",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 18
+        },
+        {
+          "column_name": "ingested_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 19
+        },
+        {
+          "column_name": "ingested_at_inferred",
+          "data_type": "boolean",
+          "is_nullable": "NO",
+          "column_default": "false",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 20
         }
       ]
     },
@@ -3791,6 +4021,74 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 5
+        }
+      ]
+    },
+    {
+      "table_name": "finding_label_history",
+      "columns": [
+        {
+          "column_name": "finding_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "outcome",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "state",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "ingested_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "ingested_at_inferred",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "ordinal",
+          "data_type": "bigint",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
         }
       ]
     },
@@ -4130,6 +4428,358 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 14
+        },
+        {
+          "column_name": "tool_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 15
+        },
+        {
+          "column_name": "policy_version",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 16
+        },
+        {
+          "column_name": "schema_version",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 17
+        },
+        {
+          "column_name": "selection_rule",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 18
+        },
+        {
+          "column_name": "selection_probability",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 19
+        },
+        {
+          "column_name": "randomised",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 20
+        },
+        {
+          "column_name": "input_snapshot",
+          "data_type": "jsonb",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 21
+        },
+        {
+          "column_name": "options_not_chosen",
+          "data_type": "jsonb",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 22
+        },
+        {
+          "column_name": "eligible_population",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 23
+        }
+      ]
+    },
+    {
+      "table_name": "llm_call_log_summary",
+      "columns": [
+        {
+          "column_name": "audit_run_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "producer",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "process_nonce",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "recorded",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "dropped",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        }
+      ]
+    },
+    {
+      "table_name": "llm_call_provenance",
+      "columns": [
+        {
+          "column_name": "call_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "audit_run_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "work_item_id",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "producer",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "purpose",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "model_resolved",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "route",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 8
+        },
+        {
+          "column_name": "prompt_hash",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 9
+        },
+        {
+          "column_name": "prompt_variant",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 10
+        },
+        {
+          "column_name": "temperature",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 11
+        },
+        {
+          "column_name": "reasoning_effort",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 12
+        },
+        {
+          "column_name": "input_tokens",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 13
+        },
+        {
+          "column_name": "cached_tokens",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 14
+        },
+        {
+          "column_name": "output_tokens",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 15
+        },
+        {
+          "column_name": "reasoning_tokens",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 16
+        },
+        {
+          "column_name": "latency_ms",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 17
+        },
+        {
+          "column_name": "cost_usd",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 18
+        },
+        {
+          "column_name": "truncated",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 19
+        },
+        {
+          "column_name": "retried",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 20
+        },
+        {
+          "column_name": "fallback",
+          "data_type": "boolean",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 21
+        },
+        {
+          "column_name": "schema_version",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 22
+        },
+        {
+          "column_name": "created_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 23
         }
       ]
     },
@@ -5418,6 +6068,327 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 11
+        }
+      ]
+    },
+    {
+      "table_name": "own_model_ledger",
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "event_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "kind",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "work_item_id",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "decision_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "parent_decision_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "parent_event_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 8
+        },
+        {
+          "column_name": "repo_name",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 9
+        },
+        {
+          "column_name": "coordinator",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 10
+        },
+        {
+          "column_name": "actor",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 11
+        },
+        {
+          "column_name": "event_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 12
+        },
+        {
+          "column_name": "ingested_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 13
+        },
+        {
+          "column_name": "purge_generation",
+          "data_type": "bigint",
+          "is_nullable": "NO",
+          "column_default": "0",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 14
+        },
+        {
+          "column_name": "schema_version",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 15
+        },
+        {
+          "column_name": "redaction_version",
+          "data_type": "integer",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 16
+        },
+        {
+          "column_name": "tool_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 17
+        },
+        {
+          "column_name": "policy_version",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 18
+        },
+        {
+          "column_name": "session_ref",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 19
+        },
+        {
+          "column_name": "content_state",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 20
+        },
+        {
+          "column_name": "training_eligible",
+          "data_type": "boolean",
+          "is_nullable": "NO",
+          "column_default": "false",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 21
+        },
+        {
+          "column_name": "eligibility_basis",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 22
+        },
+        {
+          "column_name": "payload",
+          "data_type": "jsonb",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 23
+        }
+      ]
+    },
+    {
+      "table_name": "own_model_purge_barrier",
+      "columns": [
+        {
+          "column_name": "scope_kind",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "scope_value",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "generation",
+          "data_type": "bigint",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        }
+      ]
+    },
+    {
+      "table_name": "own_model_task_cost",
+      "columns": [
+        {
+          "column_name": "work_item_id",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "usage_cost_usd",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "input_tokens",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "output_tokens",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "usage_events",
+          "data_type": "bigint",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "audit_cost_usd",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "audit_runs",
+          "data_type": "bigint",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        },
+        {
+          "column_name": "total_cost_usd",
+          "data_type": "numeric",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 8
         }
       ]
     },
@@ -8918,6 +9889,74 @@
       ]
     },
     {
+      "table_name": "training_eligibility_events",
+      "columns": [
+        {
+          "column_name": "id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": "gen_random_uuid()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 1
+        },
+        {
+          "column_name": "repo_id",
+          "data_type": "uuid",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 2
+        },
+        {
+          "column_name": "eligible",
+          "data_type": "boolean",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 3
+        },
+        {
+          "column_name": "reason",
+          "data_type": "text",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 4
+        },
+        {
+          "column_name": "approved_by",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 5
+        },
+        {
+          "column_name": "set_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 6
+        },
+        {
+          "column_name": "ingested_at",
+          "data_type": "timestamp with time zone",
+          "is_nullable": "NO",
+          "column_default": "now()",
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 7
+        }
+      ]
+    },
+    {
       "table_name": "unlocked_fixes",
       "columns": [
         {
@@ -10427,6 +11466,27 @@
       "config": "search_path=public, pg_temp"
     },
     {
+      "function_name": "own_model_ledger_append_only",
+      "args": "",
+      "return_type": "trigger",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "own_model_purge",
+      "args": "p_work_item text, p_repo text",
+      "return_type": "TABLE(deleted bigint, generation bigint)",
+      "security_definer": false,
+      "config": null
+    },
+    {
+      "function_name": "own_model_purge_lock_key",
+      "args": "",
+      "return_type": "bigint",
+      "security_definer": false,
+      "config": null
+    },
+    {
       "function_name": "pgp_armor_headers",
       "args": "text, OUT key text, OUT value text",
       "return_type": "SETOF record",
@@ -11099,6 +12159,10 @@
       "definition": " SELECT repo_id,\n    severity,\n    deferred_reason,\n    count(*) AS count,\n    min(deferred_at) AS oldest,\n    max(deferred_at) AS newest,\n    array_agg(DISTINCT category) AS categories\n   FROM debt_entries\n  GROUP BY repo_id, severity, deferred_reason\n  ORDER BY\n        CASE severity\n            WHEN 'HIGH'::text THEN 1\n            WHEN 'MEDIUM'::text THEN 2\n            ELSE 3\n        END, (count(*)) DESC;"
     },
     {
+      "view_name": "finding_label_history",
+      "definition": " SELECT finding_id,\n    adjudication_outcome AS outcome,\n    remediation_state AS state,\n    created_at,\n    ingested_at,\n    ingested_at_inferred,\n    row_number() OVER (PARTITION BY finding_id ORDER BY created_at, id) AS ordinal\n   FROM finding_adjudication_events e;"
+    },
+    {
       "view_name": "model_ab_arm_cost",
       "definition": " WITH ps AS (\n         SELECT ps.run_id,\n            r.commit_sha,\n            COALESCE(r.assignment_id, r.commit_sha, (r.id)::text) AS assignment_id,\n            COALESCE(r.stage_type, 'audit-code'::text) AS stage_type,\n            r.phase,\n            COALESCE(r.prompt_variant, 'default'::text) AS prompt_variant,\n            ps.stage,\n            ps.cost_usd,\n            ps.structured_output_ok,\n            ps.usage_unmeterable,\n            model_ab_attribute_arms(ps.stage, ps.arm) AS arms\n           FROM (audit_pass_stats ps\n             JOIN audit_runs r ON ((r.id = ps.run_id)))\n          WHERE (ps.stage IS NOT NULL)\n        ), exp AS (\n         SELECT ps.assignment_id,\n            ps.commit_sha,\n            ps.stage_type,\n            ps.phase,\n            ps.prompt_variant,\n            ps.cost_usd,\n            ps.structured_output_ok,\n            ps.usage_unmeterable,\n            unnest(ps.arms) AS arm\n           FROM ps\n          WHERE (ps.arms <> ARRAY['__INVALID__'::text])\n        )\n SELECT assignment_id,\n    commit_sha,\n    stage_type,\n    phase,\n    prompt_variant,\n    arm,\n    sum(cost_usd) AS standalone_cost_usd,\n    bool_and((cost_usd IS NOT NULL)) AS cost_known,\n    count(*) AS pass_executions,\n    count(*) FILTER (WHERE structured_output_ok) AS conformant_passes,\n    bool_or(usage_unmeterable) AS any_unmeterable\n   FROM exp\n  GROUP BY assignment_id, commit_sha, stage_type, phase, prompt_variant, arm;"
     },
@@ -11113,6 +12177,10 @@
     {
       "view_name": "no_brainer_recommendations",
       "definition": " SELECT id,\n    repo_id,\n    cluster_hash,\n    severity_history,\n    first_seen,\n    last_seen,\n    occurrence_count,\n    latest_finding_id,\n    files_affected,\n    cluster_label,\n    status\n   FROM recurring_finding_clusters\n  WHERE ((occurrence_count >= 3) AND (status = 'open'::text) AND (('HIGH'::text = ANY (severity_history)) OR ((occurrence_count >= 5) AND ('MEDIUM'::text = ANY (severity_history)))))\n  ORDER BY occurrence_count DESC, last_seen DESC\n LIMIT 50;"
+    },
+    {
+      "view_name": "own_model_task_cost",
+      "definition": " WITH ledger_usage AS (\n         SELECT own_model_ledger.work_item_id,\n            sum(((own_model_ledger.payload ->> 'cost_usd'::text))::numeric) AS usage_cost_usd,\n            sum(((own_model_ledger.payload ->> 'input_tokens'::text))::bigint) AS input_tokens,\n            sum(((own_model_ledger.payload ->> 'output_tokens'::text))::bigint) AS output_tokens,\n            count(*) AS usage_events\n           FROM own_model_ledger\n          WHERE ((own_model_ledger.kind = 'usage'::text) AND (own_model_ledger.work_item_id IS NOT NULL))\n          GROUP BY own_model_ledger.work_item_id\n        ), audit_cost AS (\n         SELECT audit_runs.work_item_id,\n            sum(audit_runs.total_cost_estimate) AS audit_cost_usd,\n            count(*) AS audit_runs\n           FROM audit_runs\n          WHERE (audit_runs.work_item_id IS NOT NULL)\n          GROUP BY audit_runs.work_item_id\n        )\n SELECT COALESCE(u.work_item_id, a.work_item_id) AS work_item_id,\n    u.usage_cost_usd,\n    u.input_tokens,\n    u.output_tokens,\n    COALESCE(u.usage_events, (0)::bigint) AS usage_events,\n    a.audit_cost_usd,\n    COALESCE(a.audit_runs, (0)::bigint) AS audit_runs,\n    (COALESCE(u.usage_cost_usd, (0)::numeric) + COALESCE(a.audit_cost_usd, (0)::numeric)) AS total_cost_usd\n   FROM (ledger_usage u\n     FULL JOIN audit_cost a ON ((a.work_item_id = u.work_item_id)));"
     },
     {
       "view_name": "pending_triage_findings",
@@ -11334,6 +12402,12 @@
     },
     {
       "table_name": "audit_findings",
+      "constraint_name": "afd_dismiss_class_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((dismiss_reason_class IS NULL) OR (dismiss_reason_class = ANY (ARRAY['false-positive'::text, 'not-actionable'::text, 'duplicate'::text, 'out-of-scope'::text, 'accepted-risk'::text, 'already-fixed'::text, 'control-marker'::text, 'other'::text, 'unclassified'::text]))))"
+    },
+    {
+      "table_name": "audit_findings",
       "constraint_name": "audit_findings_arm_chk",
       "constraint_type": "CHECK",
       "definition": "CHECK (((arm IS NULL) OR (arm = ANY (ARRAY['A'::text, 'B'::text, 'C'::text])))) NOT VALID"
@@ -11429,6 +12503,18 @@
       "definition": "PRIMARY KEY (id)"
     },
     {
+      "table_name": "audit_run_diffs",
+      "constraint_name": "audit_run_diffs_bytes_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((bytes >= 0))"
+    },
+    {
+      "table_name": "audit_run_diffs",
+      "constraint_name": "audit_run_diffs_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (diff_ref)"
+    },
+    {
       "table_name": "audit_runs",
       "constraint_name": "audit_runs_cache_estimated_savings_pct_check",
       "constraint_type": "CHECK",
@@ -11439,6 +12525,12 @@
       "constraint_name": "audit_runs_cache_hit_rate_check",
       "constraint_type": "CHECK",
       "definition": "CHECK (((cache_hit_rate IS NULL) OR ((cache_hit_rate >= (0)::numeric) AND (cache_hit_rate <= (1)::numeric))))"
+    },
+    {
+      "table_name": "audit_runs",
+      "constraint_name": "audit_runs_diff_capture_status_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((diff_capture_status IS NULL) OR (diff_capture_status = ANY (ARRAY['captured'::text, 'refused-secret'::text, 'empty-after-filter'::text, 'oversize-section'::text, 'not-applicable'::text, 'repo-excluded'::text]))))"
     },
     {
       "table_name": "audit_runs",
@@ -11912,13 +13004,19 @@
       "table_name": "finding_adjudication_events",
       "constraint_name": "fae_adjudicator_kind_chk",
       "constraint_type": "CHECK",
-      "definition": "CHECK (((adjudicator_kind IS NULL) OR (adjudicator_kind = ANY (ARRAY['agent'::text, 'human'::text]))))"
+      "definition": "CHECK (((adjudicator_kind IS NULL) OR (adjudicator_kind = ANY (ARRAY['agent'::text, 'human'::text, 'pipeline'::text, 'rule'::text]))))"
     },
     {
       "table_name": "finding_adjudication_events",
       "constraint_name": "fae_campaign_arm_run_fk",
       "constraint_type": "FOREIGN KEY",
       "definition": "FOREIGN KEY (campaign_arm_run_id) REFERENCES campaign_arm_runs(id) ON DELETE SET NULL"
+    },
+    {
+      "table_name": "finding_adjudication_events",
+      "constraint_name": "fae_event_origin_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((event_origin IS NULL) OR (event_origin = ANY (ARRAY['audit'::text, 'campaign'::text]))))"
     },
     {
       "table_name": "finding_adjudication_events",
@@ -12071,6 +13169,24 @@
       "definition": "FOREIGN KEY (repo_id) REFERENCES audit_repos(id) ON DELETE CASCADE"
     },
     {
+      "table_name": "llm_call_log_summary",
+      "constraint_name": "llm_call_log_summary_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (audit_run_id, producer, process_nonce)"
+    },
+    {
+      "table_name": "llm_call_provenance",
+      "constraint_name": "llm_call_provenance_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (call_id)"
+    },
+    {
+      "table_name": "llm_call_provenance",
+      "constraint_name": "llm_call_provenance_producer_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((producer = ANY (ARRAY['audit'::text, 'final-review'::text])))"
+    },
+    {
       "table_name": "memory_friction",
       "constraint_name": "memory_friction_cost_check",
       "constraint_type": "CHECK",
@@ -12207,6 +13323,60 @@
       "constraint_name": "nav_audit_runs_pkey",
       "constraint_type": "PRIMARY KEY",
       "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_actor_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((actor = ANY (ARRAY['coordinator'::text, 'louis'::text, 'chip'::text, 'system'::text])))"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_content_state_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((content_state = ANY (ARRAY['full'::text, 'structural'::text])))"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_coordinator_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((coordinator = ANY (ARRAY['CES'::text, 'WCA'::text, 'STO'::text, 'AIO'::text, 'other'::text])))"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_event_id_key",
+      "constraint_type": "UNIQUE",
+      "definition": "UNIQUE (event_id)"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_kind_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((kind = ANY (ARRAY['task'::text, 'decision'::text, 'correction'::text, 'outcome'::text, 'usage'::text])))"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
+      "table_name": "own_model_ledger",
+      "constraint_name": "own_model_ledger_structural_not_eligible_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((content_state = 'full'::text) OR (training_eligible = false)))"
+    },
+    {
+      "table_name": "own_model_purge_barrier",
+      "constraint_name": "own_model_purge_barrier_kind_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK ((scope_kind = ANY (ARRAY['work_item'::text, 'repo'::text])))"
+    },
+    {
+      "table_name": "own_model_purge_barrier",
+      "constraint_name": "own_model_purge_barrier_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (scope_kind, scope_value)"
     },
     {
       "table_name": "persona_audit_correlations",
@@ -12863,6 +14033,12 @@
       "definition": "PRIMARY KEY (id)"
     },
     {
+      "table_name": "training_eligibility_events",
+      "constraint_name": "training_eligibility_events_pkey",
+      "constraint_type": "PRIMARY KEY",
+      "definition": "PRIMARY KEY (id)"
+    },
+    {
       "table_name": "upstream_issue_events",
       "constraint_name": "chk_upstream_event_annotation_has_note",
       "constraint_type": "CHECK",
@@ -13139,6 +14315,11 @@
       "tablename": "audit_repos",
       "indexname": "idx_audit_repos_repo_uuid",
       "indexdef": "CREATE UNIQUE INDEX idx_audit_repos_repo_uuid ON public.audit_repos USING btree (repo_uuid) WHERE (repo_uuid IS NOT NULL)"
+    },
+    {
+      "tablename": "audit_run_diffs",
+      "indexname": "audit_run_diffs_pkey",
+      "indexdef": "CREATE UNIQUE INDEX audit_run_diffs_pkey ON public.audit_run_diffs USING btree (diff_ref)"
     },
     {
       "tablename": "audit_runs",
@@ -13576,6 +14757,21 @@
       "indexdef": "CREATE INDEX learning_decisions_type_created_idx ON public.learning_decisions USING btree (decision_type, created_at DESC)"
     },
     {
+      "tablename": "llm_call_log_summary",
+      "indexname": "llm_call_log_summary_pkey",
+      "indexdef": "CREATE UNIQUE INDEX llm_call_log_summary_pkey ON public.llm_call_log_summary USING btree (audit_run_id, producer, process_nonce)"
+    },
+    {
+      "tablename": "llm_call_provenance",
+      "indexname": "idx_lcp_run",
+      "indexdef": "CREATE INDEX idx_lcp_run ON public.llm_call_provenance USING btree (audit_run_id, created_at)"
+    },
+    {
+      "tablename": "llm_call_provenance",
+      "indexname": "llm_call_provenance_pkey",
+      "indexdef": "CREATE UNIQUE INDEX llm_call_provenance_pkey ON public.llm_call_provenance USING btree (call_id)"
+    },
+    {
       "tablename": "memory_friction",
       "indexname": "idx_memory_friction_created",
       "indexdef": "CREATE INDEX idx_memory_friction_created ON public.memory_friction USING btree (created_at DESC)"
@@ -13709,6 +14905,41 @@
       "tablename": "nav_audit_runs",
       "indexname": "uq_nav_audit_runs_identity",
       "indexdef": "CREATE UNIQUE INDEX uq_nav_audit_runs_identity ON public.nav_audit_runs USING btree (repo_id, head_sha, scope, content_hash)"
+    },
+    {
+      "tablename": "own_model_ledger",
+      "indexname": "idx_oml_one_observation_per_merge",
+      "indexdef": "CREATE UNIQUE INDEX idx_oml_one_observation_per_merge ON public.own_model_ledger USING btree (parent_event_id) WHERE ((kind = 'outcome'::text) AND ((payload ->> 'kind'::text) = ANY (ARRAY['reverted'::text, 'observed-clean'::text])))"
+    },
+    {
+      "tablename": "own_model_ledger",
+      "indexname": "idx_oml_parent_event",
+      "indexdef": "CREATE INDEX idx_oml_parent_event ON public.own_model_ledger USING btree (parent_event_id)"
+    },
+    {
+      "tablename": "own_model_ledger",
+      "indexname": "idx_oml_repo_kind",
+      "indexdef": "CREATE INDEX idx_oml_repo_kind ON public.own_model_ledger USING btree (repo_id, kind, event_at)"
+    },
+    {
+      "tablename": "own_model_ledger",
+      "indexname": "idx_oml_work_item",
+      "indexdef": "CREATE INDEX idx_oml_work_item ON public.own_model_ledger USING btree (work_item_id, event_at)"
+    },
+    {
+      "tablename": "own_model_ledger",
+      "indexname": "own_model_ledger_event_id_key",
+      "indexdef": "CREATE UNIQUE INDEX own_model_ledger_event_id_key ON public.own_model_ledger USING btree (event_id)"
+    },
+    {
+      "tablename": "own_model_ledger",
+      "indexname": "own_model_ledger_pkey",
+      "indexdef": "CREATE UNIQUE INDEX own_model_ledger_pkey ON public.own_model_ledger USING btree (id)"
+    },
+    {
+      "tablename": "own_model_purge_barrier",
+      "indexname": "own_model_purge_barrier_pkey",
+      "indexdef": "CREATE UNIQUE INDEX own_model_purge_barrier_pkey ON public.own_model_purge_barrier USING btree (scope_kind, scope_value)"
     },
     {
       "tablename": "persona_audit_correlations",
@@ -14251,6 +15482,16 @@
       "indexdef": "CREATE UNIQUE INDEX tiered_shadow_observations_pkey ON public.tiered_shadow_observations USING btree (id)"
     },
     {
+      "tablename": "training_eligibility_events",
+      "indexname": "idx_tee_repo",
+      "indexdef": "CREATE INDEX idx_tee_repo ON public.training_eligibility_events USING btree (repo_id, set_at)"
+    },
+    {
+      "tablename": "training_eligibility_events",
+      "indexname": "training_eligibility_events_pkey",
+      "indexdef": "CREATE UNIQUE INDEX training_eligibility_events_pkey ON public.training_eligibility_events USING btree (id)"
+    },
+    {
       "tablename": "upstream_issue_events",
       "indexname": "upstream_issue_events_issue_idx",
       "indexdef": "CREATE INDEX upstream_issue_events_issue_idx ON public.upstream_issue_events USING btree (issue_id, created_at)"
@@ -14323,6 +15564,13 @@
       "action_statement": "EXECUTE FUNCTION check_model_eval_run_comparison_repo_scope()"
     },
     {
+      "table_name": "own_model_ledger",
+      "trigger_name": "own_model_ledger_append_only_trg",
+      "action_timing": "BEFORE",
+      "events": "DELETE,UPDATE",
+      "action_statement": "EXECUTE FUNCTION own_model_ledger_append_only()"
+    },
+    {
       "table_name": "persona_finding_outcomes",
       "trigger_name": "trg_persona_finding_outcomes_touch",
       "action_timing": "BEFORE",
@@ -14360,6 +15608,10 @@
     {
       "sequence_name": "model_ab_spend_ledger_id_seq",
       "owned_by": "model_ab_spend_ledger.id"
+    },
+    {
+      "sequence_name": "own_model_purge_gen",
+      "owned_by": null
     }
   ],
   "extensions": [
@@ -14444,6 +15696,11 @@
     {
       "grantee": "postgres",
       "object": "public.audit_repos",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.audit_run_diffs",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
     {
@@ -14558,6 +15815,11 @@
     },
     {
       "grantee": "postgres",
+      "object": "public.finding_label_history",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
       "object": "public.fleet_events",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
@@ -14569,6 +15831,16 @@
     {
       "grantee": "postgres",
       "object": "public.learning_decisions",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.llm_call_log_summary",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.llm_call_provenance",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
     {
@@ -14624,6 +15896,21 @@
     {
       "grantee": "postgres",
       "object": "public.no_brainer_recommendations",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.own_model_ledger",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.own_model_purge_barrier",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
+      "object": "public.own_model_task_cost",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
     {
@@ -14803,6 +16090,11 @@
     },
     {
       "grantee": "postgres",
+      "object": "public.training_eligibility_events",
+      "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
+    },
+    {
+      "grantee": "postgres",
       "object": "public.unlocked_fixes",
       "privileges": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE"
     },
@@ -14850,6 +16142,11 @@
     },
     {
       "object_name": "model_ab_spend_ledger_id_seq",
+      "object_kind": "S",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "own_model_purge_gen",
       "object_kind": "S",
       "owner": "postgres"
     },
@@ -14905,6 +16202,11 @@
     },
     {
       "object_name": "audit_repos",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "audit_run_diffs",
       "object_kind": "r",
       "owner": "postgres"
     },
@@ -15029,6 +16331,16 @@
       "owner": "postgres"
     },
     {
+      "object_name": "llm_call_log_summary",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "llm_call_provenance",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
       "object_name": "memory_friction",
       "object_kind": "r",
       "owner": "postgres"
@@ -15060,6 +16372,16 @@
     },
     {
       "object_name": "nav_audit_runs",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "own_model_ledger",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "own_model_purge_barrier",
       "object_kind": "r",
       "owner": "postgres"
     },
@@ -15194,6 +16516,11 @@
       "owner": "postgres"
     },
     {
+      "object_name": "training_eligibility_events",
+      "object_kind": "r",
+      "owner": "postgres"
+    },
+    {
       "object_name": "upstream_issue_events",
       "object_kind": "r",
       "owner": "postgres"
@@ -15219,6 +16546,11 @@
       "owner": "postgres"
     },
     {
+      "object_name": "finding_label_history",
+      "object_kind": "v",
+      "owner": "postgres"
+    },
+    {
       "object_name": "model_ab_arm_cost",
       "object_kind": "v",
       "owner": "postgres"
@@ -15235,6 +16567,11 @@
     },
     {
       "object_name": "no_brainer_recommendations",
+      "object_kind": "v",
+      "owner": "postgres"
+    },
+    {
+      "object_name": "own_model_task_cost",
       "object_kind": "v",
       "owner": "postgres"
     },
