@@ -7,6 +7,7 @@ import { renderSetupStatusRow } from '../setup/SetupStatusRow';
 import { openInboxSweepSetup, runInboxSweep, sweepBlocker } from '../../commands/inboxSweepCommands';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { contextProblems, normaliseContexts } from '../../services/inboxSweep/sweepContexts';
+import { FolderListEditor } from '../setup/FolderListEditor';
 
 /**
  * Inbox sweep settings: a status row, a plain summary of what is swept and what is kept out, the
@@ -73,6 +74,20 @@ export class InboxSweepSettingsSection extends BaseSettingSection {
         new Setting(this.containerEl).setClass('ai-organiser-button-row')
             .addButton((b) => b.setButtonText(c.setupButton).setCta().onClick(() => openInboxSweepSetup(this.plugin, () => this.settingTab.display())))
             .addButton((b) => b.setButtonText(c.runNow).onClick(() => { void runInboxSweep(this.plugin); }));
+
+        // Reading the sweep leaves to the capture inbox: narrows the sweep only, never a privacy rule.
+        this.containerEl.createEl('h4', { text: c.readingHeading });
+        this.containerEl.createEl('p', { text: c.readingHelp, cls: 'setting-item-description' });
+        new FolderListEditor({
+            app: this.plugin.app,
+            container: this.containerEl,
+            t,
+            getFolders: () => s.sweepSkipFolders,
+            onChange: async (next) => { s.sweepSkipFolders = [...next]; await this.plugin.saveSettings(); this.settingTab.display(); },
+            emptyText: c.readingNoFolders,
+        }).render();
+        new Setting(this.containerEl).setName(c.sourceLinkName).setDesc(c.sourceLinkDesc)
+            .addToggle((tg) => tg.setValue(s.sweepSkipSourceLinked).onChange((v) => { s.sweepSkipSourceLinked = v; void this.plugin.saveSettings(); }));
 
         const details = this.containerEl.createEl('details', { cls: 'ai-organiser-advanced-group' });
         details.createEl('summary', { text: c.advancedTitle });

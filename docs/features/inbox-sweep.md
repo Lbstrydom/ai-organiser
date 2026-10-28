@@ -69,3 +69,7 @@ Opt-in on top of the one-list export; with the defaults (`tasksLists: []`, `task
 ## AI hand-back notes are skipped
 
 A note with a `## Handoff` section (outside code), an `aio:handoff` marker or `aio-handback: true` is left out of the sweep (`looksLikeHandback`), so its Decisions, Questions and Deliverables lines do not come back as tasks; it has its own review (Review AI hand-back). The run says how many were left out. The guard itself is unchanged, because the hand-back review sends a hand-back's next actions through the sweep with that note as their source.
+
+## Reading the sweep skips
+
+Two sweep-only settings in the Inbox sweep section leave reading (clipped articles, Web Reader output) to the capture inbox, which still clarifies and files it: `sweepSkipFolders` (a folder and everything below it) and `sweepSkipSourceLinked` (a note whose top-level `source` or `source_url` property is an http(s) link, as Web Clipper and the summarise commands write). `sweepSkipReason` (`sweepScope.ts`) decides; the run checks it at the same three points as the hand-back skip, so a skipped note is never sent, and counts it (`skippedReading`). **This narrows the sweep only and is not a privacy rule**: the keep-out policy stays the one list both features obey, and the guard is unchanged. Defaults (`[]`, off) read every note exactly as before (`tests/sweepScope.test.ts` pins the off path).

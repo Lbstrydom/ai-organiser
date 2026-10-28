@@ -515,6 +515,10 @@ export interface AIOrganiserSettings {
     sweepExcludedTerms: string[];
     /** The user deliberately chose "Nothing to keep out" in the setup */
     sweepNothingToExclude: boolean;
+    /** Inbox folders the SWEEP skips (reading, not commitments); the capture inbox still sees them. Not a privacy rule. `[]` = none. */
+    sweepSkipFolders: string[];
+    /** The sweep skips notes whose `source` / `source_url` property is a web link (clipped articles). Default off. */
+    sweepSkipSourceLinked: boolean;
     /** The contexts the sweep offers, as the user wrote them. `[]` means the built-in set (never written into settings). */
     sweepContexts: string[];
     /** The user's PARA folders (inbox, projects, areas, reference, archive). `[]` = none set. */
@@ -1118,6 +1122,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     upkeepLastNotified: '',
     sweepInboxFolders: [],
     sweepExcludedFolders: [],
+    sweepSkipFolders: [],
+    sweepSkipSourceLinked: false,
     sweepExcludedTags: [],
     sweepExcludedProperties: [],
     sweepExcludedTerms: [],
@@ -1825,10 +1831,11 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
         return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.floor(n))) : fallback;
     };
     const d = DEFAULT_SETTINGS;
-    for (const key of ['sweepInboxFolders', 'sweepExcludedFolders', 'sweepExcludedTags', 'sweepExcludedProperties', 'sweepExcludedTerms'] as const) {
+    for (const key of ['sweepInboxFolders', 'sweepExcludedFolders', 'sweepSkipFolders', 'sweepExcludedTags', 'sweepExcludedProperties', 'sweepExcludedTerms'] as const) {
         old[key] = strings(old[key]);
     }
     old.sweepNothingToExclude = old.sweepNothingToExclude === true;
+    old.sweepSkipSourceLinked = old.sweepSkipSourceLinked === true;
     // Idempotent: normalising a normalised list changes nothing, and `[]` stays `[]` (the built-in set is never stored).
     old.sweepContexts = normaliseContexts(old.sweepContexts);
     old.paraRoots = normaliseParaRoots(old.paraRoots);

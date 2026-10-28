@@ -8,6 +8,7 @@ Manual steps, in order. Nothing here is done for you: the plugin never edits you
 
 ## 2. Set up the inbox
 - Run **Set up inbox sweep** (settings, Inbox sweep, or the command palette): choose your inbox folder(s), say what must be kept out, and read the preview. Capture inbox shares the same inbox folders. Check: the setup finishes with "Inbox sweep is set up".
+- Optional: in the same *Inbox sweep* settings section, under **Reading the sweep skips**, add folders of articles and clippings (for example Web Reader, Clippings), and/or turn on **Skip clipped articles anywhere**. The sweep then leaves them alone; the capture inbox still clarifies and files them.
 - Why first: your PARA inbox folder is only recognised as an inbox once a sweep or capture inbox folder points at it.
 
 ## 3. PARA folders

@@ -75,6 +75,8 @@ export function buildSweepDeps(plugin: AIOrganiserPlugin, signal?: AbortSignal):
         currentPath: (path) => (plugin.app.vault.getAbstractFileByPath(path) instanceof TFile ? path : null),
         // Hand-backs have their own review only while AI workspaces are on; off, the sweep reads every note exactly as it always did.
         skipHandbacks: () => isFeatureEnabled(plugin.settings, 'ai-workspaces'),
+        // Reading the user chose to leave to the capture inbox; empty folders and the switch off = every note, as before.
+        scope: () => ({ skipFolders: plugin.settings.sweepSkipFolders, skipSourceLinked: plugin.settings.sweepSkipSourceLinked }),
     };
 }
 
@@ -168,6 +170,7 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
         new Notice(`${plural(t.summaryNotice, r.notes.length, 'notes').replace('{kept}', String(kept)).replace('{failed}', String(r.failed))}${heldLine}`, 7000);
         // AI hand-backs have their own review: said once, so a note that is missing from the sweep is explained.
         if (r.skippedHandbacks) new Notice(plural(t.handbackSkipped, r.skippedHandbacks), 9000);
+        if (r.skippedReading) new Notice(plural(t.readingSkipped, r.skippedReading), 9000);
         if (r.notes.length === 0) return;
         await review(plugin, r.notes, r.contexts);
     } catch (e) {
