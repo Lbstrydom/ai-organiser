@@ -4,6 +4,7 @@
  * the sweep only and is never a privacy rule (the keep-out policy in `sweepGuard` stays the one
  * privacy list both features obey). Empty scope = the sweep reads every note, as it always did.
  */
+import * as yaml from 'js-yaml';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 
 export interface SweepScope {
@@ -16,13 +17,24 @@ export interface SweepScope {
 export type SweepSkipReason = 'skip-folder' | 'source-link';
 
 const FRONTMATTER = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/;
-// A top-level `source:` or `source_url:` whose value (optionally quoted) is an http(s) link.
-const SOURCE_LINK = /^(?:source|source_url)\s*:\s*["']?https?:\/\/\S/im;
+const WEB_LINK = /^https?:\/\/\S/i;
 
-/** True when the note's frontmatter has a top-level `source` / `source_url` property holding a web link. */
+/** True when the note's frontmatter, parsed as YAML, has a top-level `source` / `source_url` string that is a web link. Unreadable YAML: false (the note is swept). */
 export function hasSourceLink(text: string): boolean {
     const fm = FRONTMATTER.exec(text);
-    return fm !== null && SOURCE_LINK.test(fm[1]);
+    if (!fm) return false;
+    let data: unknown;
+    try {
+        data = yaml.load(fm[1], { schema: yaml.JSON_SCHEMA });
+    } catch {
+        return false;
+    }
+    if (typeof data !== 'object' || data === null || Array.isArray(data)) return false;
+    const props = data as Record<string, unknown>;
+    return ['source', 'source_url'].some((k) => {
+        const value = props[k];
+        return typeof value === 'string' && WEB_LINK.test(value.trim());
+    });
 }
 
 /** Why the sweep leaves this note alone, or null when it reads it. */
