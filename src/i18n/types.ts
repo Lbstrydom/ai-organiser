@@ -4413,6 +4413,11 @@ export interface Translations {
         setupButton: string;
         runNow: string;
         keepOutSummary: string;
+        readingHeading: string;
+        readingHelp: string;
+        readingNoFolders: string;
+        sourceLinkName: string;
+        sourceLinkDesc: string;
         advancedTitle: string;
         maxNotesName: string;
         maxCharsName: string;
@@ -4459,6 +4464,7 @@ export interface Translations {
         nothingToSweepHeld: string;
         summaryHeld: string;
         handbackSkipped: string;
+        readingSkipped: string;
         summaryNotice: string;
         reportConflictNotice: string;
         commitStopped: string;
