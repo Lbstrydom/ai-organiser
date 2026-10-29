@@ -248,6 +248,9 @@ describe('PARA roots', () => {
     expect(validateParaRoots([{ path: 'Projects', kind: 'projects' }, { path: 'Inbox', kind: 'inbox' }], ctx)).toEqual([]);
     expect(validateParaRoots([{ path: 'Nope', kind: 'projects' }], ctx)).toEqual([{ code: 'root-missing', path: 'Nope' }]);
     expect(validateParaRoots([{ path: 'Secret', kind: 'projects' }], ctx)).toEqual([{ code: 'root-protected', path: 'Secret' }]);
+    expect(validateParaRoots([{ path: 'Secret/Sub', kind: 'projects' }], { ...ctx, existingFolders: new Set([...ctx.existingFolders, 'Secret/Sub']) })).toEqual([{ code: 'root-protected', path: 'Secret/Sub' }]);
+    // A protected folder inside a root (1 Projects/Capstone) does not flag the root: writes are guarded path by path.
+    expect(validateParaRoots([{ path: 'Projects', kind: 'projects' }], { ...ctx, protectedFolders: ['Projects/Capstone'] })).toEqual([]);
     expect(validateParaRoots([{ path: 'AI-Organiser/out', kind: 'archive' }], ctx)).toEqual([{ code: 'root-output-folder', path: 'AI-Organiser/out' }]);
     expect(validateParaRoots([{ path: 'Projects', kind: 'inbox' }], ctx)).toEqual([{ code: 'inbox-mismatch', path: 'Projects' }]);
     expect(validateParaRoots([{ path: 'Areas', kind: 'areas' }, { path: 'Areas/Sub', kind: 'projects' }], ctx)).toEqual([{ code: 'root-overlap', path: 'Areas', other: 'Areas/Sub' }]);
