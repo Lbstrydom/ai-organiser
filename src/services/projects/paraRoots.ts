@@ -66,7 +66,9 @@ export function validateParaRoots(roots: readonly ParaRoot[], ctx: ParaRootConte
     for (const root of roots) {
         const path = normalisePath(root.path);
         if (!folders.has(path.toLowerCase())) problems.push({ code: 'root-missing', path });
-        if (protectedList.some((p) => isInsideOrEqual(path, p) || isInsideOrEqual(p, path))) problems.push({ code: 'root-protected', path });
+        // Only a root that IS or sits INSIDE a protected folder is a problem. A protected folder inside a root is guarded
+        // path by path at every write, as the capture inbox treats it, so it must not flag the whole root.
+        if (protectedList.some((p) => isInsideOrEqual(path, p))) problems.push({ code: 'root-protected', path });
         if (outputs.some((o) => isInsideOrEqual(path, o) || isInsideOrEqual(o, path))) problems.push({ code: 'root-output-folder', path });
         if (root.kind === 'inbox' && !inbox.includes(path.toLowerCase())) problems.push({ code: 'inbox-mismatch', path });
     }
