@@ -1,6 +1,7 @@
 import { BaseAdapter } from './baseAdapter';
 import { BaseResponse, RequestBody, AdapterConfig } from './types';
 import * as endpoints from './cloudEndpoints.json';
+import { isClaudeModelId } from './modelCapabilities';
 // SYSTEM_PROMPT available if needed for future use
 
 export class RequestyAdapter extends BaseAdapter {
@@ -33,11 +34,15 @@ export class RequestyAdapter extends BaseAdapter {
     }
 
     public formatRequest(prompt: string): RequestBody {
+        // The provider body carries defaultConfig's temperature; a Claude model
+        // behind Requesty rejects sampling fields, so it gets max_tokens only.
         const baseRequest = super.formatRequest(prompt);
-        
+        delete baseRequest.temperature;
+        const { temperature, ...rest } = this.defaultConfig;
         return {
             ...baseRequest,
-            ...this.defaultConfig
+            ...rest,
+            ...(isClaudeModelId(this.config.modelName) ? {} : { temperature })
         };
     }
 

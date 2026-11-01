@@ -208,7 +208,7 @@ export abstract class BaseAdapter extends BaseLLMService {
             body: {
                 model: this.config.modelName,
                 messages: [
-                    { role: 'system', content: 'You are a helpful assistant that summarizes content accurately and thoroughly.' },
+                    { role: 'system', content: 'Complete the task in the user message and follow its output format exactly.' },
                     { role: 'user', content: prompt },
                 ],
                 stream: true,

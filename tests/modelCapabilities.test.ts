@@ -336,10 +336,15 @@ describe('claudeThinkingAlwaysOn / claudeAlwaysThinkingParams', () => {
         }
     });
 
-    it('adds low effort and a 4096 floor only for an always-thinking model', () => {
-        expect(claudeAlwaysThinkingParams('claude-opus-5-5', 1024)).toEqual({ output_config: { effort: 'low' }, max_tokens: 4096 });
+    it('adds low effort and a 4096 floor for every model that thinks by default', () => {
+        const low = { output_config: { effort: 'low' }, max_tokens: 4096 };
+        for (const id of ['claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5', 'claude-sonnet-5-5', 'claude-haiku-5-5']) {
+            expect(claudeAlwaysThinkingParams(id, 1024), id).toEqual(low);
+        }
         expect(claudeAlwaysThinkingParams('claude-opus-5-5', 8192)).toEqual({ output_config: { effort: 'low' }, max_tokens: 8192 });
-        expect(claudeAlwaysThinkingParams('claude-opus-4-7', 1024)).toEqual({});
-        expect(claudeAlwaysThinkingParams('claude-sonnet-5', 1024)).toEqual({});
+        // 4.x and Haiku 4.5 do not think unless asked: their requests stay byte-identical.
+        for (const id of ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'gpt-5.5', undefined]) {
+            expect(claudeAlwaysThinkingParams(id, 1024), String(id)).toEqual({});
+        }
     });
 });

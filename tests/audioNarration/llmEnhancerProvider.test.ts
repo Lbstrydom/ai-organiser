@@ -182,7 +182,23 @@ describe('HaikuEnhancementProvider', () => {
         // The body posted to /v1/messages should use the NEWEST Haiku id
         const messagesBody = JSON.parse((mockRequestUrl.mock.calls[1][0] as { body: string }).body);
         expect(messagesBody.model).toBe('claude-haiku-4-5-20251001');
+        expect(messagesBody).not.toHaveProperty('temperature');
         expect(o.ok).toBe(true);
+    });
+
+    it('sends no sampling field and, for a Haiku that thinks by default, low effort', async () => {
+        mockRequestUrl
+            .mockResolvedValueOnce(modelsResp(['claude-haiku-4-5-20251001', 'claude-haiku-5-5']))
+            .mockResolvedValueOnce({
+                status: 200,
+                text: JSON.stringify({ content: [{ type: 'text', text: JSON.stringify({ enhancedMarkdown: 'h', decisions: [] }) }] }),
+                headers: {},
+            });
+        await provider.enhance(makeApp(), 'md', 'sk-ant-test', CTX);
+        const body = JSON.parse((mockRequestUrl.mock.calls[1][0] as { body: string }).body);
+        expect(body.model).toBe('claude-haiku-5-5');
+        for (const k of ['temperature', 'top_p', 'top_k']) expect(body).not.toHaveProperty(k);
+        expect(body.output_config).toEqual({ effort: 'low' });
     });
 
     it('computes cost from Anthropic usage metadata', async () => {

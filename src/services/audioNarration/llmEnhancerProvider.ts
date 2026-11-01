@@ -19,6 +19,7 @@ import type { App, RequestUrlParam } from 'obsidian';
 import { abortableRequestUrl } from '../../utils/abortableRequestUrl';
 import { logger } from '../../utils/logger';
 import { buildEnhancerPrompt, type EnhancementContext } from './llmEnhancerPrompts';
+import { claudeAlwaysThinkingParams } from '../adapters/modelCapabilities';
 
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
@@ -291,11 +292,12 @@ class HaikuEnhancementProvider implements LlmEnhancementProvider {
         if (!apiKey) return errOutcome('no-api-key', { retryable: false });
         const model = await resolveLatestHaiku(apiKey, signal).catch(() => 'latest-haiku');
         const prompt = buildEnhancerPrompt(sectionMarkdown, ctx);
+        // No temperature: Claude rejects sampling fields (Haiku 5.5 any non-default value).
         const body = JSON.stringify({
             model,
             max_tokens: DEFAULT_MAX_OUTPUT_TOKENS,
-            temperature: 0.2,
             messages: [{ role: 'user', content: prompt }],
+            ...claudeAlwaysThinkingParams(model, DEFAULT_MAX_OUTPUT_TOKENS),
         });
         const params: RequestUrlParam = {
             url: 'https://api.anthropic.com/v1/messages',

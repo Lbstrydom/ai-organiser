@@ -234,7 +234,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                         content: joinPromptParts(options?.stablePrefix, prompt)
                     }
                 ],
-                temperature: 0.3
+                ...this.samplingFields()
             })
         }, this.getRequestTimeoutMs());
 
@@ -273,7 +273,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                     messages: [
                         {
                             role: 'system',
-                            content: 'You are a helpful assistant that summarizes content accurately and concisely.'
+                            content: 'Complete the task in the user message and follow its output format exactly.'
                         },
                         {
                             role: 'user',
@@ -282,7 +282,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                             content: joinPromptParts(options?.stablePrefix, prompt)
                         }
                     ],
-                    temperature: 0.3,
+                    ...this.samplingFields(),
                     // Clamp to the local output ceiling so a large-storyboard request can't
                     // exceed a small local model's context and 400 (Gemini G1). Local caps
                     // the storyboard at ~3 slides anyway, which fits this budget.
@@ -332,10 +332,10 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         const body = {
             model: this.modelName,
             messages: [
-                { role: 'system', content: 'You are a helpful assistant that summarizes content accurately and concisely.' },
+                { role: 'system', content: 'Complete the task in the user message and follow its output format exactly.' },
                 { role: 'user', content: prompt },
             ],
-            temperature: 0.3,
+            ...this.samplingFields(),
             stream: true,
         };
 

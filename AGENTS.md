@@ -32,8 +32,8 @@ npm run build
 # Quick production build (source type-check + bundle, skips test types)
 npm run build:quick
 
-# Version bump (updates manifest.json and versions.json)
-npm run version
+# Release PRs only, on the owner's go (see Version Management -> Releasing):
+# npm version <x.y.z> --no-git-tag-version bumps package.json, manifest.json, versions.json
 ```
 
 **Build Configuration**:
@@ -154,7 +154,7 @@ never CDN-loaded** — see [Known Constraints](#known-constraints).
 
 ## Command Registration
 
-Commands are registered per category in `src/commands/`:
+Commands are registered per feature in `src/commands/` (one registrar per file, gated through `REGISTER_BY_FEATURE`). Representative files:
 
 | File | Commands |
 |---|---|
@@ -432,11 +432,11 @@ All prompts use XML-style structure:
 <output_format>Expected format with examples</output_format>
 ```
 
-This format optimized for Claude/GPT-4 comprehension.
+Keep this structure for every new prompt so prompts stay consistent across providers and parseable.
 
 ### Claude Adaptive Thinking
 
-**Claude adaptive thinking** (`claudeAdapter.ts`): Opus 4.6 and Sonnet 4.6 support adaptive thinking where Claude decides when to think deeply. Controlled by `claudeThinkingMode` setting (`standard` | `adaptive`). `applyThinkingParams()` injects `thinking: { type: 'adaptive' }`, bumps `max_tokens` to 64000, removes temperature. `parseResponseContent()` skips thinking blocks; `parseStreamingChunk()` skips `thinking_delta` events.
+**Claude adaptive thinking** (`claudeAdapter.ts`, capability checks in `modelCapabilities.ts`): Opus and Sonnet from 4.6 support adaptive thinking (`claudeSupportsAdaptiveThinking`; Haiku excluded). The `claudeThinkingMode` setting (`standard` default | `adaptive`) controls it: in adaptive mode `applyThinkingParams()` sends `thinking: { type: 'adaptive' }` and raises `max_tokens` to at least 64000. Models that think when `thinking` is omitted (Opus and Sonnet 5.x, Haiku 5.5: `claudeThinksByDefault`) get `output_config.effort: 'low'` and a 4096 `max_tokens` floor on a standard-mode request (`claudeAlwaysThinkingParams`), because thinking shares `max_tokens`; `thinking: { type: 'disabled' }` is never sent (it is a 400 on Opus 5.5 and Sonnet 5.5). No Claude request sends `temperature` / `top_p` / `top_k`: Claude rejects them, and OpenAI-shaped builders drop them for a Claude model id (`isClaudeModelId`). `parseResponseContent()` skips thinking blocks; `parseStreamingChunk()` skips `thinking_delta` events.
 
 ### Tag Sanitization Pipeline
 
@@ -448,18 +448,17 @@ Always sanitize LLM outputs:
 
 ### Frontmatter Handling
 
-Use Obsidian's `metadataCache` for reading, `vault.modify()` for writing:
+Read frontmatter through `metadataCache`. Commands write through `applyNoteEdit`; only the low-level helpers in `src/utils/` (e.g. `TagUtils.updateNoteTags`) call `vault.modify()` directly:
 - Parse YAML with `js-yaml` library
 - Preserve non-tag frontmatter fields
 - Handle edge cases: no frontmatter, malformed YAML, empty tags
 
 ### Error Handling
 
-- Use `TagOperationResult` interface for operation outcomes
+- `TagOperationResult` is the legacy outcome type of the tag operations in `main.ts`; new code returns `Result<T>` (see Cross-Cutting Invariants)
 - Show user-friendly notices via `Notice` class
 - **Logging**: Use `logger.debug('Tag', msg)` / `logger.warn()` / `logger.error()` from `src/utils/logger.ts` — never use `console.log` directly. Debug/warn output is suppressed unless `debugMode` is enabled; errors always log.
-- New services should return `Result<T>` from `src/core/result.ts` at service boundaries
-- Graceful degradation: failed operations return `{success: false, message: ...}`
+- Graceful degradation: a failed operation returns `Result.err` with a stable code, never a throw past the service boundary
 
 ### RAG Integration Patterns
 
@@ -502,7 +501,7 @@ npm run test:auto     # Run automated integration tests (no Obsidian required)
 
 See `docs/usertest.md` for manual testing checklist.
 
-## Deployment Verification ⚠️ CRITICAL
+## Deployment Verification
 
 **Local dev auto-deploy**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder(s) listed in the gitignored `deploy.local.json` (or `AIORG_DEPLOY_TARGETS`, `;`-separated) after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path). The manual steps below remain a fallback / for other machines. **Users are not served from this step** — they get releases from the community store (see Version Management → Releasing).
 
@@ -596,10 +595,7 @@ plugin.addCommand({
 This repo pushes to one remote:
 - `origin` → Lbstrydom/ai-organiser (public)
 
-Push to origin after committing:
-```bash
-git push origin main
-```
+Work on a branch and land it through a pull request to `main` (CI and the version guard run on PRs); do not push to `main` directly.
 
 ## Version Management
 
@@ -608,7 +604,7 @@ Version is stored in three places (must stay in sync):
 - `manifest.json` → `version`
 - `versions.json` → add new entry
 
-Use `npm run version` to bump all three automatically via `version-bump.mjs`.
+`npm version <x.y.z> --no-git-tag-version` bumps all three (it runs `version-bump.mjs` for `manifest.json` / `versions.json`); release PRs only. `npm run version` alone syncs only `manifest.json` / `versions.json` to `package.json`.
 
 ### Releasing (community store)
 
@@ -813,6 +809,7 @@ Mobile settings section in plugin settings provides:
 | [docs/dependency-accepted-risks.md](docs/dependency-accepted-risks.md) | Transitive vulnerabilities accepted, with reasoning |
 | [status.md](status.md) | Session log — what shipped, when, and how it was verified |
 
-Plan documents (`docs/plans/`, `docs/completed/`) are **gitignored by design** — they
-carry working detail and are not distributed. Links to them from inside `docs/features/`
+Plan documents (`docs/plans/`, `docs/completed/`) and the local reference docs
+`docs/usertest.md`, `docs/obsidian-review-bot.md` and `docs/format-specs.md` are **gitignored by
+design** — they carry working detail and are not distributed, so a fresh clone or worktree lacks them. Links to them from inside `docs/features/`
 resolve only in a working checkout; that is expected, not rot.

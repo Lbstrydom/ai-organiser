@@ -3,7 +3,7 @@ import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
 import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
-import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLatestModel } from './adapters/modelCapabilities';
+import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLatestModel, isClaudeModelId } from './adapters/modelCapabilities';
 import { buildClaudeCachedPrompt } from './adapters/claudePromptCache';
 import { joinPromptParts } from './prompts/promptParts';
 import { logLlmUsage } from './llm/llmUsageLog';
@@ -752,7 +752,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      */
     private buildSummarizeRequestBody(prompt: string, options?: SummarizeOptions): Record<string, unknown> {
         // Use a neutral, general-purpose system prompt
-        const summarizeSystemPrompt = 'You are a helpful assistant that summarizes content accurately and thoroughly.';
+        const summarizeSystemPrompt = 'Complete the task in the user message and follow its output format exactly.';
 
         // Non-Claude providers don't have Anthropic-style ephemeral prompt
         // caching; concatenate `stablePrefix` onto the user prompt so callers
@@ -837,8 +837,8 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 ],
             };
 
-            // Reasoning models reject temperature — simply omit it.
-            if (!isReasoningModel) {
+            // Reasoning models and Claude (via OpenRouter, Requesty, …) reject temperature — omit it.
+            if (!isReasoningModel && !isClaudeModelId(modelName)) {
                 baseRequest.temperature = 0.3;
             }
 
@@ -916,8 +916,8 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         if (useThinking) {
             body.thinking = { type: 'adaptive' };
         } else {
-            // Opus 5.5+ cannot turn thinking off (a `disableThinking` caller gets
-            // low effort, the nearest honest equivalent). No-op for other models.
+            // 5.x models think when `thinking` is omitted (a `disableThinking` caller
+            // gets low effort, the nearest honest equivalent). No-op for 4.x / Haiku 4.5.
             Object.assign(body, claudeAlwaysThinkingParams(modelName, maxTokens));
         }
 

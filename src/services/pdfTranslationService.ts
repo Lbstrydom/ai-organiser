@@ -2,6 +2,7 @@ import type AIOrganiserPlugin from '../main';
 import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import { PdfContent } from './pdfService';
 import { isAzureMode } from './azure/endpointResolver';
+import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { getAzureApiKey, resolveEndpoint } from './apiKeyHelpers';
 
 export interface PdfProviderConfig {
@@ -33,7 +34,7 @@ export async function getPdfProviderConfig(plugin: AIOrganiserPlugin): Promise<P
             return {
                 provider: 'azure-claude',
                 apiKey: azureKey,
-                model: plugin.settings.cloudModel || 'claude-sonnet-4-6',
+                model: plugin.settings.cloudModel || PROVIDER_DEFAULT_MODEL['azure-claude'],
                 endpoint,
             };
         }

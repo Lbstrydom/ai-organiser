@@ -321,16 +321,17 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                     .setDesc(pdf?.modelDesc || 'Model to use for PDF analysis')
                     .addDropdown(dropdown => {
                         const claudeLabels = {
-                            default: 'Default (claude-sonnet-4-6)',
+                            default: 'Default (latest sonnet)',
                             opus55: 'Claude opus 5.5 (highest quality)',
                             opus47: 'Claude opus 4.7',
-                            sonnet: 'Claude sonnet 4.6 (recommended)',
+                            sonnet55: 'Claude sonnet 5.5 (recommended)',
+                            sonnet: 'Claude sonnet 4.6',
                             opus: 'Claude opus 4.6 (legacy)',
                             sonnet45: 'Claude sonnet 4.5 (legacy)',
                             haiku: 'Claude haiku 4.5 (fastest)',
                         };
                         const geminiLabels = {
-                            default: 'Default (gemini-3-flash-preview)',
+                            default: 'Default (latest flash)',
                             flash: 'Gemini 3 flash (recommended)',
                             pro: 'Gemini 3.1 pro (higher quality)',
                         };
@@ -338,6 +339,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
                             dropdown
                                 .addOption('', claudeLabels.default)
                                 .addOption('claude-opus-5-5', claudeLabels.opus55)
+                                .addOption('claude-sonnet-5-5', claudeLabels.sonnet55)
                                 .addOption('claude-opus-4-7', claudeLabels.opus47)
                                 .addOption('claude-sonnet-4-6', claudeLabels.sonnet)
                                 .addOption('claude-opus-4-6', claudeLabels.opus)
