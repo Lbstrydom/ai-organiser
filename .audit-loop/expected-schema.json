@@ -2071,6 +2071,33 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 66
+        },
+        {
+          "column_name": "audit_session_id",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 67
+        },
+        {
+          "column_name": "audit_round",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 68
+        },
+        {
+          "column_name": "capture_epoch",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 69
         }
       ]
     },
@@ -13004,7 +13031,7 @@
       "table_name": "finding_adjudication_events",
       "constraint_name": "fae_adjudicator_kind_chk",
       "constraint_type": "CHECK",
-      "definition": "CHECK (((adjudicator_kind IS NULL) OR (adjudicator_kind = ANY (ARRAY['agent'::text, 'human'::text, 'pipeline'::text, 'rule'::text]))))"
+      "definition": "CHECK (((adjudicator_kind IS NULL) OR (adjudicator_kind = ANY (ARRAY['agent'::text, 'human'::text, 'pipeline'::text, 'rule'::text, 'reviewer'::text]))))"
     },
     {
       "table_name": "finding_adjudication_events",
@@ -14350,6 +14377,11 @@
       "tablename": "audit_runs",
       "indexname": "audit_runs_pkey",
       "indexdef": "CREATE UNIQUE INDEX audit_runs_pkey ON public.audit_runs USING btree (id)"
+    },
+    {
+      "tablename": "audit_runs",
+      "indexname": "idx_audit_runs_audit_session_id",
+      "indexdef": "CREATE INDEX idx_audit_runs_audit_session_id ON public.audit_runs USING btree (audit_session_id)"
     },
     {
       "tablename": "audit_runs",
