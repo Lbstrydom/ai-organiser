@@ -70,8 +70,8 @@ export class AzureClaudeAdapter extends BaseAdapter {
      */
     private applyThinkingParams(body: Record<string, unknown>): Record<string, unknown> {
         if (!this.useAdaptiveThinking) {
-            // Opus 5.5+ thinks even when not asked to, sharing max_tokens; keep it
-            // brief and give the reply room. No-op for every other model.
+            // 5.x models think even when not asked to, sharing max_tokens; keep it
+            // brief and give the reply room. No-op for 4.x and Haiku 4.5.
             const extra = claudeAlwaysThinkingParams(this.config.modelName, (body.max_tokens as number) || 0);
             return Object.keys(extra).length ? { ...body, ...extra } : body;
         }
@@ -208,7 +208,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
         const body: Record<string, unknown> = {
             model: this.config.modelName,
             max_tokens: 4096,
-            system: 'You are a helpful assistant that summarizes content accurately and thoroughly.',
+            system: 'Complete the task in the user message and follow its output format exactly.',
             messages: [{ role: 'user', content: prompt }],
             stream: true,
         };

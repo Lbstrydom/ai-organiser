@@ -44,7 +44,7 @@ describe('Claude prompt caching — stablePrefix', () => {
                 .buildSummarizeRequestBody('hello world');
 
             expect(typeof body.system).toBe('string');
-            expect(body.system).toContain('helpful assistant');
+            expect(body.system).toContain('Complete the task in the user message');
             expect(body.messages).toEqual([{ role: 'user', content: 'hello world' }]);
             const serialised = JSON.stringify(body);
             expect(serialised).not.toContain('cache_control');
@@ -116,7 +116,7 @@ v`);
             const systemArr = body.system as Array<Record<string, unknown>>;
             expect(systemArr).toHaveLength(2);
             // First block: original neutral system prompt, no cache_control
-            expect(systemArr[0]).toEqual({ type: 'text', text: expect.stringContaining('helpful assistant') });
+            expect(systemArr[0]).toEqual({ type: 'text', text: expect.stringContaining('Complete the task in the user message') });
             expect(systemArr[0].cache_control).toBeUndefined();
             // Second block: stable prefix with cache_control marker
             expect(systemArr[1]).toEqual({

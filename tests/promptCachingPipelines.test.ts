@@ -109,7 +109,7 @@ function service(type: AdapterType, modelName: string, endpoint: string): CloudL
 }
 
 describe('generateTags transport', () => {
-    it('claude above the minimum: system = [SYSTEM, prefix+cache_control]; user = tail only; max_tokens 1024', async () => {
+    it('claude above the minimum: system = [SYSTEM, prefix+cache_control]; user = tail only; Sonnet 5.5 gets low effort and a 4096 floor', async () => {
         okResponse();
         await service('claude' as AdapterType, 'claude-sonnet-5-5', 'https://api.anthropic.com/v1/messages')
             .generateTags(PROMPT, { stablePrefix: PREFIX });
@@ -120,7 +120,8 @@ describe('generateTags transport', () => {
         expect(sys[0].cache_control).toBeUndefined();
         expect(sys[1]).toEqual({ type: 'text', text: PREFIX, cache_control: { type: 'ephemeral' } });
         expect(body.messages).toEqual([{ role: 'user', content: PROMPT }]);
-        expect(body.max_tokens).toBe(1024);
+        expect(body.max_tokens).toBe(4096);
+        expect(body.output_config).toEqual({ effort: 'low' });
     });
 
     it('azure-claude builds the same shape as direct claude (cache_control reaches the gateway body)', async () => {

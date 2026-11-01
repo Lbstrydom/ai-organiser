@@ -145,14 +145,6 @@ Anki supports HTML rendering. You may use:
 - Wrap ALL fields in double quotes for reliable CSV import
 </output_requirements>
 
-<process>
-1. Read ALL provided content carefully
-2. Identify the key concepts, definitions, processes, and relationships
-3. Create flashcard pairs following the card quality rules
-4. Format as CSV following the rules above
-5. Output the complete CSV file
-</process>
-
 Output ONLY the CSV content, no explanations or markdown code blocks.`
 };
 
@@ -217,14 +209,6 @@ DO NOT use:
 - Use Unicode math symbols (²³√π∞Σ) — NEVER LaTeX
 - Wrap ALL fields in double quotes for reliable CSV import
 </output_requirements>
-
-<process>
-1. Read ALL provided content carefully
-2. Identify the key concepts, definitions, processes, and relationships
-3. Create flashcard pairs following the card quality rules
-4. Format as CSV following the rules above
-5. Output the complete CSV file
-</process>
 
 Output ONLY the CSV content, no explanations or markdown code blocks.`
 };

@@ -79,13 +79,12 @@ ${personaPrompt ? `<persona>\n${personaPrompt}\n</persona>\n` : ''}
 ${userContext ? `<user_context>\n${userContext}\n</user_context>\n` : ''}
 
 <instructions>
-1. Read and analyze the provided content carefully
-2. ${lengthInstruction}
-3. Create a 280-character summary hook (concise overview for quick preview)
-4. Identify 3-7 relevant tags for categorization
-5. Classify the content type as one of: note, research, meeting, project, reference
-6. Write everything in ${language}
-7. Format as markdown with proper headings and structure
+1. ${lengthInstruction}
+2. Create a 280-character summary hook (concise overview for quick preview)
+3. Identify 3-7 relevant tags for categorization
+4. Classify the content type as one of: note, research, meeting, project, reference
+5. Write everything in ${language}
+6. Format as markdown with proper headings and structure
 </instructions>
 
 <output_format>

@@ -126,7 +126,7 @@ async function judgeLive(b64, prompt) {
 const LATEST_BY_FAMILY = {
     openai: process.env.RADAR_JUDGE_MODEL || 'gpt-5.3',           // latest omni (was the legacy gpt-4o)
     gemini: process.env.RADAR_JUDGE_MODEL || 'gemini-flash-latest',
-    anthropic: process.env.RADAR_JUDGE_MODEL || 'claude-opus-4-6',
+    anthropic: process.env.RADAR_JUDGE_MODEL || 'claude-opus-5-5',
 };
 const VISION_JUDGES = {
     openai: { family: 'openai', model: LATEST_BY_FAMILY.openai, keyEnv: 'OPENAI_API_KEY', call: judgeOpenAI },

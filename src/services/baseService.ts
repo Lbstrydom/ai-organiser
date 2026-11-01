@@ -2,6 +2,7 @@ import { LLMServiceConfig, LLMResponse, ConnectionTestResult, ConnectionTestErro
 import { buildTagPrompt } from './prompts/tagPrompts';
 import { TaggingMode } from './prompts/types';
 import { SYSTEM_PROMPT } from '../utils/constants';
+import { isClaudeModelId } from './adapters/modelCapabilities';
 import { App, Platform } from 'obsidian';
 import { logger } from '../utils/logger';
 
@@ -96,8 +97,16 @@ export abstract class BaseLLMService {
                 { role: 'system', content: SYSTEM_PROMPT },
                 { role: 'user', content: prompt }
             ],
-            temperature: 0.3
+            ...this.samplingFields()
         };
+    }
+
+    /**
+     * Sampling fields for an OpenAI-shaped body: `temperature: 0.3`, or none when the
+     * model is Claude (OpenRouter `anthropic/claude-…`, a LiteLLM alias), which rejects them.
+     */
+    protected samplingFields(): { temperature?: number } {
+        return isClaudeModelId(this.modelName) ? {} : { temperature: 0.3 };
     }
 
     /**

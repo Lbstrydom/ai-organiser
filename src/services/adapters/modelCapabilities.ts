@@ -63,12 +63,9 @@ export function claudeSupportsAdaptiveThinking(modelId: string | undefined | nul
 /**
  * Is thinking permanently ON for this Claude model — i.e. can it NOT be turned
  * off? Opus 5.5 (2026-09) is the first: `thinking: {type:'disabled'}` returns
- * 400, omitting `thinking` still thinks (default effort `medium`), and that
- * thinking counts against `max_tokens`. A request sized for a no-thinking
- * model (the 1024-token bare request, a `disableThinking` summarize) can then
- * spend its whole budget reasoning and return no text. Callers that did not
- * ask for thinking send `effort: low` instead (see claudeAlwaysThinkingParams).
- * Opus/Sonnet 5.0 think by default but CAN be disabled, so they are excluded.
+ * 400 at every effort level. Sonnet 5.5 rejects `disabled` too but accepts
+ * `between_tools`, so it is not listed here; see claudeThinksByDefault for
+ * the wider set that thinks when `thinking` is omitted.
  */
 export function claudeThinkingAlwaysOn(modelId: string | undefined | null): boolean {
     const p = parseClaudeModel(modelId);
@@ -76,17 +73,43 @@ export function claudeThinkingAlwaysOn(modelId: string | undefined | null): bool
 }
 
 /**
- * Request fields for a Claude call that did NOT ask for thinking: empty for
- * every model except an always-thinking one, where it is low effort plus a
- * `max_tokens` floor so thinking cannot consume the whole reply budget. Empty
- * for Opus 4.x / Sonnet / Haiku, so their requests are byte-identical.
+ * Does this Claude model think when the request omits `thinking`? Opus and
+ * Sonnet from 5.0 and Haiku from 5.5 run adaptive thinking by default, and that
+ * thinking counts against `max_tokens`. A request sized for a no-thinking model
+ * (the 1024-token tag request, a `disableThinking` summarize) can then spend its
+ * whole budget reasoning and return no text. 4.x models and Haiku 4.5 do not.
+ */
+export function claudeThinksByDefault(modelId: string | undefined | null): boolean {
+    const p = parseClaudeModel(modelId);
+    if (!p) return false;
+    if (p.tier === 'haiku') return versionAtLeast(p, 5, 5);
+    return versionAtLeast(p, 5, 0);
+}
+
+/**
+ * Request fields for a Claude call that did NOT ask for thinking: empty for a
+ * model that does not think by default (4.x, Haiku 4.5), so those requests are
+ * byte-identical; for one that does, low effort plus a `max_tokens` floor so
+ * thinking cannot consume the whole reply budget. Low effort is the one control
+ * every such model accepts (`disabled` is a 400 on Opus 5.5 and Sonnet 5.5).
  */
 export function claudeAlwaysThinkingParams(
     modelId: string | undefined | null,
     currentMaxTokens: number,
 ): { output_config?: { effort: 'low' }; max_tokens?: number } {
-    if (!claudeThinkingAlwaysOn(modelId)) return {};
+    if (!claudeThinksByDefault(modelId)) return {};
     return { output_config: { effort: 'low' }, max_tokens: Math.max(currentMaxTokens, 4096) };
+}
+
+/**
+ * Is this a Claude model id, under any provider's spelling (`claude-…`,
+ * OpenRouter `anthropic/claude-…`, Bedrock `anthropic.claude-…`, a proxy alias)?
+ * Claude rejects `temperature` / `top_p` / `top_k`: non-default values 400 on
+ * Opus 4.7+ and every 5.x model, and on API version 2026-10-21 any value does.
+ * OpenAI-shaped request builders use this to leave sampling fields out.
+ */
+export function isClaudeModelId(modelId: string | undefined | null): boolean {
+    return !!modelId && /claude/i.test(modelId);
 }
 
 /**

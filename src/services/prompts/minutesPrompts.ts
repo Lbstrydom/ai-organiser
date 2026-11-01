@@ -319,10 +319,10 @@ function buildSharedPromptSuffix(options: MinutesStylePromptOptions): string {
     const isGuided = options.minutesStyle === 'guided';
     let responseFormatSection: string;
     if (dualOutput) {
-        responseFormatSection = `<<< RESPONSE FORMAT - CRITICAL >>>
+        responseFormatSection = `<<< RESPONSE FORMAT >>>
 
-Your response MUST contain a valid JSON object matching the schema below.
-Start with { (no preamble, no markdown fences, no text before the JSON).
+Your response contains a JSON object matching the schema below.
+Start with { because the parser reads from the first brace (no preamble, no markdown fences, no text before the JSON).
 
 After the JSON object, output this delimiter on its own line:
 ${MINUTES_JSON_DELIMITER}
@@ -334,9 +334,9 @@ followed by dual markdown minutes using exactly this structure:
 ## Minutes_External
 [sanitized markdown — remove internal tool names, sensitive pricing, strategy commentary]`;
     } else if (isGuided) {
-        responseFormatSection = `<<< RESPONSE FORMAT - CRITICAL >>>
+        responseFormatSection = `<<< RESPONSE FORMAT >>>
 
-Your response MUST contain BOTH a JSON object (for structured data capture)
+Your response contains BOTH a JSON object (for structured data capture)
 AND reference-styled markdown (which becomes the user-visible output).
 
 1. Start with { — a valid JSON object matching the schema below.
@@ -354,11 +354,11 @@ Do NOT produce the markdown as tables unless the reference uses tables.
 Do NOT produce numbered action/decision lists unless the reference uses them.
 Match the reference's PROSE DENSITY and SECTION STRUCTURE.`;
     } else {
-        responseFormatSection = `<<< RESPONSE FORMAT - CRITICAL >>>
+        responseFormatSection = `<<< RESPONSE FORMAT >>>
 
-Your response MUST be a valid JSON object matching the schema below.
+Your response is a JSON object matching the schema below.
 Start with { — no preamble, no markdown fences, no text before or after the JSON.
-Output ONLY the JSON. Markdown will be rendered from it automatically.`;
+Output only the JSON. Markdown will be rendered from it automatically.`;
     }
 
     // Meeting context behavior
@@ -533,10 +533,7 @@ MinutesJSON (valid JSON, no markdown fences, must be first in response):
   "deferred_items": [
     { "id": "P1", "text": "", "reason": "" }
   ]${gtdSchemaFragment}
-}
-
-IMPORTANT: Ensure all notable_points, decisions, actions, risks, open_questions,
-and deferred_items are complete in the JSON.`;
+}`;
 
     // Self-check
     const customInstructionsCheck = customInstructions && customInstructions.trim().length > 0
