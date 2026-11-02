@@ -201,22 +201,52 @@ describe('HaikuEnhancementProvider', () => {
         expect(body.output_config).toEqual({ effort: 'low' });
     });
 
-    it('computes cost from Anthropic usage metadata', async () => {
+    function costFor(resolvedIds: string[], response: Record<string, unknown>) {
         mockRequestUrl
-            .mockResolvedValueOnce(modelsResp(['claude-haiku-4-5-20251001']))
+            .mockResolvedValueOnce(modelsResp(resolvedIds))
             .mockResolvedValueOnce({
                 status: 200,
                 text: JSON.stringify({
                     content: [{ type: 'text', text: JSON.stringify({ enhancedMarkdown: 'h', decisions: [] }) }],
-                    usage: { input_tokens: 1000, output_tokens: 500 },
+                    ...response,
                 }),
                 headers: {},
             });
-        const o = await provider.enhance(makeApp(), 'md', 'sk-ant', CTX);
+        return provider.enhance(makeApp(), 'md', 'sk-ant', CTX);
+    }
+
+    it('prices by the resolved model id — Haiku 4.5 at $1 / $5 per MTok', async () => {
+        const o = await costFor(['claude-haiku-4-5-20251001'], { usage: { input_tokens: 1000, output_tokens: 500 } });
         expect(o.ok).toBe(true);
         if (!o.ok) return;
-        // 1000 * 0.80/M + 500 * 4.00/M = 0.0008 + 0.002 = 0.0028
-        expect(o.value.actualCostUsd).toBeCloseTo(0.0028, 6);
+        // 1000 * 1/M + 500 * 5/M = 0.001 + 0.0025
+        expect(o.value.actualCostUsd).toBeCloseTo(0.0035, 8);
+    });
+
+    it('prices Haiku 5.5 at its own rate, and its long-context rate above 100K input tokens', async () => {
+        const short = await costFor(['claude-haiku-5-5'], { usage: { input_tokens: 1000, output_tokens: 500 } });
+        if (!short.ok) throw new Error('expected ok');
+        // 1000 * 0.10/M + 500 * 0.50/M
+        expect(short.value.actualCostUsd).toBeCloseTo(0.00035, 10);
+        __resetHaikuModelCacheForTests();
+        const long = await costFor(['claude-haiku-5-5'], { usage: { input_tokens: 200_000, output_tokens: 1000 } });
+        if (!long.ok) throw new Error('expected ok');
+        // 200000 * 0.50/M + 1000 * 2.50/M
+        expect(long.value.actualCostUsd).toBeCloseTo(0.1025, 10);
+    });
+
+    it('prices by the model the response names when it differs from the one requested', async () => {
+        const o = await costFor(['claude-haiku-5-5'], {
+            model: 'claude-haiku-4-5-20251001',
+            usage: { input_tokens: 1000, output_tokens: 500 },
+        });
+        if (!o.ok) throw new Error('expected ok');
+        expect(o.value.actualCostUsd).toBeCloseTo(0.0035, 8);
+    });
+
+    it('pre-flight estimate uses the newest documented Haiku, not Haiku 3.5 rates', () => {
+        expect(provider.costPerMTokensInput).toBe(0.10);
+        expect(provider.costPerMTokensOutput).toBe(0.50);
     });
 
     it('http error from /v1/messages bubbles up as http-<code>', async () => {

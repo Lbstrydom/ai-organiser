@@ -32,6 +32,9 @@ describe('parseClaudeModel', () => {
         expect(parseClaudeModel('claude-sonnet-4-6')).toEqual({ tier: 'sonnet', major: 4, minor: 6 });
         expect(parseClaudeModel('claude-haiku-4-5-20251001')).toEqual({ tier: 'haiku', major: 4, minor: 5 });
         expect(parseClaudeModel('claude-opus-4-5-20251101')).toEqual({ tier: 'opus', major: 4, minor: 5 });
+        // A date straight after the major is not a minor version (Sonnet 4.0 has no adaptive thinking).
+        expect(parseClaudeModel('claude-sonnet-4-20250514')).toEqual({ tier: 'sonnet', major: 4, minor: 0 });
+        expect(claudeSupportsAdaptiveThinking('claude-sonnet-4-20250514')).toBe(false);
     });
 
     it('parses the 5th-generation single-number scheme (no minor segment)', () => {

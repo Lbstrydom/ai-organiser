@@ -1,5 +1,5 @@
 import { BaseLLMService } from "../baseService";
-import { ConnectionTestResult, ConnectionTestError } from "../types";
+import { ConnectionTestResult, ConnectionTestError, SummarizeOptions } from "../types";
 import { AdapterConfig, BaseResponse, ContentPart, MultimodalCapability, LLMServiceProvider } from "./types";
 import { SYSTEM_PROMPT } from "../../utils/constants";
 import { extractTextFromParts } from "../../utils/adapterUtils";
@@ -176,9 +176,10 @@ export abstract class BaseAdapter extends BaseLLMService {
      * Formats a request for summarization (without tagging system prompt)
      * Optional - if not provided, CloudLLMService will use a default implementation
      * @param prompt - The prompt containing summarization instructions and content
+     * @param options - The caller's per-call options (token budget, thinking, stable prefix)
      * @returns Formatted request body
      */
-    public formatSummarizeRequest?(prompt: string): Record<string, unknown>;
+    public formatSummarizeRequest?(prompt: string, options?: SummarizeOptions): Record<string, unknown>;
 
     /**
      * Formats the tagging request with a cacheable instruction head kept apart
