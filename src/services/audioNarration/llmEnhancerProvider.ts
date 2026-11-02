@@ -330,7 +330,9 @@ class HaikuEnhancementProvider implements LlmEnhancementProvider {
             const outTok = data.usage?.output_tokens ?? 0;
             // Price by the model that answered (the response names it), else the one requested;
             // an undocumented id falls back to the newest Haiku's price.
-            const price = claudePricePerMTok(data.model ?? model) ?? HAIKU_ESTIMATE_PRICE;
+            const documented = claudePricePerMTok(data.model ?? model);
+            if (!documented) logger.debug('LlmEnhancer', `No documented price for ${data.model ?? model}; costing at the newest Haiku rate`);
+            const price = documented ?? HAIKU_ESTIMATE_PRICE;
             const cost = claudeCallCostUsd(price, inTok, outTok);
             return {
                 ok: true as const,

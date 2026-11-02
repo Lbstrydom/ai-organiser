@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-11-02T13:47:54.023Z",
-  "commitSha": "ca072225a75a98daae1636c80d36eb53beebf619",
-  "extractionSourceSha": "ca072225a75a98daae1636c80d36eb53beebf619",
+  "generatedAt": "2026-11-02T14:05:03.517Z",
+  "commitSha": "a805af0c72ea1d3c20b4f8030d849a356a80d7cd",
+  "extractionSourceSha": "a805af0c72ea1d3c20b4f8030d849a356a80d7cd",
   "coveredFiles": [
     "src/core/settings.ts",
     "src/services/adapters/baseAdapter.ts",
@@ -232,6 +232,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-09df2047",
+      "assertion": "Gemini non-TTS newest-model selection excludes TTS and lite variants and prefers general availability over preview at equal versions.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "pickNewestGemini"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#pickNewestGemini"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-09df2047",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Variant exclusions and release-status tie-breaking are coherent selection rules without linked tests."
       }
     },
     {
@@ -515,36 +545,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-1b706d47",
-      "assertion": "Enhancement calls reject missing API keys without outbound requests and mark HTTP failures retryable only for statuses 429 and 503.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "GeminiEnhancementProvider.enhance; HaikuEnhancementProvider.enhance"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-1b706d47",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Authentication failure and retryability lack tests."
-      }
-    },
-    {
       "id": "REQ-behavioural-1b822227",
       "assertion": "Generate-new tagging mode builds prompts with an empty candidate tag list regardless of the candidateTags argument supplied by the caller.",
       "kind": "behavioural",
@@ -573,37 +573,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-behavioural-1c44bcd8",
-      "assertion": "Bedrock summarization ignores modelOverride and enables explicit adaptive thinking only for supported normalized models when requested and not disabled.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "formatSummarizeRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts",
-          "src/services/adapters/modelCapabilities.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-1c44bcd8",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Configured-model thinking behavior lacks linked tests."
       }
     },
     {
@@ -667,36 +636,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-behavioural-251ac73e",
-      "assertion": "Bedrock substitutes the configured default endpoint when the endpoint is absent or equals the legacy regionless endpoint after trailing-slash removal.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "constructor"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-251ac73e",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Endpoint normalization lacks linked tests."
       }
     },
     {
@@ -1199,6 +1138,36 @@
       }
     },
     {
+      "id": "REQ-behavioural-4e10cacb",
+      "assertion": "Specialist model resolution prefers nonempty live catalogs over static catalogs and preserves unresolved sentinels.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "resolveSpecialistModel"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#resolveSpecialistModel"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-4e10cacb",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Live-catalog precedence and sentinel preservation appear intentional but lack linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-4ea28d95",
       "assertion": "Non-Azure summarization honors positive Retry-After delays without the fallback cap, using case-insensitive header lookup and supporting seconds or HTTP dates.",
       "kind": "behavioural",
@@ -1228,6 +1197,76 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Retry-After parsing lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-54c7c364",
+      "assertion": "Default-thinking Claude models receive low effort and an output-token budget of at least 4096 from claudeAlwaysThinkingParams.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeAlwaysThinkingParams"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeAlwaysThinkingParams"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-54c7c364",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Default-thinking parameter guarantees agree with the version-specific rule but lack linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-57eb82c9",
+      "assertion": "Enhancement HTTP failures are retryable only for status 429 or 503.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "GeminiEnhancementProvider.enhance"
+        },
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "HaikuEnhancementProvider.enhance"
+        },
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "GeminiEnhancementProvider.enhance; HaikuEnhancementProvider.enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-behavioural-57eb82c9",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "The narrow HTTP retry policy appears deliberate but has no linked tests."
       }
     },
     {
@@ -1483,37 +1522,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-6e505c69",
-      "assertion": "Bedrock emits explicit adaptive thinking only for supported normalized Claude IDs, and summarize disableThinking overrides both configured and per-call thinking requests.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "formatSummarizeRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts#applyThinkingParams",
-          "src/services/adapters/bedrockAdapter.ts#formatSummarizeRequest"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-6e505c69",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Thinking-disable precedence lacks linked tests."
-      }
-    },
-    {
       "id": "REQ-behavioural-703fb131",
       "assertion": "Summarization forwards caller cancellation to Azure admission and retry sleeps and does not initiate another attempt after observing cancellation.",
       "kind": "behavioural",
@@ -1589,36 +1597,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-76a2a827",
-      "assertion": "Bedrock replaces missing or legacy regionless endpoints with its registered endpoint and defaults an unspecified model to global.anthropic.claude-sonnet-4-6.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "constructor"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts#constructor"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-76a2a827",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Bedrock configuration defaults lack linked tests."
       }
     },
     {
@@ -1895,36 +1873,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-8a87b526",
-      "assertion": "Haiku discovery schedules cancellation after 10000 milliseconds and caches successfully parsed discovery selections by the first sixteen API-key characters.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "resolveLatestHaiku; haikuCacheKey"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "needs-review",
-      "gap": {
-        "requirementId": "REQ-behavioural-8a87b526",
-        "gap": "observed-but-unintended",
-        "conflictsWith": [],
-        "rationale": "Truncated API-key cache identities risk collisions."
       }
     },
     {
@@ -2268,33 +2216,33 @@
       }
     },
     {
-      "id": "REQ-behavioural-ad1b45f6",
-      "assertion": "Claude adaptive-thinking, one-million-context, and dynamic-web-search classification accepts parsed Opus or Sonnet versions at least 4.6 and rejects other tiers.",
+      "id": "REQ-behavioural-b03dcc2c",
+      "assertion": "Bedrock summarize requests ignore modelOverride and suppress explicitly requested adaptive thinking when disableThinking is true.",
       "kind": "behavioural",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "claudeSupportsAdaptiveThinking; claudeHas1MContext; claudeSupportsDynamicWebSearch"
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "formatSummarizeRequest"
         }
       ],
       "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
+        "src/services/adapters/bedrockAdapter.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/adapters/modelCapabilities.ts"
+          "src/services/adapters/bedrockAdapter.ts#formatSummarizeRequest"
         ],
         "tests": []
       },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
       "gap": {
-        "requirementId": "REQ-behavioural-ad1b45f6",
+        "requirementId": "REQ-behavioural-b03dcc2c",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Capability classification lacks linked tests."
+        "rationale": "Configured-model precedence and explicit thinking suppression appear deliberate but lack linked tests."
       }
     },
     {
@@ -2937,6 +2885,36 @@
       }
     },
     {
+      "id": "REQ-behavioural-e3cb2739",
+      "assertion": "Claude adaptive-thinking capability is true only for parsed Opus or Sonnet versions at least 4.6.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeSupportsAdaptiveThinking"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeSupportsAdaptiveThinking"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-e3cb2739",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "The explicit adaptive-capability boundary appears intentional but has no linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-e630333c",
       "assertion": "Audio transcription key resolution must try the selected provider first, then fall back to the other provider between OpenAI and Groq, and must return the provider that supplied the key.",
       "kind": "behavioural",
@@ -3003,6 +2981,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-ea04779b",
+      "assertion": "Claude default-thinking request parameters enforce low effort and a 4096-token minimum for Opus/Sonnet 5.0+ and Haiku 5.5+.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeAlwaysThinkingParams"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeAlwaysThinkingParams",
+          "src/services/adapters/modelCapabilities.ts#claudeThinksByDefault"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-ea04779b",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Version-specific default-thinking parameters appear deliberate but lack linked tests."
       }
     },
     {
@@ -3160,36 +3169,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-f642ac6a",
-      "assertion": "Specialist latest-model resolution uses a nonempty live pool instead of the static pool and preserves the original sentinel when resolution fails.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "resolveSpecialistModel"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/modelCapabilities.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-f642ac6a",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Discovery fallback behavior lacks linked tests."
-      }
-    },
-    {
       "id": "REQ-behavioural-f6e0b59d",
       "assertion": "Blank or whitespace-only input to orchestrateChunked must return {ok:true, summary:\"\"} without invoking chunking or LLM reduction.",
       "kind": "behavioural",
@@ -3217,42 +3196,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-fb346927",
-      "assertion": "Gemini latest-tier resolution prefers an available official alias and otherwise excludes TTS and lite models while ranking by descending version and preferring GA at equal versions.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "resolveLatestModel; pickNewestGemini"
-        },
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "resolveLatestModel"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/modelCapabilities.ts",
-          "src/services/adapters/modelCapabilities.ts#resolveLatestModel",
-          "src/services/adapters/modelCapabilities.ts#pickNewestGemini"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "high",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-behavioural-fb346927",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Alias preference and ranking lack tests."
       }
     },
     {
@@ -3284,6 +3227,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-ff7ce850",
+      "assertion": "Gemini latest-tier resolution prefers available official aliases and otherwise excludes TTS and lite variants from ordinary tier selection.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "resolveLatestModel"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#resolveLatestModel",
+          "src/services/adapters/modelCapabilities.ts#pickNewestGemini"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-ff7ce850",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Alias preference and ordinary-tier exclusions are compatible selection rules without linked tests."
       }
     },
     {
@@ -3541,6 +3515,36 @@
       }
     },
     {
+      "id": "REQ-correctness-0ead1321",
+      "assertion": "Adaptive-thinking capability is true only for parsed Opus or Sonnet versions at least 4.6.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeSupportsAdaptiveThinking"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeSupportsAdaptiveThinking"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-0ead1321",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "This capability boundary agrees with its duplicate but has no linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-0fa35d8d",
       "assertion": "Tag validation fails with success=false and error 'No tags to validate' when given an empty tag array.",
       "kind": "correctness",
@@ -3677,6 +3681,41 @@
       }
     },
     {
+      "id": "REQ-correctness-13dc9ae0",
+      "assertion": "Claude cache minimum and price lookups return undefined for undocumented identities instead of inheriting thresholds or prices from older versions.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeMinCacheableTokens"
+        },
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudePricePerMTok"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeMinCacheableTokens",
+          "src/services/adapters/modelCapabilities.ts#claudePricePerMTok"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-13dc9ae0",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Avoiding undocumented lookup values is coherent and lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-16262b53",
       "assertion": "Predefined-tags mode fails with an error when no candidate tags are provided.",
       "kind": "correctness",
@@ -3769,37 +3808,6 @@
       }
     },
     {
-      "id": "REQ-correctness-206b865b",
-      "assertion": "Enhancement success requires string-valued enhancedMarkdown and computes actualCostUsd from provider usage counts and configured prices, never model-claimed cost.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "parseEnhancerJson; enhance implementations"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts",
-          "src/services/adapters/modelCapabilities.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-206b865b",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Success validation and costing lack tests."
-      }
-    },
-    {
       "id": "REQ-correctness-20c6c73a",
       "assertion": "Internal-link extraction succeeds only for resolved markdown files and rejects non-markdown files with an unsuccessful result.",
       "kind": "correctness",
@@ -3827,37 +3835,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-2118caba",
-      "assertion": "Claude cache minimum and price lookups return undefined for undocumented versions rather than inheriting another version's values.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "claudeMinCacheableTokens"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/modelCapabilities.ts#claudeMinCacheableTokens",
-          "src/services/adapters/modelCapabilities.ts#claudePricePerMTok"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-2118caba",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Strict version lookups lack linked tests."
       }
     },
     {
@@ -3896,6 +3873,67 @@
       }
     },
     {
+      "id": "REQ-correctness-25b9c079",
+      "assertion": "Bedrock request bodies omit model and sampling parameters while carrying the Bedrock Anthropic API version and one user message.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "buildBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#buildBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-25b9c079",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "The provider-specific request shape appears intentional but has no linked tests."
+      }
+    },
+    {
+      "id": "REQ-correctness-2bb9894d",
+      "assertion": "Bedrock tag responses require both tag fields to be string arrays and trim returned tags after excluding non-text response blocks.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "parseResponse"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#parseResponse",
+          "src/services/adapters/bedrockAdapter.ts#parseResponseContent"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-2bb9894d",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Strict tag validation and text-block filtering are sensible invariants without linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-30380d80",
       "assertion": "When taxonomy options are supplied, topic tags at positions 2 and later that are blank or normalize equal to the theme or discipline are removed with autofixed warning issues.",
       "kind": "correctness",
@@ -3924,6 +3962,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-313c9208",
+      "assertion": "Bedrock invocation URLs use the URL-encoded configured model identity rather than any model embedded in the configured endpoint.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "getEndpoint"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#bedrockRuntimeBase",
+          "src/services/adapters/bedrockAdapter.ts#getEndpoint"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-correctness-313c9208",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Configured-model URL construction is a coherent invariant with no linked tests."
       }
     },
     {
@@ -4307,6 +4376,37 @@
       }
     },
     {
+      "id": "REQ-correctness-4ac9bb23",
+      "assertion": "Bedrock request bodies include the Anthropic Bedrock API version and omit model, temperature, top_p, and top_k fields.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "buildBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#buildBody",
+          "src/services/adapters/bedrockAdapter.ts#applyThinkingParams"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-4ac9bb23",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Explicit Bedrock payload-field restrictions are coherent but have no linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-4b11ed9b",
       "assertion": "Recursive folder discovery must include only TFile children whose extension is exactly md and must descend into TFolder children.",
       "kind": "correctness",
@@ -4334,37 +4434,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-4cad7078",
-      "assertion": "Bedrock preserves endpoints ending in /invoke and otherwise appends /model/{URI-encoded configured model ID}/invoke after removing trailing slashes.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "getEndpoint"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts",
-          "src/services/adapters/bedrockAdapter.ts#getEndpoint"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "high",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-correctness-4cad7078",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Invocation URL construction lacks linked tests."
       }
     },
     {
@@ -4486,6 +4555,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-54d500ab",
+      "assertion": "Bedrock configuration validation rejects missing API keys, model IDs whose normalized form does not start with claude-, and recognized endpoint model IDs conflicting with the configured model.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "validateConfig"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#validateConfig"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-54d500ab",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "API-key and recognized endpoint-identity validation appears intentional but lacks linked tests."
       }
     },
     {
@@ -4732,6 +4831,36 @@
       }
     },
     {
+      "id": "REQ-correctness-65a20e03",
+      "assertion": "Haiku enhancement pricing uses the response model when supplied, otherwise the requested model, with newest documented Haiku pricing as fallback.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "HaikuEnhancementProvider.enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-65a20e03",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Enhancement-specific pricing fallback can coexist with undefined lookup results but lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-67678cb8",
       "assertion": "Multi-file migration results must increment processed for each completed migrateNote call, increment updated when migrateNote returns true, increment skipped when migrateNote returns false, increment ",
       "kind": "correctness",
@@ -4820,6 +4949,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-69ad7c25",
+      "assertion": "Enhancement actualCostUsd is calculated from provider usage counts and configured pricing rather than model-generated enhancement JSON.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "GeminiEnhancementProvider.enhance; HaikuEnhancementProvider.enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-69ad7c25",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Usage-based cost calculation agrees with the other costing requirement but lacks linked tests."
       }
     },
     {
@@ -4945,6 +5104,36 @@
       }
     },
     {
+      "id": "REQ-correctness-71397dce",
+      "assertion": "Bedrock tag parsing accepts only string arrays for matchedTags and newTags and trims every returned tag.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "parseResponse"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#parseResponse"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-71397dce",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "String-array enforcement and tag trimming are sound parsing invariants without linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-7154ca1c",
       "assertion": "Configuration file paths returned by getConfigPaths are normalized paths under the current configuration folder with the fixed filenames taxonomy.md, excluded-tags.md, writing-personas.md, summary-per",
       "kind": "correctness",
@@ -5002,6 +5191,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-728b7a1d",
+      "assertion": "Undocumented Claude model versions receive neither inferred cache minima nor inferred list prices.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeMinCacheableTokens; claudePricePerMTok"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeMinCacheableTokens",
+          "src/services/adapters/modelCapabilities.ts#claudePricePerMTok"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-728b7a1d",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Uninferred lookup results agree with the equivalent requirement but lack linked tests."
       }
     },
     {
@@ -5189,6 +5409,38 @@
       }
     },
     {
+      "id": "REQ-correctness-7d79a97d",
+      "assertion": "Successful enhancement requires JSON containing string enhancedMarkdown and computes cost from provider usage metadata rather than generated cost claims.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "parseEnhancerJson"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#parseEnhancerJson",
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-7d79a97d",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Response validation and usage-derived costing are sound invariants without linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-7f6ba461",
       "assertion": "Tag analysis truncates content longer than the service maximum content length to that maximum plus an ellipsis before prompt construction.",
       "kind": "correctness",
@@ -5254,6 +5506,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-85d85fdf",
+      "assertion": "Bedrock adaptive requests emit adaptive thinking only for supported models and cap their output budget at the normalized model's output ceiling.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "applyThinkingParams"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#applyThinkingParams"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-85d85fdf",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Capability gating and output-budget limits are coherent safeguards without linked tests."
       }
     },
     {
@@ -5501,37 +5783,6 @@
       }
     },
     {
-      "id": "REQ-correctness-9420bc79",
-      "assertion": "Bedrock response text concatenates only nonempty string-valued text blocks with double newlines, and tagging parsing throws when usable text or extractable JSON is absent.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "parseResponseContent; parseResponse"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts",
-          "src/services/adapters/baseAdapter.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-9420bc79",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Response extraction safeguards lack linked tests."
-      }
-    },
-    {
       "id": "REQ-correctness-94f566ed",
       "assertion": "In predefined-tags mode parsed tags are returned only as matchedExistingTags, while in generate-new mode parsed tags are returned only as suggestedTags.",
       "kind": "correctness",
@@ -5655,22 +5906,22 @@
       }
     },
     {
-      "id": "REQ-correctness-9d344ca4",
-      "assertion": "Claude adaptive-thinking classification accepts parsed Opus and Sonnet versions at least 4.6 and rejects Haiku and unparseable IDs.",
+      "id": "REQ-correctness-9b180738",
+      "assertion": "Enhancement success requires JSON containing a string enhancedMarkdown, while absent or non-array decisions default to an empty array.",
       "kind": "correctness",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "claudeSupportsAdaptiveThinking"
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "parseEnhancerJson"
         }
       ],
       "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
+        "src/services/audioNarration/llmEnhancerProvider.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/adapters/modelCapabilities.ts#claudeSupportsAdaptiveThinking"
+          "src/services/audioNarration/llmEnhancerProvider.ts#parseEnhancerJson"
         ],
         "tests": []
       },
@@ -5678,10 +5929,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-correctness-9d344ca4",
+        "requirementId": "REQ-correctness-9b180738",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Adaptive-thinking classification lacks linked tests."
+        "rationale": "Required markdown validation and optional-decision defaults appear intentional but lack linked tests."
       }
     },
     {
@@ -5776,37 +6027,6 @@
       }
     },
     {
-      "id": "REQ-correctness-a20bc33f",
-      "assertion": "Bedrock response text consists exclusively of nonempty string-valued text blocks joined with blank lines, and tagging parsing rejects missing text or unextractable JSON.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "parseResponse"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts#parseResponseContent",
-          "src/services/adapters/bedrockAdapter.ts#parseResponse"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-a20bc33f",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Response extraction safeguards lack linked tests."
-      }
-    },
-    {
       "id": "REQ-correctness-a489fc64",
       "assertion": "taxonomy tag normalization lowercases input, converts whitespace and underscores to hyphens, preserves Unicode letters and slash separators, removes other non-alphanumeric characters, collapses repeat",
       "kind": "correctness",
@@ -5895,6 +6115,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-a73d6edb",
+      "assertion": "Bedrock configuration validation rejects missing credentials, identities not normalizing to a claude-prefixed ID, and conflicting endpoint model identities.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "validateConfig"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#validateConfig"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-a73d6edb",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Credential and model-identity validation appears intentional but has no linked tests."
       }
     },
     {
@@ -6269,37 +6519,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-bb889607",
-      "assertion": "Successful enhancement costs derive from provider usage counts and configured prices, not model-generated claims, with absent usage counts treated as zero.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "HaikuEnhancementProvider.enhance"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
-          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-bb889607",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Usage-based costing lacks linked tests."
       }
     },
     {
@@ -7166,36 +7385,6 @@
       }
     },
     {
-      "id": "REQ-correctness-f07b4eef",
-      "assertion": "Claude cache-minimum and price lookups return undefined for undocumented versions rather than inheriting values from earlier generations or object prototypes.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "claudeMinCacheableTokens; claudePricePerMTok"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/modelCapabilities.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-f07b4eef",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Strict metadata lookups lack linked tests."
-      }
-    },
-    {
       "id": "REQ-correctness-f11edae6",
       "assertion": "Post-guardrail tag constraint enforcement removes duplicate tags based on normalized form and records an autofixed info issue for each removed duplicate.",
       "kind": "correctness",
@@ -7407,37 +7596,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-fafc12af",
-      "assertion": "Bedrock request bodies contain anthropic_version equal to bedrock-2023-05-31 and omit model, temperature, top_p, and top_k fields.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "buildBody"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts",
-          "src/services/adapters/bedrockAdapter.ts#buildBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "high",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-correctness-fafc12af",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Provider-specific body formatting lacks linked tests."
       }
     },
     {
@@ -10425,36 +10583,6 @@
       }
     },
     {
-      "id": "REQ-safety-309a04f8",
-      "assertion": "Default-thinking Claude models receive low effort and a 4096-token minimum from claudeAlwaysThinkingParams, while other models receive no extra fields.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "claudeAlwaysThinkingParams"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/modelCapabilities.ts#claudeAlwaysThinkingParams"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-309a04f8",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Default-thinking parameters lack linked tests."
-      }
-    },
-    {
       "id": "REQ-safety-47afc1e5",
       "assertion": "Multimodal calls reject unsupported images or documents before formatting or sending a request rather than silently discarding those parts.",
       "kind": "safety",
@@ -10607,36 +10735,6 @@
       }
     },
     {
-      "id": "REQ-safety-529bc9c1",
-      "assertion": "Default-thinking parameters apply low effort and a 4096-token minimum to parsed Opus/Sonnet versions at least 5.0 and Haiku versions at least 5.5, returning no parameters otherwise.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/modelCapabilities.ts",
-          "anchor": "claudeAlwaysThinkingParams"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/modelCapabilities.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/modelCapabilities.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-529bc9c1",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Default-thinking thresholds lack linked tests."
-      }
-    },
-    {
       "id": "REQ-safety-572ba853",
       "assertion": "Taxonomy loading must fall back to DEFAULT_TAXONOMY when the taxonomy file is missing, is not a TFile, cannot be read, or yields no parsed entries for a section.",
       "kind": "safety",
@@ -10673,6 +10771,36 @@
           "REQ-safety-6071895c"
         ],
         "rationale": "It requires whole-taxonomy fallback when a section is empty, conflicting with independent per-section fallback."
+      }
+    },
+    {
+      "id": "REQ-safety-5a1c47b9",
+      "assertion": "Enhancement generation requests use abortable HTTP with caller cancellation and configurable timeouts, returning nonretryable timeout or aborted outcomes.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "callWithTimeout"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#callWithTimeout"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-5a1c47b9",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Cancellation and timeout handling define a coherent policy without linked tests."
       }
     },
     {
@@ -11263,36 +11391,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-safety-9a4defc9",
-      "assertion": "Enhancement requests compose caller cancellation with a configurable timeout defaulting to 90000 milliseconds and return nonretryable aborted or timeout outcomes for corresponding failures.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "callWithTimeout"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-9a4defc9",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Cancellation and timeout handling lack tests."
       }
     },
     {
@@ -12067,38 +12165,6 @@
       }
     },
     {
-      "id": "REQ-safety-e955ff0d",
-      "assertion": "Enhancement calls use cancellable HTTP with a configured or 90-second default timeout, and classify only HTTP 429 and 503 failures as retryable.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "callWithTimeout"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts#callWithTimeout",
-          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
-          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-e955ff0d",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Timeout and retryability rules lack tests."
-      }
-    },
-    {
       "id": "REQ-safety-ea4e0371",
       "assertion": "Map-phase failures and thrown exceptions must be captured as per-chunk errors with zero-based chunkIndex values and must not abort processing of later chunks.",
       "kind": "safety",
@@ -12507,18 +12573,14 @@
       }
     },
     {
-      "id": "REQ-security-5f20ec97",
-      "assertion": "Enhancement HTTP requests use abortableRequestUrl and transmit API keys in authentication headers rather than URL query parameters.",
+      "id": "REQ-security-6684d1b1",
+      "assertion": "Enhancement providers transmit API keys in authentication headers rather than request URLs.",
       "kind": "security",
       "checkable": true,
       "provenance": [
         {
           "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "enhance implementations; resolveLatestHaiku; callWithTimeout"
-        },
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "GeminiEnhancementProvider.enhance"
+          "anchor": "GeminiEnhancementProvider.enhance; HaikuEnhancementProvider.enhance; resolveLatestHaiku"
         }
       ],
       "appliesTo": [
@@ -12526,40 +12588,7 @@
       ],
       "evidence": {
         "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts",
-          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
-          "src/services/audioNarration/llmEnhancerProvider.ts#resolveLatestHaiku",
-          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "high",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-security-5f20ec97",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Secure request transport lacks linked tests."
-      }
-    },
-    {
-      "id": "REQ-security-645c1d2b",
-      "assertion": "Bedrock authenticates using an Authorization bearer header and rejects configuration lacking an API key or containing a model name without case-insensitive claude text.",
-      "kind": "security",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/bedrockAdapter.ts",
-          "anchor": "validateConfig; getHeaders"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/bedrockAdapter.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/bedrockAdapter.ts"
+          "src/services/audioNarration/llmEnhancerProvider.ts"
         ],
         "tests": []
       },
@@ -12567,10 +12596,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-security-645c1d2b",
+        "requirementId": "REQ-security-6684d1b1",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Authentication and validation lack linked tests."
+        "rationale": "Header-only authentication is a sound security invariant without linked tests."
       }
     },
     {
@@ -12601,37 +12630,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-security-75246b42",
-      "assertion": "Enhancement providers return nonretryable no-api-key outcomes without making HTTP requests when the supplied API key is empty.",
-      "kind": "security",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
-          "anchor": "enhance"
-        }
-      ],
-      "appliesTo": [
-        "src/services/audioNarration/llmEnhancerProvider.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
-          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-security-75246b42",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Missing-key rejection lacks linked tests."
       }
     },
     {
@@ -12851,6 +12849,41 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-security-edb90246",
+      "assertion": "Enhancement providers reject missing API keys without HTTP requests and transmit supplied keys in headers rather than URLs.",
+      "kind": "security",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "GeminiEnhancementProvider.enhance"
+        },
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "HaikuEnhancementProvider.enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-security-edb90246",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Early credential rejection and header-only transmission are sound safeguards without linked tests."
       }
     }
   ],

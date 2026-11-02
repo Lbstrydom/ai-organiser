@@ -7,10 +7,10 @@ import {
     bedrockToClaudeModelId,
     claudeAlwaysThinkingParams,
     claudeSupportsAdaptiveThinking,
-    isClaudeModelId,
 } from './modelCapabilities';
 import { buildClaudeCachedPrompt } from './claudePromptCache';
 import { getModelOutputLimit } from '../tokenLimits';
+import { PROVIDER_DEFAULT_MODEL } from './providerRegistry';
 
 /** InvokeModel's body-level API version for Anthropic models (no `anthropic-version` header on Bedrock). */
 export const BEDROCK_ANTHROPIC_VERSION = 'bedrock-2023-05-31';
@@ -21,9 +21,27 @@ const LEGACY_REGIONLESS_ENDPOINT = 'https://bedrock-runtime.amazonaws.com';
 const SUMMARIZE_SYSTEM_PROMPT = 'Complete the task in the user message and follow its output format exactly.';
 
 /**
+ * The runtime host the adapter posts to. The model always comes from
+ * `modelName`, never from the URL, so a pasted full InvokeModel URL is cut back
+ * to its host: one model identity drives the URL and every capability check.
+ * A pasted URL naming a different model is refused by `validateConfig`.
+ */
+export function bedrockRuntimeBase(endpoint: string | undefined): string {
+    const host = (endpoint ?? '').trim().replace(/\/model\/.*$/, '').replace(/\/+$/, '');
+    return !host || host === LEGACY_REGIONLESS_ENDPOINT ? endpoints.bedrock : host;
+}
+
+/** The model id a pasted InvokeModel URL names (`…/model/{id}/invoke`), or `undefined` when it names none. */
+function bedrockEndpointModelId(endpoint: string | undefined): string | undefined {
+    const m = /\/model\/([^/]+)(?:\/invoke)?\/*$/.exec((endpoint ?? '').trim());
+    if (!m) return undefined;
+    try { return decodeURIComponent(m[1]); } catch { return m[1]; }
+}
+
+/**
  * Amazon Bedrock, Anthropic Claude models only, through `InvokeModel` on
  * `bedrock-runtime` with the Anthropic Messages request shape:
- * `POST {endpoint}/model/{modelId}/invoke`, body `anthropic_version` +
+ * `POST {host}/model/{modelId}/invoke`, body `anthropic_version` +
  * `max_tokens` + `system` + `messages` (the model is in the URL, never the body).
  * Authenticates with a Bedrock API key as a bearer token.
  *
@@ -37,19 +55,17 @@ const SUMMARIZE_SYSTEM_PROMPT = 'Complete the task in the user message and follo
  * not SSE, so callers fall back to a single request.
  */
 export class BedrockAdapter extends BaseAdapter {
+    /** The endpoint as configured, before it is cut to its host — read only to catch a conflicting pasted model. */
+    private readonly configuredEndpoint: string | undefined;
+
     constructor(config: AdapterConfig) {
-        const endpoint = !config.endpoint || config.endpoint.replace(/\/+$/, '') === LEGACY_REGIONLESS_ENDPOINT
-            ? endpoints.bedrock
-            : config.endpoint;
         super({
             ...config,
-            endpoint,
-            // Bedrock has no `latest-*` alias, so this is a concrete id. Sonnet 4.6
-            // is served through a cross-region inference profile; the bare base id
-            // 400s with "on-demand throughput isn't supported". Keep in step with
-            // PROVIDER_DEFAULT_MODEL.bedrock.
-            modelName: config.modelName || 'global.anthropic.claude-sonnet-4-6'
+            endpoint: bedrockRuntimeBase(config.endpoint),
+            // Bedrock has no `latest-*` alias, so the registry default is a concrete id.
+            modelName: config.modelName?.trim() || PROVIDER_DEFAULT_MODEL.bedrock
         });
+        this.configuredEndpoint = config.endpoint;
         this.provider = {
             name: 'bedrock',
             requestFormat: { url: '/model/{modelId}/invoke', headers: {}, body: {} },
@@ -71,21 +87,29 @@ export class BedrockAdapter extends BaseAdapter {
         return bedrockToClaudeModelId(this.bedrockModelId);
     }
 
-    /** Adaptive thinking on, or low effort for a model that thinks by default — as `ClaudeAdapter` does. */
-    private applyThinkingParams(body: Record<string, unknown>, thinking: boolean): Record<string, unknown> {
-        if (thinking && claudeSupportsAdaptiveThinking(this.claudeModelId)) {
-            return {
-                ...body,
-                thinking: { type: 'adaptive' },
-                max_tokens: Math.max((body.max_tokens as number) || 0, 64000),
-            };
-        }
-        const extra = claudeAlwaysThinkingParams(this.claudeModelId, (body.max_tokens as number) || 0);
-        return Object.keys(extra).length ? { ...body, ...extra } : body;
-    }
-
     private get adaptiveMode(): boolean {
         return this.config.thinkingMode === 'adaptive';
+    }
+
+    /**
+     * The one thinking and output-budget policy for every request path:
+     * adaptive thinking (lifting the budget to 64K unless the caller set one),
+     * or low effort for a model that thinks by default, as `ClaudeAdapter`
+     * does; then the budget is clamped to the model's output ceiling.
+     */
+    private applyThinkingParams(
+        body: Record<string, unknown>,
+        thinking: boolean,
+        callerBudget = false,
+    ): Record<string, unknown> {
+        const limit = getModelOutputLimit('claude', this.claudeModelId);
+        const current = (body.max_tokens as number) || 0;
+        if (thinking && claudeSupportsAdaptiveThinking(this.claudeModelId)) {
+            const budget = callerBudget ? current : Math.max(current, 64000);
+            return { ...body, thinking: { type: 'adaptive' }, max_tokens: Math.min(budget, limit) };
+        }
+        const clamped = Math.min(current, limit);
+        return { ...body, max_tokens: clamped, ...claudeAlwaysThinkingParams(this.claudeModelId, clamped) };
     }
 
     private buildBody(
@@ -120,15 +144,11 @@ export class BedrockAdapter extends BaseAdapter {
      */
     public formatSummarizeRequest(prompt: string, options?: SummarizeOptions): Record<string, unknown> {
         const useThinking = (this.adaptiveMode || !!options?.enableThinking) && !options?.disableThinking;
-        const thinkingActive = useThinking && claudeSupportsAdaptiveThinking(this.claudeModelId);
-        const requested = options?.maxTokens || (thinkingActive ? 64000 : 8192);
-        const maxTokens = Math.min(requested, getModelOutputLimit('claude', this.claudeModelId));
         const { systemField, userContent } = buildClaudeCachedPrompt(
             SUMMARIZE_SYSTEM_PROMPT, prompt, this.claudeModelId, options?.stablePrefix,
         );
-        const body = this.buildBody(systemField, userContent, maxTokens);
-        if (thinkingActive) return { ...body, thinking: { type: 'adaptive' } };
-        return { ...body, ...claudeAlwaysThinkingParams(this.claudeModelId, maxTokens) };
+        const body = this.buildBody(systemField, userContent, options?.maxTokens || 8192);
+        return this.applyThinkingParams(body, useThinking, !!options?.maxTokens);
     }
 
     getMultimodalCapability(): MultimodalCapability {
@@ -146,11 +166,9 @@ export class BedrockAdapter extends BaseAdapter {
         return this.applyThinkingParams(this.buildBody(undefined, content, options?.maxTokens || 4096), this.adaptiveMode);
     }
 
-    /** `{endpoint}/model/{modelId}/invoke`; the id is encoded (`v1:0`, inference-profile ARNs). */
+    /** `{host}/model/{modelId}/invoke`; the id is encoded (`v1:0`, inference-profile ARNs). */
     getEndpoint(): string {
-        const base = (this.config.endpoint || '').replace(/\/+$/, '');
-        if (/\/invoke$/.test(base)) return base;
-        return `${base}/model/${encodeURIComponent(this.bedrockModelId)}/invoke`;
+        return `${bedrockRuntimeBase(this.config.endpoint)}/model/${encodeURIComponent(this.bedrockModelId)}/invoke`;
     }
 
     /** Text blocks of a Messages response; thinking blocks are skipped. */
@@ -170,13 +188,17 @@ export class BedrockAdapter extends BaseAdapter {
         if (!text) throw new Error('Failed to parse Bedrock response: missing content');
         try {
             const json = this.extractJsonFromContent(text);
-            const matched = Array.isArray(json.matchedTags) ? json.matchedTags : [];
-            const suggested = Array.isArray(json.newTags) ? json.newTags : [];
-            return {
-                text,
-                matchedExistingTags: matched.map(t => String(t).trim()),
-                suggestedTags: suggested.map(t => String(t).trim()),
-            };
+            // Degrade, don't hard-fail (AGENTS.md): a missing array is empty and a
+            // non-string element is dropped, never stringified into a tag. Only a
+            // payload carrying neither array is a structural break.
+            if (!Array.isArray(json.matchedTags) && !Array.isArray(json.newTags)) {
+                throw new Error('neither matchedTags nor newTags is an array');
+            }
+            const strings = (v: unknown): string[] => (Array.isArray(v) ? v : [])
+                .filter((t): t is string => typeof t === 'string')
+                .map(t => t.trim())
+                .filter(t => t !== '');
+            return { text, matchedExistingTags: strings(json.matchedTags), suggestedTags: strings(json.newTags) };
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : 'Unknown error';
             throw new Error(`Failed to parse Bedrock response: ${message}`);
@@ -187,14 +209,16 @@ export class BedrockAdapter extends BaseAdapter {
         if (!this.config.apiKey) {
             return 'An Amazon Bedrock API key is required';
         }
-        if (!this.config.endpoint) {
-            return 'Endpoint is required for Amazon Bedrock (https://bedrock-runtime.<region>.amazonaws.com)';
-        }
         if (!this.config.modelName) {
             return 'Model name is required for Amazon Bedrock';
         }
-        if (!isClaudeModelId(this.config.modelName)) {
+        // A Bedrock Claude id names the provider and the family (`[region.]anthropic.claude-…`).
+        if (!this.claudeModelId.startsWith('claude-')) {
             return 'Only Anthropic Claude models are supported on Amazon Bedrock (for example global.anthropic.claude-sonnet-4-6)';
+        }
+        const pastedModel = bedrockEndpointModelId(this.configuredEndpoint);
+        if (pastedModel !== undefined && pastedModel !== this.config.modelName) {
+            return `The endpoint names model ${pastedModel} but the model setting is ${this.config.modelName}; set the endpoint to https://bedrock-runtime.<region>.amazonaws.com`;
         }
         return null;
     }

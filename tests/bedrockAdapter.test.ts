@@ -87,6 +87,15 @@ describe('BedrockAdapter — emitted request bodies', () => {
         }
     });
 
+    it('every path clamps the budget to the model output ceiling; a caller budget is kept under thinking', () => {
+        const adapter = make({ thinkingMode: 'adaptive' });
+        expect(wire(adapter.formatMultimodalRequest([{ type: 'text', text: 'x' }], { maxTokens: 500_000 })).max_tokens).toBe(64000);
+        expect(wire(make().formatSummarizeRequest('x', { maxTokens: 500_000 })).max_tokens).toBe(64000);
+        const withBudget = wire(adapter.formatSummarizeRequest('x', { maxTokens: 12000 }));
+        expect(withBudget.thinking).toEqual({ type: 'adaptive' });
+        expect(withBudget.max_tokens).toBe(12000);
+    });
+
     it('disableThinking wins over adaptive mode on the summarize path', () => {
         const body = wire(make({ thinkingMode: 'adaptive' }).formatSummarizeRequest('x', { disableThinking: true }));
         expect(body).not.toHaveProperty('thinking');
@@ -128,9 +137,42 @@ describe('BedrockAdapter — endpoint, headers, config', () => {
             .toBe('https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-haiku-4-5-20251001-v1%3A0/invoke');
     });
 
-    it('the region-less legacy default is replaced by a regional host', () => {
-        const adapter = make({ endpoint: 'https://bedrock-runtime.amazonaws.com' });
-        expect(adapter.getEndpoint()).toMatch(/^https:\/\/bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com\/model\//);
+    it('the region-less legacy default is replaced by a regional host, whitespace and slashes ignored', () => {
+        for (const endpoint of ['https://bedrock-runtime.amazonaws.com', ' https://bedrock-runtime.amazonaws.com/ ']) {
+            expect(make({ endpoint }).getEndpoint())
+                .toMatch(/^https:\/\/bedrock-runtime\.[a-z0-9-]+\.amazonaws\.com\/model\/global\.anthropic\.claude-sonnet-4-6\/invoke$/);
+        }
+    });
+
+    it('a pasted full InvokeModel URL is cut to its host, so the configured model is the one invoked', () => {
+        const adapter = make({
+            endpoint: 'https://bedrock-runtime.eu-west-1.amazonaws.com/model/anthropic.claude-haiku-4-5/invoke',
+            modelName: 'anthropic.claude-opus-5-5',
+        });
+        expect(adapter.getEndpoint())
+            .toBe('https://bedrock-runtime.eu-west-1.amazonaws.com/model/anthropic.claude-opus-5-5/invoke');
+        // Capability checks follow the same id: Opus 5.5 thinks by default → low effort.
+        expect(wire(adapter.formatRequest('x')).output_config).toEqual({ effort: 'low' });
+        // …and the conflict is not silent: the URL names a different model.
+        expect(adapter.validateConfig()).toMatch(/endpoint names model anthropic\.claude-haiku-4-5/);
+    });
+
+    it('a pasted full URL naming the configured model (encoded or not) is accepted', () => {
+        for (const endpoint of [
+            'https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-haiku-4-5-20251001-v1%3A0/invoke',
+            'https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-haiku-4-5-20251001-v1:0/invoke/',
+        ]) {
+            const adapter = make({ endpoint, modelName: 'us.anthropic.claude-haiku-4-5-20251001-v1:0' });
+            expect(adapter.validateConfig()).toBeNull();
+            expect(adapter.getEndpoint())
+                .toBe('https://bedrock-runtime.us-east-1.amazonaws.com/model/us.anthropic.claude-haiku-4-5-20251001-v1%3A0/invoke');
+        }
+    });
+
+    it('a dated 4.0 id is not mistaken for a 4.x model with adaptive thinking', () => {
+        const body = wire(make({ modelName: 'us.anthropic.claude-sonnet-4-20250514-v1:0', thinkingMode: 'adaptive' }).formatRequest('x'));
+        expect(body).not.toHaveProperty('thinking');
+        expect(body.max_tokens).toBe(1024);
     });
 
     it('the factory default builds a working URL and a Claude model', () => {
@@ -148,6 +190,7 @@ describe('BedrockAdapter — endpoint, headers, config', () => {
 
     it('rejects a non-Claude model with a clear message', () => {
         expect(make({ modelName: 'amazon.titan-text-express-v1' }).validateConfig()).toMatch(/Claude/);
+        expect(make({ modelName: 'not-a-claude-model' }).validateConfig()).toMatch(/Claude/);
         expect(make({ apiKey: '' }).validateConfig()).toMatch(/API key/);
     });
 });
@@ -169,6 +212,17 @@ describe('BedrockAdapter — responses', () => {
         const parsed = make().parseResponse(response);
         expect(parsed.matchedExistingTags).toEqual(['a']);
         expect(parsed.suggestedTags).toEqual(['b']);
+    });
+
+    it('parseResponse degrades a partial tag payload and never stringifies non-strings into tags', () => {
+        const res = (json: string) => ({ content: [{ type: 'text', text: json }] });
+        const partial = make().parseResponse(res('{"matchedTags":["a"]}'));
+        expect(partial.matchedExistingTags).toEqual(['a']);
+        expect(partial.suggestedTags).toEqual([]);
+        const mixed = make().parseResponse(res('{"matchedTags":[{"x":1},null," b "],"newTags":[7,"c"]}'));
+        expect(mixed.matchedExistingTags).toEqual(['b']);
+        expect(mixed.suggestedTags).toEqual(['c']);
+        expect(() => make().parseResponse(res('{"tags":["a"]}'))).toThrow(/neither matchedTags nor newTags/);
     });
 });
 

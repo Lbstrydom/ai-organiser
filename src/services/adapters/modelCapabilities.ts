@@ -33,7 +33,8 @@ export interface ClaudeModelParts {
  */
 export function parseClaudeModel(id: string | undefined | null): ClaudeModelParts | null {
     if (!id) return null;
-    const m = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d+))?/.exec(id);
+    // Minor is one or two digits: an 8-digit date (`claude-sonnet-4-20250514`) is not a minor version.
+    const m = /^claude-(opus|sonnet|haiku)-(\d+)(?:-(\d{1,2})(?!\d))?/.exec(id);
     if (!m) return null;
     return {
         tier: m[1] as 'opus' | 'sonnet' | 'haiku',
