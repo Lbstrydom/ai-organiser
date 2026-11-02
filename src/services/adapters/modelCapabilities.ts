@@ -159,6 +159,74 @@ export function claudeMinCacheableTokens(modelId: string | undefined | null): nu
     return CLAUDE_CACHE_MIN_TOKENS[`${m[1]}-${m[2]}-${m[3] ?? '0'}`];
 }
 
+/** USD per million tokens. `longContext` applies when the prompt exceeds `longContextAbove` input tokens. */
+export interface ClaudePrice {
+    input: number;
+    output: number;
+    longContext?: { above: number; input: number; output: number };
+}
+
+/**
+ * First-party Claude API list prices, USD per million tokens (checked 2026-10-06 against
+ * Anthropic's model table). Keyed like CLAUDE_CACHE_MIN_TOKENS, by (tier, major, minor);
+ * a version outside the table has no price. Bedrock and Vertex are partner-priced and are
+ * not covered. Add a row when Anthropic publishes one.
+ */
+const CLAUDE_PRICE_PER_MTOK: Readonly<Record<string, ClaudePrice>> = {
+    'fable-5-0': { input: 10, output: 50 }, 'fable-5-1': { input: 10, output: 50 },
+    'opus-4-6': { input: 5, output: 25 }, 'opus-4-7': { input: 5, output: 25 },
+    'opus-4-8': { input: 5, output: 25 }, 'opus-5-0': { input: 5, output: 25 },
+    'opus-5-5': { input: 4, output: 20 },
+    'sonnet-4-6': { input: 3, output: 15 }, 'sonnet-5-0': { input: 2, output: 10 },
+    'sonnet-5-5': { input: 2, output: 10 },
+    'haiku-4-5': { input: 1, output: 5 },
+    'haiku-5-5': { input: 0.10, output: 0.50, longContext: { above: 100_000, input: 0.50, output: 2.50 } },
+};
+
+/** Pre-scheme ids, keyed with any `-yyyymmdd` removed (same rule as the cache table). */
+const CLAUDE_PRICE_PER_MTOK_LEGACY: Readonly<Record<string, ClaudePrice>> = {
+    'claude-3-5-haiku': { input: 0.80, output: 4 },
+};
+
+/** List price for a Claude model id, or `undefined` when it is not documented. */
+export function claudePricePerMTok(modelId: string | undefined | null): ClaudePrice | undefined {
+    if (!modelId) return undefined;
+    const legacyKey = modelId.replace(/-\d{8}$/, '');
+    if (Object.hasOwn(CLAUDE_PRICE_PER_MTOK_LEGACY, legacyKey)) return CLAUDE_PRICE_PER_MTOK_LEGACY[legacyKey];
+    const m = CLAUDE_CACHE_ID_RE.exec(modelId);
+    if (!m) return undefined;
+    const key = `${m[1]}-${m[2]}-${m[3] ?? '0'}`;
+    return Object.hasOwn(CLAUDE_PRICE_PER_MTOK, key) ? CLAUDE_PRICE_PER_MTOK[key] : undefined;
+}
+
+/** Price of the newest documented model in a tier — the estimate when the concrete model is not known yet. */
+export function newestClaudePrice(tier: ClaudeTier): ClaudePrice {
+    const ids = Object.keys(CLAUDE_PRICE_PER_MTOK).map(k => `claude-${k}`);
+    const newest = pickNewestClaude(ids, tier);
+    // Every tier has at least one row, so `newest` is never null for a ClaudeTier.
+    return CLAUDE_PRICE_PER_MTOK[newest!.slice('claude-'.length)];
+}
+
+/** USD cost of one call from its usage counts; the long-context rate applies to the whole call. */
+export function claudeCallCostUsd(price: ClaudePrice, inputTokens: number, outputTokens: number): number {
+    const rate = price.longContext && inputTokens > price.longContext.above ? price.longContext : price;
+    return (inputTokens * rate.input + outputTokens * rate.output) / 1_000_000;
+}
+
+/**
+ * First-party Claude id for an Amazon Bedrock model id, so capability checks
+ * (thinking, default thinking, cache minimum) apply to it: strips a cross-region
+ * prefix (`global.`, `us.`, `eu.`, `jp.`, `apac.`…), the `anthropic.` provider
+ * prefix and a `-v1` / `-v1:0` version suffix. `us.anthropic.claude-haiku-4-5-20251001-v1:0`
+ * → `claude-haiku-4-5-20251001`. An inference-profile ARN is read by its last path
+ * segment. Ids that are not Bedrock Claude ids come back unchanged.
+ */
+export function bedrockToClaudeModelId(modelId: string): string {
+    const tail = modelId.startsWith('arn:') ? modelId.slice(modelId.lastIndexOf('/') + 1) : modelId;
+    const m = /^(?:[a-z]+\.)?anthropic\.(claude-.+?)(?:-v\d+(?::\d+)?)?$/.exec(tail);
+    return m ? m[1] : modelId;
+}
+
 /**
  * Does this Claude model ship with a 1M input context window? Opus/Sonnet 4.6+
  * have it; older Claude models cap at ~200K per Anthropic defaults.

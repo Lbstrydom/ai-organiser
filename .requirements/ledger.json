@@ -1,12 +1,15 @@
 {
-  "generatedAt": "2026-05-18T04:38:35.525Z",
-  "commitSha": "9a2165a1c6f9ed16bb10bcdce470c3e444735e26",
-  "extractionSourceSha": "9a2165a1c6f9ed16bb10bcdce470c3e444735e26",
+  "generatedAt": "2026-11-02T13:47:54.023Z",
+  "commitSha": "ca072225a75a98daae1636c80d36eb53beebf619",
+  "extractionSourceSha": "ca072225a75a98daae1636c80d36eb53beebf619",
   "coveredFiles": [
     "src/core/settings.ts",
     "src/services/adapters/baseAdapter.ts",
+    "src/services/adapters/bedrockAdapter.ts",
+    "src/services/adapters/modelCapabilities.ts",
     "src/services/adapters/providerRegistry.ts",
     "src/services/apiKeyHelpers.ts",
+    "src/services/audioNarration/llmEnhancerProvider.ts",
     "src/services/baseService.ts",
     "src/services/chunkingOrchestrator.ts",
     "src/services/cloudService.ts",
@@ -79,6 +82,67 @@
       }
     },
     {
+      "id": "REQ-behavioural-03b5dcd7",
+      "assertion": "Non-streaming summarization attempts at most three HTTP requests and retries HTTP responses only for statuses 429, 502, 503, 504, and 529.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "postWithRetry"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#postWithRetry",
+          "src/services/cloudService.ts#retryOnHttpStatus"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-behavioural-03b5dcd7",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Bounded response retries lack linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-03de604d",
+      "assertion": "Model discovery uses a nonempty live catalog in preference to the static registry and excludes latest-* identifiers from the static fallback.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "computeAvailableModelIds"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#computeAvailableModelIds"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-03de604d",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Discovery catalog precedence lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-067d5b10",
       "assertion": "Keyword-based content type detection must check content in the order research, meeting, project, then reference, and must default to note when no supported frontmatter type or keyword pattern matches.",
       "kind": "behavioural",
@@ -109,36 +173,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-06e84a31",
-      "assertion": "Streaming summarization requires adapter streaming support, uses native fetch instead of requestUrl, parses server-sent chunks through the adapter, invokes onChunk for each parsed chunk, and returns t",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "summarizeTextStream"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:summarizeTextStream"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-06e84a31",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real streaming chunk-handling invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-behavioural-071f89d5",
       "assertion": "ContentExtractionService.extractContent processes detected items sequentially, calls onProgress before each item extraction with one-based progress, and records failures per item without aborting the ",
       "kind": "behavioural",
@@ -166,36 +200,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-087dda21",
-      "assertion": "OpenAI-compatible streaming requests built by adapters must use the adapter endpoint and headers, include the configured model, include a summarization-specific system message plus the caller prompt u",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "buildOpenAIStreamingRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:protected buildOpenAIStreamingRequest(prompt: string)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-087dda21",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -414,38 +418,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-11328b26",
-      "assertion": "Summarization requests use a neutral summarization system prompt rather than the tagging-focused prompt.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildSummarizeRequestBody"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:sendSummarizeRequest",
-          "src/services/cloudService.ts:buildSummarizeRequestBody",
-          "src/services/cloudService.ts:buildClaudeSummarizeBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-11328b26",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real summarization prompt invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-behavioural-16b54392",
       "assertion": "After every map chunk attempt, onProgress must be called with the completed count and total chunk count when a progress callback is supplied.",
       "kind": "behavioural",
@@ -543,67 +515,22 @@
       }
     },
     {
-      "id": "REQ-behavioural-18fd3176",
-      "assertion": "Provider-specific adapter request formatting must preserve the provider requestFormat.body fields while replacing messages with exactly the shared SYSTEM_PROMPT system message followed by the caller p",
+      "id": "REQ-behavioural-1b706d47",
+      "assertion": "Enhancement calls reject missing API keys without outbound requests and mark HTTP failures retryable only for statuses 429 and 503.",
       "kind": "behavioural",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "formatRequest"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "public formatRequest(prompt: string, language?: string)"
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "GeminiEnhancementProvider.enhance; HaikuEnhancementProvider.enhance"
         }
       ],
       "appliesTo": [
-        "src/services/adapters/**/*.ts"
+        "src/services/audioNarration/llmEnhancerProvider.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/adapters/baseAdapter.ts:public formatRequest(prompt: string, language?: string)",
-          "src/services/adapters/baseAdapter.ts:formatRequest"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-behavioural-18fd3176",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-behavioural-1ac4e581",
-      "assertion": "Adapter response parsing converts string results by extracting JSON from fenced or standalone objects, and if that fails it extracts textual tags into newTags with an empty matchedTags list.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.parseResponse string result handling"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.extractJsonFromContent"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.extractTagsFromText"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:parseResponse",
-          "src/services/adapters/baseAdapter.ts:extractJsonFromContent",
-          "src/services/adapters/baseAdapter.ts:extractTagsFromText"
+          "src/services/audioNarration/llmEnhancerProvider.ts"
         ],
         "tests": []
       },
@@ -611,10 +538,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-behavioural-1ac4e581",
+        "requirementId": "REQ-behavioural-1b706d47",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
+        "rationale": "Authentication failure and retryability lack tests."
       }
     },
     {
@@ -649,6 +576,69 @@
       }
     },
     {
+      "id": "REQ-behavioural-1c44bcd8",
+      "assertion": "Bedrock summarization ignores modelOverride and enables explicit adaptive thinking only for supported normalized models when requested and not disabled.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "formatSummarizeRequest"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts",
+          "src/services/adapters/modelCapabilities.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-1c44bcd8",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Configured-model thinking behavior lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-1dfd6a74",
+      "assertion": "Each public text summarization or streaming invocation invokes the registered call hook once, without allowing hook exceptions to interrupt the operation.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "noteCall"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#noteCall",
+          "src/services/cloudService.ts#summarizeText",
+          "src/services/cloudService.ts#summarizeTextStream"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-1dfd6a74",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Hook invocation guarantees lack linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-1f927d56",
       "assertion": "Hybrid tagging mode with no candidate tags must fall back to building a GenerateNew prompt instead of a Hybrid prompt.",
       "kind": "behavioural",
@@ -680,6 +670,36 @@
       }
     },
     {
+      "id": "REQ-behavioural-251ac73e",
+      "assertion": "Bedrock substitutes the configured default endpoint when the endpoint is absent or equals the legacy regionless endpoint after trailing-slash removal.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "constructor"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-251ac73e",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Endpoint normalization lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-255cb7bc",
       "assertion": "When the effective output root differs from the plugin folder, plugin-managed-folder exclusion includes the plugin folder plus each managed output folder for transcripts, meetings, exports, flashcards",
       "kind": "behavioural",
@@ -708,37 +728,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-25eb7a86",
-      "assertion": "Empty summarized content caused by length or max_tokens stop reasons produces a specific truncation error, with a distinct message when all returned content blocks are thinking blocks.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildEmptyContentError"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:parseSummarizeResponseText",
-          "src/services/cloudService.ts:buildEmptyContentError"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-25eb7a86",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real truncation-error invariant but has no linked test."
       }
     },
     {
@@ -808,37 +797,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-2c05d8dc",
-      "assertion": "Provider dropdown option construction must expose a translated label for every adapter listed in the provider registry, mapping openai-compatible to t.openaiCompatible.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "buildProviderOptions"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/providerRegistry.ts",
-        "src/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/providerRegistry.ts:export function buildProviderOptions"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-2c05d8dc",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
       "id": "REQ-behavioural-2c33f82b",
       "assertion": "getPersonaPrompt wraps the selected or default writing persona prompt in <persona> tags, while getSummaryPersonaPrompt and getMinutesPersonaPrompt return the selected or default prompt text without XM",
       "kind": "behavioural",
@@ -879,103 +837,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-308527ae",
-      "assertion": "CloudLLMService summarization requests use the neutral system prompt 'You are a helpful assistant that summarizes content accurately and thoroughly.' rather than the tagging-focused prompt.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.buildSummarizeRequestBody"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: buildSummarizeRequestBody(prompt, options)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-308527ae",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real prompt-selection invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-behavioural-310ce7c1",
-      "assertion": "Adapter request formatting includes a system message using SYSTEM_PROMPT followed by the user prompt, either merged into the provider-specific body or emitted in the default OpenAI-compatible body.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.formatRequest"
-        },
-        {
-          "file": "src/services/baseService.ts",
-          "anchor": "BaseLLMService.formatRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts",
-        "src/services/baseService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:formatRequest",
-          "src/services/baseService.ts:formatRequest"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-310ce7c1",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-behavioural-31e122d0",
-      "assertion": "When an adapter response content string contains no parseable JSON, tag extraction must fall back to hashtags, quoted alphanumeric-hyphen tags, and bullet-list tags, returning them as newTags with no ",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "extractTagsFromText"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:private extractTagsFromText(text: string)",
-          "src/services/adapters/baseAdapter.ts:catch block in parseResponse string handling"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-31e122d0",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -1302,76 +1163,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-4948eb90",
-      "assertion": "CloudLLMService postWithRetry retries network errors and HTTP statuses 429, 502, 503, 504, and 529 up to three total attempts, never retries 401 or 403, and honors Retry-After header values without ap",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.postWithRetry"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.retryOnHttpStatus"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.RETRIABLE_STATUSES"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: postWithRetry(url, headers, body, timeoutMs)",
-          "src/services/cloudService.ts: retryOnHttpStatus(response, attempt)",
-          "src/services/cloudService.ts: RETRIABLE_STATUSES"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-4948eb90",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real retry behaviour invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-behavioural-4a0fa784",
-      "assertion": "Claude summarization must default to a 64000 token budget when adaptive thinking is active and 8192 tokens otherwise, unless the caller supplies an explicit `maxTokens` value.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildClaudeSummarizeBody"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:buildClaudeSummarizeBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-4a0fa784",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Claude token-budget invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-behavioural-4a900adf",
       "assertion": "New installations default to cloud Claude service using endpoint https://api.anthropic.com/v1/messages, cloudServiceType claude, and cloudModel claude-sonnet-4-6 with an empty cloudApiKey.",
       "kind": "behavioural",
@@ -1408,18 +1199,14 @@
       }
     },
     {
-      "id": "REQ-behavioural-54c1b721",
-      "assertion": "Connection tests classify AbortError as timeout, Failed to fetch as network, authentication failures as auth, and 404 endpoint or model errors as network errors with a refresh-models recommendation.",
+      "id": "REQ-behavioural-4ea28d95",
+      "assertion": "Non-Azure summarization honors positive Retry-After delays without the fallback cap, using case-insensitive header lookup and supporting seconds or HTTP dates.",
       "kind": "behavioural",
       "checkable": true,
       "provenance": [
         {
           "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.classifyConnectionTestError"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "classifyConnectionTestError"
+          "anchor": "retryOnHttpStatus"
         }
       ],
       "appliesTo": [
@@ -1427,41 +1214,9 @@
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts: classifyConnectionTestError(error)",
-          "src/services/cloudService.ts: testConnection()",
-          "src/services/cloudService.ts:classifyConnectionTestError",
-          "src/services/cloudService.ts:testConnection"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-behavioural-54c1b721",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real connection-test classification invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-behavioural-54f6ac27",
-      "assertion": "Streaming summarization must require adapter streaming support and must use native `fetch` with SSE chunk parsing instead of Obsidian `requestUrl`.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "summarizeTextStream"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:summarizeTextStream"
+          "src/services/cloudService.ts#retryOnHttpStatus",
+          "src/services/cloudService.ts#parseRetryAfterMs",
+          "src/services/cloudService.ts#getHeader"
         ],
         "tests": []
       },
@@ -1469,41 +1224,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-behavioural-54f6ac27",
+        "requirementId": "REQ-behavioural-4ea28d95",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real streaming transport invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-behavioural-56dd66d9",
-      "assertion": "Connection testing must classify aborts as timeout errors, failed fetches as network errors, authentication failures as auth errors, and HTTP 404 responses as network/model-not-found errors with model",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "classifyConnectionTestError"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:classifyConnectionTestError",
-          "src/services/cloudService.ts:testConnection"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-56dd66d9",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real connection-test classification invariant but has no linked test."
+        "rationale": "Retry-After parsing lacks linked tests."
       }
     },
     {
@@ -1660,6 +1384,39 @@
       }
     },
     {
+      "id": "REQ-behavioural-6109ec1b",
+      "assertion": "Summarization retry waits and Azure queued admission receive the caller's abort signal, and an observed abort prevents another retry attempt.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "postWithRetry"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#postWithRetry",
+          "src/services/cloudService.ts#pacedRequestUrl",
+          "src/services/cloudService.ts#retryOnNetworkError",
+          "src/services/cloudService.ts#retryOnHttpStatus"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-6109ec1b",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Retry cancellation propagation lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-6697ef68",
       "assertion": "Semantic search and vault chat are opt-in features because `enableSemanticSearch` and `enableVaultChat` both default to `false`.",
       "kind": "behavioural",
@@ -1726,6 +1483,69 @@
       }
     },
     {
+      "id": "REQ-behavioural-6e505c69",
+      "assertion": "Bedrock emits explicit adaptive thinking only for supported normalized Claude IDs, and summarize disableThinking overrides both configured and per-call thinking requests.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "formatSummarizeRequest"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#applyThinkingParams",
+          "src/services/adapters/bedrockAdapter.ts#formatSummarizeRequest"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-6e505c69",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Thinking-disable precedence lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-703fb131",
+      "assertion": "Summarization forwards caller cancellation to Azure admission and retry sleeps and does not initiate another attempt after observing cancellation.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "postWithRetry"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#postWithRetry",
+          "src/services/cloudService.ts#retryOnNetworkError",
+          "src/services/cloudService.ts#retryOnHttpStatus"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-703fb131",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Cancellation-aware retry handling lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-71e542d8",
       "assertion": "NotebookLM exports default to clean text format, exclude frontmatter, include the note title, and use `NotebookLM` as the output folder.",
       "kind": "behavioural",
@@ -1769,6 +1589,66 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-76a2a827",
+      "assertion": "Bedrock replaces missing or legacy regionless endpoints with its registered endpoint and defaults an unspecified model to global.anthropic.claude-sonnet-4-6.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "constructor"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts#constructor"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-76a2a827",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Bedrock configuration defaults lack linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-7e0c3350",
+      "assertion": "BaseAdapter's default request execution rejects without issuing HTTP, leaving network execution to the service layer.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/baseAdapter.ts",
+          "anchor": "makeRequest"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/baseAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/baseAdapter.ts#makeRequest"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-7e0c3350",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Service-layer execution ownership lacks linked tests."
       }
     },
     {
@@ -2015,6 +1895,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-8a87b526",
+      "assertion": "Haiku discovery schedules cancellation after 10000 milliseconds and caches successfully parsed discovery selections by the first sixteen API-key characters.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "resolveLatestHaiku; haikuCacheKey"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "needs-review",
+      "gap": {
+        "requirementId": "REQ-behavioural-8a87b526",
+        "gap": "observed-but-unintended",
+        "conflictsWith": [],
+        "rationale": "Truncated API-key cache identities risk collisions."
       }
     },
     {
@@ -2267,6 +2177,36 @@
       }
     },
     {
+      "id": "REQ-behavioural-a02c1b0f",
+      "assertion": "Service construction supplies the provider default for an empty model name and warns while retaining any configured latest-* identifier that remains unresolved.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "constructor"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#constructor"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-a02c1b0f",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Construction defaults and warnings lack tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-a04b92e4",
       "assertion": "orchestrateChunked returns a successful empty summary without invoking chunking or LLM services when the input text is empty or whitespace-only.",
       "kind": "behavioural",
@@ -2328,23 +2268,22 @@
       }
     },
     {
-      "id": "REQ-behavioural-aeb5cf2e",
-      "assertion": "summarizeTextStream requires adapter streaming support, uses native globalThis.fetch instead of Obsidian requestUrl, returns failure on non-OK HTTP status, and emits each parsed streaming chunk throug",
+      "id": "REQ-behavioural-ad1b45f6",
+      "assertion": "Claude adaptive-thinking, one-million-context, and dynamic-web-search classification accepts parsed Opus or Sonnet versions at least 4.6 and rejects other tiers.",
       "kind": "behavioural",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.summarizeTextStream"
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeSupportsAdaptiveThinking; claudeHas1MContext; claudeSupportsDynamicWebSearch"
         }
       ],
       "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*"
+        "src/services/adapters/modelCapabilities.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts: summarizeTextStream(prompt, onChunk, signal)"
+          "src/services/adapters/modelCapabilities.ts"
         ],
         "tests": []
       },
@@ -2352,10 +2291,41 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-behavioural-aeb5cf2e",
+        "requirementId": "REQ-behavioural-ad1b45f6",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real streaming summarization invariant but has no linked test."
+        "rationale": "Capability classification lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-b491664a",
+      "assertion": "Fallback summarization builders honor resolved model overrides for Claude and generic OpenAI-compatible providers but ignore overrides for Azure OpenAI and Gemini.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildSummarizeRequestBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildSummarizeRequestBody",
+          "src/services/cloudService.ts#buildClaudeSummarizeBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "needs-review",
+      "gap": {
+        "requirementId": "REQ-behavioural-b491664a",
+        "gap": "observed-but-unintended",
+        "conflictsWith": [],
+        "rationale": "Silently ignoring Gemini overrides appears accidental."
       }
     },
     {
@@ -2386,6 +2356,69 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-b8add2f0",
+      "assertion": "Non-Azure summarization honors positive parsed Retry-After delays without the fallback delay cap and looks up that header case-insensitively.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "retryOnHttpStatus"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#retryOnHttpStatus",
+          "src/services/cloudService.ts#getHeader",
+          "src/services/cloudService.ts#parseRetryAfterMs"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-b8add2f0",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Server-directed retry delays lack linked tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-b927d8de",
+      "assertion": "Non-Azure multimodal calls make a single HTTP attempt, whereas Azure multimodal calls allow at most three attempts and estimate token-quota excess from the output budget rather than base64 body length",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "sendMultimodalAzure"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#sendMultimodal",
+          "src/services/cloudService.ts#sendMultimodalAzure"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-b927d8de",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Multimodal retry policies lack linked tests."
       }
     },
     {
@@ -2462,37 +2495,6 @@
       }
     },
     {
-      "id": "REQ-behavioural-be2adb25",
-      "assertion": "Summarization response parsing must throw a specific reasoning-budget error when a max-token-truncated response contains only thinking blocks, a truncation error when max-token-truncated without visib",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildEmptyContentError"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:parseSummarizeResponseText",
-          "src/services/cloudService.ts:buildEmptyContentError"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-be2adb25",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real summarization parsing invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-behavioural-bec0a642",
       "assertion": "getTaxonomyForPrompt must emit theme entries inside <available_themes> tags and discipline entries inside <available_disciplines> tags, including a \"Use when:\" parenthetical only when useWhen is non-e",
       "kind": "behavioural",
@@ -2520,68 +2522,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-bf675337",
-      "assertion": "Adapter connection tests must call makeRequest('test'), return ConnectionTestResult.Success on resolution, and return ConnectionTestResult.Failed with error type 'unknown' and a message on rejection.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "testConnection"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:async testConnection()"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-bf675337",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-behavioural-bf8eb3f8",
-      "assertion": "Adapter response parsing must attempt to parse string results as JSON and, if JSON extraction fails, must fall back to extracting textual tags into newTags with matchedTags empty.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "public parseResponse(response: unknown)"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:parseResponse",
-          "src/services/adapters/baseAdapter.ts:extractJsonFromContent",
-          "src/services/adapters/baseAdapter.ts:extractTagsFromText"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-bf8eb3f8",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -2613,36 +2553,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real API key resolution ordering invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-behavioural-c3451ab5",
-      "assertion": "summarizeText catches all thrown errors from summarization and returns a structured result with success false and an error message instead of throwing to its caller.",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.summarizeText"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: summarizeText(prompt, options)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-c3451ab5",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real summarizeText error-handling invariant but has no linked test."
       }
     },
     {
@@ -2679,6 +2589,38 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-c4d0cb29",
+      "assertion": "Each text summarization or streaming invocation invokes the installed logical-call hook once before request execution, and hook exceptions do not interrupt the call.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "noteCall"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#noteCall",
+          "src/services/cloudService.ts#summarizeText",
+          "src/services/cloudService.ts#summarizeTextStream"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-c4d0cb29",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Hook invocation guarantees lack linked tests."
       }
     },
     {
@@ -2808,22 +2750,22 @@
       }
     },
     {
-      "id": "REQ-behavioural-d2286f38",
-      "assertion": "BaseAdapter.getHeaders must return JSON content headers with Content-Type set to application/json.",
+      "id": "REQ-behavioural-cece676c",
+      "assertion": "Azure streaming holds its lease only through initial fetch completion, retries initial 429 responses at most twice, and consumes the stream outside the lease.",
       "kind": "behavioural",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "getHeaders()"
+          "file": "src/services/cloudService.ts",
+          "anchor": "summarizeTextStream"
         }
       ],
       "appliesTo": [
-        "src/services/adapters/**/*.ts"
+        "src/services/cloudService.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/adapters/baseAdapter.ts:getHeaders"
+          "src/services/cloudService.ts#summarizeTextStream"
         ],
         "tests": []
       },
@@ -2831,10 +2773,40 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-behavioural-d2286f38",
+        "requirementId": "REQ-behavioural-cece676c",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
+        "rationale": "Streaming lease and retries lack tests."
+      }
+    },
+    {
+      "id": "REQ-behavioural-d22bfa39",
+      "assertion": "An unresolved latest-* service model produces a warning but is still passed to the adapter unchanged.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "CloudLLMService.constructor"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#constructor"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-d22bfa39",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Explicit unresolved-model fallback lacks linked tests."
       }
     },
     {
@@ -2962,36 +2934,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-behavioural-e3c41d88",
-      "assertion": "BaseAdapter.testConnection must call makeRequest with the literal prompt test and must translate success to ConnectionTestResult.Success and any thrown error to ConnectionTestResult.Failed with error ",
-      "kind": "behavioural",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "async testConnection()"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:testConnection"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-behavioural-e3c41d88",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -3156,6 +3098,37 @@
       }
     },
     {
+      "id": "REQ-behavioural-f1e60b29",
+      "assertion": "Fallback summarization body construction honors resolved model overrides for Claude and general OpenAI-compatible providers but ignores them for Azure OpenAI and Gemini.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildSummarizeRequestBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildSummarizeRequestBody",
+          "src/services/cloudService.ts#buildClaudeSummarizeBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "needs-review",
+      "gap": {
+        "requirementId": "REQ-behavioural-f1e60b29",
+        "gap": "observed-but-unintended",
+        "conflictsWith": [],
+        "rationale": "Silently ignoring Gemini overrides appears accidental."
+      }
+    },
+    {
       "id": "REQ-behavioural-f3e8e9b7",
       "assertion": "Default chat request formatting must send the shared SYSTEM_PROMPT as a system message, the caller prompt as a user message, the configured model name, and temperature 0.3.",
       "kind": "behavioural",
@@ -3187,6 +3160,36 @@
       }
     },
     {
+      "id": "REQ-behavioural-f642ac6a",
+      "assertion": "Specialist latest-model resolution uses a nonempty live pool instead of the static pool and preserves the original sentinel when resolution fails.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "resolveSpecialistModel"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-behavioural-f642ac6a",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Discovery fallback behavior lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-behavioural-f6e0b59d",
       "assertion": "Blank or whitespace-only input to orchestrateChunked must return {ok:true, summary:\"\"} without invoking chunking or LLM reduction.",
       "kind": "behavioural",
@@ -3214,6 +3217,42 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-behavioural-fb346927",
+      "assertion": "Gemini latest-tier resolution prefers an available official alias and otherwise excludes TTS and lite models while ranking by descending version and preferring GA at equal versions.",
+      "kind": "behavioural",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "resolveLatestModel; pickNewestGemini"
+        },
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "resolveLatestModel"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts",
+          "src/services/adapters/modelCapabilities.ts#resolveLatestModel",
+          "src/services/adapters/modelCapabilities.ts#pickNewestGemini"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-behavioural-fb346927",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Alias preference and ranking lack tests."
       }
     },
     {
@@ -3347,14 +3386,14 @@
       }
     },
     {
-      "id": "REQ-correctness-07f459a3",
-      "assertion": "HTTP retry handling must perform case-insensitive `Retry-After` header lookup, support both delta-seconds and HTTP-date formats, and honor positive Retry-After delays without applying the fallback exp",
+      "id": "REQ-correctness-089602fe",
+      "assertion": "General OpenAI-compatible summarization omits temperature for detected reasoning or Claude models and clamps output budgets only for nonreasoning models.",
       "kind": "correctness",
       "checkable": true,
       "provenance": [
         {
           "file": "src/services/cloudService.ts",
-          "anchor": "getHeader / parseRetryAfterMs / retryOnHttpStatus"
+          "anchor": "buildSummarizeRequestBody"
         }
       ],
       "appliesTo": [
@@ -3362,9 +3401,7 @@
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts:getHeader",
-          "src/services/cloudService.ts:parseRetryAfterMs",
-          "src/services/cloudService.ts:retryOnHttpStatus"
+          "src/services/cloudService.ts#buildSummarizeRequestBody"
         ],
         "tests": []
       },
@@ -3372,10 +3409,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-correctness-07f459a3",
+        "requirementId": "REQ-correctness-089602fe",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real Retry-After parsing invariant but has no linked test."
+        "rationale": "Model-specific request parameters lack linked tests."
       }
     },
     {
@@ -3440,22 +3477,25 @@
       }
     },
     {
-      "id": "REQ-correctness-0b978cdf",
-      "assertion": "OpenAI-family reasoning summarization models omit temperature and use max_completion_tokens, while non-reasoning OpenAI-compatible models include temperature and use max_tokens unless classified as ne",
+      "id": "REQ-correctness-0bc86e66",
+      "assertion": "Provider registration is typechecked to cover every AdapterType with an adapter-list entry, default model, and default endpoint.",
       "kind": "correctness",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildSummarizeRequestBody OpenAI-compatible branch"
+          "file": "src/services/adapters/providerRegistry.ts",
+          "anchor": "_allAdaptersCovered"
         }
       ],
       "appliesTo": [
-        "src/services/cloudService.ts"
+        "src/services/adapters/providerRegistry.ts",
+        "src/services/adapters/index.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts:buildSummarizeRequestBody"
+          "src/services/adapters/providerRegistry.ts#_allAdaptersCovered",
+          "src/services/adapters/providerRegistry.ts#PROVIDER_DEFAULT_MODEL",
+          "src/services/adapters/providerRegistry.ts#PROVIDER_ENDPOINT"
         ],
         "tests": []
       },
@@ -3463,10 +3503,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-correctness-0b978cdf",
+        "requirementId": "REQ-correctness-0bc86e66",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real OpenAI token-field invariant but has no linked test."
+        "rationale": "Typechecked registration lacks linked tests."
       }
     },
     {
@@ -3729,22 +3769,23 @@
       }
     },
     {
-      "id": "REQ-correctness-1cc854f1",
-      "assertion": "Adapter response parsing must normalize non-array matchedTags and newTags fields to empty arrays before mapping them to trimmed string outputs.",
+      "id": "REQ-correctness-206b865b",
+      "assertion": "Enhancement success requires string-valued enhancedMarkdown and computes actualCostUsd from provider usage counts and configured prices, never model-claimed cost.",
       "kind": "correctness",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "public parseResponse(response: unknown)"
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "parseEnhancerJson; enhance implementations"
         }
       ],
       "appliesTo": [
-        "src/services/adapters/**/*.ts"
+        "src/services/audioNarration/llmEnhancerProvider.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/adapters/baseAdapter.ts:parseResponse"
+          "src/services/audioNarration/llmEnhancerProvider.ts",
+          "src/services/adapters/modelCapabilities.ts"
         ],
         "tests": []
       },
@@ -3752,10 +3793,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-correctness-1cc854f1",
+        "requirementId": "REQ-correctness-206b865b",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
+        "rationale": "Success validation and costing lack tests."
       }
     },
     {
@@ -3786,6 +3827,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-2118caba",
+      "assertion": "Claude cache minimum and price lookups return undefined for undocumented versions rather than inheriting another version's values.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeMinCacheableTokens"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeMinCacheableTokens",
+          "src/services/adapters/modelCapabilities.ts#claudePricePerMTok"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-2118caba",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Strict version lookups lack linked tests."
       }
     },
     {
@@ -3821,36 +3893,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real specialist-provider fallback invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-correctness-2cf287e3",
-      "assertion": "OpenAI-family reasoning summarization models omit temperature and use a default token budget of 16384, while non-reasoning models include temperature 0.3 and use a default token budget of 8192.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.buildSummarizeRequestBody OpenAI-compatible branch"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: buildSummarizeRequestBody(prompt, options)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-2cf287e3",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real OpenAI token and temperature invariant but has no linked test."
       }
     },
     {
@@ -3975,36 +4017,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-38180d43",
-      "assertion": "Adapter response parsing must throw when provider.responseFormat.path is missing.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "public parseResponse(response: unknown)"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:parseResponse"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-38180d43",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -4265,36 +4277,6 @@
       }
     },
     {
-      "id": "REQ-correctness-44365541",
-      "assertion": "Provider response parsing fails when no provider response path is configured, propagates provider errorPath messages as parse failures, and otherwise traverses the configured response path to obtain t",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.parseResponse"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:parseResponse"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-44365541",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
       "id": "REQ-correctness-489eabd0",
       "assertion": "Only Claude and Gemini service types are treated as multimodal-capable, case-insensitively.",
       "kind": "correctness",
@@ -4352,6 +4334,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-4cad7078",
+      "assertion": "Bedrock preserves endpoints ending in /invoke and otherwise appends /model/{URI-encoded configured model ID}/invoke after removing trailing slashes.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "getEndpoint"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts",
+          "src/services/adapters/bedrockAdapter.ts#getEndpoint"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-correctness-4cad7078",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Invocation URL construction lacks linked tests."
       }
     },
     {
@@ -4445,37 +4458,6 @@
       }
     },
     {
-      "id": "REQ-correctness-51f409b0",
-      "assertion": "Claude summarization uses a default max_tokens value of 64000 when adaptive thinking is active and 8192 otherwise, unless the caller supplies options.maxTokens.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.buildClaudeSummarizeBody"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*claude*"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: buildClaudeSummarizeBody(prompt, systemPrompt, options)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-51f409b0",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Claude token-budget invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-correctness-52a693f1",
       "assertion": "hierarchical reduction is selected only when the assessment strategy is hierarchical and the number of successful map results exceeds HIERARCHICAL_CHUNK_THRESHOLD.",
       "kind": "correctness",
@@ -4507,39 +4489,6 @@
       }
     },
     {
-      "id": "REQ-correctness-55b4ade0",
-      "assertion": "CloudLLMService resolves symbolic latest-* model IDs to concrete model IDs using the live cached model list when available and otherwise the static registry, after substituting the provider default fo",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.constructor"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*",
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: constructor(config, app)",
-          "src/services/cloudService.ts:constructor"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-correctness-55b4ade0",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real model-resolution invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-correctness-590ee683",
       "assertion": "Internal-link extraction must reject non-markdown files and must prepend successful markdown content with a level-two heading using the file basename.",
       "kind": "correctness",
@@ -4567,6 +4516,67 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-5b839eaf",
+      "assertion": "Per-call override resolution trims whitespace, drops blank or unresolved latest-* overrides, and preserves concrete IDs even when absent from the candidate catalog.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "resolveModelOverride"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#resolveModelOverride"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-correctness-5b839eaf",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Override normalization lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-correctness-5b841627",
+      "assertion": "Every AdapterType appears in ALL_ADAPTERS and has a provider default model and endpoint, with Azure provider endpoints defaulting to empty strings.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/providerRegistry.ts",
+          "anchor": "_allAdaptersCovered; PROVIDER_DEFAULT_MODEL; PROVIDER_ENDPOINT"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/providerRegistry.ts",
+        "src/services/adapters/index.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/providerRegistry.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-5b841627",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Registration completeness lacks linked tests."
       }
     },
     {
@@ -4628,6 +4638,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-6248d46e",
+      "assertion": "Tagging requests preserve a supplied stable prefix through either the adapter's cached-request formatter or concatenation with the prompt.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildTagRequestBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildTagRequestBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-6248d46e",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Stable-prefix preservation lacks linked tests."
       }
     },
     {
@@ -4965,6 +5005,38 @@
       }
     },
     {
+      "id": "REQ-correctness-7399d771",
+      "assertion": "Non-streaming tagging, summarization, and multimodal responses cannot succeed when the adapter returns empty content.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "parseSummarizeResponseText"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#sendRequest",
+          "src/services/cloudService.ts#parseSummarizeResponseText",
+          "src/services/cloudService.ts#sendMultimodal"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-7399d771",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Empty-response rejection lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-7682a35c",
       "assertion": "Byte-level PDF extraction must exclude configured PDF structural terms and tokens of length one or less from extracted text.",
       "kind": "correctness",
@@ -5185,6 +5257,36 @@
       }
     },
     {
+      "id": "REQ-correctness-88ff0a1e",
+      "assertion": "The generic OpenAI-compatible summarization builder omits temperature for models classified as reasoning models or recognized as Claude models.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildSummarizeRequestBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildSummarizeRequestBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-88ff0a1e",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Temperature compatibility rules lack linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-8972a4b7",
       "assertion": "Bases template parsing reads each ### section's category, persona, and icon metadata from header markers, defaults category to 'default' unless the marker value is 'persona', derives a missing file na",
       "kind": "correctness",
@@ -5247,14 +5349,14 @@
       }
     },
     {
-      "id": "REQ-correctness-8e616e1b",
-      "assertion": "CloudLLMService resolves symbolic latest-* model IDs to concrete model IDs using the live model cache when populated, otherwise the static registry, and applies provider defaults before resolving.",
+      "id": "REQ-correctness-8a9ccba0",
+      "assertion": "A StreamProviderError encountered during stream consumption cancels the reader and returns failure with the provider message rather than success with partial content.",
       "kind": "correctness",
       "checkable": true,
       "provenance": [
         {
           "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.constructor"
+          "anchor": "summarizeTextStream"
         }
       ],
       "appliesTo": [
@@ -5262,7 +5364,7 @@
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts:constructor"
+          "src/services/cloudService.ts#summarizeTextStream"
         ],
         "tests": []
       },
@@ -5270,10 +5372,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-correctness-8e616e1b",
+        "requirementId": "REQ-correctness-8a9ccba0",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real symbolic model resolution invariant but has no linked test."
+        "rationale": "Stream-error cleanup lacks linked tests."
       }
     },
     {
@@ -5304,6 +5406,38 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-8faf4eb2",
+      "assertion": "Azure nonstreaming requests acquire deployment-specific leases per attempt, with summarization using the request body's model when present, while retry backoff occurs outside those leases.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "pacedRequestUrl"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#pacedRequestUrl",
+          "src/services/cloudService.ts#azurePacerKey",
+          "src/services/cloudService.ts#sendSummarizeRequest"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-8faf4eb2",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Per-attempt lease lifecycle lacks linked tests."
       }
     },
     {
@@ -5364,6 +5498,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-9420bc79",
+      "assertion": "Bedrock response text concatenates only nonempty string-valued text blocks with double newlines, and tagging parsing throws when usable text or extractable JSON is absent.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "parseResponseContent; parseResponse"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts",
+          "src/services/adapters/baseAdapter.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-9420bc79",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Response extraction safeguards lack linked tests."
       }
     },
     {
@@ -5458,36 +5623,6 @@
       }
     },
     {
-      "id": "REQ-correctness-985e335d",
-      "assertion": "Direct response-content parsing must use OpenAI choices[0].message.content when no provider contentPath is configured, follow provider.responseFormat.contentPath when configured, stringify non-string ",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "parseResponseContent"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:public parseResponseContent(response: unknown)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-985e335d",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
       "id": "REQ-correctness-995fbd0b",
       "assertion": "theme candidates that cannot be matched deterministically or repaired through the LLM cause validateTags to return success false instead of emitting tags without a valid taxonomy theme.",
       "kind": "correctness",
@@ -5517,6 +5652,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-9d344ca4",
+      "assertion": "Claude adaptive-thinking classification accepts parsed Opus and Sonnet versions at least 4.6 and rejects Haiku and unparseable IDs.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeSupportsAdaptiveThinking"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts#claudeSupportsAdaptiveThinking"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-9d344ca4",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Adaptive-thinking classification lacks linked tests."
       }
     },
     {
@@ -5611,22 +5776,23 @@
       }
     },
     {
-      "id": "REQ-correctness-9fac3e9a",
-      "assertion": "Claude summarization enables adaptive thinking only when the adapter thinking mode is adaptive, the selected Claude model supports adaptive thinking, and the call did not request disableThinking.",
+      "id": "REQ-correctness-a20bc33f",
+      "assertion": "Bedrock response text consists exclusively of nonempty string-valued text blocks joined with blank lines, and tagging parsing rejects missing text or unextractable JSON.",
       "kind": "correctness",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildClaudeSummarizeBody"
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "parseResponse"
         }
       ],
       "appliesTo": [
-        "src/services/cloudService.ts"
+        "src/services/adapters/bedrockAdapter.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts:buildClaudeSummarizeBody"
+          "src/services/adapters/bedrockAdapter.ts#parseResponseContent",
+          "src/services/adapters/bedrockAdapter.ts#parseResponse"
         ],
         "tests": []
       },
@@ -5634,45 +5800,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-correctness-9fac3e9a",
+        "requirementId": "REQ-correctness-a20bc33f",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real Claude adaptive-thinking invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-correctness-a39a7d53",
-      "assertion": "OpenAI-compatible SSE parsing must ignore lines not starting with 'data: ', ignore '[DONE]', return choices[0].delta.content for valid JSON data lines, and return null for malformed JSON.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "parseOpenAISSEChunk"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "static parseOpenAISSEChunk(line: string)"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:static parseOpenAISSEChunk(line: string)",
-          "src/services/adapters/baseAdapter.ts:parseOpenAISSEChunk"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-correctness-a39a7d53",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
+        "rationale": "Response extraction safeguards lack linked tests."
       }
     },
     {
@@ -5703,6 +5834,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-a637723c",
+      "assertion": "Fallback Claude token budgets and generic non-reasoning token budgets cannot exceed the effective model's output limit, while generic reasoning budgets remain unclamped.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildSummarizeRequestBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildSummarizeRequestBody",
+          "src/services/cloudService.ts#buildClaudeSummarizeBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-a637723c",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Provider-specific budget rules lack linked tests."
       }
     },
     {
@@ -5802,37 +5964,6 @@
       }
     },
     {
-      "id": "REQ-correctness-abf69d0a",
-      "assertion": "Gemini summarization requests are sent in OpenAI-compatible chat-completions format with system and user messages and max_tokens, not native Gemini contents format.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.buildSummarizeRequestBody gemini branch"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*gemini*"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: buildSummarizeRequestBody(prompt, options)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-abf69d0a",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Gemini request-format invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-correctness-acb07624",
       "assertion": "Appending disciplines must be idempotent by comparing existing and batch discipline names after lowercasing and converting spaces or underscores to hyphens.",
       "kind": "correctness",
@@ -5861,6 +5992,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-ad293cda",
+      "assertion": "The Claude summarization builder enables adaptive thinking only when requested, supported by the effective model, and not overridden by disableThinking.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildClaudeSummarizeBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildClaudeSummarizeBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-ad293cda",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Adaptive-thinking gating lacks linked tests."
       }
     },
     {
@@ -5952,69 +6113,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real secret-read normalization invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-correctness-b217d38c",
-      "assertion": "Adapter response parsing must fail if provider.responseFormat.path is absent and must wrap all parsing failures in an error message prefixed with 'Failed to parse response:'.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "parseResponse"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:public parseResponse(response: unknown)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "needs-review",
-      "gap": {
-        "requirementId": "REQ-correctness-b217d38c",
-        "gap": "contradictory",
-        "conflictsWith": [
-          "REQ-correctness-e47be6ae"
-        ],
-        "rationale": "It requires wrapping all parse failures, while the other requires throwing raw provider error messages."
-      }
-    },
-    {
-      "id": "REQ-correctness-b258de56",
-      "assertion": "OpenAI-family reasoning summarization models must omit `temperature`, use a larger default token budget of 16384, and use `max_completion_tokens` for newer OpenAI model families.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildSummarizeRequestBody OpenAI-compatible branch"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:buildSummarizeRequestBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-b258de56",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real OpenAI reasoning-model invariant but has no linked test."
       }
     },
     {
@@ -6110,36 +6208,6 @@
       }
     },
     {
-      "id": "REQ-correctness-b97db6fb",
-      "assertion": "Gemini summarization requests are formatted as OpenAI-compatible chat completion bodies with messages and max_tokens, not native Gemini contents or generationConfig bodies.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildSummarizeRequestBody gemini branch"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:buildSummarizeRequestBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-b97db6fb",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Gemini request-body invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-correctness-ba69e005",
       "assertion": "PredefinedTags tagging mode must throw an error when candidateTags is missing or empty.",
       "kind": "correctness",
@@ -6204,6 +6272,67 @@
       }
     },
     {
+      "id": "REQ-correctness-bb889607",
+      "assertion": "Successful enhancement costs derive from provider usage counts and configured prices, not model-generated claims, with absent usage counts treated as zero.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "HaikuEnhancementProvider.enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-bb889607",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Usage-based costing lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-correctness-be5f4d3b",
+      "assertion": "Claude summarization enables adaptive thinking only when requested and supported by the effective model and not disabled, and clamps its output budget to that model's output limit.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildClaudeSummarizeBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildClaudeSummarizeBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-be5f4d3b",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Thinking and budget constraints lack tests."
+      }
+    },
+    {
       "id": "REQ-correctness-c05c3c4d",
       "assertion": "if the final reduce phase returns no summary, orchestrateChunked returns ok false and appends a synthetic ChunkError with chunkIndex -1 and error \"Reduce phase returned empty\".",
       "kind": "correctness",
@@ -6265,6 +6394,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-correctness-c2830952",
+      "assertion": "Streaming preserves the stable prefix, releases Azure admission leases before reading stream content, and reports StreamProviderError as failure rather than successful partial output.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "summarizeTextStream"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#summarizeTextStream"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-c2830952",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Streaming correctness safeguards lack linked tests."
       }
     },
     {
@@ -6366,6 +6525,36 @@
       }
     },
     {
+      "id": "REQ-correctness-c87c5bd8",
+      "assertion": "Tagging requests preserve a supplied stable prefix through cached formatting when supported or joined prompt formatting otherwise.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "buildTagRequestBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#buildTagRequestBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-c87c5bd8",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Stable-prefix preservation lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-c8bea0e2",
       "assertion": "Valid current Gemini model IDs are not rewritten by the Gemini deprecation migration unless they exactly match one of the deprecated remap keys.",
       "kind": "correctness",
@@ -6462,42 +6651,6 @@
       }
     },
     {
-      "id": "REQ-correctness-cf4448ae",
-      "assertion": "Claude summarization enables adaptive thinking only when the adapter config requests adaptive thinking, the selected Claude model supports adaptive thinking, and the per-call options do not disable th",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.buildClaudeSummarizeBody"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildClaudeSummarizeBody"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*claude*"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: buildClaudeSummarizeBody(prompt, systemPrompt, options)",
-          "src/services/cloudService.ts:buildClaudeSummarizeBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-correctness-cf4448ae",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Claude adaptive-thinking invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-correctness-d037cc1f",
       "assertion": "LLM service construction must trim leading and trailing whitespace from configured endpoint and modelName before storing them.",
       "kind": "correctness",
@@ -6529,41 +6682,6 @@
       "status": "active",
       "gap": {
         "requirementId": "REQ-correctness-d037cc1f",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-correctness-d83fc716",
-      "assertion": "Adapter response parsing normalizes non-array matchedTags and newTags fields to empty arrays and returns matchedExistingTags and suggestedTags as trimmed strings.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.parseResponse tag normalization"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "parseResponse tag normalization"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:parseResponse",
-          "src/services/adapters/baseAdapter.ts:Ensure both matchedTags and newTags are arrays of strings"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-correctness-d83fc716",
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Looks intended, but hasTests is false."
@@ -6631,6 +6749,36 @@
       }
     },
     {
+      "id": "REQ-correctness-de1f6857",
+      "assertion": "Model selection uses a populated live provider catalog in preference to the static registry, whose latest-* aliases are excluded from candidate IDs.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "computeAvailableModelIds"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#computeAvailableModelIds"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-de1f6857",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Catalog precedence lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-def550b1",
       "assertion": "All default configuration file paths must be derived from the active config folder and normalized through normalizePath.",
       "kind": "correctness",
@@ -6689,38 +6837,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-e47be6ae",
-      "assertion": "Adapter response parsing must detect provider error responses via provider.responseFormat.errorPath and throw the extracted string error message or 'Unknown error' before normal result extraction.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "parseResponse errorPath handling"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:if (responseObj.error && this.provider.responseFormat.errorPath)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "needs-review",
-      "gap": {
-        "requirementId": "REQ-correctness-e47be6ae",
-        "gap": "contradictory",
-        "conflictsWith": [
-          "REQ-correctness-b217d38c"
-        ],
-        "rationale": "It requires raw provider error messages, conflicting with the universal parse-failure prefix requirement."
       }
     },
     {
@@ -7050,6 +7166,36 @@
       }
     },
     {
+      "id": "REQ-correctness-f07b4eef",
+      "assertion": "Claude cache-minimum and price lookups return undefined for undocumented versions rather than inheriting values from earlier generations or object prototypes.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeMinCacheableTokens; claudePricePerMTok"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-correctness-f07b4eef",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Strict metadata lookups lack linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-f11edae6",
       "assertion": "Post-guardrail tag constraint enforcement removes duplicate tags based on normalized form and records an autofixed info issue for each removed duplicate.",
       "kind": "correctness",
@@ -7077,38 +7223,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-f16e1524",
-      "assertion": "Retry-After handling must perform case-insensitive header lookup, accept both delta-seconds and HTTP-date formats, and honor positive Retry-After delays in full rather than capping them.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "getHeader/parseRetryAfterMs/retryOnHttpStatus"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:getHeader",
-          "src/services/cloudService.ts:parseRetryAfterMs",
-          "src/services/cloudService.ts:retryOnHttpStatus"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-f16e1524",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Retry-After handling invariant but has no linked test."
       }
     },
     {
@@ -7296,6 +7410,37 @@
       }
     },
     {
+      "id": "REQ-correctness-fafc12af",
+      "assertion": "Bedrock request bodies contain anthropic_version equal to bedrock-2023-05-31 and omit model, temperature, top_p, and top_k fields.",
+      "kind": "correctness",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "buildBody"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts",
+          "src/services/adapters/bedrockAdapter.ts#buildBody"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-correctness-fafc12af",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Provider-specific body formatting lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-correctness-fb3fc15f",
       "assertion": "Batch migration counts a migrated note returning true as updated and a migrated note returning false as skipped.",
       "kind": "correctness",
@@ -7383,37 +7528,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-correctness-fd10de5b",
-      "assertion": "Gemini summarization requests must be sent to the OpenAI-compatible endpoint using OpenAI chat-completions body shape with `messages` and `max_tokens`, not native Gemini `contents` format.",
-      "kind": "correctness",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "buildSummarizeRequestBody gemini branch"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*gemini*"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:buildSummarizeRequestBody"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-correctness-fd10de5b",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real Gemini chat-completions formatting invariant but has no linked test."
       }
     },
     {
@@ -7708,40 +7822,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real migration flag persistence invariant but has no linked test."
-      }
-    },
-    {
-      "id": "REQ-persistence-16afef4b",
-      "assertion": "The provider registry must define default model and endpoint entries for every adapter listed in ALL_ADAPTERS, including the openai-compatible adapter.",
-      "kind": "persistence",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "ALL_ADAPTERS, PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/providerRegistry.ts",
-        "src/services/adapters/index.ts",
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/providerRegistry.ts:export const ALL_ADAPTERS",
-          "src/services/adapters/providerRegistry.ts:export const PROVIDER_DEFAULT_MODEL",
-          "src/services/adapters/providerRegistry.ts:export const PROVIDER_ENDPOINT"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-persistence-16afef4b",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -8633,52 +8713,6 @@
       }
     },
     {
-      "id": "REQ-persistence-6f36fc5f",
-      "assertion": "Every adapter listed in ALL_ADAPTERS has a default model entry, a default endpoint entry, and a translated provider dropdown label.",
-      "kind": "persistence",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "ALL_ADAPTERS"
-        },
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "PROVIDER_DEFAULT_MODEL"
-        },
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "PROVIDER_ENDPOINT"
-        },
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "buildProviderOptions"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/providerRegistry.ts",
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/providerRegistry.ts:ALL_ADAPTERS",
-          "src/services/adapters/providerRegistry.ts:PROVIDER_DEFAULT_MODEL",
-          "src/services/adapters/providerRegistry.ts:PROVIDER_ENDPOINT",
-          "src/services/adapters/providerRegistry.ts:buildProviderOptions"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-persistence-6f36fc5f",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
       "id": "REQ-persistence-77302bb4",
       "assertion": "Settings with legacy `serviceType` value `ollama` are migrated to `local`, copy `ollamaEndpoint` to `localEndpoint`, copy `ollamaModel` to `localModel`, and delete the legacy Ollama keys.",
       "kind": "persistence",
@@ -9284,53 +9318,6 @@
       }
     },
     {
-      "id": "REQ-persistence-be447f24",
-      "assertion": "The provider registry must maintain defaults for every adapter listed in ALL_ADAPTERS across PROVIDER_DEFAULT_MODEL, PROVIDER_ENDPOINT, and buildProviderOptions.",
-      "kind": "persistence",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "ALL_ADAPTERS"
-        },
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "PROVIDER_DEFAULT_MODEL"
-        },
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "PROVIDER_ENDPOINT"
-        },
-        {
-          "file": "src/services/adapters/providerRegistry.ts",
-          "anchor": "buildProviderOptions"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/providerRegistry.ts",
-        "src/services/adapters/index.ts",
-        "src/services/adapters/cloudEndpoints.json"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/providerRegistry.ts:ALL_ADAPTERS",
-          "src/services/adapters/providerRegistry.ts:PROVIDER_DEFAULT_MODEL",
-          "src/services/adapters/providerRegistry.ts:PROVIDER_ENDPOINT",
-          "src/services/adapters/providerRegistry.ts:buildProviderOptions"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-persistence-be447f24",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
       "id": "REQ-persistence-bfd5dd57",
       "assertion": "When migrating persona configuration files from an older schema version, missing persona files are created fresh, files containing the exact old version marker are overwritten with new defaults, and f",
       "kind": "persistence",
@@ -9888,36 +9875,6 @@
       }
     },
     {
-      "id": "REQ-safety-0250d55a",
-      "assertion": "Adapters must default to text-only multimodal capability unless a specific adapter overrides getMultimodalCapability.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "getMultimodalCapability()"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:getMultimodalCapability"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-0250d55a",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
       "id": "REQ-safety-03e3bb0d",
       "assertion": "Semantic search and vault chat are opt-in features because both default to disabled even though automatic indexing defaults to enabled once semantic search is enabled.",
       "kind": "safety",
@@ -9956,37 +9913,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-safety-042d3f47",
-      "assertion": "The default multimodal capability for adapters must be 'text-only', and the default multimodal formatter must discard non-text parts by extracting text content and passing it through formatRequest.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "getMultimodalCapability and formatMultimodalRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:getMultimodalCapability()",
-          "src/services/adapters/baseAdapter.ts:formatMultimodalRequest(parts: ContentPart[], _options?: { maxTokens?: number })"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-042d3f47",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -10083,37 +10009,6 @@
       }
     },
     {
-      "id": "REQ-safety-122249fa",
-      "assertion": "sendMultimodal returns a failure result without making a provider request when image content is sent to a text-only provider or document content is sent to a provider that lacks document support.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.sendMultimodal capability validation"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts: sendMultimodal(parts, options)"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-122249fa",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real multimodal preflight safety invariant but has no linked test."
-      }
-    },
-    {
       "id": "REQ-safety-13087db2",
       "assertion": "Tag analysis rejects inputs whose content is empty or whitespace-only before any prompt is built or request is sent.",
       "kind": "safety",
@@ -10180,6 +10075,39 @@
       }
     },
     {
+      "id": "REQ-safety-153a42a0",
+      "assertion": "An Azure tagging or summarization 429 classified as exceeding the token quota terminates that operation's retry loop with an actionable quota error.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "azureTpmFailFast"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#azureTpmFailFast",
+          "src/services/cloudService.ts#postWithRetry",
+          "src/services/cloudService.ts#tryOneRequest",
+          "src/services/cloudService.ts#isNonRetriableError"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-153a42a0",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Quota-error termination lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-safety-16b19edf",
       "assertion": "internal-link extraction only reads markdown files and returns success false with error \"Only markdown files can be extracted as text\" for non-md files.",
       "kind": "safety",
@@ -10207,41 +10135,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-safety-187db317",
-      "assertion": "Adapters default to text-only multimodal capability and format multimodal requests by extracting text parts only before delegating to normal text request formatting.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.getMultimodalCapability"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.formatMultimodalRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:getMultimodalCapability",
-          "src/services/adapters/baseAdapter.ts:formatMultimodalRequest"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-187db317",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -10277,37 +10170,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-safety-1a8940c2",
-      "assertion": "Multimodal requests must fail before sending any provider request when image content is used with a text-only provider or document content is used with a provider that lacks document support.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "sendMultimodal capability validation"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts",
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:sendMultimodal"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "low",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-safety-1a8940c2",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real multimodal preflight invariant but has no linked test."
       }
     },
     {
@@ -10563,40 +10425,95 @@
       }
     },
     {
-      "id": "REQ-safety-3059579a",
-      "assertion": "BaseAdapter.makeRequest must never perform network I/O and must reject with an error directing callers to use CloudLLMService instead.",
+      "id": "REQ-safety-309a04f8",
+      "assertion": "Default-thinking Claude models receive low effort and a 4096-token minimum from claudeAlwaysThinkingParams, while other models receive no extra fields.",
       "kind": "safety",
       "checkable": true,
       "provenance": [
         {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "makeRequest"
-        },
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "protected makeRequest(_prompt: string)"
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeAlwaysThinkingParams"
         }
       ],
       "appliesTo": [
-        "src/services/adapters/baseAdapter.ts",
-        "src/services/adapters/**/*.ts",
-        "src/services/CloudLLMService.ts"
+        "src/services/adapters/modelCapabilities.ts"
       ],
       "evidence": {
         "code": [
-          "src/services/adapters/baseAdapter.ts:protected makeRequest(_prompt: string)",
-          "src/services/adapters/baseAdapter.ts:makeRequest"
+          "src/services/adapters/modelCapabilities.ts#claudeAlwaysThinkingParams"
         ],
         "tests": []
       },
-      "seenInRuns": 2,
+      "seenInRuns": 1,
       "confidence": "low",
-      "status": "active",
+      "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-safety-3059579a",
+        "requirementId": "REQ-safety-309a04f8",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
+        "rationale": "Default-thinking parameters lack linked tests."
+      }
+    },
+    {
+      "id": "REQ-safety-47afc1e5",
+      "assertion": "Multimodal calls reject unsupported images or documents before formatting or sending a request rather than silently discarding those parts.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "sendMultimodal"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#sendMultimodal"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-47afc1e5",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Service-level multimodal validation lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-safety-49d5fa60",
+      "assertion": "Azure summarization pacing uses the serialized request body's model when available, and releases the request lease before retry backoff.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "pacedRequestUrl"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#sendSummarizeRequest",
+          "src/services/cloudService.ts#azurePacerKey",
+          "src/services/cloudService.ts#pacedRequestUrl"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-49d5fa60",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Azure lease management lacks linked tests."
       }
     },
     {
@@ -10630,6 +10547,36 @@
       }
     },
     {
+      "id": "REQ-safety-4c4d0765",
+      "assertion": "Multimodal requests containing unsupported images or documents return failure before request formatting or network transmission.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "sendMultimodal"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#sendMultimodal"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-4c4d0765",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Unsupported multimodal rejection lacks linked tests."
+      }
+    },
+    {
       "id": "REQ-safety-4f5eb253",
       "assertion": "Content extraction processes detected items sequentially, reports progress before each item extraction, and records per-item failures without aborting extraction of later items.",
       "kind": "safety",
@@ -10657,6 +10604,36 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-safety-529bc9c1",
+      "assertion": "Default-thinking parameters apply low effort and a 4096-token minimum to parsed Opus/Sonnet versions at least 5.0 and Haiku versions at least 5.5, returning no parameters otherwise.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/modelCapabilities.ts",
+          "anchor": "claudeAlwaysThinkingParams"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/modelCapabilities.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/modelCapabilities.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-529bc9c1",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Default-thinking thresholds lack linked tests."
       }
     },
     {
@@ -10735,43 +10712,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Looks intended, but hasTests is false."
-      }
-    },
-    {
-      "id": "REQ-safety-5dd3364f",
-      "assertion": "Cloud request retry logic must retry transient network errors and HTTP 429, 502, 503, 504, and 529 up to three attempts, while never retrying HTTP 401 or 403 responses.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "retryOnNetworkError / retryOnHttpStatus / postWithRetry"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "retryOnNetworkError/retryOnHttpStatus/postWithRetry"
-        }
-      ],
-      "appliesTo": [
-        "src/services/cloudService.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/cloudService.ts:RETRIABLE_STATUSES",
-          "src/services/cloudService.ts:retryOnNetworkError",
-          "src/services/cloudService.ts:retryOnHttpStatus",
-          "src/services/cloudService.ts:postWithRetry"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 2,
-      "confidence": "high",
-      "status": "active",
-      "gap": {
-        "requirementId": "REQ-safety-5dd3364f",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Real retry safety invariant but has no linked test."
       }
     },
     {
@@ -10904,6 +10844,38 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-safety-6d3557fb",
+      "assertion": "Azure tagging and nonstreaming summarization stop retrying when a 429 is classified as exceeding TPM using the serialized request body's conservative token estimate.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/cloudService.ts",
+          "anchor": "azureTpmFailFast"
+        }
+      ],
+      "appliesTo": [
+        "src/services/cloudService.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/cloudService.ts#azureTpmFailFast",
+          "src/services/cloudService.ts#tryOneRequest",
+          "src/services/cloudService.ts#postWithRetry"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-6d3557fb",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Quota-based retry termination lacks linked tests."
       }
     },
     {
@@ -11294,6 +11266,36 @@
       }
     },
     {
+      "id": "REQ-safety-9a4defc9",
+      "assertion": "Enhancement requests compose caller cancellation with a configurable timeout defaulting to 90000 milliseconds and return nonretryable aborted or timeout outcomes for corresponding failures.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "callWithTimeout"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-9a4defc9",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Cancellation and timeout handling lack tests."
+      }
+    },
+    {
       "id": "REQ-safety-9aeef997",
       "assertion": "checkMainProviderConfigured returns a user-facing configuration error for local service mode when localEndpoint is blank, and for cloud service mode when neither SecretStorage nor plain-text settings ",
       "kind": "safety",
@@ -11645,26 +11647,14 @@
       }
     },
     {
-      "id": "REQ-safety-b9ff36e8",
-      "assertion": "CloudLLMService validates both the base service config and adapter config before sending cloud requests.",
+      "id": "REQ-safety-b5d6453f",
+      "assertion": "Tagging, nonstreaming summarization, and multimodal requests reject configuration validation failures before sending HTTP requests.",
       "kind": "safety",
       "checkable": true,
       "provenance": [
         {
           "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.validateCloudConfig"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.makeRequest"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.sendSummarizeRequest"
-        },
-        {
-          "file": "src/services/cloudService.ts",
-          "anchor": "CloudLLMService.sendMultimodal"
+          "anchor": "validateCloudConfig"
         }
       ],
       "appliesTo": [
@@ -11672,10 +11662,9 @@
       ],
       "evidence": {
         "code": [
-          "src/services/cloudService.ts: validateCloudConfig()",
-          "src/services/cloudService.ts: makeRequest(prompt, timeoutMs)",
-          "src/services/cloudService.ts: sendSummarizeRequest(prompt, options)",
-          "src/services/cloudService.ts: sendMultimodal(parts, options)"
+          "src/services/cloudService.ts#makeRequest",
+          "src/services/cloudService.ts#sendSummarizeRequest",
+          "src/services/cloudService.ts#sendMultimodal"
         ],
         "tests": []
       },
@@ -11683,10 +11672,10 @@
       "confidence": "low",
       "status": "inferred-only",
       "gap": {
-        "requirementId": "REQ-safety-b9ff36e8",
+        "requirementId": "REQ-safety-b5d6453f",
         "gap": "untested",
         "conflictsWith": [],
-        "rationale": "Real request validation invariant but has no linked test."
+        "rationale": "Preflight configuration validation lacks linked tests."
       }
     },
     {
@@ -11810,36 +11799,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Intended-looking invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-safety-c8d32c25",
-      "assertion": "The default multimodal request formatter must discard non-text content by extracting text parts and delegating the resulting text to formatRequest.",
-      "kind": "safety",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "formatMultimodalRequest(parts: ContentPart[], _options?: { maxTokens?: number })"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:formatMultimodalRequest"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-safety-c8d32c25",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -12108,6 +12067,38 @@
       }
     },
     {
+      "id": "REQ-safety-e955ff0d",
+      "assertion": "Enhancement calls use cancellable HTTP with a configured or 90-second default timeout, and classify only HTTP 429 and 503 failures as retryable.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "callWithTimeout"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#callWithTimeout",
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-e955ff0d",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Timeout and retryability rules lack tests."
+      }
+    },
+    {
       "id": "REQ-safety-ea4e0371",
       "assertion": "Map-phase failures and thrown exceptions must be captured as per-chunk errors with zero-based chunkIndex values and must not abort processing of later chunks.",
       "kind": "safety",
@@ -12364,6 +12355,36 @@
       }
     },
     {
+      "id": "REQ-safety-fdb076ca",
+      "assertion": "The base adapter rejects direct request execution and defaults multimodal handling to text-only extraction.",
+      "kind": "safety",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/baseAdapter.ts",
+          "anchor": "makeRequest; getMultimodalCapability; formatMultimodalRequest"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/baseAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/baseAdapter.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-safety-fdb076ca",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Adapter defaults lack linked tests."
+      }
+    },
+    {
       "id": "REQ-safety-ffe5fba5",
       "assertion": "A note with existing AIO status metadata is skipped and not rewritten when overwriteExisting is false.",
       "kind": "safety",
@@ -12422,37 +12443,6 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
-      }
-    },
-    {
-      "id": "REQ-security-432e2718",
-      "assertion": "The base adapter never performs HTTP requests directly and its makeRequest implementation always rejects with an instruction to use CloudLLMService instead.",
-      "kind": "security",
-      "checkable": true,
-      "provenance": [
-        {
-          "file": "src/services/adapters/baseAdapter.ts",
-          "anchor": "BaseAdapter.makeRequest"
-        }
-      ],
-      "appliesTo": [
-        "src/services/adapters/**/*.ts",
-        "src/services/**/*.ts"
-      ],
-      "evidence": {
-        "code": [
-          "src/services/adapters/baseAdapter.ts:makeRequest"
-        ],
-        "tests": []
-      },
-      "seenInRuns": 1,
-      "confidence": "low",
-      "status": "inferred-only",
-      "gap": {
-        "requirementId": "REQ-security-432e2718",
-        "gap": "untested",
-        "conflictsWith": [],
-        "rationale": "Looks intended, but hasTests is false."
       }
     },
     {
@@ -12517,6 +12507,73 @@
       }
     },
     {
+      "id": "REQ-security-5f20ec97",
+      "assertion": "Enhancement HTTP requests use abortableRequestUrl and transmit API keys in authentication headers rather than URL query parameters.",
+      "kind": "security",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "enhance implementations; resolveLatestHaiku; callWithTimeout"
+        },
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "GeminiEnhancementProvider.enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts",
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#resolveLatestHaiku",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 2,
+      "confidence": "high",
+      "status": "active",
+      "gap": {
+        "requirementId": "REQ-security-5f20ec97",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Secure request transport lacks linked tests."
+      }
+    },
+    {
+      "id": "REQ-security-645c1d2b",
+      "assertion": "Bedrock authenticates using an Authorization bearer header and rejects configuration lacking an API key or containing a model name without case-insensitive claude text.",
+      "kind": "security",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/adapters/bedrockAdapter.ts",
+          "anchor": "validateConfig; getHeaders"
+        }
+      ],
+      "appliesTo": [
+        "src/services/adapters/bedrockAdapter.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/adapters/bedrockAdapter.ts"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-security-645c1d2b",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Authentication and validation lack linked tests."
+      }
+    },
+    {
       "id": "REQ-security-6a35519e",
       "assertion": "LLM taxonomy repair results are accepted only when the repaired normalized value exists in the relevant taxonomy lookup map, except that 'NOVEL' is allowed only to preserve novel disciplines.",
       "kind": "security",
@@ -12544,6 +12601,37 @@
         "gap": "untested",
         "conflictsWith": [],
         "rationale": "Real invariant, but no linked test is provided."
+      }
+    },
+    {
+      "id": "REQ-security-75246b42",
+      "assertion": "Enhancement providers return nonretryable no-api-key outcomes without making HTTP requests when the supplied API key is empty.",
+      "kind": "security",
+      "checkable": true,
+      "provenance": [
+        {
+          "file": "src/services/audioNarration/llmEnhancerProvider.ts",
+          "anchor": "enhance"
+        }
+      ],
+      "appliesTo": [
+        "src/services/audioNarration/llmEnhancerProvider.ts"
+      ],
+      "evidence": {
+        "code": [
+          "src/services/audioNarration/llmEnhancerProvider.ts#GeminiEnhancementProvider.enhance",
+          "src/services/audioNarration/llmEnhancerProvider.ts#HaikuEnhancementProvider.enhance"
+        ],
+        "tests": []
+      },
+      "seenInRuns": 1,
+      "confidence": "low",
+      "status": "inferred-only",
+      "gap": {
+        "requirementId": "REQ-security-75246b42",
+        "gap": "untested",
+        "conflictsWith": [],
+        "rationale": "Missing-key rejection lacks linked tests."
       }
     },
     {

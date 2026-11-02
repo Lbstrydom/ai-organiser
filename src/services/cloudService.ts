@@ -690,7 +690,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         if (validationError) throw new Error(validationError);
 
         const requestBody = this.adapter.formatSummarizeRequest
-            ? this.adapter.formatSummarizeRequest(prompt)
+            ? this.adapter.formatSummarizeRequest(prompt, options)
             : this.buildSummarizeRequestBody(prompt, options);
 
         const endpoint = this.adapter.getEndpoint();

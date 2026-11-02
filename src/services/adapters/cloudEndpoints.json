@@ -6,7 +6,7 @@
   "claude": "https://api.anthropic.com/v1/messages",
   "groq": "https://api.groq.com/openai/v1/chat/completions",
   "openrouter": "https://openrouter.ai/api/v1/chat/completions",
-  "bedrock": "https://bedrock-runtime.amazonaws.com",
+  "bedrock": "https://bedrock-runtime.us-east-1.amazonaws.com",
   "requesty": "https://api.requesty.ai/v1/chat/completions",
   "cohere": "https://api.cohere.com/v2/chat",
   "grok": "https://api.x.ai/v1/chat/completions",

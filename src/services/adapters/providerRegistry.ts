@@ -64,7 +64,7 @@ export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   // Vertex mirrors main Gemini intent — use Pro.
   vertex: 'latest-pro',
   openrouter: 'openai/gpt-5.2',
-  bedrock: 'anthropic.claude-sonnet-4-6',
+  bedrock: 'global.anthropic.claude-sonnet-4-6',
   requesty: 'gpt-5.2',
   cohere: 'command-r7-plus-04-2025',
   grok: 'grok-4',

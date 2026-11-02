@@ -19,7 +19,7 @@ import type { App, RequestUrlParam } from 'obsidian';
 import { abortableRequestUrl } from '../../utils/abortableRequestUrl';
 import { logger } from '../../utils/logger';
 import { buildEnhancerPrompt, type EnhancementContext } from './llmEnhancerPrompts';
-import { claudeAlwaysThinkingParams } from '../adapters/modelCapabilities';
+import { claudeAlwaysThinkingParams, claudeCallCostUsd, claudePricePerMTok, newestClaudePrice } from '../adapters/modelCapabilities';
 
 const DEFAULT_TIMEOUT_MS = 90_000;
 const DEFAULT_MAX_OUTPUT_TOKENS = 16384;
@@ -170,9 +170,10 @@ class GeminiEnhancementProvider implements LlmEnhancementProvider {
 
 // ── Haiku impl ──────────────────────────────────────────────────────────────
 
-// Claude Haiku pricing (Jan 2026).
-const HAIKU_INPUT_PER_M = 0.80;
-const HAIKU_OUTPUT_PER_M = 4.00;
+// Claude Haiku pricing comes from the model price table, by the model that answered.
+// Before a call the concrete model is unknown; the resolver picks the newest Haiku,
+// so the pre-flight estimate uses that row.
+const HAIKU_ESTIMATE_PRICE = newestClaudePrice('haiku');
 
 interface AnthropicUsage {
     input_tokens?: number;
@@ -180,6 +181,7 @@ interface AnthropicUsage {
 }
 
 interface AnthropicResponse {
+    model?: string;
     content?: Array<{ type?: string; text?: string }>;
     usage?: AnthropicUsage;
 }
@@ -279,8 +281,8 @@ class HaikuEnhancementProvider implements LlmEnhancementProvider {
     readonly id = 'haiku' as const;
     readonly displayName = 'Claude Haiku';
     readonly modelSentinel = 'latest-haiku';
-    readonly costPerMTokensInput = HAIKU_INPUT_PER_M;
-    readonly costPerMTokensOutput = HAIKU_OUTPUT_PER_M;
+    readonly costPerMTokensInput = HAIKU_ESTIMATE_PRICE.input;
+    readonly costPerMTokensOutput = HAIKU_ESTIMATE_PRICE.output;
 
     async enhance(
         _app: App,
@@ -326,7 +328,10 @@ class HaikuEnhancementProvider implements LlmEnhancementProvider {
             if (!parsed) return errOutcome('no-enhancement', { retryable: false });
             const inTok = data.usage?.input_tokens ?? 0;
             const outTok = data.usage?.output_tokens ?? 0;
-            const cost = (inTok * HAIKU_INPUT_PER_M + outTok * HAIKU_OUTPUT_PER_M) / 1_000_000;
+            // Price by the model that answered (the response names it), else the one requested;
+            // an undocumented id falls back to the newest Haiku's price.
+            const price = claudePricePerMTok(data.model ?? model) ?? HAIKU_ESTIMATE_PRICE;
+            const cost = claudeCallCostUsd(price, inTok, outTok);
             return {
                 ok: true as const,
                 value: { enhancedMarkdown: parsed.enhancedMarkdown, decisions: parsed.decisions, actualCostUsd: cost },
