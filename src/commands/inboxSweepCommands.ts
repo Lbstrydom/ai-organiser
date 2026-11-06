@@ -391,6 +391,8 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         operational: false,
         /** The deployed script is the combined Google script (learned from a test); unknown until one ran */
         combined: false,
+        /** The person's last copy here was the combined script. A test of the deployed script outranks it. */
+        copiedCombined: false,
         /** Why the last check said not ready: the guidance Finish shows */
         notReady: 'tasks-wizard-unchecked',
     };
@@ -406,9 +408,12 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         await navigator.clipboard.writeText(selectTasksScript(s, secret, approvedListId).text);
         new Notice(c.scriptCopied + (created ? ` ${c.secretCreated}` : ''), 8000);
     };
-    const copyCombined = async (): Promise<void> => {
-        await copyCombinedScript(plugin, draft.listId || undefined);
+    const copyCombined = async (redeploy = true): Promise<void> => {
+        await copyCombinedScript(plugin, draft.listId || undefined, redeploy);
     };
+    const wantsCombined = (): boolean => draft.combined || draft.copiedCombined;
+    /** No saved link: nothing is deployed that this window could overwrite, so it can lead with the combined script. A saved link keeps the window as it was. */
+    const fresh = s.tasksScriptUrl.trim() === '';
     /** One check of the deployed script: used by Test connection and Test again, so both learn whether it is the combined one. */
     const verify = async (status: HTMLElement, forList: boolean): Promise<void> => {
         status.setText(c.testing);
@@ -419,6 +424,7 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         const ping = await pingTasksScript(ep.value);
         if (!ping.ok) { unreached(ping.error); return; }
         draft.combined = ping.value.combined === true;
+        draft.copiedCombined = false;
         if (!forList) { draft.status = draft.combined ? c.connectedCombined : c.connected; status.setText(draft.status); return; }
         const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
         draft.operational = state === 'operational';
@@ -442,9 +448,18 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                 validate: () => (validateScriptUrl(draft.url).ok ? ok(undefined) : err('script-invalid-endpoint')),
                 render: (el) => {
                     el.createEl('p', { text: c.scriptIntro });
-                    el.createEl('p', { text: c.combinedHint, cls: 'setting-item-description' });
-                    for (const line of [c.step1, c.step2, c.step3, c.step4]) el.createEl('p', { text: line });
-                    new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(null)))));
+                    if (fresh) {
+                        el.createEl('p', { text: c.freshIntro });
+                        el.createEl('p', { text: c.freshAlreadyDeployed, cls: 'setting-item-description' });
+                        for (const line of [c.step1, c.step2Combined, c.step3Combined, c.step4]) el.createEl('p', { text: line });
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedScript).setCta().onClick(() => run(async () => { await copyCombined(false); draft.copiedCombined = true; })));
+                        el.createEl('p', { text: c.tasksOnlyNote, cls: 'setting-item-description' });
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyTasksOnly).onClick(() => run(async () => { if (draft.combined) { await copyCombined(); return; } await copyScript(null); draft.copiedCombined = false; })));
+                    } else {
+                        el.createEl('p', { text: c.combinedHint, cls: 'setting-item-description' });
+                        for (const line of [c.step1, c.step2, c.step3, c.step4]) el.createEl('p', { text: line });
+                        new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(null)))));
+                    }
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.status);
                     new Setting(el).setName(c.scriptUrlName).setDesc(c.scriptUrlDesc).addText((tx) => {
@@ -492,12 +507,12 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                 title: c.stepFinish,
                 validate: () => (draft.operational ? ok(undefined) : err(draft.notReady)),
                 render: (el) => {
-                    el.createEl('p', { text: (draft.combined ? c.finishIntroCombined : c.finishIntro).replace('{list}', listName()) });
+                    el.createEl('p', { text: (wantsCombined() ? c.finishIntroCombined : c.finishIntro).replace('{list}', listName()) });
                     // The combined deployment is never overwritten by the standalone script: the primary button follows what the last test found.
-                    new Setting(el).addButton((b) => b.setButtonText(draft.combined ? c.copyFinalCombined : c.copyFinalScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(draft.listId)))));
-                    if (!draft.combined) {
+                    new Setting(el).addButton((b) => b.setButtonText(wantsCombined() ? c.copyFinalCombined : c.copyFinalScript).setCta().onClick(() => run(() => (wantsCombined() ? copyCombined() : copyScript(draft.listId)))));
+                    if (!wantsCombined()) {
                         el.createEl('p', { text: c.standaloneNote, cls: 'setting-item-description' });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedInstead).onClick(() => run(copyCombined)));
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedInstead).onClick(() => run(() => copyCombined())));
                     }
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.operational ? c.operationalLine.replace('{list}', listName()) : c.notReady);

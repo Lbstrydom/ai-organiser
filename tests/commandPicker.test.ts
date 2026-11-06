@@ -171,11 +171,11 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('Refine — improve, Pending sub-group, digitise, clear-tags', () => {
-        it('first-expansion has 12 rows (the capture inbox sits next to the sweep)', () => {
+        it('first-expansion has 13 rows (the capture inbox sits next to the sweep)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const refine = cats.find(c => c.id === 'refine')!;
             expect(refine.commands.map(c => c.id)).toEqual([
-                'sweep-inbox', 'setup-inbox-sweep', 'process-capture-inbox', 'review-captures', 'setup-capture-inbox', 'send-tasks-to-google', 'setup-google-tasks', 'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
+                'sweep-inbox', 'setup-inbox-sweep', 'process-capture-inbox', 'review-captures', 'setup-capture-inbox', 'send-tasks-to-google', 'setup-google-tasks', 'adopt-project', 'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
             ]);
         });
         it('Process pending sub-group contains the 3 pending commands', () => {
@@ -192,7 +192,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const find = cats.find(c => c.id === 'find')!;
             expect(find.commands.map(c => c.id)).toEqual([
-                'chat-with-ai', 'semantic-search', 'find-related', 'insert-related-notes', 'quick-peek',
+                'chat-with-ai', 'semantic-search', 'find-related', 'insert-related-notes', 'quick-peek', 'open-project',
                 'copy-claude-permissions', 'write-agent-instructions', 'build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'open-agent-connectors', 'export-vault-map', 'setup-agent-index',
             ]);
         });
@@ -269,18 +269,18 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 71 (68 unique + 3 cross-listings)', () => {
+        it('total picker rows = 73 (70 unique + 3 cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(71);
+            expect(leafCount).toBe(73);
         });
-        it('unique command IDs = 68', () => {
+        it('unique command IDs = 70', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(68);
+            expect(uniqueIds.size).toBe(70);
         });
-        it('alphabetised ai-organiser:* callbacks (68 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (70 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -293,6 +293,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             const unique = new Set(mockExecuteCommand.mock.calls.map(call => call[0]));
             expect(Array.from(unique).sort((a, b) => String(a).localeCompare(String(b)))).toEqual([
                 'ai-organiser:add-to-pending-integration',
+                'ai-organiser:adopt-project',
                 'ai-organiser:build-agent-index',
                 'ai-organiser:build-cluster-canvas',
                 'ai-organiser:build-context-canvas',
@@ -329,6 +330,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:newsletter-mark-caught-up',
                 'ai-organiser:notebooklm-export',
                 'ai-organiser:open-agent-connectors',
+                'ai-organiser:open-project',
                 'ai-organiser:open-upkeep-review',
                 'ai-organiser:play-narration',
                 'ai-organiser:presentation-chat',
@@ -361,7 +363,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(68);
+            expect(unique.size).toBe(70);
         });
     });
 });

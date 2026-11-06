@@ -3048,6 +3048,8 @@ export interface Translations {
                 setupCaptureInbox: string;
                 sendTasksToGoogle: string;
                 setupGoogleTasks: string;
+                adoptProject: string;
+                openProject: string;
                 insertOneDriveLink: string;
                 refreshOneDriveEmbed: string;
                 notebookLMGroup: string;
@@ -4344,6 +4346,7 @@ export interface Translations {
     };
     googleScript: {
         copiedTasks: string;
+        copiedRedeploy: string;
         copiedBoth: string;
     },
     process: {
@@ -4680,6 +4683,7 @@ export interface Translations {
         loadMyLists: string;
         newScriptName: string;
         newScriptDesc: string;
+        scriptCopiedUnchecked: string;
         copyNewScript: string;
         rulesTitle: string;
         rulesHelp: string;
@@ -4704,6 +4708,13 @@ export interface Translations {
         stepScript: string;
         scriptIntro: string;
         combinedHint: string;
+        freshIntro: string;
+        freshAlreadyDeployed: string;
+        step2Combined: string;
+        step3Combined: string;
+        copyCombinedScript: string;
+        tasksOnlyNote: string;
+        copyTasksOnly: string;
         step1: string;
         step2: string;
         step3: string;
