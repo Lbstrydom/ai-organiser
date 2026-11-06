@@ -3181,6 +3181,9 @@ export interface Translations {
             applied: string;
             copied: string;
             syntaxErrors: string;
+            parseFailedTitle: string;
+            parseFailed: string;
+            parseFailedAtLine: string;
             rawCodeToggle: string;
             blockNotFound: string;
             insertAtCursor: string;

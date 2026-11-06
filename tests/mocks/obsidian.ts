@@ -72,6 +72,8 @@ export class AbstractInputSuggest<T> {
     close(): void { /* no-op */ }
 }
 
+export const loadMermaid = (): Promise<unknown> => Promise.reject(new Error('Mermaid is not available in tests'));
+
 export class Notice {
     message: string;
     messageEl: MockHTMLElement;

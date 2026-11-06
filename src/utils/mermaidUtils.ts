@@ -217,9 +217,9 @@ function checkBracketBalance(code: string, warnings: string[]): void {
 function checkFlowchartRules(lines: string[], warnings: string[]): void {
     // Arrow presence
     const contentLines = lines.slice(1).filter(l => l.trim() && !l.trim().startsWith('%'));
-    const hasArrows = contentLines.some(l => /-->/.test(l));
-    if (contentLines.length > 2 && !hasArrows) {
-        warnings.push('Flowchart appears to have no arrow connections (-->)');
+    const hasLinks = contentLines.some(l => /--|==|-\.|~~~/.test(l));
+    if (contentLines.length > 2 && !hasLinks) {
+        warnings.push('Flowchart appears to have no connections between nodes');
     }
 
     // Subgraph nesting depth
