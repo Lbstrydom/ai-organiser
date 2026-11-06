@@ -10,6 +10,7 @@ interface ObsidianElementShims {
 	addClass(this: HTMLElement, ...classes: string[]): void;
 	removeClass(this: HTMLElement, cls: string): void;
 	toggleClass(this: HTMLElement, cls: string, on: boolean): void;
+	toggle(this: HTMLElement, show: boolean): void;
 	hasClass(this: HTMLElement, cls: string): boolean;
 	setText(this: HTMLElement, text: string): void;
 	createEl(this: HTMLElement, tag: string, opts?: ElOpts): HTMLElement;
@@ -24,6 +25,7 @@ export function installObsidianDomShims(): void {
 		addClass(...classes) { this.classList.add(...classes.flatMap((c) => c.split(/\s+/).filter(Boolean))); },
 		removeClass(cls) { this.classList.remove(cls); },
 		toggleClass(cls, on) { this.classList.toggle(cls, on); },
+		toggle(show) { this.style.display = show ? '' : 'none'; },
 		hasClass(cls) { return this.classList.contains(cls); },
 		setText(text) { this.textContent = text; },
 		createEl(tag, opts = {}) {

@@ -9993,6 +9993,21 @@
     margin-top: 8px;
 }
 
+.ai-organiser-sweep-add-task {
+    margin-top: 8px;
+}
+
+.ai-organiser-sweep-swept-hint {
+    margin-top: 4px;
+}
+
+.ai-organiser-sweep-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-right: 10px;
+}
+
 /* Rows of two or three buttons wrap instead of pushing the settings page sideways on a narrow screen. */
 .setting-item.ai-organiser-button-row .setting-item-control {
     flex-wrap: wrap;
