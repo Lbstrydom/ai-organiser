@@ -17,7 +17,9 @@ const notices: string[] = [];
 interface Button { label: string; cta: boolean; click: () => void }
 const buttons: Button[] = [];
 /** The link field of the step drawn last, as the person types into it. */
-const typed: { onChange: (v: string) => void } = { onChange: () => undefined };
+const typed: { onChange: (v: string) => void; code: (v: string) => void; count: number } = { onChange: () => undefined, code: () => undefined, count: 0 };
+/** Confirm of the warning modal, once it was opened. */
+const confirmed: { run: (() => void) | null } = { run: null };
 
 vi.mock('obsidian', async (original) => {
   const real = await original<Record<string, unknown>>();
@@ -28,6 +30,7 @@ vi.mock('obsidian', async (original) => {
       setButtonText: (l: string) => { b.label = l; return api; },
       setCta: () => { b.cta = true; return api; },
       setDisabled: () => api,
+      setWarning: () => api,
       onClick: (f: () => void) => { b.click = f; return api; },
     };
     return api;
@@ -36,8 +39,13 @@ vi.mock('obsidian', async (original) => {
     setName(): this { return this; }
     setDesc(): this { return this; }
     addButton(f: (b: unknown) => void): this { f(button()); return this; }
+    addToggle(f: (t: unknown) => void): this {
+      const api: Record<string, unknown> = { setValue: () => api, onChange: () => api };
+      f(api);
+      return this;
+    }
     addText(f: (t: unknown) => void): this {
-      const api: Record<string, unknown> = { setValue: () => api, onChange: (f: (v: string) => void) => { typed.onChange = f; return api; }, setPlaceholder: () => api, inputEl: { setAttribute: () => undefined } };
+      const api: Record<string, unknown> = { setValue: () => api, onChange: (f: (v: string) => void) => { if (typed.count++ === 0) typed.onChange = f; else typed.code = f; return api; }, setPlaceholder: () => api, inputEl: { setAttribute: () => undefined } };
       f(api);
       return this;
     }
@@ -46,7 +54,7 @@ vi.mock('obsidian', async (original) => {
   return { ...real, Setting: FakeSetting, Notice: FakeNotice };
 });
 
-interface Captured { steps: Array<{ id: string; render: (el: unknown) => void }> }
+interface Captured { steps: Array<{ id: string; render: (el: unknown) => void; validate?: () => unknown }>; onFinish: () => Promise<unknown> }
 const captured: { current: Captured | null } = { current: null };
 vi.mock('../src/ui/modals/GuidedSetupModal', () => ({
   GuidedSetupModal: class {
@@ -55,18 +63,32 @@ vi.mock('../src/ui/modals/GuidedSetupModal', () => ({
   },
 }));
 
+vi.mock('../src/ui/modals/ConfirmationModal', () => ({
+  ConfirmationModal: class {
+    constructor(_app: unknown, _title: string, _message: string, onConfirm: () => void) { this.run = onConfirm; }
+    run: () => void;
+    open(): void { confirmed.run = this.run; }
+  },
+}));
+
 const ping = vi.fn();
+const setLists = vi.fn();
 vi.mock('../src/services/inboxSweep/tasksExportService', async (original) => ({
   ...(await original<Record<string, unknown>>()),
   pingTasksScript: (...args: unknown[]) => ping(...args),
+  setTasksLists: (...args: unknown[]) => setLists(...args),
 }));
 
 import { openTasksSetup } from '../src/commands/inboxSweepCommands';
-import { copyScriptForDeployment } from '../src/commands/googleScriptCommands';
+import { copyCombinedScript, copyScriptForDeployment } from '../src/commands/googleScriptCommands';
+import { describeError } from '../src/core/friendlyErrors';
+import { encodeConnectionCode, parseConnectionInput } from '../src/services/inboxSweep/tasksConnection';
 import { registerProjectCommands } from '../src/commands/projectCommands';
 
 const c = en.googleTasks;
 const SECRET = 'S3CRET';
+/** The buttons of Connect this device, which close every first step. */
+const CONNECT = [c.connectButton, c.connectCopyButton, c.connectReplaceButton];
 const URL_OK = 'https://script.google.com/macros/s/AKfycbxTEST/exec';
 const writeText = vi.fn(async (_text: string) => undefined);
 
@@ -79,18 +101,24 @@ const pluginWith = (settings: unknown): never => ({
 }) as never;
 
 /** Draw a step and report its text lines and buttons, in order. */
-function draw(id: string): { lines: string[]; labels: string[]; press: (label: string) => void; cta: () => string | undefined } {
+function draw(id: string): { lines: string[]; labels: string[]; texts: string[]; sections: Array<{ open?: boolean }>; press: (label: string) => void; cta: () => string | undefined } {
   const lines: string[] = [];
+  const texts: string[] = [];
+  const sections: Array<{ open?: boolean }> = [];
   buttons.length = 0;
-  const el = {
-    createEl: (_tag: string, o: { text: string }) => { lines.push(o.text); },
-    createDiv: () => ({ setText: () => undefined }),
+  typed.count = 0;
+  const el: Record<string, unknown> = {
+    setText: (text: string) => { texts.push(text); },
+    createEl: (tag: string, o?: { text?: string }) => { if (o?.text) lines.push(o.text); if (tag === 'details') { const box = { ...el }; sections.push(box); return box; } return el; },
+    createDiv: () => el,
   };
   captured.current!.steps.find((s) => s.id === id)!.render(el);
   const drawn = [...buttons];
   return {
     lines,
     labels: drawn.map((b) => b.label),
+    texts,
+    sections,
     press: (label) => drawn.find((b) => b.label === label)!.click(),
     cta: () => drawn.find((b) => b.cta)?.label,
   };
@@ -107,6 +135,7 @@ beforeEach(() => {
   notices.length = 0;
   writeText.mockClear();
   ping.mockReset();
+  setLists.mockReset();
   Platform.isMobile = false;
   vi.stubGlobal('navigator', { clipboard: { writeText } });
 });
@@ -145,8 +174,8 @@ describe('setup window with a saved link (standalone users see no change)', () =
   it('the first step is exactly what it was, and copies the standalone setup script byte for byte', async () => {
     openTasksSetup(pluginWith(standalone()));
     const step = draw('script');
-    expect(step.lines).toEqual([c.scriptIntro, c.combinedHint, c.step1, c.step2, c.step3, c.step4]);
-    expect(step.labels).toEqual([c.copySetupScript, c.testConnection]);
+    expect(step.lines).toEqual([c.scriptIntro, c.combinedHint, c.step1, c.step2, c.step3, c.step4, c.connectTitle, c.connectIntro]);
+    expect(step.labels).toEqual([c.copySetupScript, c.testConnection, ...CONNECT]);
     expect(step.cta()).toBe(c.copySetupScript);
     step.press(c.copySetupScript);
     const text = await copied();
@@ -166,33 +195,74 @@ describe('setup window with a saved link (standalone users see no change)', () =
 });
 
 describe('setup window on a first-time setup', () => {
-  it('leads with the combined script, and that is the script it copies', async () => {
+  const LOCKED = { secret: SECRET, tasks: { approvedListId: 'LIST', approvedListIds: ['LIST'] } };
+  const withList = (): ReturnType<typeof settingsWith> => settingsWith({ tasksListId: 'LIST', tasksListName: 'Main' });
+
+  it('leads with the automatic script, says what it gives up, and keeps the locked scripts reachable', async () => {
     openTasksSetup(pluginWith(settingsWith()));
     const step = draw('script');
-    expect(step.cta()).toBe(c.copyCombinedScript);
-    expect(step.labels).toEqual([c.copyCombinedScript, c.copyTasksOnly, c.testConnection]);
-    step.press(c.copyCombinedScript);
-    expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { approvedListId: null, approvedListIds: [] } }));
+    expect(step.cta()).toBe(c.copyAutomaticScript);
+    expect(step.labels).toEqual([c.copyAutomaticScript, c.keepLockedCombined, c.keepLockedTasksOnly, c.testConnection, ...CONNECT]);
+    expect(step.lines).toContain(c.automaticTradeoff);
+    step.press(c.copyAutomaticScript);
+    expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { automatic: true } }));
   });
 
-  it('after copying it, the last step copies the combined script even if no test was run', async () => {
-    const settings = settingsWith({ tasksListId: 'LIST', tasksListName: 'Main' });
-    openTasksSetup(pluginWith(settings));
-    draw('script').press(c.copyCombinedScript);
+  it('after copying it there is nothing more to paste: the last step has no copy button', async () => {
+    openTasksSetup(pluginWith(withList()));
+    draw('script').press(c.copyAutomaticScript);
     await copied();
+    await vi.waitFor(() => expect(draw('finish').labels).toEqual([]));
+    expect(draw('finish').lines[0]).toContain('Main');
+    expect(captured.current!.steps.find((s) => s.id === 'finish')!.validate!()).toEqual({ ok: true, value: undefined });
+  });
+
+  it('Finish approves the lists, confirms with a ping, and only then saves', async () => {
+    const settings = withList();
+    ping.mockResolvedValueOnce({ ok: true, value: { scriptVersion: 3, approvedListId: null, listHash: 'h', approvedListIds: [], capabilities: ['list-config'], listsRevision: 0 } });
+    ping.mockResolvedValueOnce({ ok: true, value: { scriptVersion: 3, approvedListId: 'LIST', listHash: 'h', approvedListIds: ['LIST'], capabilities: ['list-config'], listsRevision: 1 } });
+    setLists.mockResolvedValue({ ok: true, value: 1 });
+    openTasksSetup(pluginWith(settings));
+    draw('script');
+    typed.onChange(URL_OK);
+    draw('script').press(c.copyAutomaticScript);
+    await copied();
+    await vi.waitFor(() => expect(draw('finish').labels).toEqual([]));
+    expect(await captured.current!.onFinish()).toEqual({ ok: true, value: undefined });
+    expect(setLists).toHaveBeenCalledWith(expect.anything(), { main: 'LIST', ids: ['LIST'], expectedRevision: 0 });
+    expect(settings).toMatchObject({ tasksAutoLists: true, tasksListsRevision: 1, tasksScriptUrl: URL_OK, tasksListId: 'LIST' });
+  });
+
+  it('Finish saves nothing if the deployed script cannot take its lists, and says what to do', async () => {
+    const settings = withList();
+    ping.mockResolvedValue({ ok: true, value: { scriptVersion: 2, approvedListId: null, listHash: 'h', capabilities: ['multi-list'] } });
+    openTasksSetup(pluginWith(settings));
+    draw('script');
+    typed.onChange(URL_OK);
+    draw('script').press(c.copyAutomaticScript);
+    await copied();
+    await vi.waitFor(() => expect(draw('finish').labels).toEqual([]));
+    expect(await captured.current!.onFinish()).toEqual({ ok: false, error: 'tasks-auto-not-deployed' });
+    expect(setLists).not.toHaveBeenCalled();
+    expect(settings).toMatchObject({ tasksAutoLists: false, tasksScriptUrl: '' });
+  });
+
+  it('keeping the lists locked in a combined script carries through to the last step, as before', async () => {
+    openTasksSetup(pluginWith(withList()));
+    draw('script').press(c.keepLockedCombined);
+    expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { approvedListId: 'LIST', approvedListIds: ['LIST'] } }));
     await vi.waitFor(() => expect(draw('finish').labels[0]).toBe(c.copyFinalCombined));
     const finish = draw('finish');
     expect(finish.labels).not.toContain(c.copyCombinedInstead);
-    expect(finish.lines).not.toContain(c.standaloneNote);
     finish.press(c.copyFinalCombined);
-    expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { approvedListId: 'LIST', approvedListIds: ['LIST'] } }));
+    expect(await copied()).toBe(buildCombinedScript(LOCKED));
     expect(notices.at(-1)).toBe(en.googleScript.copiedRedeploy);
   });
 
-  it('the Tasks-only choice stays reachable and stays standalone to the end', async () => {
-    const settings = settingsWith({ tasksListId: 'LIST', tasksListName: 'Main' });
+  it('the locked Tasks-only choice stays reachable and stays standalone to the end', async () => {
+    const settings = withList();
     openTasksSetup(pluginWith(settings));
-    draw('script').press(c.copyTasksOnly);
+    draw('script').press(c.keepLockedTasksOnly);
     expect(await copied()).toBe(buildTasksScript({ secret: SECRET, approvedListId: null }));
     const finish = draw('finish');
     expect(finish.cta()).toBe(c.copyFinalScript);
@@ -202,10 +272,10 @@ describe('setup window on a first-time setup', () => {
 
   it('a test of what is deployed outranks what was copied: a standalone answer gives the standalone final script', async () => {
     ping.mockResolvedValue({ ok: true, value: { scriptVersion: 1, approvedListId: null, listHash: 'h' } });
-    openTasksSetup(pluginWith(settingsWith({ tasksListId: 'LIST', tasksListName: 'Main' })));
-    draw('script').press(c.copyCombinedScript);
+    openTasksSetup(pluginWith(withList()));
+    draw('script').press(c.copyAutomaticScript);
     await copied();
-    await vi.waitFor(() => expect(draw('finish').labels[0]).toBe(c.copyFinalCombined));
+    await vi.waitFor(() => expect(draw('finish').labels).toEqual([]));
     draw('script');
     typed.onChange(URL_OK);
     draw('script').press(c.testConnection);
@@ -214,13 +284,125 @@ describe('setup window on a first-time setup', () => {
 
   it('once a test found the combined script, the Tasks-only button cannot overwrite it', async () => {
     ping.mockResolvedValue({ ok: true, value: { scriptVersion: 2, approvedListId: null, listHash: 'h', combined: true } });
-    openTasksSetup(pluginWith(settingsWith({ tasksListId: 'LIST', tasksListName: 'Main' })));
+    openTasksSetup(pluginWith(withList()));
     draw('script');
     typed.onChange(URL_OK);
     draw('script').press(c.testConnection);
     await vi.waitFor(() => expect(draw('finish').labels[0]).toBe(c.copyFinalCombined));
-    draw('script').press(c.copyTasksOnly);
-    expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { approvedListId: 'LIST', approvedListIds: ['LIST'] } }));
+    draw('script').press(c.keepLockedTasksOnly);
+    expect(await copied()).toBe(buildCombinedScript(LOCKED));
+  });
+
+  it('a person already on automatic lists never gets a locked script from the setup window', async () => {
+    openTasksSetup(pluginWith(settingsWith({ tasksScriptUrl: URL_OK, tasksListId: 'LIST', tasksListName: 'Main', tasksAutoLists: true, tasksListsRevision: 2 })));
+    expect(draw('finish').labels).toEqual([]);
+    draw('script').press(c.copySetupScript);
+    expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { automatic: true } }));
+  });
+});
+
+describe('a device with a script link and no secret of its own', () => {
+  const stored: { secret: string | null } = { secret: null };
+  const setSecret = vi.fn(async (_id: string, value: string) => { stored.secret = value; });
+  const noSecretPlugin = (settings: unknown): never => ({
+    settings, t: en, app: {}, saveSettings: async () => undefined,
+    secretStorageService: { getSecret: async () => stored.secret, setSecret },
+  }) as never;
+  const linked = (over: Record<string, unknown> = {}): ReturnType<typeof settingsWith> => settingsWith({ tasksScriptUrl: URL_OK, tasksListId: 'LIST', tasksListName: 'Main', ...over });
+  const NOT_CONNECTED = describeError(en, 'tasks-no-secret').message;
+
+  beforeEach(() => { stored.secret = null; setSecret.mockClear(); confirmed.run = null; });
+
+  it('the window says to connect, opens that section, and its copy button makes no secret and copies nothing', async () => {
+    openTasksSetup(noSecretPlugin(linked()));
+    const step = draw('script');
+    await vi.waitFor(() => expect(step.sections[0]?.open).toBe(true));
+    expect(step.texts.some((text) => text.startsWith(NOT_CONNECTED))).toBe(true);
+    step.press(c.copySetupScript);
+    await vi.waitFor(() => expect(notices.at(-1)).toContain(NOT_CONNECTED));
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('a link typed into a first-time window counts too: the automatic script is not copied with a new secret', async () => {
+    openTasksSetup(noSecretPlugin(settingsWith()));
+    draw('script');
+    typed.onChange(URL_OK);
+    draw('script').press(c.copyAutomaticScript);
+    await vi.waitFor(() => expect(notices.at(-1)).toContain(NOT_CONNECTED));
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('the palette command and Copy script make no secret either', async () => {
+    await copyCombinedScript(noSecretPlugin(linked()));
+    await copyCombinedScript(noSecretPlugin(linked({ tasksAutoLists: true })));
+    await copyScriptForDeployment(noSecretPlugin(linked()), 'LIST');
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(notices.filter((n) => n.includes(NOT_CONNECTED))).toHaveLength(3);
+  });
+
+  it('a first-time setup with no link still creates the secret, as it always did', async () => {
+    openTasksSetup(noSecretPlugin(settingsWith()));
+    draw('script').press(c.copyAutomaticScript);
+    const script = await copied();
+    expect(setSecret).toHaveBeenCalledTimes(1);
+    expect(script).toBe(buildCombinedScript({ secret: stored.secret!, tasks: { automatic: true } }));
+  });
+
+  it('Replace secret does nothing until the warning is confirmed, then copies a script with the new secret', async () => {
+    openTasksSetup(noSecretPlugin(linked()));
+    draw('script').press(c.connectReplaceButton);
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    confirmed.run!();
+    const script = await copied();
+    expect(setSecret).toHaveBeenCalledTimes(1);
+    expect(script).toContain(JSON.stringify(stored.secret));
+  });
+
+  it('a pasted code that the script accepts connects the window, and the next steps know what is deployed', async () => {
+    ping.mockResolvedValue({ ok: true, value: { scriptVersion: 3, approvedListId: 'LIST', listHash: 'h', approvedListIds: ['LIST'], capabilities: ['list-config'], listsRevision: 4, combined: true } });
+    const settings = settingsWith();
+    openTasksSetup(noSecretPlugin(settings));
+    const step = draw('script');
+    typed.code(encodeConnectionCode(URL_OK, 'a'.repeat(48)));
+    step.press(c.connectButton);
+    await vi.waitFor(() => expect(stored.secret).toBe('a'.repeat(48)));
+    await vi.waitFor(() => expect(settings).toMatchObject({ tasksScriptUrl: URL_OK, tasksAutoLists: true, tasksListsRevision: 4, tasksListId: 'LIST' }));
+    expect(draw('finish').labels).toEqual([]);
+  });
+
+  it('Copy connection code copies a code that parses back to this device\'s link and secret', async () => {
+    stored.secret = 'b'.repeat(48);
+    openTasksSetup(noSecretPlugin(linked()));
+    draw('script').press(c.connectCopyButton);
+    expect(parseConnectionInput(await copied(), '')).toEqual({ ok: true, value: { url: URL_OK, secret: 'b'.repeat(48) } });
+    expect(notices.at(-1)).toBe(c.connectCopied);
+  });
+});
+
+describe('the palette copy before a list is chosen', () => {
+  it('says plainly that the script has no list yet', async () => {
+    await copyCombinedScript(pluginWith(settingsWith()));
+    expect(writeText.mock.calls[0][0]).toContain('"APPROVED_LIST_ID": ""');
+    expect(notices[0].startsWith(en.googleScript.noListYet)).toBe(true);
+  });
+
+  it('says nothing extra once a list is chosen', async () => {
+    await copyCombinedScript(pluginWith(settingsWith({ tasksListId: 'LIST' })));
+    expect(notices).toEqual([en.googleScript.copiedTasks]);
+  });
+
+  it('on automatic lists it copies the automatic script, so a redeploy cannot undo the switch', async () => {
+    await copyCombinedScript(pluginWith(settingsWith({ tasksListId: 'LIST', tasksAutoLists: true })));
+    expect(writeText.mock.calls[0][0]).toBe(buildCombinedScript({ secret: SECRET, tasks: { automatic: true } }));
+  });
+
+  it('the status text no longer reads as a failed deploy', () => {
+    expect(c.stillSetup).not.toMatch(/old script|still live/i);
+    expect(describeError(en, 'tasks-wizard-setup').message).toMatch(/deployed, but it has no list yet/);
   });
 });
 
@@ -232,6 +414,12 @@ describe('Copy script under Your lists', () => {
     await copyScriptForDeployment(pluginWith(lists()), 'LIST');
     expect(writeText.mock.calls[0][0]).toBe(buildCombinedScript({ secret: SECRET, tasks: { approvedListId: 'LIST', approvedListIds: ['LIST'] } }));
     expect(notices).toEqual([en.googleScript.copiedRedeploy]);
+  });
+
+  it('a deployment already on the automatic script gets the automatic script, never a locked one over it', async () => {
+    ping.mockResolvedValue({ ok: true, value: { scriptVersion: 3, approvedListId: 'LIST', listHash: 'h', combined: true, capabilities: ['list-config'] } });
+    await copyScriptForDeployment(pluginWith(lists()), 'LIST');
+    expect(writeText.mock.calls[0][0]).toBe(buildCombinedScript({ secret: SECRET, tasks: { automatic: true } }));
   });
 
   it('a standalone deployment gets the same bytes and the same notice as before', async () => {

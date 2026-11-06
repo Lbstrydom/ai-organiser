@@ -12,13 +12,32 @@ import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import { validateScriptUrl } from '../services/appsScriptClient';
 import { isFeatureEnabled } from '../services/featureService';
-import { buildCombinedScript } from '../services/googleScript/combinedScript';
+import { buildCombinedScript, type CombinedScriptConfig } from '../services/googleScript/combinedScript';
+import { LIST_CONFIG_CAPABILITY } from '../services/googleScript/tasksModuleV3';
 import { approvedRoots } from '../services/cloudInventory/cloudInventoryService';
 import { pingTasksScript } from '../services/inboxSweep/tasksExportService';
 import { allLists } from '../services/inboxSweep/tasksRouting';
 import { selectTasksScript } from '../services/inboxSweep/tasksScriptSelect';
-import { ensureTasksSecret } from './inboxSweepCommands';
+import { ensureTasksSecret } from '../services/inboxSweep/tasksConnection';
 import { logger } from '../utils/logger';
+
+function inventoryPart(plugin: AIOrganiserPlugin): Pick<CombinedScriptConfig, 'inventory'> {
+    const roots = isFeatureEnabled(plugin.settings, 'cloud-inventory') ? approvedRoots(plugin.settings.cloudInventoryPairs) : [];
+    return roots.length > 0 ? { inventory: { rootFolderIds: roots } } : {};
+}
+
+/** Copy the automatic-lists script (Tasks module v3). The same text for every user apart from the secret; the same secret is kept, so the link and receipts survive a paste-over. */
+export async function copyAutomaticScript(plugin: AIOrganiserPlugin, notice: string): Promise<void> {
+    try {
+        const stored = await ensureTasksSecret(plugin);
+        if (!stored.ok) { new Notice(formatGuidance(describeError(plugin.t, stored.error)), 10000); return; }
+        await navigator.clipboard.writeText(buildCombinedScript({ secret: stored.value.secret, tasks: { automatic: true }, ...inventoryPart(plugin) }));
+        new Notice(notice, 12000);
+    } catch (e) {
+        logger.error('GoogleScript', 'Could not copy the automatic lists script', e);
+        new Notice(formatGuidance(describeError(plugin.t, 'unknown')), 9000);
+    }
+}
 
 /**
  * `mainListId`: the list the setup window has just chosen but not yet saved; it goes first so the script approves it as the main list.
@@ -27,20 +46,24 @@ import { logger } from '../utils/logger';
 export async function copyCombinedScript(plugin: AIOrganiserPlugin, mainListId?: string, redeploy = false): Promise<void> {
     const t = plugin.t.googleScript;
     const s = plugin.settings;
+    // Someone on automatic lists keeps them: a locked script pasted over would quietly undo the switch.
+    if (s.tasksAutoLists) { await copyAutomaticScript(plugin, t.copiedRedeploy); return; }
     try {
         const saved = allLists(s);
         const lists = mainListId ? [{ id: mainListId }, ...saved.filter((l) => l.id !== mainListId)] : saved;
         const main = lists[0]?.id ?? '';
-        const withInventory = isFeatureEnabled(s, 'cloud-inventory');
-        const roots = withInventory ? approvedRoots(s.cloudInventoryPairs) : [];
-        const { secret } = await ensureTasksSecret(plugin);
+        const inventory = inventoryPart(plugin);
+        const stored = await ensureTasksSecret(plugin);
+        if (!stored.ok) { new Notice(formatGuidance(describeError(plugin.t, stored.error)), 10000); return; }
         const script = buildCombinedScript({
-            secret,
+            secret: stored.value.secret,
             tasks: { approvedListId: main || null, approvedListIds: lists.map((l) => l.id) },
-            ...(withInventory && roots.length > 0 ? { inventory: { rootFolderIds: roots } } : {}),
+            ...inventory,
         });
         await navigator.clipboard.writeText(script);
-        new Notice(redeploy ? t.copiedRedeploy : withInventory && roots.length > 0 ? t.copiedBoth : t.copiedTasks, 12000);
+        const copied = redeploy ? t.copiedRedeploy : inventory.inventory ? t.copiedBoth : t.copiedTasks;
+        // A script with no list deploys fine and creates nothing, which is easy to mistake for a failed deploy.
+        new Notice(main ? copied : `${t.noListYet} ${copied}`, 12000);
     } catch (e) {
         logger.error('GoogleScript', 'Could not copy the combined script', e);
         new Notice(formatGuidance(describeError(plugin.t, 'unknown')), 9000);
@@ -57,11 +80,12 @@ export async function copyScriptForDeployment(plugin: AIOrganiserPlugin, mainLis
     const t = plugin.t;
     const s = plugin.settings;
     const secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-    if (!secret) { new Notice(formatGuidance(describeError(t, 'no-secret')), 8000); return; }
+    if (!secret) { new Notice(formatGuidance(describeError(t, 'tasks-no-secret')), 10000); return; }
     const url = validateScriptUrl(s.tasksScriptUrl);
     let notice = t.googleTasks.scriptCopied;
     if (url.ok) {
         const ping = Platform.isMobile ? null : await pingTasksScript({ url: url.value, secret });
+        if (ping?.ok && ping.value.capabilities?.includes(LIST_CONFIG_CAPABILITY)) { await copyAutomaticScript(plugin, t.googleScript.copiedRedeploy); return; }
         if (ping?.ok && ping.value.combined === true) { await copyCombinedScript(plugin, mainListId, true); return; }
         if (!ping?.ok) notice = t.googleTasks.scriptCopiedUnchecked;
     }

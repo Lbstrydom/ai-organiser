@@ -40,6 +40,8 @@ Record audio in-plugin or paste a transcript. Get structured minutes with agenda
 
 Connect your Gmail via a simple Apps Script. The plugin fetches unread newsletters, triages each one with AI, writes individual notes with key links, and synthesizes a thematic daily brief that groups stories across sources. Optional audio podcast generation reads you the brief.
 
+**Google Tasks export** (optional, off by default). Sends the sweep tasks you approved to your own Google Tasks through a Google Apps Script that you deploy in your own account. The plugin contacts only your script at script.google.com, and no third party or server of ours is involved. The script holds a secret; whoever holds that secret and the link can read your list titles and create tasks in approved lists, and with automatic lists can also approve other lists. It cannot read, edit, complete or delete your other tasks. [What it can and cannot do](docs/google-script/README.md#what-the-script-can-and-cannot-do).
+
 ### Audio Narration
 
 Turn any note into a spoken-audio MP3 — "read this note to me" — with an optional LLM pre-pass that summarises diagrams and large tables and expands acronyms for natural listening. A built-in player offers speed and skip controls. Cost is shown and confirmed before any API call.

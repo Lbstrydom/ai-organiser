@@ -15,6 +15,8 @@ import { inventorySecretFor } from '../../services/googleScript/sharedSecret';
 import { pingModule, type ModuleInfo, type ScriptModule } from '../../services/googleScript/modulePing';
 import { validateScriptUrl } from '../../services/appsScriptClient';
 import { exportable, pendingApprovals } from '../../services/inboxSweep/sweepLedger';
+import { approvedBeyondConfigured } from '../../services/inboxSweep/tasksExportService';
+import { configuredListIds } from '../../services/inboxSweep/tasksScriptSelect';
 import { plural } from '../../utils/plural';
 
 /** Capabilities a feature of this plugin may ask for, per module, in the order they are listed. */
@@ -81,6 +83,11 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             if (info.legacy) lines.push(t.legacy);
             const missing = missingCapabilities(module, info);
             if (missing.length > 0) lines.push((info.combined ? t.lacksCombined : t.lacks).replace('{capabilities}', missing.join(', ')));
+            if (info.approvedLists) {
+                lines.push(t.approvedLists.replace('{lists}', info.approvedLists.map((l) => l.title || l.id).join(', ') || '-'));
+                const extra = approvedBeyondConfigured({ capabilities: info.capabilities, approvedListIds: info.approvedLists.map((l) => l.id) }, configuredListIds(plugin.settings));
+                if (extra.length > 0) lines.push(formatGuidance(describeError(plugin.t, 'tasks-script-approves-extra')));
+            }
         }
         if (module === 'tasks') {
             const waiting = pendingApprovals(plugin.settings.sweepApprovals, true).reduce((n, r) => n + exportable(r).length, 0);
@@ -92,8 +99,12 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             let result: Checked['result'];
             try {
                 const secret = await secretOf(plugin, module);
-                const res = await pingModule(module, { url: endpoint.url, secret });
-                result = res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error };
+                if (module === 'tasks' && !secret) {
+                    result = { ok: false, error: 'tasks-no-secret' };
+                } else {
+                    const res = await pingModule(module, { url: endpoint.url, secret });
+                    result = res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error };
+                }
             } catch {
                 // The secret store failing is a failed check, shown as one, never a dead button.
                 result = { ok: false, error: 'script-auth' };
@@ -105,5 +116,5 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
         }));
     }
     // Only what the modules in use can do: a Tasks-only setup is not told the script lists Drive folders.
-    box.createEl('p', { text: accessText(t, modules), cls: 'setting-item-description' });
+    box.createEl('p', { text: accessText(plugin.settings.tasksAutoLists ? { ...t, accessTasks: t.accessTasksAutomatic } : t, modules), cls: 'setting-item-description' });
 }

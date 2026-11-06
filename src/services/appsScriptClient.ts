@@ -34,7 +34,9 @@ export type ScriptErrorCode =
     | 'script-drive-error'
     | 'script-network'
     | 'script-bad-response'
-    | 'script-tasks-off';
+    | 'script-tasks-off'
+    | 'tasks-lists-stale'
+    | 'tasks-list-gone';
 
 /** What one HTTP exchange returned. */
 export interface ScriptHttpResponse {
@@ -76,6 +78,9 @@ const REMOTE_CODES: Record<string, ScriptErrorCode> = {
     busy: 'script-drive-error',
     'tasks-error': 'script-drive-error',
     'tasks-service-off': 'script-tasks-off',
+    // Answers to `setLists` (Tasks module v3).
+    'stale-revision': 'tasks-lists-stale',
+    'unknown-list': 'tasks-list-gone',
 };
 
 const RETRYABLE = new Set<ScriptErrorCode>(['script-drive-error', 'script-network']);

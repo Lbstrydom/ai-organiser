@@ -12,6 +12,7 @@ import { callScript, type ScriptTransport } from '../appsScriptClient';
 import { approvedListHashOf, MAX_TASKS_PER_REQUEST, TASKS_SCRIPT_MIN_SUPPORTED, TASKS_SCRIPT_VERSION } from './tasksScriptTemplate';
 import { applyExportResults, exportable, type ApprovalRecord, type ApprovedTask, type ExportResult } from './sweepLedger';
 import { safeContext, sanitizeInline } from './sweepReport';
+import { LIST_CONFIG_CAPABILITY } from '../googleScript/tasksModuleV3';
 import { logger } from '../../utils/logger';
 import { decideExport, isValidDue, listById, type ExportContext, type HoldReason, type TasksListConfig } from './tasksRouting';
 
@@ -24,6 +25,9 @@ export interface TasksPing {
     capabilities?: string[];
     /** True when the answer comes from the combined Google script (it carries a `modules` block) */
     combined?: boolean;
+    /** v3 only: how many times the lists were set, and the titles they had then */
+    listsRevision?: number;
+    approvedListTitles?: Record<string, string>;
 }
 
 export type TasksScriptState = 'setup' | 'operational' | 'outdated' | 'list-mismatch' | 'lists-outdated';
@@ -36,7 +40,7 @@ interface Endpoint {
 }
 
 export async function pingTasksScript(endpoint: Endpoint): Promise<Result<TasksPing>> {
-    const res = await callScript<{ scriptVersion?: unknown; approvedListId?: unknown; listHash?: unknown; approvedListIds?: unknown; capabilities?: unknown; modules?: unknown }>({ ...endpoint, body: { op: 'ping', module: 'tasks' }, maxAttempts: 2 });
+    const res = await callScript<{ scriptVersion?: unknown; approvedListId?: unknown; listHash?: unknown; approvedListIds?: unknown; capabilities?: unknown; modules?: unknown; listsRevision?: unknown; approvedListTitles?: unknown }>({ ...endpoint, body: { op: 'ping', module: 'tasks' }, maxAttempts: 2 });
     if (!res.ok) return err(res.error);
     const v = res.value;
     if (typeof v.scriptVersion !== 'number' || typeof v.listHash !== 'string') return err('script-bad-response');
@@ -44,7 +48,30 @@ export async function pingTasksScript(endpoint: Endpoint): Promise<Result<TasksP
     const strings = (x: unknown): string[] | undefined => (Array.isArray(x) && x.every((i) => typeof i === 'string') ? x : undefined);
     const approvedListIds = strings(v.approvedListIds);
     const capabilities = strings(v.capabilities);
-    return ok({ scriptVersion: v.scriptVersion, approvedListId: approved, listHash: v.listHash, ...(approvedListIds ? { approvedListIds } : {}), ...(capabilities ? { capabilities } : {}), ...(v.modules !== null && typeof v.modules === 'object' && !Array.isArray(v.modules) ? { combined: true } : {}) });
+    return ok({ scriptVersion: v.scriptVersion, approvedListId: approved, listHash: v.listHash, ...(approvedListIds ? { approvedListIds } : {}), ...(capabilities ? { capabilities } : {}), ...(v.modules !== null && typeof v.modules === 'object' && !Array.isArray(v.modules) ? { combined: true } : {}), ...(typeof v.listsRevision === 'number' ? { listsRevision: v.listsRevision } : {}), ...(titlesOf(v.approvedListTitles) ?? {}) });
+}
+
+function titlesOf(raw: unknown): { approvedListTitles: Record<string, string> } | null {
+    if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const entries = Object.entries(raw).filter((e): e is [string, string] => typeof e[1] === 'string');
+    return { approvedListTitles: Object.fromEntries(entries) };
+}
+
+/** Set the approved lists of a v3 script. Only `approveLists` calls this, and it runs only from a person's action. */
+export async function setTasksLists(endpoint: Endpoint, lists: { main: string; ids: readonly string[]; expectedRevision: number }): Promise<Result<number>> {
+    const res = await callScript<{ revision?: unknown }>({ ...endpoint, body: { op: 'setLists', main: lists.main, ids: [...lists.ids], expectedRevision: lists.expectedRevision }, maxAttempts: 2 });
+    if (!res.ok) return err(res.error);
+    return typeof res.value.revision === 'number' ? ok(res.value.revision) : err('script-bad-response');
+}
+
+/**
+ * Lists a v3 script approves that the plugin did not configure: another device's change, or someone holding the secret. This detects,
+ * it does not prevent. A script that keeps its lists in its text is never reported: it cannot have been widened with the secret, and
+ * a list removed here simply stays approved there until the next paste.
+ */
+export function approvedBeyondConfigured(script: { capabilities?: readonly string[]; approvedListIds?: readonly string[] }, configured: readonly string[]): string[] {
+    if (script.capabilities?.includes(LIST_CONFIG_CAPABILITY) !== true) return [];
+    return (script.approvedListIds ?? []).filter((id) => !configured.includes(id));
 }
 
 /**
@@ -108,6 +135,8 @@ export interface ExportSummary {
     error?: string;
     /** Tasks that were not sent and why (a date is missing, the script lacks the list...): visible, never silently dropped */
     held?: Array<{ id: string; reason: HoldReason }>;
+    /** Automatic lists: lists the script approves that the plugin did not configure */
+    extraApproved?: string[];
 }
 
 export interface Wire {

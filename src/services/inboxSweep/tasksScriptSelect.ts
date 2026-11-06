@@ -24,3 +24,8 @@ export function configuredListIds(settings: ListsHost): string[] {
     const { main, others } = resolveTasksLists(settings);
     return [...(main ? [main.id] : []), ...others.map((l) => l.id)];
 }
+
+/** Identity of the Tasks configuration a connection test belongs to. */
+export function tasksConfigKey(url: string, listId: string): string {
+    return JSON.stringify({ url: url.trim(), listId });
+}
