@@ -182,6 +182,7 @@ Conversational Mermaid diagram editing modal. Users describe diagrams in natural
 - Type conversion via `DiagramTypePickerModal` (12 target types)
 - Block fingerprinting for in-place diagram updates
 - Privacy consent gating on all LLM calls (chat, alt-text, export)
+- Advisory syntax check, never blocking the render (`src/utils/mermaidParseCheck.ts`): parses through Obsidian's `loadMermaid()`, which returns the engine it renders with (its Pele renderer behind a Mermaid-shaped wrapper in 1.15, so not necessarily Mermaid itself). A parser that fails to load, times out or is unusable falls back to `validateMermaidSyntax`, so a failed load never reads as valid. The check is local and sends nothing
 
 **MermaidContextService** (`src/services/mermaidContextService.ts`):
 - `gatherContext(file, currentDiagram)`: Sibling diagram detection, backlink context, RAG integration

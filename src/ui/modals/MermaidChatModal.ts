@@ -22,8 +22,8 @@ import {
     MermaidBlock,
     resolveBlockByFingerprint,
     buildBlockFingerprint,
-    validateMermaidSyntax,
 } from '../../utils/mermaidUtils';
+import { checkMermaidSyntax, describeMermaidCheck } from '../../utils/mermaidParseCheck';
 import {
     buildMermaidChatSystemPrompt,
     buildMermaidChatUserPrompt,
@@ -558,15 +558,9 @@ export class MermaidChatModal extends Modal {
 
         this.previewEl.empty();
 
-        const { valid, warnings } = validateMermaidSyntax(mermaidCode);
-        if (!valid && warnings.length > 0) {
-            const warningEl = this.previewEl.createEl('div', { cls: 'ai-organiser-mermaid-warning' });
-            warningEl.createEl('strong', { text: this.plugin.t.modals.mermaidChat.syntaxErrors });
-            const ul = warningEl.createEl('ul');
-            for (const w of warnings) {
-                ul.createEl('li', { text: w });
-            }
-        }
+        // Filled when the check finishes; a newer render empties the preview, detaching this slot.
+        const syntaxCheckSlot = this.previewEl.createEl('div');
+        void this.showSyntaxCheck(mermaidCode, syntaxCheckSlot);
 
         const renderContainer = this.previewEl.createEl('div', { cls: 'ai-organiser-mermaid-render' });
         const markdown = '```mermaid\n' + mermaidCode + '\n```';
@@ -584,6 +578,19 @@ export class MermaidChatModal extends Modal {
         if (this.historyIndex > 0) {
             const prevCode = this.diagramHistory[this.historyIndex - 1];
             this.renderDiffView(prevCode, mermaidCode);
+        }
+    }
+
+    /** Advisory only: the diagram renders whatever this finds. */
+    private async showSyntaxCheck(mermaidCode: string, slot: HTMLElement): Promise<void> {
+        const check = await checkMermaidSyntax(mermaidCode);
+        const message = describeMermaidCheck(check, this.plugin.t.modals.mermaidChat);
+        if (!message) return;
+        const warningEl = slot.createEl('div', { cls: 'ai-organiser-mermaid-warning' });
+        warningEl.createEl('strong', { text: message.title });
+        const ul = warningEl.createEl('ul');
+        for (const item of message.items) {
+            ul.createEl('li', { text: item });
         }
     }
 
