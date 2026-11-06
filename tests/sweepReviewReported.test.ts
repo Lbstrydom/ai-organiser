@@ -226,15 +226,24 @@ describe('InboxSweepReviewModal: a task the person writes', () => {
 		expect(task.keys).toEqual(itemKeys({ text: 'Book indaba flights', evidence: '' }));
 	});
 
-	it('is not added when unticked or left blank', () => {
+	it('is not added when unticked', () => {
 		const { el, results } = openIt();
 		addTask(el).click();
 		const box = checkboxes(el)[0];
 		box.checked = false;
 		box.dispatchEvent(new Event('change', { bubbles: true }));
 		expect(primary(el).textContent).toBe(en.inboxSweep.markReviewedButton);
-		box.checked = true;
-		box.dispatchEvent(new Event('change', { bubbles: true }));
+		// Nothing is ticked and the note follows its items, so mark it swept to be able to finish the review.
+		const swept = el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!;
+		swept.checked = true;
+		swept.dispatchEvent(new Event('change', { bubbles: true }));
+		primary(el).click();
+		expect(results[0]!.tasks).toHaveLength(0);
+	});
+
+	it('is not added when left blank', () => {
+		const { el, results } = openIt();
+		addTask(el).click();
 		const text = el.querySelector<HTMLInputElement>('.ai-organiser-sweep-text')!;
 		text.value = '   ';
 		text.dispatchEvent(new Event('input', { bubbles: true }));

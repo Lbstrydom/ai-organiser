@@ -10001,11 +10001,21 @@
     margin-top: 4px;
 }
 
+/* Wraps and stays inside the row, so a long list name or a phone screen cannot push the window sideways. */
 .ai-organiser-sweep-field {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 6px;
     margin-right: 10px;
+    max-width: 100%;
+    min-width: 0;
+}
+
+.ai-organiser-sweep-field select,
+.ai-organiser-sweep-field input {
+    max-width: 100%;
+    min-width: 0;
 }
 
 /* Rows of two or three buttons wrap instead of pushing the settings page sideways on a narrow screen. */
