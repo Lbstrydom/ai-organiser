@@ -4761,6 +4761,20 @@ export interface Translations {
         wrongList: string;
         scriptCopied: string;
         secretCreated: string;
+        connectTitle: string;
+        connectIntro: string;
+        connectPasteName: string;
+        connectPasteDesc: string;
+        connectButton: string;
+        connectDone: string;
+        connectCopyName: string;
+        connectCopyWarning: string;
+        connectCopyButton: string;
+        connectCopied: string;
+        connectReplaceName: string;
+        connectReplaceDesc: string;
+        connectReplaceButton: string;
+        connectReplaceConfirm: string;
     };
     offload: {
         localFolderName: string;

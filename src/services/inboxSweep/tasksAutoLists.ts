@@ -66,7 +66,7 @@ export async function approveConfiguredLists(plugin: AIOrganiserPlugin): Promise
         const url = validateScriptUrl(s.tasksScriptUrl);
         if (!url.ok) return err(url.error);
         const secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-        if (!secret) return err('no-secret');
+        if (!secret) return err('tasks-no-secret');
         const res = await approveLists({
             url: url.value, secret, main: ids[0], ids,
             knownRevision: s.tasksAutoLists ? s.tasksListsRevision : null,

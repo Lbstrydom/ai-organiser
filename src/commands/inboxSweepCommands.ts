@@ -30,7 +30,9 @@ import { resolveSweepContexts } from '../services/inboxSweep/sweepContexts';
 import { reviewRoutingFor } from '../services/inboxSweep/reviewRouting';
 import { getProjectService } from '../services/projects/projectService';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
-import { configuredListIds, selectTasksScript } from '../services/inboxSweep/tasksScriptSelect';
+import { configuredListIds, selectTasksScript, tasksConfigKey } from '../services/inboxSweep/tasksScriptSelect';
+import { ensureTasksSecret } from '../services/inboxSweep/tasksConnection';
+import { renderConnectDevice } from '../ui/settings/TasksConnectDevice';
 import { copyAutomaticScript, copyCombinedScript } from './googleScriptCommands';
 import { approveConfiguredLists, approveLists } from '../services/inboxSweep/tasksAutoLists';
 import { LIST_CONFIG_CAPABILITY } from '../services/googleScript/tasksModuleV3';
@@ -227,21 +229,6 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<{ 
 
 // ─── Google Tasks ───────────────────────────────────────────────────────────
 
-let secretInFlight: Promise<{ secret: string; created: boolean }> | null = null;
-export function ensureTasksSecret(plugin: AIOrganiserPlugin): Promise<{ secret: string; created: boolean }> {
-    if (secretInFlight) return secretInFlight;
-    secretInFlight = (async () => {
-        const existing = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-        if (existing) return { secret: existing, created: false };
-        const bytes = new Uint8Array(24);
-        crypto.getRandomValues(bytes);
-        const secret = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-        await plugin.secretStorageService.setSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS, secret);
-        return { secret, created: true };
-    })().finally(() => { secretInFlight = null; });
-    return secretInFlight;
-}
-
 /** A held task on automatic lists: a button, because approving a list is the person's decision and an export never makes it. */
 function offerApproveLists(plugin: AIOrganiserPlugin): void {
     const notice = cancellableNotice(formatGuidance(describeError(plugin.t, 'tasks-list-auto-not-approved')), plugin.t.googleTasks.approveLists, () => {
@@ -424,12 +411,13 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         const url = validateScriptUrl(draft.url);
         if (!url.ok) return err(url.error);
         const secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-        return secret ? ok({ url: url.value, secret }) : err('no-secret');
+        return secret ? ok({ url: url.value, secret }) : err('tasks-no-secret');
     };
     const copyScript = async (approvedListId: string | null): Promise<void> => {
-        const { secret, created } = await ensureTasksSecret(plugin);
-        await navigator.clipboard.writeText(selectTasksScript(s, secret, approvedListId).text);
-        new Notice(c.scriptCopied + (created ? ` ${c.secretCreated}` : ''), 8000);
+        const stored = await ensureTasksSecret(plugin);
+        if (!stored.ok) { guidanceNotice(plugin, stored.error); return; }
+        await navigator.clipboard.writeText(selectTasksScript(s, stored.value.secret, approvedListId).text);
+        new Notice(c.scriptCopied + (stored.value.created ? ` ${c.secretCreated}` : ''), 8000);
     };
     const copyCombined = async (redeploy = true): Promise<void> => {
         await copyCombinedScript(plugin, draft.listId || undefined, redeploy);
@@ -478,6 +466,12 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
             if (line) line.setText(message); else new Notice(message, 8000);
         });
     };
+    /** A link in the window with no secret here means a script already exists, and a script with a new secret would stop every other device. */
+    const noSecretForLink = async (): Promise<boolean> => draft.url.trim() !== '' && !(await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS));
+    const copying = (task: () => Promise<void>): void => run(async () => {
+        if (await noSecretForLink()) { guidanceNotice(plugin, 'tasks-no-secret'); return; }
+        await task();
+    });
 
     new GuidedSetupModal(plugin.app, t, {
         title: c.wizardTitle,
@@ -488,24 +482,27 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                 validate: () => (validateScriptUrl(draft.url).ok ? ok(undefined) : err('script-invalid-endpoint')),
                 render: (el) => {
                     el.createEl('p', { text: c.scriptIntro });
+                    const lead = el.createDiv({ cls: 'ai-organiser-capture-warning', attr: { role: 'status' } });
                     if (fresh) {
                         el.createEl('p', { text: c.freshIntro });
                         el.createEl('p', { text: c.freshAlreadyDeployed, cls: 'setting-item-description' });
                         for (const line of [c.step1, c.step2Automatic, c.step3Combined, c.step4]) el.createEl('p', { text: line });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copyAutomaticScript).setCta().onClick(() => run(async () => { await copyAutomaticScript(plugin, c.automaticCopied); draft.copiedAutomatic = true; draft.copiedCombined = false; })));
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyAutomaticScript).setCta().onClick(() => copying(async () => { await copyAutomaticScript(plugin, c.automaticCopied); draft.copiedAutomatic = true; draft.copiedCombined = false; })));
                         el.createEl('p', { text: c.automaticTradeoff, cls: 'setting-item-description' });
                         el.createEl('p', { text: c.keepLockedNote, cls: 'setting-item-description' });
                         new Setting(el)
-                            .addButton((b) => b.setButtonText(c.keepLockedCombined).onClick(() => run(async () => { await copyCombined(false); draft.copiedCombined = true; draft.copiedAutomatic = false; draft.automatic = false; })))
-                            .addButton((b) => b.setButtonText(c.keepLockedTasksOnly).onClick(() => run(async () => { draft.copiedAutomatic = false; draft.automatic = false; if (draft.combined) { await copyCombined(); return; } await copyScript(null); draft.copiedCombined = false; })));
+                            .addButton((b) => b.setButtonText(c.keepLockedCombined).onClick(() => copying(async () => { await copyCombined(false); draft.copiedCombined = true; draft.copiedAutomatic = false; draft.automatic = false; })))
+                            .addButton((b) => b.setButtonText(c.keepLockedTasksOnly).onClick(() => copying(async () => { draft.copiedAutomatic = false; draft.automatic = false; if (draft.combined) { await copyCombined(); return; } await copyScript(null); draft.copiedCombined = false; })));
                     } else {
                         el.createEl('p', { text: c.combinedHint, cls: 'setting-item-description' });
                         for (const line of [c.step1, c.step2, c.step3, c.step4]) el.createEl('p', { text: line });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.automatic ? copyAutomaticScript(plugin, t.googleScript.copiedRedeploy) : draft.combined ? copyCombined() : copyScript(null)))));
+                        new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => copying(() => (draft.automatic ? copyAutomaticScript(plugin, t.googleScript.copiedRedeploy) : draft.combined ? copyCombined() : copyScript(null)))));
                     }
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.status);
+                    let linkInput: { setValue: (v: string) => unknown } | null = null;
                     new Setting(el).setName(c.scriptUrlName).setDesc(c.scriptUrlDesc).addText((tx) => {
+                        linkInput = tx;
                         tx.setValue(draft.url).onChange((v) => {
                             // What was learned belongs to the link it was learned from: a different link starts unchecked.
                             if (v.trim() !== draft.url) { draft.operational = false; draft.combined = false; draft.automatic = false; draft.notReady = 'tasks-wizard-unchecked'; draft.status = c.notTested; }
@@ -513,6 +510,28 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                         });
                         tx.inputEl.setAttribute('aria-label', c.scriptUrlName);
                     }).addButton((b) => b.setButtonText(c.testConnection).onClick(() => run(() => verify(status, false), status)));
+                    const connect = renderConnectDevice(el, plugin, {
+                        link: () => draft.url,
+                        listId: () => draft.listId,
+                        run,
+                        onConnected: (connected) => {
+                            lead.setText('');
+                            draft.url = connected.url;
+                            linkInput?.setValue(connected.url);
+                            draft.listId = s.tasksListId;
+                            draft.copiedAutomatic = false;
+                            draft.copiedCombined = false;
+                            onDone?.();
+                            // The same check Test connection runs, so the later steps know what is deployed.
+                            run(() => verify(status, draft.listId !== ''), status);
+                        },
+                    });
+                    // This device has a link and no secret: connecting is the way forward, and a new script is not.
+                    run(async () => {
+                        if (!(await noSecretForLink())) return;
+                        lead.setText(formatGuidance(describeError(t, 'tasks-no-secret')));
+                        connect.open = true;
+                    });
                 },
             },
             {
@@ -562,10 +581,10 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                     }
                     el.createEl('p', { text: (wantsCombined() ? c.finishIntroCombined : c.finishIntro).replace('{list}', listName()) });
                     // The combined deployment is never overwritten by the standalone script: the primary button follows what the last test found.
-                    new Setting(el).addButton((b) => b.setButtonText(wantsCombined() ? c.copyFinalCombined : c.copyFinalScript).setCta().onClick(() => run(() => (wantsCombined() ? copyCombined() : copyScript(draft.listId)))));
+                    new Setting(el).addButton((b) => b.setButtonText(wantsCombined() ? c.copyFinalCombined : c.copyFinalScript).setCta().onClick(() => copying(() => (wantsCombined() ? copyCombined() : copyScript(draft.listId)))));
                     if (!wantsCombined()) {
                         el.createEl('p', { text: c.standaloneNote, cls: 'setting-item-description' });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedInstead).onClick(() => run(() => copyCombined())));
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedInstead).onClick(() => copying(() => copyCombined())));
                     }
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.operational ? c.operationalLine.replace('{list}', listName()) : c.notReady);
@@ -622,10 +641,7 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
     }).open();
 }
 
-/** Identity of the Tasks configuration a connection test belongs to. */
-export function tasksConfigKey(url: string, listId: string): string {
-    return JSON.stringify({ url: url.trim(), listId });
-}
+export { tasksConfigKey };
 
 // ─── Registration ───────────────────────────────────────────────────────────
 

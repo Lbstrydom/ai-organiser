@@ -82,7 +82,7 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
         try {
             const url = validateScriptUrl(s.tasksScriptUrl);
             const secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-            if (!url.ok || !secret) { status.setText(formatGuidance(describeError(t, url.ok ? 'no-secret' : url.error))); return; }
+            if (!url.ok || !secret) { status.setText(formatGuidance(describeError(t, url.ok ? 'tasks-no-secret' : url.error))); return; }
             const res = await fetchTaskLists({ url: url.value, secret });
             if (!res.ok) { status.setText(formatGuidance(describeError(t, res.error))); return; }
             loaded.set(plugin, res.value);

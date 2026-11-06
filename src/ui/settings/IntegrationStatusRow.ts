@@ -99,8 +99,12 @@ export function renderIntegrationStatusRow(container: HTMLElement, plugin: AIOrg
             let result: Checked['result'];
             try {
                 const secret = await secretOf(plugin, module);
-                const res = await pingModule(module, { url: endpoint.url, secret });
-                result = res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error };
+                if (module === 'tasks' && !secret) {
+                    result = { ok: false, error: 'tasks-no-secret' };
+                } else {
+                    const res = await pingModule(module, { url: endpoint.url, secret });
+                    result = res.ok ? { ok: true, info: res.value } : { ok: false, error: res.error };
+                }
             } catch {
                 // The secret store failing is a failed check, shown as one, never a dead button.
                 result = { ok: false, error: 'script-auth' };

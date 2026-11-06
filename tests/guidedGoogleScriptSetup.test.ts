@@ -17,7 +17,9 @@ const notices: string[] = [];
 interface Button { label: string; cta: boolean; click: () => void }
 const buttons: Button[] = [];
 /** The link field of the step drawn last, as the person types into it. */
-const typed: { onChange: (v: string) => void } = { onChange: () => undefined };
+const typed: { onChange: (v: string) => void; code: (v: string) => void; count: number } = { onChange: () => undefined, code: () => undefined, count: 0 };
+/** Confirm of the warning modal, once it was opened. */
+const confirmed: { run: (() => void) | null } = { run: null };
 
 vi.mock('obsidian', async (original) => {
   const real = await original<Record<string, unknown>>();
@@ -28,6 +30,7 @@ vi.mock('obsidian', async (original) => {
       setButtonText: (l: string) => { b.label = l; return api; },
       setCta: () => { b.cta = true; return api; },
       setDisabled: () => api,
+      setWarning: () => api,
       onClick: (f: () => void) => { b.click = f; return api; },
     };
     return api;
@@ -42,7 +45,7 @@ vi.mock('obsidian', async (original) => {
       return this;
     }
     addText(f: (t: unknown) => void): this {
-      const api: Record<string, unknown> = { setValue: () => api, onChange: (f: (v: string) => void) => { typed.onChange = f; return api; }, setPlaceholder: () => api, inputEl: { setAttribute: () => undefined } };
+      const api: Record<string, unknown> = { setValue: () => api, onChange: (f: (v: string) => void) => { if (typed.count++ === 0) typed.onChange = f; else typed.code = f; return api; }, setPlaceholder: () => api, inputEl: { setAttribute: () => undefined } };
       f(api);
       return this;
     }
@@ -60,6 +63,14 @@ vi.mock('../src/ui/modals/GuidedSetupModal', () => ({
   },
 }));
 
+vi.mock('../src/ui/modals/ConfirmationModal', () => ({
+  ConfirmationModal: class {
+    constructor(_app: unknown, _title: string, _message: string, onConfirm: () => void) { this.run = onConfirm; }
+    run: () => void;
+    open(): void { confirmed.run = this.run; }
+  },
+}));
+
 const ping = vi.fn();
 const setLists = vi.fn();
 vi.mock('../src/services/inboxSweep/tasksExportService', async (original) => ({
@@ -71,10 +82,13 @@ vi.mock('../src/services/inboxSweep/tasksExportService', async (original) => ({
 import { openTasksSetup } from '../src/commands/inboxSweepCommands';
 import { copyCombinedScript, copyScriptForDeployment } from '../src/commands/googleScriptCommands';
 import { describeError } from '../src/core/friendlyErrors';
+import { encodeConnectionCode, parseConnectionInput } from '../src/services/inboxSweep/tasksConnection';
 import { registerProjectCommands } from '../src/commands/projectCommands';
 
 const c = en.googleTasks;
 const SECRET = 'S3CRET';
+/** The buttons of Connect this device, which close every first step. */
+const CONNECT = [c.connectButton, c.connectCopyButton, c.connectReplaceButton];
 const URL_OK = 'https://script.google.com/macros/s/AKfycbxTEST/exec';
 const writeText = vi.fn(async (_text: string) => undefined);
 
@@ -87,18 +101,24 @@ const pluginWith = (settings: unknown): never => ({
 }) as never;
 
 /** Draw a step and report its text lines and buttons, in order. */
-function draw(id: string): { lines: string[]; labels: string[]; press: (label: string) => void; cta: () => string | undefined } {
+function draw(id: string): { lines: string[]; labels: string[]; texts: string[]; sections: Array<{ open?: boolean }>; press: (label: string) => void; cta: () => string | undefined } {
   const lines: string[] = [];
+  const texts: string[] = [];
+  const sections: Array<{ open?: boolean }> = [];
   buttons.length = 0;
-  const el = {
-    createEl: (_tag: string, o: { text: string }) => { lines.push(o.text); },
-    createDiv: () => ({ setText: () => undefined }),
+  typed.count = 0;
+  const el: Record<string, unknown> = {
+    setText: (text: string) => { texts.push(text); },
+    createEl: (tag: string, o?: { text?: string }) => { if (o?.text) lines.push(o.text); if (tag === 'details') { const box = { ...el }; sections.push(box); return box; } return el; },
+    createDiv: () => el,
   };
   captured.current!.steps.find((s) => s.id === id)!.render(el);
   const drawn = [...buttons];
   return {
     lines,
     labels: drawn.map((b) => b.label),
+    texts,
+    sections,
     press: (label) => drawn.find((b) => b.label === label)!.click(),
     cta: () => drawn.find((b) => b.cta)?.label,
   };
@@ -154,8 +174,8 @@ describe('setup window with a saved link (standalone users see no change)', () =
   it('the first step is exactly what it was, and copies the standalone setup script byte for byte', async () => {
     openTasksSetup(pluginWith(standalone()));
     const step = draw('script');
-    expect(step.lines).toEqual([c.scriptIntro, c.combinedHint, c.step1, c.step2, c.step3, c.step4]);
-    expect(step.labels).toEqual([c.copySetupScript, c.testConnection]);
+    expect(step.lines).toEqual([c.scriptIntro, c.combinedHint, c.step1, c.step2, c.step3, c.step4, c.connectTitle, c.connectIntro]);
+    expect(step.labels).toEqual([c.copySetupScript, c.testConnection, ...CONNECT]);
     expect(step.cta()).toBe(c.copySetupScript);
     step.press(c.copySetupScript);
     const text = await copied();
@@ -182,7 +202,7 @@ describe('setup window on a first-time setup', () => {
     openTasksSetup(pluginWith(settingsWith()));
     const step = draw('script');
     expect(step.cta()).toBe(c.copyAutomaticScript);
-    expect(step.labels).toEqual([c.copyAutomaticScript, c.keepLockedCombined, c.keepLockedTasksOnly, c.testConnection]);
+    expect(step.labels).toEqual([c.copyAutomaticScript, c.keepLockedCombined, c.keepLockedTasksOnly, c.testConnection, ...CONNECT]);
     expect(step.lines).toContain(c.automaticTradeoff);
     step.press(c.copyAutomaticScript);
     expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { automatic: true } }));
@@ -278,6 +298,88 @@ describe('setup window on a first-time setup', () => {
     expect(draw('finish').labels).toEqual([]);
     draw('script').press(c.copySetupScript);
     expect(await copied()).toBe(buildCombinedScript({ secret: SECRET, tasks: { automatic: true } }));
+  });
+});
+
+describe('a device with a script link and no secret of its own', () => {
+  const stored: { secret: string | null } = { secret: null };
+  const setSecret = vi.fn(async (_id: string, value: string) => { stored.secret = value; });
+  const noSecretPlugin = (settings: unknown): never => ({
+    settings, t: en, app: {}, saveSettings: async () => undefined,
+    secretStorageService: { getSecret: async () => stored.secret, setSecret },
+  }) as never;
+  const linked = (over: Record<string, unknown> = {}): ReturnType<typeof settingsWith> => settingsWith({ tasksScriptUrl: URL_OK, tasksListId: 'LIST', tasksListName: 'Main', ...over });
+  const NOT_CONNECTED = describeError(en, 'tasks-no-secret').message;
+
+  beforeEach(() => { stored.secret = null; setSecret.mockClear(); confirmed.run = null; });
+
+  it('the window says to connect, opens that section, and its copy button makes no secret and copies nothing', async () => {
+    openTasksSetup(noSecretPlugin(linked()));
+    const step = draw('script');
+    await vi.waitFor(() => expect(step.sections[0]?.open).toBe(true));
+    expect(step.texts.some((text) => text.startsWith(NOT_CONNECTED))).toBe(true);
+    step.press(c.copySetupScript);
+    await vi.waitFor(() => expect(notices.at(-1)).toContain(NOT_CONNECTED));
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('a link typed into a first-time window counts too: the automatic script is not copied with a new secret', async () => {
+    openTasksSetup(noSecretPlugin(settingsWith()));
+    draw('script');
+    typed.onChange(URL_OK);
+    draw('script').press(c.copyAutomaticScript);
+    await vi.waitFor(() => expect(notices.at(-1)).toContain(NOT_CONNECTED));
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+  });
+
+  it('the palette command and Copy script make no secret either', async () => {
+    await copyCombinedScript(noSecretPlugin(linked()));
+    await copyCombinedScript(noSecretPlugin(linked({ tasksAutoLists: true })));
+    await copyScriptForDeployment(noSecretPlugin(linked()), 'LIST');
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    expect(notices.filter((n) => n.includes(NOT_CONNECTED))).toHaveLength(3);
+  });
+
+  it('a first-time setup with no link still creates the secret, as it always did', async () => {
+    openTasksSetup(noSecretPlugin(settingsWith()));
+    draw('script').press(c.copyAutomaticScript);
+    const script = await copied();
+    expect(setSecret).toHaveBeenCalledTimes(1);
+    expect(script).toBe(buildCombinedScript({ secret: stored.secret!, tasks: { automatic: true } }));
+  });
+
+  it('Replace secret does nothing until the warning is confirmed, then copies a script with the new secret', async () => {
+    openTasksSetup(noSecretPlugin(linked()));
+    draw('script').press(c.connectReplaceButton);
+    expect(setSecret).not.toHaveBeenCalled();
+    expect(writeText).not.toHaveBeenCalled();
+    confirmed.run!();
+    const script = await copied();
+    expect(setSecret).toHaveBeenCalledTimes(1);
+    expect(script).toContain(JSON.stringify(stored.secret));
+  });
+
+  it('a pasted code that the script accepts connects the window, and the next steps know what is deployed', async () => {
+    ping.mockResolvedValue({ ok: true, value: { scriptVersion: 3, approvedListId: 'LIST', listHash: 'h', approvedListIds: ['LIST'], capabilities: ['list-config'], listsRevision: 4, combined: true } });
+    const settings = settingsWith();
+    openTasksSetup(noSecretPlugin(settings));
+    const step = draw('script');
+    typed.code(encodeConnectionCode(URL_OK, 'a'.repeat(48)));
+    step.press(c.connectButton);
+    await vi.waitFor(() => expect(stored.secret).toBe('a'.repeat(48)));
+    await vi.waitFor(() => expect(settings).toMatchObject({ tasksScriptUrl: URL_OK, tasksAutoLists: true, tasksListsRevision: 4, tasksListId: 'LIST' }));
+    expect(draw('finish').labels).toEqual([]);
+  });
+
+  it('Copy connection code copies a code that parses back to this device\'s link and secret', async () => {
+    stored.secret = 'b'.repeat(48);
+    openTasksSetup(noSecretPlugin(linked()));
+    draw('script').press(c.connectCopyButton);
+    expect(parseConnectionInput(await copied(), '')).toEqual({ ok: true, value: { url: URL_OK, secret: 'b'.repeat(48) } });
+    expect(notices.at(-1)).toBe(c.connectCopied);
   });
 });
 

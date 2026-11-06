@@ -4,45 +4,16 @@
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
-import crypto from 'node:crypto';
 import { buildCombinedScript } from '../src/services/googleScript/combinedScript';
 import { RECEIPT_STORE_HIGH, RECEIPT_STORE_LOW, tasksModuleV3Functions } from '../src/services/googleScript/tasksModuleV3';
 import { normaliseModulePing } from '../src/services/googleScript/modulePing';
 import { approvedBeyondConfigured, classifyTasksScript, pingTasksScript, setTasksLists } from '../src/services/inboxSweep/tasksExportService';
 import { approveLists } from '../src/services/inboxSweep/tasksAutoLists';
 import type { ScriptTransport } from '../src/services/appsScriptClient';
+import { newWorld, run, type World } from './helpers/fakeGoogleScript';
 
 const URL_OK = 'https://script.google.com/macros/s/AKfycbxTEST/exec';
-type FakeTask = { id: string; title: string; notes?: string; status?: string };
-interface World { lists: Record<string, FakeTask[]>; props: Record<string, string>; seq: number; deletes: number; taskCalls: number }
-const newWorld = (): World => ({ lists: { LA: [], LB: [], LC: [] }, props: {}, seq: 0, deletes: 0, taskCalls: 0 });
 const exportId = (n: number): string => `aio-${n.toString(16).padStart(8, '0')}-0000-4000-8000-000000000000`;
-
-function run(script: string, world: World, body: string): string {
-  const sandbox = {
-    ContentService: { createTextOutput: (s: string) => ({ s, setMimeType() { return this; } }), MimeType: { JSON: 'json' } },
-    Utilities: { computeDigest: (_a: unknown, input: string) => [...crypto.createHash('sha256').update(input).digest()].map((b) => (b > 127 ? b - 256 : b)), DigestAlgorithm: { SHA_256: 'x' } },
-    LockService: { getScriptLock: () => ({ tryLock: () => true, releaseLock() { /* test lock */ } }) },
-    PropertiesService: {
-      getScriptProperties: () => ({
-        getProperties: () => ({ ...world.props }),
-        getProperty: (k: string) => world.props[k] ?? null,
-        setProperty: (k: string, v: string) => { world.props[k] = v; },
-        deleteProperty: (k: string) => { world.deletes++; delete world.props[k]; },
-      }),
-    },
-    Tasks: {
-      Tasklists: { list: () => { world.taskCalls++; return { items: Object.keys(world.lists).map((k) => ({ id: k, title: `Title ${k}` })) }; } },
-      Tasks: {
-        list: (listId: string) => ({ items: world.lists[listId] ?? [] }),
-        insert: (b: { title: string; notes: string }, listId: string) => { const t: FakeTask = { id: `t${++world.seq}`, title: b.title, notes: b.notes, status: 'needsAction' }; (world.lists[listId] ??= []).push(t); return t; },
-        get: (listId: string, taskId: string) => { const f = (world.lists[listId] ?? []).find((t) => t.id === taskId); if (!f) throw new Error('Not Found 404'); return f; },
-      },
-    },
-  };
-  const fn = new Function('sandbox', `with (sandbox) { ${script}; return doPost; }`);
-  return (fn(sandbox) as (e: unknown) => { s: string })({ postData: { contents: body } }).s;
-}
 
 const v3 = buildCombinedScript({ secret: 'S', tasks: { automatic: true } });
 const call = (world: World, request: object, secret = 'S', script = v3) => JSON.parse(run(script, world, JSON.stringify({ secret, ...request })));
@@ -177,7 +148,7 @@ describe('v3 receipt store', () => {
     expect(JSON.parse(world.props[`x:LA:${exportId(1000)}`]).at).toBeGreaterThan(0);
   });
 
-  it('above the limit the oldest receipts and bindings go first, the list configuration never, and exports keep working', () => {
+  it('above the limit the oldest receipts go first and keep their bindings, the list configuration is never removed, and exports keep working', () => {
     const world = newWorld();
     approveLA(world);
     const count = Math.ceil(RECEIPT_STORE_HIGH / 150) + 100;
@@ -186,7 +157,7 @@ describe('v3 receipt store', () => {
     const res = call(world, { op: 'upsert', listId: 'LA', tasks: [task(count + 1)] });
     expect(res.results[0].status).toBe('created');
     expect(world.props[`x:LA:${exportId(1)}`]).toBeUndefined();
-    expect(world.props[`bind:${exportId(1)}`]).toBeUndefined();
+    expect(world.props[`bind:${exportId(1)}`]).toBe('LA');
     expect(world.props[`x:LA:${exportId(count)}`]).toBeDefined();
     expect(world.props['cfg:lists']).toBeDefined();
     // One request removes a bounded number, far more than a full batch adds, so repeated exports bring the store back under the high mark and it stays there.
@@ -194,6 +165,48 @@ describe('v3 receipt store', () => {
     for (let i = 0; i < 60; i++) call(world, { op: 'upsert', listId: 'LA', tasks: Array.from({ length: 25 }, (_, n) => task(count + 2 + i * 25 + n)) });
     expect(bytes(world)).toBeLessThanOrEqual(RECEIPT_STORE_HIGH + 25 * 300);
     expect(bytes(world)).toBeGreaterThan(RECEIPT_STORE_LOW);
+  });
+
+  it('an old id whose receipt was pruned still cannot be created on a different list', () => {
+    const world = newWorld();
+    call(world, { op: 'setLists', main: 'LA', ids: ['LA', 'LB'], expectedRevision: 0 });
+    call(world, { op: 'upsert', listId: 'LA', tasks: [task(1)] });
+    world.props[`x:LA:${exportId(1)}`] = JSON.stringify({ ...JSON.parse(world.props[`x:LA:${exportId(1)}`]), at: 1 });
+    const count = Math.ceil(RECEIPT_STORE_HIGH / 150) + 100;
+    for (let i = 2; i <= count; i++) {
+      world.props[`x:LA:${exportId(i)}`] = JSON.stringify({ taskId: `old${i}`, title: `An old task with a realistic title ${i}`, at: i });
+      world.props[`bind:${exportId(i)}`] = 'LA';
+    }
+    call(world, { op: 'upsert', listId: 'LA', tasks: [task(count + 1)] });
+    expect(world.props[`x:LA:${exportId(1)}`]).toBeUndefined();
+    expect(call(world, { op: 'upsert', listId: 'LB', tasks: [task(1)] }).results[0].status).toBe('target-conflict');
+    expect(world.lists.LB).toHaveLength(0);
+  });
+
+  it('a pruned receipt from before v2 gets a binding, so its id stays tied to its list', () => {
+    const world = newWorld();
+    call(world, { op: 'setLists', main: 'LA', ids: ['LA', 'LB'], expectedRevision: 0 });
+    const count = Math.ceil(RECEIPT_STORE_HIGH / 150) + 100;
+    fill(world, count);
+    delete world.props[`bind:${exportId(count)}`];
+    world.props[`x:LA:${exportId(count)}`] = JSON.stringify({ taskId: 'v1', title: 'From a v1 script' });
+    call(world, { op: 'upsert', listId: 'LA', tasks: [task(count + 1)] });
+    expect(world.props[`x:LA:${exportId(count)}`]).toBeUndefined();
+    expect(world.props[`bind:${exportId(count)}`]).toBe('LA');
+  });
+
+  it('past their cap only bindings whose receipt has gone are removed', () => {
+    const world = newWorld();
+    approveLA(world);
+    const orphans = Math.ceil(RECEIPT_STORE_HIGH / 40);
+    for (let i = 1; i <= orphans; i++) world.props[`bind:${exportId(i)}`] = 'LA';
+    world.props[`x:LA:${exportId(orphans + 1)}`] = JSON.stringify({ taskId: 'kept', title: 'Recent', at: Date.now() });
+    world.props[`bind:${exportId(orphans + 1)}`] = 'LA';
+    expect(bytes(world)).toBeGreaterThan(RECEIPT_STORE_HIGH);
+    call(world, { op: 'upsert', listId: 'LA', tasks: [task(orphans + 2)] });
+    expect(world.deletes).toBeGreaterThan(0);
+    expect(world.props[`bind:${exportId(orphans + 1)}`]).toBe('LA');
+    expect(world.props['cfg:lists']).toBeDefined();
   });
 
   it('a receipt from before v3 counts as the oldest', () => {

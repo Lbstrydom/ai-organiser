@@ -126,6 +126,11 @@ export const GUIDANCE_CODES = [
     'tasks-lists-not-saved',
     'tasks-auto-not-deployed',
     'tasks-list-auto-not-approved',
+    'tasks-no-secret',
+    'tasks-connect-bad-code',
+    'tasks-connect-needs-link',
+    'tasks-connect-wrong-secret',
+    'tasks-connect-save-failed',
     'script-tasks-off',
     // Vault upkeep
     'upkeep-running',

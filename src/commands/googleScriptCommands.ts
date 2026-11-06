@@ -18,7 +18,7 @@ import { approvedRoots } from '../services/cloudInventory/cloudInventoryService'
 import { pingTasksScript } from '../services/inboxSweep/tasksExportService';
 import { allLists } from '../services/inboxSweep/tasksRouting';
 import { selectTasksScript } from '../services/inboxSweep/tasksScriptSelect';
-import { ensureTasksSecret } from './inboxSweepCommands';
+import { ensureTasksSecret } from '../services/inboxSweep/tasksConnection';
 import { logger } from '../utils/logger';
 
 function inventoryPart(plugin: AIOrganiserPlugin): Pick<CombinedScriptConfig, 'inventory'> {
@@ -29,8 +29,9 @@ function inventoryPart(plugin: AIOrganiserPlugin): Pick<CombinedScriptConfig, 'i
 /** Copy the automatic-lists script (Tasks module v3). The same text for every user apart from the secret; the same secret is kept, so the link and receipts survive a paste-over. */
 export async function copyAutomaticScript(plugin: AIOrganiserPlugin, notice: string): Promise<void> {
     try {
-        const { secret } = await ensureTasksSecret(plugin);
-        await navigator.clipboard.writeText(buildCombinedScript({ secret, tasks: { automatic: true }, ...inventoryPart(plugin) }));
+        const stored = await ensureTasksSecret(plugin);
+        if (!stored.ok) { new Notice(formatGuidance(describeError(plugin.t, stored.error)), 10000); return; }
+        await navigator.clipboard.writeText(buildCombinedScript({ secret: stored.value.secret, tasks: { automatic: true }, ...inventoryPart(plugin) }));
         new Notice(notice, 12000);
     } catch (e) {
         logger.error('GoogleScript', 'Could not copy the automatic lists script', e);
@@ -52,9 +53,10 @@ export async function copyCombinedScript(plugin: AIOrganiserPlugin, mainListId?:
         const lists = mainListId ? [{ id: mainListId }, ...saved.filter((l) => l.id !== mainListId)] : saved;
         const main = lists[0]?.id ?? '';
         const inventory = inventoryPart(plugin);
-        const { secret } = await ensureTasksSecret(plugin);
+        const stored = await ensureTasksSecret(plugin);
+        if (!stored.ok) { new Notice(formatGuidance(describeError(plugin.t, stored.error)), 10000); return; }
         const script = buildCombinedScript({
-            secret,
+            secret: stored.value.secret,
             tasks: { approvedListId: main || null, approvedListIds: lists.map((l) => l.id) },
             ...inventory,
         });
@@ -78,7 +80,7 @@ export async function copyScriptForDeployment(plugin: AIOrganiserPlugin, mainLis
     const t = plugin.t;
     const s = plugin.settings;
     const secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-    if (!secret) { new Notice(formatGuidance(describeError(t, 'no-secret')), 8000); return; }
+    if (!secret) { new Notice(formatGuidance(describeError(t, 'tasks-no-secret')), 10000); return; }
     const url = validateScriptUrl(s.tasksScriptUrl);
     let notice = t.googleTasks.scriptCopied;
     if (url.ok) {

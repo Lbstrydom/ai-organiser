@@ -12,8 +12,10 @@
  * Pasting v2 back over v3 is a safe downgrade: v2 ignores `cfg:` and enforces its text again.
  *
  * Receipt store. Properties are limited to 500 KB per script and receipts were never removed, so exports would eventually stop.
- * v3 removes the oldest receipts and bindings once the store is near the limit. A removed receipt does not risk a duplicate: an id
- * sent again finds its `[aio:<id>]` marker in the list. `status` then answers `unknown-receipt` for that id.
+ * v3 removes the oldest receipts once the store is near the limit and keeps their bindings, so a removed receipt does not risk a
+ * duplicate: an id sent again finds its `[aio:<id>]` marker in its own list and is refused on any other. `status` then answers
+ * `unknown-receipt` for that id. Bindings go only past their own cap, in no particular order, after about 2,000 ids: from then on an
+ * old id could be created again if a device still held a different list for it, which needs a vault that missed that much sync.
  */
 import { MAX_TASKS_LISTS } from '../inboxSweep/tasksRouting';
 import { TASKS_V2_CAPABILITIES, tasksModuleFunctions } from './googleScriptBuilder';
@@ -27,6 +29,8 @@ export const RECEIPT_STORE_HIGH = 400_000;
 export const RECEIPT_STORE_LOW = 300_000;
 /** Most properties one request removes. The next request carries on. */
 export const RECEIPT_PRUNE_MAX = 500;
+/** Bindings outlive their receipts. Past this many bytes, those whose receipt has gone are removed (about 2,000 ids in). */
+export const RECEIPT_BIND_MAX = 200_000;
 
 /** The configuration block of a v3 script. It holds no list: those are in the script's properties. */
 export function tasksModuleV3Config(): Record<string, unknown> {
@@ -39,6 +43,7 @@ var TASKS_MAX_LISTS = __MAX_LISTS__;
 var TASKS_STORE_HIGH = __STORE_HIGH__;
 var TASKS_STORE_LOW = __STORE_LOW__;
 var TASKS_PRUNE_MAX = __PRUNE_MAX__;
+var TASKS_BIND_MAX = __BIND_MAX__;
 var TASKS_CFG = { main: "", ids: [], titles: {}, revision: 0, changedAt: null };
 
 // Fill the fields every rule reads from the property. Anything unreadable approves nothing: no task can be created.
@@ -87,29 +92,53 @@ function tasks_bytes_(s) {
   return String(s).replace(/[^\x00-\x7f]/g, "xxx").length;
 }
 
-// Called under the script lock. Removes the oldest receipts with their bindings; a receipt from before v3 has no date and goes first.
+// Called under the script lock. A removed receipt keeps its binding: the marker scan only reads the target list, so the binding is what
+// stops an old id being created on a different list. Bindings are small, and only those whose receipt has gone are removed, past a cap.
+// A receipt from before v3 has no date and goes first; one from before v2 has no binding, so it gets one now.
 function tasks_prune_(props, map) {
   var total = 0;
-  var groups = {};
+  var bindBytes = 0;
+  var receipts = [];
+  var bindings = [];
+  var hasReceipt = {};
   for (var k in map) {
     var size = tasks_bytes_(k) + tasks_bytes_(map[k]);
     total += size;
-    var id = k.indexOf("x:") === 0 ? k.slice(k.lastIndexOf(":") + 1) : k.indexOf("bind:") === 0 ? k.slice(5) : null;
-    if (id === null) continue;
-    var g = groups[id] || (groups[id] = { at: 0, size: 0, keys: [] });
-    g.size += size;
-    g.keys.push(k);
     if (k.indexOf("x:") === 0) {
-      try { g.at = Number(JSON.parse(map[k]).at) || 0; } catch (err) { g.at = 0; }
+      var id = k.slice(k.lastIndexOf(":") + 1);
+      var at = 0;
+      try { at = Number(JSON.parse(map[k]).at) || 0; } catch (err) { at = 0; }
+      receipts.push({ key: k, id: id, list: k.slice(2, k.length - id.length - 1), at: at, size: size });
+      hasReceipt[id] = true;
+    } else if (k.indexOf("bind:") === 0) {
+      bindBytes += size;
+      bindings.push({ key: k, id: k.slice(5), size: size });
     }
   }
   if (total <= TASKS_STORE_HIGH) return;
-  var oldest = Object.keys(groups).sort(function (a, b) { return groups[a].at - groups[b].at; });
   var removed = 0;
-  for (var i = 0; i < oldest.length && total > TASKS_STORE_LOW && removed < TASKS_PRUNE_MAX; i++) {
-    var group = groups[oldest[i]];
-    group.keys.forEach(function (key) { props.deleteProperty(key); delete map[key]; removed++; });
-    total -= group.size;
+  for (var b = 0; b < bindings.length && bindBytes > TASKS_BIND_MAX && removed < TASKS_PRUNE_MAX; b++) {
+    if (hasReceipt[bindings[b].id]) continue;
+    props.deleteProperty(bindings[b].key);
+    delete map[bindings[b].key];
+    bindBytes -= bindings[b].size;
+    total -= bindings[b].size;
+    removed++;
+  }
+  receipts.sort(function (x, y) { return x.at - y.at; });
+  for (var i = 0; i < receipts.length && total > TASKS_STORE_LOW && removed < TASKS_PRUNE_MAX; i++) {
+    var r = receipts[i];
+    var bindKey = "bind:" + r.id;
+    if (!map[bindKey]) {
+      props.setProperty(bindKey, r.list);
+      map[bindKey] = r.list;
+      total += tasks_bytes_(bindKey) + tasks_bytes_(r.list);
+      removed++;
+    }
+    props.deleteProperty(r.key);
+    delete map[r.key];
+    total -= r.size;
+    removed++;
   }
 }
 
@@ -136,7 +165,8 @@ export function tasksModuleV3Functions(): string {
         .replace('__MAX_LISTS__', String(MAX_TASKS_LISTS))
         .replace('__STORE_HIGH__', String(RECEIPT_STORE_HIGH))
         .replace('__STORE_LOW__', String(RECEIPT_STORE_LOW))
-        .replace('__PRUNE_MAX__', String(RECEIPT_PRUNE_MAX));
+        .replace('__PRUNE_MAX__', String(RECEIPT_PRUNE_MAX))
+        .replace('__BIND_MAX__', String(RECEIPT_BIND_MAX));
     let text = tasksModuleFunctions();
     text = edit(text, V2_PING, additions.trimStart());
     text = edit(text, `function tasks_handle_(req) {

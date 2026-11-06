@@ -378,7 +378,7 @@ export async function refreshStatuses(plugin: AIOrganiserPlugin, signal?: AbortS
     if (!url.ok) return err(url.error);
     let secret: string | null = null;
     try { secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS); } catch { secret = null; }
-    if (!secret) return err('no-secret');
+    if (!secret) return err('tasks-no-secret');
     const ping = await pingTasksScript({ url: url.value, secret, signal });
     if (!ping.ok) return err(ping.error);
     if (ping.value.capabilities?.includes('status') !== true) return err('script-capability-missing');
@@ -412,7 +412,7 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
     } catch {
         secret = null;
     }
-    if (!secret) return err('no-secret');
+    if (!secret) return err('tasks-no-secret');
 
     const repaired = await repairApprovals(plugin);
     if (repaired.error) return err(repaired.error);
