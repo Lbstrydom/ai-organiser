@@ -254,6 +254,19 @@ describe('resolveBlockByFingerprint', () => {
 // ── validateMermaidSyntax ─────────────────────────────────────────────────────
 
 describe('validateMermaidSyntax', () => {
+    it('accepts every flowchart link style, not only -->', () => {
+        for (const link of ['---', '==>', '===', '-.->', '-.-', '-- text ---', '~~~', '--o', '--x']) {
+            const code = `flowchart TD\n  A ${link} B\n  B ${link} C\n  C ${link} D`;
+            expect(validateMermaidSyntax(code)).toEqual({ valid: true, warnings: [] });
+        }
+    });
+
+    it('still warns about a flowchart with no links at all', () => {
+        const { valid, warnings } = validateMermaidSyntax('flowchart TD\n  A[One]\n  B[Two]\n  C[Three]');
+        expect(valid).toBe(false);
+        expect(warnings[0]).toContain('no connections');
+    });
+
     it('returns valid for a well-formed flowchart', () => {
         const { valid, warnings } = validateMermaidSyntax('flowchart TD\n  A --> B\n  B --> C');
         expect(valid).toBe(true);
