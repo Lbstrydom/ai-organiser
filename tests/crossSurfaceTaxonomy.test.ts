@@ -46,6 +46,7 @@ const DECLARED_OVERRIDES: Record<string, string> = {
     'collect-all-tags': 'maintain', // tagging (refine) → vault admin
     'record-audio': 'capture',      // summarize (create) → pulls new audio in
     'refresh-onedrive-embed': 'refine', // onedrive-link (capture) → mutates an existing note's embeds
+    'open-project': 'find',         // google-tasks-export (refine) → navigates to a project note, changes nothing
 };
 
 describe('cross-surface taxonomy — shared vocabulary', () => {

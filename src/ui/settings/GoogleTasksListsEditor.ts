@@ -7,11 +7,11 @@
 import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
+import { copyScriptForDeployment } from '../../commands/googleScriptCommands';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { validateScriptUrl } from '../../services/appsScriptClient';
 import { fetchTaskLists, type TaskList } from '../../services/inboxSweep/tasksExportService';
 import { allLists, normaliseRoutingRules, resolveTasksLists, updateTasksLists, type Destination, type RoutingRule } from '../../services/inboxSweep/tasksRouting';
-import { selectTasksScript } from '../../services/inboxSweep/tasksScriptSelect';
 import type { SweepItemKind } from '../../services/prompts/sweepPrompts';
 import { logger } from '../../utils/logger';
 
@@ -85,10 +85,7 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
     // What the deployed script must approve changed: say so, and offer the new script (nothing is sent until it is deployed).
     new Setting(container).setName(c.newScriptName).setDesc(c.newScriptDesc).addButton((b) => b.setButtonText(c.copyNewScript).onClick(async () => {
         try {
-            const secret = await plugin.secretStorageService.getSecret(PLUGIN_SECRET_IDS.GOOGLE_TASKS);
-            if (!secret) { new Notice(formatGuidance(describeError(t, 'no-secret')), 8000); return; }
-            await navigator.clipboard.writeText(selectTasksScript(s, secret, main.id).text);
-            new Notice(c.scriptCopied, 8000);
+            await copyScriptForDeployment(plugin, main.id);
         } catch (e) {
             logger.warn('Sweep', 'Could not copy the script', e);
             new Notice(formatGuidance(describeError(t, 'unknown')), 8000);
