@@ -34,7 +34,8 @@ import {
 } from './sweepLedger';
 import { dropAlreadyReported, recordReportedItems } from './sweepItemIdentity';
 import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
-import { exportApproved, pingTasksScript, type ExportSummary, type SourceCheck } from './tasksExportService';
+import { exportApproved, approvedBeyondConfigured, pingTasksScript, type ExportSummary, type SourceCheck } from './tasksExportService';
+import { configuredListIds } from './tasksScriptSelect';
 import { resolveTasksLists, type ExportContext } from './tasksRouting';
 import { refreshTaskStatus, type RefreshOutcome } from './tasksStatusService';
 import { recordExportOperation } from './sweepOperations';
@@ -420,9 +421,14 @@ export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSign
     // Routing is used only when something needs it (a routed task, another list, a list that needs a date); otherwise the export is
     // exactly what it always was, with no extra request.
     let routing: ExportContext | undefined;
-    if (needsRouting(plugin, open)) {
+    if (needsRouting(plugin, open) || s.tasksAutoLists) {
         const ping = await pingTasksScript({ url: url.value, secret, signal });
         if (!ping.ok) return err(ping.error);
+        // Read only. An export never sets the lists: a task for an unapproved list stays held until a person approves it.
+        if (s.tasksAutoLists) {
+            const extra = approvedBeyondConfigured(ping.value, configuredListIds(s));
+            if (extra.length > 0) total.extraApproved = extra;
+        }
         routing = {
             tasksListId: s.tasksListId,
             tasksLists: s.tasksLists,

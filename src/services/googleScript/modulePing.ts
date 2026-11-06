@@ -21,6 +21,8 @@ export interface ModuleInfo {
     legacy: boolean;
     /** True when the answer came from the combined Google script */
     combined?: boolean;
+    /** Tasks module v3 only (`list-config`): the lists it approves, with their titles when they were last set */
+    approvedLists?: Array<{ id: string; title: string }>;
 }
 
 /** What v1 of each module could do (the legacy capability set). */
@@ -45,7 +47,13 @@ export function normaliseModulePing(module: ScriptModule, response: unknown): Mo
         if (!isRecord(modules) || !isRecord(modules[module])) return null;
         const m = modules[module];
         const caps = strings(m.capabilities);
-        return typeof m.version === 'number' && Number.isInteger(m.version) && m.version >= 1 && caps ? { module, version: m.version, capabilities: caps, legacy: false, combined: true } : null;
+        if (typeof m.version !== 'number' || !Number.isInteger(m.version) || m.version < 1 || !caps) return null;
+        const approved = module === 'tasks' && caps.includes('list-config') ? strings(response.approvedListIds) : null;
+        const titles = isRecord(response.approvedListTitles) ? response.approvedListTitles : {};
+        return {
+            module, version: m.version, capabilities: caps, legacy: false, combined: true,
+            ...(approved ? { approvedLists: approved.map((id) => ({ id, title: typeof titles[id] === 'string' ? titles[id] : '' })) } : {}),
+        };
     }
     const version = response.scriptVersion;
     if (typeof version !== 'number' || !Number.isInteger(version) || version < 1) return null;

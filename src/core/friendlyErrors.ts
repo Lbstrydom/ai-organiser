@@ -120,6 +120,12 @@ export const GUIDANCE_CODES = [
     'tasks-wizard-unchecked',
     'tasks-wizard-setup',
     'tasks-wizard-wrong-list',
+    'tasks-script-approves-extra',
+    'tasks-lists-stale',
+    'tasks-list-gone',
+    'tasks-lists-not-saved',
+    'tasks-auto-not-deployed',
+    'tasks-list-auto-not-approved',
     'script-tasks-off',
     // Vault upkeep
     'upkeep-running',

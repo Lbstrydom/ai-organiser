@@ -7,7 +7,8 @@
 import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { PLUGIN_SECRET_IDS } from '../../core/secretIds';
-import { copyScriptForDeployment } from '../../commands/googleScriptCommands';
+import { copyAutomaticScript, copyScriptForDeployment } from '../../commands/googleScriptCommands';
+import { approveConfiguredLists } from '../../services/inboxSweep/tasksAutoLists';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { validateScriptUrl } from '../../services/appsScriptClient';
 import { fetchTaskLists, type TaskList } from '../../services/inboxSweep/tasksExportService';
@@ -23,6 +24,12 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
     const c = t.googleTasks;
     const s = plugin.settings;
     const save = (): void => { void plugin.saveSettings().catch((e: unknown) => logger.error('Sweep', 'Could not save the Google Tasks lists', e)); };
+    /** Approve the configured lists: only ever from something the person just did on this page. */
+    const approve = async (): Promise<void> => {
+        const res = await approveConfiguredLists(plugin);
+        new Notice(res.ok ? c.listsApproved : formatGuidance(describeError(t, res.error)), 9000);
+        rerender();
+    };
 
     container.createEl('h4', { text: c.listsTitle });
     container.createEl('p', { text: c.listsHelp, cls: 'setting-item-description' });
@@ -39,6 +46,8 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
     for (const list of allLists(s)) {
         const row = new Setting(container).setName(titleOf(list.id));
         if (list.id === main.id) row.setDesc(c.mainBadge);
+        // The label sits right beside the switch, so it reads as what the switch does and not as a fact about the list.
+        row.controlEl.createSpan({ text: c.needsDateName, cls: 'setting-item-description' });
         row.addToggle((tg) => {
             tg.setValue(list.needsDate).onChange((v) => {
                 updateTasksLists(s, (lists, mainId) => ({ lists: lists.map((l) => (l.id === list.id ? { ...l, needsDate: v, title: titleOf(l.id) } : l)), mainId }));
@@ -46,12 +55,12 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
             });
             tg.toggleEl.setAttribute('aria-label', `${c.needsDateName}: ${titleOf(list.id)}`);
         });
-        row.nameEl.createSpan({ text: ` · ${c.needsDateName}`, cls: 'setting-item-description' });
         if (list.id !== main.id) {
             row.addExtraButton((b) => b.setIcon('trash').setTooltip(c.removeList).onClick(() => {
                 updateTasksLists(s, (lists, mainId) => ({ lists: lists.filter((l) => l.id !== list.id), mainId }));
                 save();
                 rerender();
+                if (s.tasksAutoLists) void approve();
             }));
         }
     }
@@ -65,6 +74,7 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
                 updateTasksLists(s, (lists, mainId) => ({ lists: [...lists, { id: pick, title: titleOf(pick), needsDate: false }], mainId }));
                 save();
                 rerender();
+                if (s.tasksAutoLists) void approve();
             }));
     }
     new Setting(container).addButton((b) => b.setButtonText(c.loadMyLists).onClick(async () => {
@@ -83,14 +93,24 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
         }
     }));
     // What the deployed script must approve changed: say so, and offer the new script (nothing is sent until it is deployed).
-    new Setting(container).setName(c.newScriptName).setDesc(c.newScriptDesc).addButton((b) => b.setButtonText(c.copyNewScript).onClick(async () => {
-        try {
-            await copyScriptForDeployment(plugin, main.id);
-        } catch (e) {
-            logger.warn('Sweep', 'Could not copy the script', e);
-            new Notice(formatGuidance(describeError(t, 'unknown')), 8000);
+    // Automatic lists need no paste for a list change: the plugin approves them, so the Copy script row is replaced.
+    if (s.tasksAutoLists) {
+        new Setting(container).setName(c.autoListsName).setDesc(c.autoListsDesc).addButton((b) => b.setButtonText(c.approveLists).onClick(() => { void approve(); }));
+    } else {
+        new Setting(container).setName(c.newScriptName).setDesc(c.newScriptDesc).addButton((b) => b.setButtonText(c.copyNewScript).onClick(async () => {
+            try {
+                await copyScriptForDeployment(plugin, main.id);
+            } catch (e) {
+                logger.warn('Sweep', 'Could not copy the script', e);
+                new Notice(formatGuidance(describeError(t, 'unknown')), 8000);
+            }
+        }));
+        if (s.tasksScriptUrl) {
+            new Setting(container).setName(c.switchName).setDesc(c.switchDesc)
+                .addButton((b) => b.setButtonText(c.switchCopy).onClick(() => { void copyAutomaticScript(plugin, c.switchCopied); }))
+                .addButton((b) => b.setButtonText(c.switchFinish).onClick(() => { void approve(); }));
         }
-    }));
+    }
 
     renderRules(container, plugin);
 

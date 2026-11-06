@@ -571,6 +571,10 @@ export interface AIOrganiserSettings {
     tasksListName: string;
     /** The last connection test, tied to the configuration it tested */
     tasksLastTest: CloudInventoryTestResult | null;
+    /** The deployed script keeps its approved lists in its own properties and the plugin sets them. Opt-in: false until setup or the switch finishes on a v3 script. */
+    tasksAutoLists: boolean;
+    /** The list revision this device last saw from a v3 script, so a change made elsewhere is not silently overwritten */
+    tasksListsRevision: number | null;
 
     // === NEWSLETTER DIGEST ===
     newsletterEnabled: boolean;
@@ -1157,6 +1161,8 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     tasksListId: '',
     tasksListName: '',
     tasksLastTest: null,
+    tasksAutoLists: false,
+    tasksListsRevision: null,
 
     // Newsletter Digest Defaults
     newsletterEnabled: false,

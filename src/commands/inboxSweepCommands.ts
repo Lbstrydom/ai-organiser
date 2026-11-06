@@ -31,7 +31,10 @@ import { reviewRoutingFor } from '../services/inboxSweep/reviewRouting';
 import { getProjectService } from '../services/projects/projectService';
 import { propertiesAreReadable } from '../services/inboxSweep/sweepGuard';
 import { configuredListIds, selectTasksScript } from '../services/inboxSweep/tasksScriptSelect';
-import { copyCombinedScript } from './googleScriptCommands';
+import { copyAutomaticScript, copyCombinedScript } from './googleScriptCommands';
+import { approveConfiguredLists, approveLists } from '../services/inboxSweep/tasksAutoLists';
+import { LIST_CONFIG_CAPABILITY } from '../services/googleScript/tasksModuleV3';
+import { normaliseTasksLists, type TasksListConfig } from '../services/inboxSweep/tasksRouting';
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
@@ -239,6 +242,16 @@ export function ensureTasksSecret(plugin: AIOrganiserPlugin): Promise<{ secret: 
     return secretInFlight;
 }
 
+/** A held task on automatic lists: a button, because approving a list is the person's decision and an export never makes it. */
+function offerApproveLists(plugin: AIOrganiserPlugin): void {
+    const notice = cancellableNotice(formatGuidance(describeError(plugin.t, 'tasks-list-auto-not-approved')), plugin.t.googleTasks.approveLists, () => {
+        notice.hide();
+        void approveConfiguredLists(plugin).then((res) => {
+            if (res.ok) new Notice(plugin.t.googleTasks.listsApproved, 8000); else guidanceNotice(plugin, res.error);
+        });
+    });
+}
+
 let sendingApproved = false;
 
 export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> {
@@ -251,10 +264,14 @@ export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> 
         const res = await sendApproved(plugin, ctl.signal);
         if (!res.ok) { guidanceNotice(plugin, res.error); return; }
         const s = res.value;
+        if (s.extraApproved) guidanceNotice(plugin, 'tasks-script-approves-extra', 15000);
         if (s.error) { guidanceNotice(plugin, s.error); return; }
         new Notice(t.sentNotice.replace('{exported}', String(s.exported)).replace('{pending}', String(s.pending)).replace('{blocked}', String(s.blocked.length)), 8000);
         // Items that were not sent are never silent: each distinct reason is said once, with what to do next.
-        for (const reason of new Set((s.held ?? []).map((h) => h.reason))) guidanceNotice(plugin, reason, 12000);
+        for (const reason of new Set((s.held ?? []).map((h) => h.reason))) {
+            if (reason === 'tasks-list-not-approved' && plugin.settings.tasksAutoLists) offerApproveLists(plugin);
+            else guidanceNotice(plugin, reason, 12000);
+        }
     } catch (e) {
         logger.error('Sweep', 'Send failed', e);
         guidanceNotice(plugin, 'unknown');
@@ -393,6 +410,12 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         combined: false,
         /** The person's last copy here was the combined script. A test of the deployed script outranks it. */
         copiedCombined: false,
+        /** The deployed script keeps its lists in its properties (learned from a test) */
+        automatic: s.tasksAutoLists,
+        /** The person's last copy here was the automatic script. A test of the deployed script outranks it. */
+        copiedAutomatic: false,
+        /** Other lists ticked for an automatic script, besides the main one */
+        extra: new Set(s.tasksLists.map((l) => l.id)),
         /** Why the last check said not ready: the guidance Finish shows */
         notReady: 'tasks-wizard-unchecked',
     };
@@ -412,6 +435,14 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         await copyCombinedScript(plugin, draft.listId || undefined, redeploy);
     };
     const wantsCombined = (): boolean => draft.combined || draft.copiedCombined;
+    const wantsAutomatic = (): boolean => draft.automatic || draft.copiedAutomatic;
+    /** What Finish approves on an automatic script: the main list first, at most the cap. */
+    const chosenLists = (): TasksListConfig[] => {
+        const titleOf = (id: string): string => draft.lists.find((l) => l.id === id)?.title ?? s.tasksLists.find((l) => l.id === id)?.title ?? '';
+        const dated = (id: string): boolean => s.tasksLists.find((l) => l.id === id)?.needsDate === true;
+        const ids = [draft.listId, ...[...draft.extra].filter((id) => id !== draft.listId)];
+        return normaliseTasksLists(ids.map((id) => ({ id, title: id === draft.listId ? listName() : titleOf(id), needsDate: dated(id) })));
+    };
     /** No saved link: nothing is deployed that this window could overwrite, so it can lead with the combined script. A saved link keeps the window as it was. */
     const fresh = s.tasksScriptUrl.trim() === '';
     /** One check of the deployed script: used by Test connection and Test again, so both learn whether it is the combined one. */
@@ -425,6 +456,15 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
         if (!ping.ok) { unreached(ping.error); return; }
         draft.combined = ping.value.combined === true;
         draft.copiedCombined = false;
+        draft.automatic = ping.value.capabilities?.includes(LIST_CONFIG_CAPABILITY) === true;
+        draft.copiedAutomatic = false;
+        if (draft.automatic) {
+            // Nothing to paste: Finish approves the chosen lists.
+            draft.operational = true;
+            draft.status = c.connectedAutomatic;
+            status.setText(draft.status);
+            return;
+        }
         if (!forList) { draft.status = draft.combined ? c.connectedCombined : c.connected; status.setText(draft.status); return; }
         const state = await classifyTasksScript(ping.value, draft.listId, configuredListIds({ tasksListId: draft.listId, tasksLists: s.tasksLists }));
         draft.operational = state === 'operational';
@@ -451,21 +491,24 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                     if (fresh) {
                         el.createEl('p', { text: c.freshIntro });
                         el.createEl('p', { text: c.freshAlreadyDeployed, cls: 'setting-item-description' });
-                        for (const line of [c.step1, c.step2Combined, c.step3Combined, c.step4]) el.createEl('p', { text: line });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copyCombinedScript).setCta().onClick(() => run(async () => { await copyCombined(false); draft.copiedCombined = true; })));
-                        el.createEl('p', { text: c.tasksOnlyNote, cls: 'setting-item-description' });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copyTasksOnly).onClick(() => run(async () => { if (draft.combined) { await copyCombined(); return; } await copyScript(null); draft.copiedCombined = false; })));
+                        for (const line of [c.step1, c.step2Automatic, c.step3Combined, c.step4]) el.createEl('p', { text: line });
+                        new Setting(el).addButton((b) => b.setButtonText(c.copyAutomaticScript).setCta().onClick(() => run(async () => { await copyAutomaticScript(plugin, c.automaticCopied); draft.copiedAutomatic = true; draft.copiedCombined = false; })));
+                        el.createEl('p', { text: c.automaticTradeoff, cls: 'setting-item-description' });
+                        el.createEl('p', { text: c.keepLockedNote, cls: 'setting-item-description' });
+                        new Setting(el)
+                            .addButton((b) => b.setButtonText(c.keepLockedCombined).onClick(() => run(async () => { await copyCombined(false); draft.copiedCombined = true; draft.copiedAutomatic = false; draft.automatic = false; })))
+                            .addButton((b) => b.setButtonText(c.keepLockedTasksOnly).onClick(() => run(async () => { draft.copiedAutomatic = false; draft.automatic = false; if (draft.combined) { await copyCombined(); return; } await copyScript(null); draft.copiedCombined = false; })));
                     } else {
                         el.createEl('p', { text: c.combinedHint, cls: 'setting-item-description' });
                         for (const line of [c.step1, c.step2, c.step3, c.step4]) el.createEl('p', { text: line });
-                        new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.combined ? copyCombined() : copyScript(null)))));
+                        new Setting(el).addButton((b) => b.setButtonText(c.copySetupScript).setCta().onClick(() => run(() => (draft.automatic ? copyAutomaticScript(plugin, t.googleScript.copiedRedeploy) : draft.combined ? copyCombined() : copyScript(null)))));
                     }
                     const status = el.createDiv({ cls: 'setting-item-description', attr: { role: 'status' } });
                     status.setText(draft.status);
                     new Setting(el).setName(c.scriptUrlName).setDesc(c.scriptUrlDesc).addText((tx) => {
                         tx.setValue(draft.url).onChange((v) => {
                             // What was learned belongs to the link it was learned from: a different link starts unchecked.
-                            if (v.trim() !== draft.url) { draft.operational = false; draft.combined = false; draft.notReady = 'tasks-wizard-unchecked'; draft.status = c.notTested; }
+                            if (v.trim() !== draft.url) { draft.operational = false; draft.combined = false; draft.automatic = false; draft.notReady = 'tasks-wizard-unchecked'; draft.status = c.notTested; }
                             draft.url = v.trim();
                         });
                         tx.inputEl.setAttribute('aria-label', c.scriptUrlName);
@@ -485,9 +528,15 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                         new Setting(holder).setName(c.listName).addDropdown((d) => {
                             for (const l of draft.lists) d.addOption(l.id, l.title);
                             // What the dropdown shows is what is chosen: with no valid choice yet, the first list is chosen.
-                            if (!draft.lists.some((l) => l.id === draft.listId)) { draft.listId = draft.lists[0]?.id ?? ''; draft.operational = false; }
-                            d.setValue(draft.listId).onChange((v) => { draft.listId = v; draft.operational = false; });
+                            if (!draft.lists.some((l) => l.id === draft.listId)) { draft.listId = draft.lists[0]?.id ?? ''; if (!wantsAutomatic()) draft.operational = false; }
+                            d.setValue(draft.listId).onChange((v) => { draft.listId = v; if (!wantsAutomatic()) draft.operational = false; if (wantsAutomatic()) showLists(); });
                         });
+                        // An automatic script takes every list at Finish; a locked one is limited to its text, so its other lists stay under Your lists.
+                        if (wantsAutomatic()) {
+                            for (const list of draft.lists.filter((l) => l.id !== draft.listId)) {
+                                new Setting(holder).setName(list.title).setDesc(c.alsoUseList).addToggle((tg) => tg.setValue(draft.extra.has(list.id)).onChange((on) => { if (on) draft.extra.add(list.id); else draft.extra.delete(list.id); }));
+                            }
+                        }
                     };
                     if (draft.lists.length > 0) showLists();
                     new Setting(el).addButton((b) => b.setButtonText(c.loadLists).onClick(() => run(async () => {
@@ -505,8 +554,12 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
             {
                 id: 'finish',
                 title: c.stepFinish,
-                validate: () => (draft.operational ? ok(undefined) : err(draft.notReady)),
+                validate: () => (wantsAutomatic() || draft.operational ? ok(undefined) : err(draft.notReady)),
                 render: (el) => {
+                    if (wantsAutomatic()) {
+                        el.createEl('p', { text: c.finishIntroAutomatic.replace('{lists}', chosenLists().map((l) => l.title || l.id).join(', ')) });
+                        return;
+                    }
                     el.createEl('p', { text: (wantsCombined() ? c.finishIntroCombined : c.finishIntro).replace('{list}', listName()) });
                     // The combined deployment is never overwritten by the standalone script: the primary button follows what the last test found.
                     new Setting(el).addButton((b) => b.setButtonText(wantsCombined() ? c.copyFinalCombined : c.copyFinalScript).setCta().onClick(() => run(() => (wantsCombined() ? copyCombined() : copyScript(draft.listId)))));
@@ -521,8 +574,25 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
             },
         ],
         onFinish: async (): Promise<Result<void>> => {
-            const before = { url: s.tasksScriptUrl, listId: s.tasksListId, listName: s.tasksListName, lastTest: s.tasksLastTest, done: s.featureSetupCompletedAt['google-tasks'] };
+            const before = { url: s.tasksScriptUrl, listId: s.tasksListId, listName: s.tasksListName, lastTest: s.tasksLastTest, done: s.featureSetupCompletedAt['google-tasks'], lists: s.tasksLists, auto: s.tasksAutoLists, revision: s.tasksListsRevision };
             const set = { url: draft.url, listId: draft.listId, listName: listName(), lastTest: { ok: true as const, configHash: tasksConfigKey(draft.url, draft.listId), at: new Date().toISOString() }, done: new Date().toISOString() };
+            // Finish is the person's action that approves the lists on an automatic script, and the plugin confirms with a ping before saving anything.
+            if (wantsAutomatic()) {
+                const ep = await endpoint();
+                if (!ep.ok) return err(ep.error);
+                const lists = chosenLists();
+                const approved = await approveLists({
+                    ...ep.value, main: draft.listId, ids: lists.map((l) => l.id), knownRevision: s.tasksListsRevision,
+                    onStale: async (remote) => { s.tasksListsRevision = remote; await plugin.saveSettings(); },
+                });
+                if (!approved.ok) return err(approved.error);
+                s.tasksLists = lists;
+                s.tasksAutoLists = true;
+                s.tasksListsRevision = approved.value;
+            } else {
+                s.tasksAutoLists = false;
+                s.tasksListsRevision = null;
+            }
             s.tasksScriptUrl = set.url;
             s.tasksListId = set.listId;
             s.tasksListName = set.listName;
@@ -537,6 +607,9 @@ export function openTasksSetup(plugin: AIOrganiserPlugin, onDone?: () => void): 
                 if (s.tasksListId === set.listId) s.tasksListId = before.listId;
                 if (s.tasksListName === set.listName) s.tasksListName = before.listName;
                 if (s.tasksLastTest === set.lastTest) s.tasksLastTest = before.lastTest;
+                s.tasksLists = before.lists;
+                s.tasksAutoLists = before.auto;
+                s.tasksListsRevision = before.revision;
                 if (s.featureSetupCompletedAt['google-tasks'] === set.done) {
                     if (before.done === undefined) delete s.featureSetupCompletedAt['google-tasks']; else s.featureSetupCompletedAt['google-tasks'] = before.done;
                 }

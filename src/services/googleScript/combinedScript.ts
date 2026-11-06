@@ -14,9 +14,13 @@
  * has no capabilities (see `normaliseModulePing`).
  *
  * Secrets and access: one secret for both modules. The Tasks module acts only on the approved lists; the inventory module only
- * on the approved Drive roots and their descendants (the script enforces this, Google does not).
+ * on the approved Drive roots and their descendants (the script enforces this, Google does not). With `automatic` Tasks (module
+ * v3) the approved lists live in the script's properties and the secret can change them, so a secret holder can widen the Tasks
+ * lock, within the limits in `tasksModuleV3.ts`. Drive roots always stay in the script text: widening those would expose file names
+ * anywhere in Drive.
  */
 import { TASKS_V2_CAPABILITIES, TASKS_MODULE_VERSION, tasksModuleConfig, tasksModuleFunctions, type TasksModuleConfig } from './googleScriptBuilder';
+import { TASKS_V3_CAPABILITIES, TASKS_V3_VERSION, tasksModuleV3Config, tasksModuleV3Functions } from './tasksModuleV3';
 import { INVENTORY_SCRIPT_VERSION } from '../cloudInventory/scriptTemplate';
 
 export const INVENTORY_MODULE_CAPABILITIES = ['list'] as const;
@@ -24,7 +28,7 @@ export const INVENTORY_MODULE_CAPABILITIES = ['list'] as const;
 export interface CombinedScriptConfig {
     secret: string;
     /** Absent: the script carries no Tasks module */
-    tasks?: Omit<TasksModuleConfig, 'secret'>;
+    tasks?: Omit<TasksModuleConfig, 'secret'> | { automatic: true };
     /** Absent: the script carries no inventory module */
     inventory?: { rootFolderIds: readonly string[] };
 }
@@ -117,16 +121,19 @@ export function buildCombinedScript(config: CombinedScriptConfig): string {
     if (!config.tasks && !config.inventory) throw new Error('The combined script needs at least one module.');
     // Drive folder ids are letters, digits, '-' and '_'. Anything else would reach a Drive query, so it never reaches the script.
     for (const id of config.inventory?.rootFolderIds ?? []) if (!/^[A-Za-z0-9_-]+$/.test(id)) throw new Error('A Drive folder id contains characters a Drive id never has.');
+    const automatic = config.tasks !== undefined && 'automatic' in config.tasks;
     const parts: string[] = [
         '// AI Organiser: your Google script (one deployment for several features).',
         `// Modules in this script: ${[config.tasks ? 'Google Tasks' : '', config.inventory ? 'Drive folder inventory (read-only)' : ''].filter(Boolean).join(', ')}.`,
         `// Services to turn on in the script editor (Services > Add a service): ${[config.tasks ? 'Google Tasks API' : '', config.inventory ? 'Drive API (v3)' : ''].filter(Boolean).join(' and ')}.`,
-        '// Keep this script private: the secret below lets the plugin use the approved lists and folders, and nothing else.',
+        automatic
+            ? '// Keep this script private: the secret below lets the plugin use the approved lists and folders, and choose which lists are approved (Project Settings > Script properties).'
+            : '// Keep this script private: the secret below lets the plugin use the approved lists and folders, and nothing else.',
         `var SECRET = ${JSON.stringify(config.secret)};`,
     ];
     if (config.tasks) {
         // The one secret lives in SECRET; the module's own copy is left out so it is written once.
-        const tasksCfg: Record<string, unknown> = tasksModuleConfig({ secret: config.secret, ...config.tasks });
+        const tasksCfg: Record<string, unknown> = 'automatic' in config.tasks ? tasksModuleV3Config() : tasksModuleConfig({ secret: config.secret, ...config.tasks });
         delete tasksCfg.SECRET;
         parts.push(`var TASKS_CONFIG = ${JSON.stringify(tasksCfg, null, 2)};`);
     }
@@ -144,11 +151,11 @@ export function buildCombinedScript(config: CombinedScriptConfig): string {
         '  return out_({ ok: false, error: { code: code, message: message } });',
         '}',
     );
-    if (config.tasks) parts.push(tasksModuleFunctions());
+    if (config.tasks) parts.push(automatic ? tasksModuleV3Functions() : tasksModuleFunctions());
     if (config.inventory) parts.push(INVENTORY_MODULE_FUNCTIONS);
 
     const modulesLine = [
-        config.tasks ? `tasks: { version: ${TASKS_MODULE_VERSION}, capabilities: ${JSON.stringify([...TASKS_V2_CAPABILITIES])} }` : '',
+        config.tasks ? `tasks: { version: ${automatic ? TASKS_V3_VERSION : TASKS_MODULE_VERSION}, capabilities: ${JSON.stringify(automatic ? [...TASKS_V3_CAPABILITIES] : [...TASKS_V2_CAPABILITIES])} }` : '',
         config.inventory ? `inventory: { version: ${INVENTORY_SCRIPT_VERSION}, capabilities: ${JSON.stringify([...INVENTORY_MODULE_CAPABILITIES])} }` : '',
     ].filter(Boolean).join(', ');
     const hasTasks = config.tasks !== undefined;
@@ -176,7 +183,9 @@ export function buildCombinedScript(config: CombinedScriptConfig): string {
         '    return fail_("bad-request", "The request was not valid JSON.");',
         '  }',
         '  if (!SECRET || !req || req.secret !== SECRET) return fail_("auth", "Wrong or missing secret.");',
-        '  var tasksOp = req.op === "lists" || req.op === "upsert" || req.op === "status";',
+        automatic
+            ? '  var tasksOp = req.op === "lists" || req.op === "upsert" || req.op === "status" || req.op === "setLists";'
+            : '  var tasksOp = req.op === "lists" || req.op === "upsert" || req.op === "status";',
         '  try {',
         '    if (req.op === "ping") return out_(combinedPing_(req));',
         hasTasks ? '    if (tasksOp) return tasks_handle_(req);' : '    if (tasksOp) return fail_("module-missing", "This script does not include the Google Tasks module.");',

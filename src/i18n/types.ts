@@ -4344,6 +4344,7 @@ export interface Translations {
     googleScript: {
         copiedTasks: string;
         copiedRedeploy: string;
+        noListYet: string;
         copiedBoth: string;
     },
     process: {
@@ -4407,6 +4408,8 @@ export interface Translations {
         access: string;
         accessNever: string;
         accessTasks: string;
+        accessTasksAutomatic: string;
+        approvedLists: string;
         accessInventory: string;
     };
     inboxSweep: {
@@ -4707,11 +4710,26 @@ export interface Translations {
         combinedHint: string;
         freshIntro: string;
         freshAlreadyDeployed: string;
-        step2Combined: string;
+        step2Automatic: string;
         step3Combined: string;
-        copyCombinedScript: string;
-        tasksOnlyNote: string;
-        copyTasksOnly: string;
+        copyAutomaticScript: string;
+        automaticCopied: string;
+        automaticTradeoff: string;
+        keepLockedNote: string;
+        keepLockedCombined: string;
+        keepLockedTasksOnly: string;
+        connectedAutomatic: string;
+        alsoUseList: string;
+        finishIntroAutomatic: string;
+        autoListsName: string;
+        autoListsDesc: string;
+        approveLists: string;
+        listsApproved: string;
+        switchName: string;
+        switchDesc: string;
+        switchCopy: string;
+        switchCopied: string;
+        switchFinish: string;
         step1: string;
         step2: string;
         step3: string;
