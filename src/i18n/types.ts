@@ -4497,6 +4497,8 @@ export interface Translations {
         noContext: string;
         addTaskButton: string;
         markSwept: string;
+        leaveReviewTitle: string;
+        leaveReviewBody: string;
         sweptSkipsCapture: string;
         addButton: string;
         markReviewedButton: string;

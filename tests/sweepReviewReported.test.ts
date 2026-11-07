@@ -13,10 +13,20 @@ vi.mock('obsidian', async () => {
 		constructor(public app: unknown) {}
 		open(): void { (this as unknown as { onOpen(): void }).onOpen(); }
 		close(): void { (this as unknown as { onClose(): void }).onClose(); }
+		onOpen(): void { /* a modal with nothing to set up */ }
+		onClose(): void { /* a modal with nothing to clean up */ }
 	}
-	return { ...mod, Modal: DomModal };
+	class DomButton {
+		buttonEl: HTMLButtonElement;
+		constructor(parent: HTMLElement) { this.buttonEl = parent.appendChild(document.createElement('button')); }
+		setButtonText(text: string): this { this.buttonEl.textContent = text; return this; }
+		setCta(): this { return this; }
+		onClick(fn: () => void): this { this.buttonEl.addEventListener('click', fn); return this; }
+	}
+	return { ...mod, Modal: DomModal, ButtonComponent: DomButton };
 });
 
+import { Modal } from 'obsidian';
 import { installObsidianDomShims } from './helpers/obsidianDom';
 import { InboxSweepReviewModal } from '../src/ui/modals/InboxSweepReviewModal';
 import type { NoteProposals } from '../src/services/inboxSweep/sweepService';
@@ -291,5 +301,66 @@ describe('InboxSweepReviewModal: a task the person writes', () => {
 		primary(el).click();
 		const tasks = results[0]!.tasks;
 		expect(dropAlreadyReported(tasks, {}, []).kept).toHaveLength(1);
+	});
+});
+
+describe('InboxSweepReviewModal leaving with work in it', () => {
+	const note: NoteProposals = { path: 'Inbox/c.md', contentHash: 'h', dropped: 0, truncated: false, items: [item('Call Dana', 'Call Dana')] };
+	const tick = (box: HTMLInputElement, on: boolean) => { box.checked = on; box.dispatchEvent(new Event('change', { bubbles: true })); };
+	const closing = (modal: InboxSweepReviewModal) => {
+		const spy = vi.spyOn(Modal.prototype as unknown as { open(): void }, 'open');
+		modal.close();
+		const shown = spy.mock.contexts.at(-1) as { contentEl: HTMLElement } | undefined;
+		spy.mockRestore();
+		return shown ?? null;
+	};
+	const button = (el: HTMLElement, label: string) => Array.from(el.querySelectorAll('button')).find((b) => b.textContent === label)!;
+
+	it('closes at once when nothing was done', () => {
+		const { modal, results } = open([note]);
+		expect(closing(modal)).toBeNull();
+		expect(results).toEqual([null]);
+	});
+
+	it('asks first when an item is ticked; going back keeps the review, confirming drops it', () => {
+		const { modal, el, results } = open([note]);
+		tick(checkboxes(el)[0], true);
+		const ask = closing(modal);
+		expect(ask).not.toBeNull();
+		expect(ask!.contentEl.textContent).toContain(en.inboxSweep.leaveReviewBody);
+		expect(results).toEqual([]);
+		// A second stray click while asking does not stack a second question.
+		expect(closing(modal)).toBeNull();
+		button(ask!.contentEl, en.modals.cancel).click();
+		expect(results).toEqual([]);
+		expect(checkboxes(el)[0].checked).toBe(true);
+		const again = closing(modal);
+		expect(again).not.toBeNull();
+		button(again!.contentEl, en.modals.confirm).click();
+		expect(results).toEqual([null]);
+	});
+
+	it('asks first for a task the person wrote, or a note they marked as swept', () => {
+		const a = open([note]);
+		a.el.querySelector<HTMLButtonElement>('.ai-organiser-sweep-add-task button')!.click();
+		expect(closing(a.modal)).not.toBeNull();
+		const b = open([note]);
+		tick(b.el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!, true);
+		expect(closing(b.modal)).not.toBeNull();
+	});
+
+	it('does not ask after adding', () => {
+		const { el, results } = open([note]);
+		tick(checkboxes(el)[0], true);
+		const spy = vi.spyOn(Modal.prototype as unknown as { open(): void }, 'open');
+		primary(el).click();
+		expect(spy).not.toHaveBeenCalled();
+		spy.mockRestore();
+		expect(results[0]!.tasks).toHaveLength(1);
+	});
+
+	it('keeps the add button in a footer that stays in view', () => {
+		const { el } = open([note]);
+		expect(el.querySelector('.ai-organiser-sweep-footer button.mod-cta')).not.toBeNull();
 	});
 });
