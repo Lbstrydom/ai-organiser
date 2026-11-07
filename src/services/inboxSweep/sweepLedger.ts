@@ -61,6 +61,8 @@ export interface ApprovedTask {
     remoteStatus?: RemoteStatus;
     /** Epoch ms of the last completion read that reached the task */
     checkedAt?: number;
+    /** The report line was ticked once because Google said the task is done; it is never ticked again (the person may untick it) */
+    reportTicked?: true;
 }
 
 

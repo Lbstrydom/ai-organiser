@@ -4440,6 +4440,7 @@ export interface Translations {
         dateNeededHint: string;
         refreshing: string;
         refreshedNotice: string;
+        refreshedTicked: string;
         contextsDesc: string;
         contextsReset: string;
         contextsDropped: string;

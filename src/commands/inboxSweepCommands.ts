@@ -286,6 +286,7 @@ export async function runRefreshStatus(plugin: AIOrganiserPlugin): Promise<void>
         const res = await refreshStatuses(plugin, ctl.signal);
         if (!res.ok) { guidanceNotice(plugin, res.error); return; }
         new Notice(t.refreshedNotice.replace('{checked}', String(res.value.checked)).replace('{failed}', String(res.value.failed)), 8000);
+        if (res.value.ticked > 0) new Notice(plural(t.refreshedTicked, res.value.ticked).replace('{path}', plugin.settings.sweepReportPath), 8000);
     } catch (e) {
         logger.error('Sweep', 'Status refresh failed', e);
         guidanceNotice(plugin, 'unknown');
