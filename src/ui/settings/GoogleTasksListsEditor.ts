@@ -77,7 +77,7 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
                 if (s.tasksAutoLists) void approve();
             }));
     }
-    new Setting(container).addButton((b) => b.setButtonText(c.loadMyLists).onClick(async () => {
+    new Setting(container).setName(c.loadListsName).setDesc(c.loadListsDesc).addButton((b) => b.setButtonText(c.loadMyLists).onClick(async () => {
         status.setText(c.testing);
         try {
             const url = validateScriptUrl(s.tasksScriptUrl);
@@ -94,8 +94,12 @@ export function renderTasksListsEditor(container: HTMLElement, plugin: AIOrganis
     }));
     // What the deployed script must approve changed: say so, and offer the new script (nothing is sent until it is deployed).
     // Automatic lists need no paste for a list change: the plugin approves them, so the Copy script row is replaced.
+    // Adding or removing a list already approves the new set, so approving again is a repair (lists changed on another
+    // device, or a send held a list as not approved): kept reachable, folded away so it does not read as a second step.
     if (s.tasksAutoLists) {
-        new Setting(container).setName(c.autoListsName).setDesc(c.autoListsDesc).addButton((b) => b.setButtonText(c.approveLists).onClick(() => { void approve(); }));
+        const repair = container.createEl('details', { cls: 'ai-organiser-advanced-group' });
+        repair.createEl('summary', { text: c.repairListsTitle });
+        new Setting(repair).setName(c.autoListsName).setDesc(c.autoListsDesc).addButton((b) => b.setButtonText(c.approveLists).onClick(() => { void approve(); }));
     } else {
         new Setting(container).setName(c.newScriptName).setDesc(c.newScriptDesc).addButton((b) => b.setButtonText(c.copyNewScript).onClick(async () => {
             try {

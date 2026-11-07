@@ -160,8 +160,9 @@ export class InboxSweepReviewModal extends Modal {
         field.createSpan({ text: t.thenLabel, cls: 'setting-item-description' });
         const select = field.createEl('select');
         select.createEl('option', { text: t.filingLeave, value: '' });
-        for (const folder of this.folders) select.createEl('option', { text: t.filingMoveTo.replace('{folder}', folder), value: 'move:' + folder });
+        // The trash sits next to Leave, before the folders, so it is not lost at the end of a long folder list.
         select.createEl('option', { text: t.filingTrash, value: 'trash' });
+        for (const folder of this.folders) select.createEl('option', { text: t.filingMoveTo.replace('{folder}', folder), value: 'move:' + folder });
         const hint = box.createDiv({ text: t.filingTrashHint, cls: 'setting-item-description ai-organiser-hidden' });
         this.cleanups.push(listen(select, 'change', () => {
             const v = select.value;

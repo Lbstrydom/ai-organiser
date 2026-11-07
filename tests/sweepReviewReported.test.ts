@@ -458,9 +458,9 @@ describe('InboxSweepReviewModal: Then (file the note)', () => {
 	const then = (el: HTMLElement) => el.querySelector<HTMLSelectElement>('.ai-organiser-sweep-filing select');
 	const choose = (el: HTMLElement, value: string) => { const s = then(el)!; s.value = value; s.dispatchEvent(new Event('change', { bubbles: true })); };
 
-	it('offers leave, the PARA folders and the trash, leave first', async () => {
+	it('offers leave, then the trash, then the PARA folders', async () => {
 		const { el } = openWith(await withFolders());
-		expect(Array.from(then(el)!.options).map((o) => o.value)).toEqual(['', 'move:2 Areas', 'move:2 Areas/Health', 'trash']);
+		expect(Array.from(then(el)!.options).map((o) => o.value)).toEqual(['', 'trash', 'move:2 Areas', 'move:2 Areas/Health']);
 	});
 
 	it('left alone, the disposition is exactly what it always was', async () => {
