@@ -8,6 +8,8 @@ Reads the notes in the folders you choose and proposes next actions, waiting-for
 
 `Set up inbox sweep` (three steps: inbox folders and the report note; **what to keep out**, which is required; a preview that counts notes without contacting any AI provider). Then `Sweep inbox`: a confirmation with the number of notes and characters (plus a once-per-session notice when the provider is a cloud service), a review window where every item starts unchecked, and **Add N to sweep report**. `Set up Google Tasks` is three steps too: connect a setup script, pick a list, then lock the script to that list.
 
+The **Google Tasks export** settings section holds settings, not actions: the status row, the description, a waiting count and *Your lists*. **Set up Google Tasks** shows only while setup is not Ready; once Ready, the status row's **Review setup** is the one way back in. There is no send button there: tasks send automatically after Add in a review, and again from the picker (Refine → *Send approved tasks to Google Tasks*, `send-tasks-to-google`). Every failed or held send notice ends with that route (`withSendAgain`, `inboxSweep.sendAgainHint`). Under *Your lists*, **Load my lists** is a named row (it fetches the Google lists to choose from), and on automatic lists **Approve these lists** sits in a collapsed *Repair approved lists* group: adding or removing a list already approves them, so approving again is only for lists changed on another device or a held send. Pinned by `tests/googleTasksSettingsSection.test.ts` and `tests/googleTasksListsEditor.test.ts`.
+
 ## Pipeline
 
 | Stage | File | Notes |

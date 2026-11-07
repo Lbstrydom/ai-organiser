@@ -105,6 +105,12 @@ export function sweepBlocker(plugin: AIOrganiserPlugin): string | null {
 
 const guidanceNotice = (plugin: AIOrganiserPlugin, code: string, ms = 9000): void => { new Notice(formatGuidance(describeError(plugin.t, code)), ms); };
 
+/** A send that failed or held items says where to send again: settings has no send button, the picker does. */
+export function withSendAgain(t: AIOrganiserPlugin['t'], text: string): string {
+    return `${text} ${t.inboxSweep.sendAgainHint}`;
+}
+const sendGuidanceNotice = (plugin: AIOrganiserPlugin, code: string, ms = 9000): void => { new Notice(withSendAgain(plugin.t, formatGuidance(describeError(plugin.t, code))), ms); };
+
 let privacyNoticeShown = false;
 
 function confirm(plugin: AIOrganiserPlugin, title: string, body: string): Promise<boolean> {
@@ -236,7 +242,7 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<{ 
 
 /** A held task on automatic lists: a button, because approving a list is the person's decision and an export never makes it. */
 function offerApproveLists(plugin: AIOrganiserPlugin): void {
-    const notice = cancellableNotice(formatGuidance(describeError(plugin.t, 'tasks-list-auto-not-approved')), plugin.t.googleTasks.approveLists, () => {
+    const notice = cancellableNotice(withSendAgain(plugin.t, formatGuidance(describeError(plugin.t, 'tasks-list-auto-not-approved'))), plugin.t.googleTasks.approveLists, () => {
         notice.hide();
         void approveConfiguredLists(plugin).then((res) => {
             if (res.ok) new Notice(plugin.t.googleTasks.listsApproved, 8000); else guidanceNotice(plugin, res.error);
@@ -254,21 +260,21 @@ export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> 
     const working = cancellableNotice(t.sending, plugin.t.modals.cancel, () => ctl.abort());
     try {
         const res = await sendApproved(plugin, ctl.signal);
-        if (!res.ok) { guidanceNotice(plugin, res.error); return; }
+        if (!res.ok) { sendGuidanceNotice(plugin, res.error); return; }
         const s = res.value;
         if (s.extraApproved) guidanceNotice(plugin, 'tasks-script-approves-extra', 15000);
-        if (s.error) { guidanceNotice(plugin, s.error); return; }
+        if (s.error) { sendGuidanceNotice(plugin, s.error); return; }
         // Notes whose tasks are now safe are filed as the person chose in the review.
         void runPendingFiling(plugin);
         new Notice(t.sentNotice.replace('{exported}', String(s.exported)).replace('{pending}', String(s.pending)).replace('{blocked}', String(s.blocked.length)), 8000);
         // Items that were not sent are never silent: each distinct reason is said once, with what to do next.
         for (const reason of new Set((s.held ?? []).map((h) => h.reason))) {
             if (reason === 'tasks-list-not-approved' && plugin.settings.tasksAutoLists) offerApproveLists(plugin);
-            else guidanceNotice(plugin, reason, 12000);
+            else sendGuidanceNotice(plugin, reason, 12000);
         }
     } catch (e) {
         logger.error('Sweep', 'Send failed', e);
-        guidanceNotice(plugin, 'unknown');
+        sendGuidanceNotice(plugin, 'unknown');
     } finally {
         working.hide();
         sendingApproved = false;
