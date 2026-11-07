@@ -190,6 +190,16 @@ describe('the review: routing only when there is something to choose', () => {
     expect(checkRow(defaultRowRouting({ kind: 'next_action', context: '', text: 'x' }, routing), routing)).toEqual({ ok: true });
   });
 
+  it('moving to a list that needs a date takes the one date in the text, and never replaces a date already picked', () => {
+    const plain = { destination: { type: 'list' as const, listId: 'main' }, due: '', dueFromText: false };
+    const dest = { type: 'list' as const, listId: 'dated' };
+    expect(changeDestination(plain, dest, routing, { text: 'Call Priya by 2026-11-12' })).toEqual({ destination: dest, due: '2026-11-12', dueFromText: true });
+    expect(changeDestination(plain, dest, routing, { text: 'Call Priya soon' })).toEqual({ destination: dest, due: '', dueFromText: false });
+    expect(changeDestination(plain, dest, routing, { text: 'Between 2026-11-12 and 2026-11-20' }).due).toBe('');
+    expect(changeDestination({ ...plain, due: '2026-12-01' }, dest, routing, { text: 'Call Priya by 2026-11-12' }).due).toBe('2026-12-01');
+    expect(changeDestination(plain, { type: 'list', listId: 'main' }, routing, { text: 'Call Priya by 2026-11-12' }).due).toBe('');
+  });
+
   it('changing the destination drops a date the new list does not need', () => {
     const dated = { destination: { type: 'list' as const, listId: 'dated' }, due: '2026-11-12', dueFromText: false };
     expect(changeDestination(dated, { type: 'list', listId: 'main' }, routing)).toEqual({ destination: { type: 'list', listId: 'main' }, due: '', dueFromText: false });

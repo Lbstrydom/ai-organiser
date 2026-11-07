@@ -44,9 +44,11 @@ export function needsDate(destination: Destination, routing: ReviewRouting): boo
     return destination.type === 'list' && (listById({ tasksListId: routing.mainId, tasksLists: routing.lists }, destination.listId)?.needsDate ?? false);
 }
 
-/** Changing the destination drops a date the new list does not need. */
-export function changeDestination(row: RowRouting, destination: Destination, routing: ReviewRouting): RowRouting {
-    return needsDate(destination, routing) ? { ...row, destination } : { destination, due: '', dueFromText: false };
+/** Changing the destination drops a date the new list does not need; a list that needs one, with none picked yet, takes the one date in the item's text. */
+export function changeDestination(row: RowRouting, destination: Destination, routing: ReviewRouting, source?: { text: string }): RowRouting {
+    if (!needsDate(destination, routing)) return { destination, due: '', dueFromText: false };
+    const fromText = row.due === '' && source ? isoDateInText(source.text) : null;
+    return fromText ? { destination, due: fromText, dueFromText: true } : { ...row, destination };
 }
 
 export type RowCheck = { ok: true } | { ok: false; reason: 'date-needed'; listTitle: string };

@@ -4824,6 +4824,8 @@ export const en: Translations = {
         noContext: "No context",
         addTaskButton: "Add a task",
         markSwept: "Mark this note as swept",
+        leaveReviewTitle: "Close this review?",
+        leaveReviewBody: "What you ticked or typed here will not be saved. Confirm closes the review, and cancel takes you back to it.",
         sweptSkipsCapture: "The capture inbox will not pick up a swept note either, until the note changes. Leave this unticked if you still want to file it from there.",
         addButton: "Add {count} to sweep report",
         markReviewedButton: "Mark reviewed",

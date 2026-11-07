@@ -17,6 +17,7 @@ import { newTaskId } from '../../services/inboxSweep/sweepCommit';
 import { itemKeys } from '../../services/inboxSweep/sweepItemIdentity';
 import { approvalFields, changeDestination, checkRow, defaultRowRouting, needsDate, type ReviewRouting, type RowRouting } from '../../services/inboxSweep/reviewRouting';
 import { isFeatureEnabled } from '../../services/featureService';
+import { ConfirmationModal } from './ConfirmationModal';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
 
@@ -52,6 +53,9 @@ export class InboxSweepReviewModal extends Modal {
     private sweptChoice = new Map<string, boolean>();
     private settled = false;
     private footer!: HTMLElement;
+    /** The person agreed to drop what they did in this review */
+    private leaveConfirmed = false;
+    private askingToLeave = false;
 
     constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void, private readonly contexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS, private readonly routing: ReviewRouting | null = null, private readonly projectOf: (path: string) => string | null = () => null) {
         super(app);
@@ -77,7 +81,7 @@ export class InboxSweepReviewModal extends Modal {
         this.contentEl.createEl('p', { text: t.reviewIntro, cls: 'setting-item-description' });
         if (this.notes.length === 0) this.contentEl.createEl('p', { text: t.reviewEmpty });
         for (const note of this.notes) this.renderNote(note);
-        this.footer = this.contentEl.createDiv({ cls: 'ai-organiser-modal-buttons' });
+        this.footer = this.contentEl.createDiv({ cls: 'ai-organiser-modal-buttons ai-organiser-sweep-footer' });
         this.renderFooter();
     }
 
@@ -197,7 +201,7 @@ export class InboxSweepReviewModal extends Modal {
         };
         this.cleanups.push(listen(dest, 'change', () => {
             const value = dest.value;
-            row.route = changeDestination(row.route!, value === 'report-only' ? { type: 'report-only' } : { type: 'list', listId: value.slice(5) }, routing);
+            row.route = changeDestination(row.route!, value === 'report-only' ? { type: 'report-only' } : { type: 'list', listId: value.slice(5) }, routing, { text: row.text });
             date.value = row.route.due;
             sync();
         }));
@@ -248,6 +252,24 @@ export class InboxSweepReviewModal extends Modal {
         this.settled = true;
         this.onDone({ tasks, dispositions });
         this.close();
+    }
+
+    /** Something here would be lost by closing: a ticked item, a task the person wrote, or a note they chose to mark as swept. */
+    private hasWork(): boolean {
+        if (this.settled) return false;
+        return this.rows.some((r) => r.manual || (r.checked && !r.reported)) || [...this.sweptChoice.values()].some(Boolean);
+    }
+
+    /** Every way out comes through here (the X, Esc, a click beside the window, Cancel), so a stray click cannot lose a review. */
+    close(): void {
+        if (this.leaveConfirmed || !this.hasWork()) { super.close(); return; }
+        if (this.askingToLeave) return;
+        this.askingToLeave = true;
+        const t = this.t;
+        const ask = new ConfirmationModal(this.app, t.leaveReviewTitle, t.leaveReviewBody, () => { this.leaveConfirmed = true; this.close(); }, this.plugin);
+        const closeAsk = ask.onClose.bind(ask);
+        ask.onClose = () => { closeAsk(); this.askingToLeave = false; };
+        ask.open();
     }
 
     onClose(): void {

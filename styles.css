@@ -9997,6 +9997,18 @@
     margin-top: 8px;
 }
 
+/* The review can run to many screens: the button that adds the items stays in view while scrolling. */
+.ai-organiser-sweep-footer {
+    position: sticky;
+    /* Sticky stops at the window's padding, so reach past it or the rows show underneath. */
+    bottom: calc(-1 * var(--size-4-4));
+    z-index: 1;
+    margin-top: var(--size-4-3);
+    padding: var(--size-4-2) 0 var(--size-4-4);
+    background: var(--modal-background, var(--background-primary));
+    border-top: var(--border-width) solid var(--background-modifier-border);
+}
+
 .ai-organiser-sweep-swept-hint {
     margin-top: 4px;
 }
