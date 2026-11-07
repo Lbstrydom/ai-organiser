@@ -75,6 +75,14 @@ export const STATUS_VALUES = ['processed', 'pending', 'error'] as const;
 export type StatusValue = typeof STATUS_VALUES[number];
 
 /**
+ * True for the plugin's own processing mark (`processed` / `pending` / `error`, exact and lowercase, trimmed). It says the
+ * AI handled the note; any other `status` value (a project's `active`, a user's `draft`) is the user's, not the plugin's.
+ */
+export function isAiProcessingMark(value: unknown): value is StatusValue {
+    return typeof value === 'string' && (STATUS_VALUES as readonly string[]).includes(value.trim());
+}
+
+/**
  * Valid source types
  */
 export const SOURCE_TYPES = ['url', 'pdf', 'youtube', 'audio', 'note', 'kindle', 'email'] as const;
