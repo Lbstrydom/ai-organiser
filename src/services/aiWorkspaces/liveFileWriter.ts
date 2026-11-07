@@ -48,6 +48,8 @@ export interface LiveTarget {
 }
 
 const HEAD_BYTES = 2048;
+/** The intent's file identity before an exclusive create has made the file */
+const NEW_FILE = 'new';
 
 /** "<project> - live pack.md" from a project name, or `live-name-invalid`. */
 export function liveFileName(projectName: string): Result<string> {
@@ -151,7 +153,9 @@ async function openExisting(deps: LiveDeps, root: string, dest: string): Promise
 function owned(head: string, target: LiveTarget, intent: LiveIntent | null, fid: string): boolean {
     if (hasLiveMarker(head, target.aioId)) return true;
     if (hasAnyLiveMarker(head)) return false;
-    return intent !== null && intent.aioId === target.aioId.toLowerCase() && intent.fid === fid;
+    if (intent === null || intent.aioId !== target.aioId.toLowerCase()) return false;
+    // 'new' = recorded just before an exclusive create: only the still-empty file that create made can match it.
+    return intent.fid === fid || (intent.fid === NEW_FILE && head === '');
 }
 
 export interface WriteOutcome {
@@ -172,6 +176,8 @@ export async function writeLiveFile(
     text: string,
     vaultBase: string | null,
     beforeDestroy: () => Promise<boolean> | boolean = () => true,
+    /** Checked synchronously at the very last moment before the truncate or create (no await between it and the write) */
+    stillAuthorized: () => boolean = () => true,
 ): Promise<Result<WriteOutcome>> {
     const bytes = new TextEncoder().encode(text);
     if (bytes.length > LIVE_FILE_MAX_BYTES) return err('pack-over-budget');
@@ -196,6 +202,7 @@ export async function writeLiveFile(
             // The content may have changed in place while the check ran: ownership is read again, through the same handle.
             const headNow = decoder.decode((await boundedRead(handle, HEAD_BYTES)).bytes);
             if (!owned(headNow, target, intents.get(dest), fid)) return err('live-file-not-ours');
+            if (!stillAuthorized()) return err('live-needs-review');
             intents.set(dest, intent(fid));
             await handle.truncate(0);
         } else {
@@ -203,6 +210,9 @@ export async function writeLiveFile(
             const again = await destinationOf(deps, target, vaultBase);
             if (!again.ok) return err(again.error);
             if (again.value.dest !== dest) return err('live-file-not-ours');
+            if (!stillAuthorized()) return err('live-needs-review');
+            // The intent comes first, so a crash right after the create still leaves the empty file recognisably ours.
+            intents.set(dest, intent(NEW_FILE));
             // Exclusive read/write: fails if a file appeared meanwhile.
             handle = await deps.fs.promises.open(dest, 'wx+');
             fid = identityOf(await handle.stat({ bigint: true }));
@@ -264,7 +274,7 @@ export function localStorageJournal(load: (key: string) => unknown, save: (key: 
         const out: Record<string, LiveIntent> = {};
         for (const [dest, v] of Object.entries(raw as Record<string, unknown>)) {
             const i = v as Partial<LiveIntent> | null;
-            if (i && typeof i.aioId === 'string' && typeof i.fid === 'string' && /^[0-9]{1,40}:[0-9]{1,40}$/.test(i.fid) && typeof i.generation === 'number' && typeof i.startedAt === 'string') out[dest] = { aioId: i.aioId, fid: i.fid, generation: i.generation, startedAt: i.startedAt };
+            if (i && typeof i.aioId === 'string' && typeof i.fid === 'string' && (i.fid === NEW_FILE || /^[0-9]{1,40}:[0-9]{1,40}$/.test(i.fid)) && typeof i.generation === 'number' && typeof i.startedAt === 'string') out[dest] = { aioId: i.aioId, fid: i.fid, generation: i.generation, startedAt: i.startedAt };
         }
         return out;
     };

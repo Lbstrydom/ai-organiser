@@ -106,6 +106,33 @@ describe('writing the live file', () => {
         expect(await writeLiveFile(deps, memoryJournal(), target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
     });
 
+    it('a file claiming two owners belongs to neither', async () => {
+        const dest = path.join(drive, fileName);
+        fs.writeFileSync(dest, `---\naio-live-pack: ${ID}\naio-live-pack: ${OTHER}\n---\nx\n`);
+        expect(await writeLiveFile(deps, memoryJournal(), target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+    });
+
+    it('an intent recorded before a create vouches only for the empty file it made', async () => {
+        const dest = path.join(drive, fileName);
+        const j = memoryJournal();
+        j.set(dest, { aioId: ID, fid: 'new', generation: 1, startedAt: 'x' });
+        fs.writeFileSync(dest, '');
+        expect((await writeLiveFile(deps, j, target(), pack('one'), vault)).ok).toBe(true);
+        j.set(dest, { aioId: ID, fid: 'new', generation: 1, startedAt: 'x' });
+        fs.writeFileSync(dest, 'the person typed here');
+        expect(await writeLiveFile(deps, j, target(), pack('two'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+    });
+
+    it('the last synchronous check stops the write after every await', async () => {
+        const j = memoryJournal();
+        await writeLiveFile(deps, j, target(), pack('one'), vault);
+        expect(await writeLiveFile(deps, j, target(), pack('two'), vault, () => true, () => false)).toEqual({ ok: false, error: 'live-needs-review' });
+        expect(fs.readFileSync(path.join(drive, fileName), 'utf8')).toBe(pack('one'));
+        fs.unlinkSync(path.join(drive, fileName));
+        expect(await writeLiveFile(deps, j, target(), pack('two'), vault, () => true, () => false)).toEqual({ ok: false, error: 'live-needs-review' });
+        expect(fs.existsSync(path.join(drive, fileName))).toBe(false);
+    });
+
     it('refuses a hard link (a second name of another file)', async () => {
         const protectedFile = path.join(vault, 'Protected.md');
         fs.writeFileSync(protectedFile, pack('protected words'));

@@ -105,7 +105,9 @@ export function buildLiveStub(fileName: string, aioId: string, since: string): s
 
 /** True when the first bytes of a file carry this project's marker inside the leading frontmatter. */
 export function hasLiveMarker(head: string, aioId: string): boolean {
-    return frontmatterLines(head)?.some((l) => l === markerLine(aioId)) ?? false;
+    // Exactly one marker, and it is this project's: a file claiming two owners belongs to neither.
+    const markers = (frontmatterLines(head) ?? []).filter((l) => l.startsWith(`${LIVE_MARKER_KEY}:`));
+    return markers.length === 1 && markers[0] === markerLine(aioId);
 }
 
 /** True when the frontmatter has a top-level live marker of any project. */

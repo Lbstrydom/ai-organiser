@@ -1725,7 +1725,10 @@ export default class AIOrganiserPlugin extends Plugin {
             });
             runtime.externalChange();
         } catch (e) {
+            // A synced change that cannot be read may be a turn-off: every live pack here is re-checked anyway.
             logger.warn('AiWorkspaces', 'Could not read the synced live pack settings', e);
+            runtime.service.bumpEpoch();
+            runtime.afterSave();
         }
     }
 

@@ -394,7 +394,7 @@ export class LivePackService {
             }
             return this.epoch === startEpoch && !this.closed;
         };
-        const written = await writeLiveFile(deps, this.env.journal, target, pack.text, this.env.vaultBase(), authorized);
+        const written = await writeLiveFile(deps, this.env.journal, target, pack.text, this.env.vaultBase(), authorized, () => this.epoch === startEpoch && !this.closed);
         if (!written.ok) {
             if (written.error === 'live-needs-review') {
                 // Something changed between the build and the write: nothing was written. The watcher waits its quiet time
