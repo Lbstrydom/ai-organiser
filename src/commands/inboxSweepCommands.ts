@@ -40,7 +40,7 @@ import { normaliseTasksLists, type TasksListConfig } from '../services/inboxSwee
 import { classifyTasksScript, fetchTaskLists, pingTasksScript, type TaskList } from '../services/inboxSweep/tasksExportService';
 import { GuidedSetupModal } from '../ui/modals/GuidedSetupModal';
 import { ConfirmationModal } from '../ui/modals/ConfirmationModal';
-import { InboxSweepReviewModal } from '../ui/modals/InboxSweepReviewModal';
+import { InboxSweepReviewModal, type QuickTask } from '../ui/modals/InboxSweepReviewModal';
 import { draftFromSettings, exclusionCount, lines, propertyLines, previewScope, renderInboxFolders, renderKeepOut, validateKeepOut } from '../ui/setup/inboxScopeSteps';
 import { refreshProcessViews } from '../ui/views/processRefresh';
 import { plural } from '../utils/plural';
@@ -188,7 +188,7 @@ export async function runInboxSweep(plugin: AIOrganiserPlugin): Promise<void> {
 }
 
 /** The sweep review for proposals from any source (a sweep run, or an AI hand-back's next actions). */
-export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[], projectId?: string): Promise<CommitInput | null> {
+export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contexts: readonly string[], projectId?: string, quick?: QuickTask): Promise<CommitInput | null> {
     // Destination controls only while Google Tasks export is on and the setup has something to choose; the project only when the service resolves one.
     const routing = isFeatureEnabled(plugin.settings, 'google-tasks-export') ? reviewRoutingFor(plugin.settings) : null;
     const service = getProjectService(plugin);
@@ -209,7 +209,7 @@ export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contex
                     if (outcome.send) void runSendApproved(plugin);
                 })
                 .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); resolve(null); });
-        }, contexts, routing, projectOf).open();
+        }, contexts, routing, projectOf, quick ?? null).open();
     });
 }
 

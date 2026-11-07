@@ -1383,6 +1383,7 @@ export interface Translations {
         reviewCaptures: string;
         setupCaptureInbox: string;
         sendTasksToGoogle: string;
+        makeGoogleTask: string;
         setupGoogleTasks: string;
         insertOneDriveLink: string;
         refreshOneDriveEmbed: string;
@@ -3047,6 +3048,7 @@ export interface Translations {
                 reviewCaptures: string;
                 setupCaptureInbox: string;
                 sendTasksToGoogle: string;
+                makeGoogleTask: string;
                 setupGoogleTasks: string;
                 adoptProject: string;
                 openProject: string;
@@ -4502,6 +4504,9 @@ export interface Translations {
         sweptSkipsCapture: string;
         addButton: string;
         markReviewedButton: string;
+        quickTitle: string;
+        quickIntro: string;
+        quickSendButton: string;
         kindLabels: Record<'next_action' | 'waiting_for' | 'project' | 'someday_maybe', string>;
     };
     captureInbox: {

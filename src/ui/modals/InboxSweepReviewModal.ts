@@ -6,6 +6,9 @@
  * is enabled only if at least one note is marked swept). Nothing is written before that click.
  * "Add a task" on any note adds a row the person wrote themselves: it has no quoted line, starts ticked
  * because adding it is the choice, and goes through the same approval and export as any other row.
+ *
+ * Quick mode ("Make a Google task" from a note's menu) is the same window with one row the person wrote already in it: no
+ * model read the note, so there are no proposals. A note outside the inbox folders offers no swept box and is never marked swept.
  */
 import { App, Modal } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
@@ -42,6 +45,14 @@ interface Row {
     wanted?: boolean;
 }
 
+/** One task the person is writing from a note's menu, with no model involved. */
+export interface QuickTask {
+    /** The starting wording: the selected text, or the note's title */
+    text: string;
+    /** The note is in an inbox folder, so it may be marked as swept */
+    allowSwept: boolean;
+}
+
 const PREFIX: Record<SweepItemKind, string> = { next_action: '', waiting_for: 'Waiting: ', project: 'Project: ', someday_maybe: 'Someday: ' };
 
 export class InboxSweepReviewModal extends Modal {
@@ -57,16 +68,21 @@ export class InboxSweepReviewModal extends Modal {
     private leaveConfirmed = false;
     private askingToLeave = false;
 
-    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void, private readonly contexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS, private readonly routing: ReviewRouting | null = null, private readonly projectOf: (path: string) => string | null = () => null) {
+    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly notes: NoteProposals[], private readonly onDone: (result: CommitInput | null) => void, private readonly contexts: readonly string[] = DEFAULT_SWEEP_CONTEXTS, private readonly routing: ReviewRouting | null = null, private readonly projectOf: (path: string) => string | null = () => null, private readonly quick: QuickTask | null = null) {
         super(app);
         this.containerEl.addClass('ai-organiser-modal-container');
         this.contentEl.addClass('ai-organiser-modal-content');
         this.rows = notes.flatMap((note) => note.items.map((item, i) => ({ note, item, checked: false, reported: note.reported?.[i] === true, similar: note.similar?.[i] === true, text: item.text, context: item.context, ...(this.routing ? { route: defaultRowRouting(item, this.routing) } : {}) })));
+        if (quick && notes[0]) this.rows.push(this.newManualRow(notes[0], quick.text));
     }
+
+    /** The note may be marked as swept: always in a sweep, and in quick mode only for a note in an inbox folder. */
+    private get offersSwept(): boolean { return !this.quick || this.quick.allowSwept; }
 
     private get t() { return this.plugin.t.inboxSweep; }
 
     private isSwept(note: NoteProposals): boolean {
+        if (!this.offersSwept) return false;
         const chosen = this.sweptChoice.get(note.path);
         if (chosen !== undefined) return chosen;
         const rows = this.rows.filter((r) => r.note === note);
@@ -77,8 +93,8 @@ export class InboxSweepReviewModal extends Modal {
 
     onOpen(): void {
         const t = this.t;
-        this.contentEl.createEl('h3', { text: t.reviewTitle, cls: 'ai-organiser-modal-title' });
-        this.contentEl.createEl('p', { text: t.reviewIntro, cls: 'setting-item-description' });
+        this.contentEl.createEl('h3', { text: this.quick ? t.quickTitle : t.reviewTitle, cls: 'ai-organiser-modal-title' });
+        this.contentEl.createEl('p', { text: this.quick ? t.quickIntro : t.reviewIntro, cls: 'setting-item-description' });
         if (this.notes.length === 0) this.contentEl.createEl('p', { text: t.reviewEmpty });
         for (const note of this.notes) this.renderNote(note);
         this.footer = this.contentEl.createDiv({ cls: 'ai-organiser-modal-buttons ai-organiser-sweep-footer' });
@@ -91,7 +107,7 @@ export class InboxSweepReviewModal extends Modal {
         box.createEl('h4', { text: note.path });
         if (note.truncated) box.createEl('p', { text: t.truncatedNote, cls: 'setting-item-description' });
         if (note.dropped > 0) box.createEl('p', { text: plural(t.droppedNote, note.dropped), cls: 'setting-item-description' });
-        const none = note.items.length === 0 ? box.createEl('p', { text: t.noProposals, cls: 'setting-item-description' }) : null;
+        const none = note.items.length === 0 && !this.quick ? box.createEl('p', { text: t.noProposals, cls: 'setting-item-description' }) : null;
         const noteRows = this.rows.filter((r) => r.note === note);
         if (noteRows.length > 0 && noteRows.every((r) => r.reported)) box.createEl('p', { text: t.allAlreadyAdded, cls: 'setting-item-description' });
 
@@ -111,6 +127,7 @@ export class InboxSweepReviewModal extends Modal {
             this.renderFooter();
         }));
 
+        if (!this.offersSwept) return;
         const swept = box.createDiv({ cls: 'ai-organiser-sweep-swept' });
         const sweptBox = swept.createEl('input', { type: 'checkbox', attr: { id: `sw-${note.path}` } });
         sweptBox.checked = this.isSwept(note);
@@ -128,8 +145,8 @@ export class InboxSweepReviewModal extends Modal {
         }));
     }
 
-    private newManualRow(note: NoteProposals): Row {
-        const title = noteTitle(note.path);
+    private newManualRow(note: NoteProposals, text?: string): Row {
+        const title = text?.trim() || noteTitle(note.path);
         const item: SweepItem = { kind: 'next_action', text: title, context: '', evidence: '' };
         return { note, item, checked: true, reported: false, similar: false, text: title, context: '', manual: true, wanted: true, ...(this.routing ? { route: defaultRowRouting(item, this.routing) } : {}) };
     }
@@ -220,7 +237,8 @@ export class InboxSweepReviewModal extends Modal {
         this.footer.empty();
         const n = this.selected().length;
         const anySwept = this.notes.some((note) => this.isSwept(note));
-        const primary = this.footer.createEl('button', { cls: 'mod-cta', text: n > 0 ? t.addButton.replace('{count}', String(n)) : t.markReviewedButton });
+        const label = this.quick ? plural(t.quickSendButton, n) : n > 0 ? t.addButton.replace('{count}', String(n)) : t.markReviewedButton;
+        const primary = this.footer.createEl('button', { cls: 'mod-cta', text: label });
         primary.disabled = n === 0 && !anySwept;
         this.footerCleanups.push(listen(primary, 'click', () => this.finish()));
         const cancel = this.footer.createEl('button', { text: this.plugin.t.modals.cancel });
@@ -257,6 +275,8 @@ export class InboxSweepReviewModal extends Modal {
     /** Something here would be lost by closing: a ticked item, a task the person wrote, or a note they chose to mark as swept. */
     private hasWork(): boolean {
         if (this.settled) return false;
+        // Quick mode opens with its one row already written: only a change by the person is something to lose.
+        if (this.quick) return this.rows.length > 1 || this.rows[0]?.text.trim() !== this.rows[0]?.item.text || [...this.sweptChoice.values()].some(Boolean);
         return this.rows.some((r) => r.manual || (r.checked && !r.reported)) || [...this.sweptChoice.values()].some(Boolean);
     }
 

@@ -364,3 +364,77 @@ describe('InboxSweepReviewModal leaving with work in it', () => {
 		expect(el.querySelector('.ai-organiser-sweep-footer button.mod-cta')).not.toBeNull();
 	});
 });
+
+describe('InboxSweepReviewModal quick mode (Make a Google task)', () => {
+	const note: NoteProposals = { path: 'Projects/Q4 plan.md', contentHash: 'hq', dropped: 0, truncated: false, items: [] };
+	const routing = {
+		mainId: 'main',
+		lists: [{ id: 'main', title: 'Inbox', needsDate: false }, { id: 'dated', title: 'Waiting', needsDate: true }],
+		rules: [],
+	};
+	const openQuick = (text: string, allowSwept: boolean, withRouting = false) => {
+		const results: Array<CommitInput | null> = [];
+		const modal = new InboxSweepReviewModal({} as never, plugin, [note], (r) => results.push(r), undefined, withRouting ? routing : null, undefined, { text, allowSwept });
+		modal.open();
+		return { modal, el: (modal as unknown as { contentEl: HTMLElement }).contentEl, results };
+	};
+	const closing = (modal: InboxSweepReviewModal) => {
+		const spy = vi.spyOn(Modal.prototype as unknown as { open(): void }, 'open');
+		modal.close();
+		const shown = spy.mock.contexts.at(-1);
+		spy.mockRestore();
+		return shown ?? null;
+	};
+
+	it('opens with one ticked row, the quick title and the send label; no nothing-found line', () => {
+		const { el } = openQuick('Book the venue', false);
+		expect(el.querySelector('h3')!.textContent).toBe(en.inboxSweep.quickTitle);
+		const texts = Array.from(el.querySelectorAll<HTMLInputElement>('.ai-organiser-sweep-item input[type="text"]'));
+		expect(texts.map((t) => t.value)).toEqual(['Book the venue']);
+		expect(checkboxes(el)[0].checked).toBe(true);
+		expect(primary(el).textContent).toBe('Send 1 task to Google Tasks');
+		expect(el.textContent).not.toContain(en.inboxSweep.noProposals);
+	});
+
+	it('uses the note title when no text was selected', () => {
+		const { el } = openQuick('', false);
+		expect(el.querySelector<HTMLInputElement>('.ai-organiser-sweep-item input[type="text"]')!.value).toBe('Q4 plan');
+	});
+
+	it('outside the inbox: no swept box, and the note is never marked swept', () => {
+		const { el, results } = openQuick('Book the venue', false);
+		expect(el.querySelector('.ai-organiser-sweep-swept')).toBeNull();
+		primary(el).click();
+		expect(results[0]!.tasks).toHaveLength(1);
+		expect(results[0]!.dispositions).toEqual([{ sourcePath: note.path, sourceHash: 'hq', markSwept: false }]);
+	});
+
+	it('in the inbox: the swept box is offered and follows the tick as in a sweep', () => {
+		const { el, results } = openQuick('Book the venue', true);
+		expect(el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!.checked).toBe(true);
+		primary(el).click();
+		expect(results[0]!.dispositions[0].markSwept).toBe(true);
+	});
+
+	it('closes without asking until the person changes something', () => {
+		const a = openQuick('Book the venue', false);
+		expect(closing(a.modal)).toBeNull();
+		expect(a.results).toEqual([null]);
+		const b = openQuick('Book the venue', false);
+		const text = b.el.querySelector<HTMLInputElement>('.ai-organiser-sweep-item input[type="text"]')!;
+		text.value = 'Book the venue for 40';
+		text.dispatchEvent(new Event('input', { bubbles: true }));
+		expect(closing(b.modal)).not.toBeNull();
+	});
+
+	it('a dated list takes the date written in the selected text', () => {
+		const { el, results } = openQuick('Chase the signed contract by 2026-11-20', false, true);
+		const dest = el.querySelector<HTMLSelectElement>('label.ai-organiser-sweep-field select')!;
+		dest.value = 'list:dated';
+		dest.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(el.querySelector<HTMLInputElement>('input[type="date"]')!.value).toBe('2026-11-20');
+		expect(checkboxes(el)[0].checked).toBe(true);
+		primary(el).click();
+		expect(results[0]!.tasks[0]).toMatchObject({ destination: { type: 'list', listId: 'dated' }, due: '2026-11-20' });
+	});
+});

@@ -1406,6 +1406,7 @@ export const en: Translations = {
         reviewCaptures: "Review captures",
         setupCaptureInbox: "Set up capture inbox",
         sendTasksToGoogle: "Send approved tasks to Google Tasks",
+        makeGoogleTask: "Make a Google task",
         setupGoogleTasks: "Set up Google Tasks",
         insertOneDriveLink: "Insert OneDrive link",
         refreshOneDriveEmbed: "Refresh OneDrive embed",
@@ -3043,6 +3044,7 @@ export const en: Translations = {
                 reviewCaptures: "See the captures that are waiting for your review",
                 setupCaptureInbox: "Choose the inbox, what to keep out and where organised notes may go, step by step",
                 sendTasksToGoogle: "Send the tasks you approved to your Google Tasks list",
+                makeGoogleTask: "Turn this note, or the selected text, into one Google task without AI",
                 setupGoogleTasks: "Connect your own Google Tasks list step by step",
                 adoptProject: "Mark the active note as a project with one small reviewed edit; nothing is moved",
                 openProject: "Find one of your adopted projects and open its note",
@@ -4137,6 +4139,7 @@ export const en: Translations = {
         "tasks-list-not-approved": { message: "A list for some items is not approved in your deployed script, so they were not sent.", nextStep: "Open the Google Tasks setup, check your lists and deploy the script again." },
         "tasks-due-missing": { message: "Some items go to a list that needs a date and have none, so they were not sent.", nextStep: "Choose a date for them in a new sweep review, or choose another list." },
         "tasks-readback-off": { message: "Checking whether tasks are completed is turned off.", nextStep: "Turn on the completion check in the Google Tasks settings, then deploy the new script." },
+        "quick-task-kept-out": { message: "This note is kept out by your inbox sweep rules, so it cannot become a Google task from here.", nextStep: "Change the keep-out rules in the inbox sweep settings if this note should be allowed." },
         "tasks-no-list": { message: "No Google Tasks list is chosen.", nextStep: "Open the Google Tasks setup and pick a list." },
         "tasks-not-ready": { message: "The Google Tasks script is not ready for this list.", nextStep: "Open the Google Tasks setup and finish connecting." },
         "tasks-wizard-no-list": { message: "No Google Tasks list is chosen yet.", nextStep: "Choose Load my lists, then pick your main list." },
@@ -4829,6 +4832,9 @@ export const en: Translations = {
         sweptSkipsCapture: "The capture inbox will not pick up a swept note either, until the note changes. Leave this unticked if you still want to file it from there.",
         addButton: "Add {count} to sweep report",
         markReviewedButton: "Mark reviewed",
+        quickTitle: "Make a Google task",
+        quickIntro: "Check the wording, list and date. Nothing is sent until you press the button, and this note is not changed. The task is also listed in your sweep report.",
+        quickSendButton: "Send {count} task[s] to Google Tasks",
         kindLabels: { next_action: "Next action", waiting_for: "Waiting for", project: "Project", someday_maybe: "Someday" }
     },
     captureInbox: {
