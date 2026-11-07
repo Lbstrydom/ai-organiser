@@ -114,6 +114,15 @@ describe('writing the live file', () => {
         expect(fs.readFileSync(protectedFile, 'utf8')).toBe(pack('protected words'));
     });
 
+    it('a file rewritten in place while the authorization check runs is not truncated', async () => {
+        const j = memoryJournal();
+        await writeLiveFile(deps, j, target(), pack('one'), vault);
+        const dest = path.join(drive, fileName);
+        const rewrite = () => { fs.writeFileSync(dest, `---\naio-live-pack: ${OTHER}\n---\nmine now\n`); return true; };
+        expect(await writeLiveFile(deps, j, target(), pack('two'), vault, rewrite)).toEqual({ ok: false, error: 'live-file-not-ours' });
+        expect(fs.readFileSync(dest, 'utf8')).toContain('mine now');
+    });
+
     it('a file swapped while the authorization check runs is not truncated', async () => {
         const j = memoryJournal();
         await writeLiveFile(deps, j, target(), pack('one'), vault);

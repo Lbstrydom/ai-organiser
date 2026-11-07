@@ -142,7 +142,7 @@ const FS_MANIFEST: Record<string, { count: number; cls: FsClass; reason: string 
 };
 
 const FS_SOURCE = /desktopRequire\s*(?:<[^>]*>)?\s*\(\s*['"](?:node:)?fs['"]|\bgetFs\(\)|\b(?:NodeDeps|LiveDeps)\b|import\(\s*['"](?:node:)?fs['"]\s*\)|from\s+['"](?:node:)?fs(?:\/promises)?['"]|require\(\s*['"](?:node:)?fs['"]\s*\)/;
-const NODE_FS_WRITE = /(?<![\w$])(?:writeFile|appendFile|truncate|ftruncate|rename|unlink|copyFile|createWriteStream|mkdir|rm|rmdir|write|sync|fsync)(?:Sync)?\(|(?<![\w$])open(?:Sync)?\([^)]*['"](?:w|wx|w\+|wx\+|r\+|a|a\+|ax)['"]/g;
+const NODE_FS_WRITE = /(?<![\w$])(?:writeFile|appendFile|truncate|ftruncate|rename|unlink|copyFile|createWriteStream|mkdir|rm|rmdir|write|sync|fsync)(?:Sync)?\(|(?<![\w$])open(?:Sync)?\([^)]*['"](?:[wa]x?\+?|as\+?|r\+|rs\+)['"]/g;
 
 /** Node fs write sites in a source string, or 0 when the file never obtains Node fs. Comment and import lines do not count. */
 function countFsWrites(text: string): number {
@@ -313,6 +313,12 @@ describe('Node fs write scanner (controls)', () => {
 		expect(countFsWrites(withFs('const { writeFile } = fs.promises;\nawait writeFile(p, s);'))).toBe(1);
 		expect(countFsWrites(withFs("const h = await fs.promises.open(p, 'r+');"))).toBe(1);
 		expect(countFsWrites("import * as fs from 'node:fs';\nfs.unlinkSync(p);")).toBe(1);
+	});
+	it('counts every writing open flag and no reading one', () => {
+		for (const flag of ['w', 'wx', 'w+', 'wx+', 'a', 'ax', 'a+', 'ax+', 'as', 'as+', 'r+', 'rs+']) {
+			expect(countFsWrites(`import { open } from 'node:fs/promises';\nawait open(p, '${flag}');`), flag).toBe(1);
+		}
+		for (const flag of ['r', 'rs']) expect(countFsWrites(`import { open } from 'node:fs/promises';\nawait open(p, '${flag}');`), flag).toBe(0);
 	});
 	it('does not count reads, comments, or a file that never obtains fs', () => {
 		expect(countFsWrites(withFs("const h = await fs.promises.open(p, 'r');\nawait fs.promises.readFile(p);"))).toBe(0);

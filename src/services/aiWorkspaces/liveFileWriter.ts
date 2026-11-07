@@ -193,6 +193,9 @@ export async function writeLiveFile(
             const again = await destinationOf(deps, target, vaultBase);
             if (!again.ok) return err(again.error);
             if (again.value.dest !== dest || !(await stillNamed(deps, root, dest, fid))) return err('live-file-not-ours');
+            // The content may have changed in place while the check ran: ownership is read again, through the same handle.
+            const headNow = decoder.decode((await boundedRead(handle, HEAD_BYTES)).bytes);
+            if (!owned(headNow, target, intents.get(dest), fid)) return err('live-file-not-ours');
             intents.set(dest, intent(fid));
             await handle.truncate(0);
         } else {
