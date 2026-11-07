@@ -22,8 +22,11 @@ export function filterCategoriesByFeature(
 	categories: CommandCategory[],
 	isEnabled: FeatureLeafPredicate,
 ): CommandCategory[] {
-	const keepLeaf = (leaf: PickerCommand): boolean =>
-		leaf.feature !== undefined && isEnabled(leaf.feature);
+	const keepLeaf = (leaf: PickerCommand): boolean => {
+		if (leaf.feature === undefined) return false;
+		const owned = leaf.anyOfFeatures ? leaf.anyOfFeatures.some(isEnabled) : isEnabled(leaf.feature);
+		return owned && (leaf.alsoRequiresFeatures ?? []).every(isEnabled);
+	};
 	const out: CommandCategory[] = [];
 	for (const cat of categories) {
 		const commands: PickerCommand[] = [];

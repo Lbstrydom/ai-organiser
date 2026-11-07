@@ -4,7 +4,7 @@
  * Uses a custom Modal with inline tree expansion and Obsidian's fuzzy search.
  */
 
-import { App, Modal, Notice, prepareFuzzySearch, setIcon, setTooltip } from 'obsidian';
+import { App, Modal, Notice, Platform, prepareFuzzySearch, setIcon, setTooltip } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { logger } from '../../utils/logger';
 import { Translations } from '../../i18n/types';
@@ -14,7 +14,7 @@ import {
 	buildVisibleItems,
 	flattenSingleChildGroups,
 } from './commandPickerViewModel';
-import { checkRequirement, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
+import { checkLeaf, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
 import type { FeatureId } from '../../core/features';
 import type { WorkflowStage } from '../../core/workflowStages';
 import { isFeatureEnabled } from '../../services/featureService';
@@ -32,7 +32,8 @@ export type RequirementKind =
 	| 'active-note'      // requires an open .md file
 	| 'selection'        // requires a non-empty editor selection
 	| 'vault'            // requires ≥1 .md file in the vault
-	| 'semantic-search'; // requires enableSemanticSearch + vectorStore
+	| 'semantic-search'  // requires enableSemanticSearch + vectorStore
+	| 'mp3-file';        // requires an active .mp3 (Play narration's own checkCallback)
 
 export interface PickerCommand {
 	id: string;
@@ -67,6 +68,14 @@ export interface PickerCommand {
 	canonicalCategoryId?: string;
 	/** Legacy taxonomy homes — drives backward-compat alias derivation. */
 	legacyHomes?: string[];
+	/** 'desktop' when the command registers only in the desktop app: on mobile the row is
+	 *  shown disabled with a "Desktop only" chip and never runs. Absent = every platform. */
+	platform?: 'desktop';
+	/** The leaf shows when ANY of these features is on (its `feature` stays the canonical
+	 *  owner for the taxonomy). Mirrors a command whose registration gate is an OR. */
+	anyOfFeatures?: FeatureId[];
+	/** Features that must ALSO be on, beyond `feature` (a command gated on an AND). */
+	alsoRequiresFeatures?: FeatureId[];
 }
 
 export class CommandPickerModal extends Modal {
@@ -133,6 +142,7 @@ export class CommandPickerModal extends Modal {
 			// gating switch. Read the feature predicate, not the legacy field.
 			enableSemanticSearch: isFeatureEnabled(this.plugin.settings, 'semantic-search'),
 			hasVectorStore: !!this.plugin.vectorStore,
+			isMobile: Platform.isMobile,
 		});
 	}
 
@@ -315,7 +325,7 @@ export class CommandPickerModal extends Modal {
 
 	private applyItemClasses(el: HTMLElement, item: VisibleItem, index: number, ctx: RequirementContext): void {
 		// Requirement gate first — render-time disable + a11y describedby.
-		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		const reqState = checkLeaf(item.command, ctx, this.t);
 		if (!reqState.met) {
 			el.addClass('is-gated');
 			el.setAttribute('aria-disabled', 'true');
@@ -420,7 +430,7 @@ export class CommandPickerModal extends Modal {
 	 *  preconditions). The chip carries an icon + short label + sr-only
 	 *  full reason for screen readers (matches the row's aria-describedby). */
 	private renderItemRequires(metaEl: HTMLElement, item: VisibleItem, ctx: RequirementContext, index: number): void {
-		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		const reqState = checkLeaf(item.command, ctx, this.t);
 		if (reqState.met) return;
 		const chip = metaEl.createEl('span', {
 			cls: 'ai-organiser-command-picker-requires',
@@ -446,7 +456,7 @@ export class CommandPickerModal extends Modal {
 		// Gated row → tooltip is the requirement reason (full text). This
 		// runs before the badge tooltip so a gated badge-row prefers the
 		// gate explanation.
-		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		const reqState = checkLeaf(item.command, ctx, this.t);
 		if (!reqState.met) {
 			setTooltip(el, reqState.reason!);
 			return;
@@ -532,7 +542,7 @@ export class CommandPickerModal extends Modal {
 		// snapshot). User could have changed active note / opened editor /
 		// updated settings between render and click (audit R2 H2).
 		const ctx = this.buildRequirementContext();
-		const reqState = checkRequirement(item.command.requires, ctx, this.t);
+		const reqState = checkLeaf(item.command, ctx, this.t);
 		if (!reqState.met) {
 			new Notice(reqState.reason!);
 			return;
@@ -691,6 +701,17 @@ function findLeafByIdInCategories(
 	return null;
 }
 
+/**
+ * Leaves whose command exists or works only in the desktop app: the canvas boards and
+ * OneDrive commands refuse on mobile, and Resume offload registers only on desktop
+ * (`offloadCommands.ts`, `Platform.isDesktopApp`).
+ */
+export const DESKTOP_ONLY_LEAVES: ReadonlySet<string> = new Set([
+	'build-investigation-canvas', 'build-context-canvas', 'build-cluster-canvas',
+	'insert-onedrive-link', 'refresh-onedrive-embed',
+	'resume-offload',
+]);
+
 export function buildCommandCategories(
 	t: Translations,
 	executeCommand: (commandId: string) => void,
@@ -817,7 +838,7 @@ export function buildCommandCategories(
 					description: t.modals.commandPicker.descriptions.groupCreateWrite,
 					callback: () => {},
 					subCommands: [
-						cmd('summarize', 'create', 'smart-summarize', t.commands.summarizeSmart, 'file-text', 'none',
+						cmd('summarize', 'create', 'smart-summarize', t.commands.summarize, 'file-text', 'none',
 							desc.smartSummarize || 'Summarize content from URL, PDF, YouTube, or audio',
 							[...summarizeAliases, 'create', 'summary'], ['capture']),
 						cmd('minutes', 'create', 'create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
@@ -869,20 +890,36 @@ export function buildCommandCategories(
 					],
 				},
 				// Direct leaves — single-action verbs.
+				cmd('ai-workspaces', 'create', 'edit-ai-workspace', t.commands.editAiWorkspace, 'messages-square', 'none',
+					desc.editAiWorkspace || 'Choose what a project shares with an AI app',
+					['ai', 'workspace', 'share', 'project', 'claude', 'chatgpt']),
+				cmd('ai-workspaces', 'create', 'copy-ai-instructions', t.commands.copyAiInstructions, 'clipboard-copy', 'none',
+					desc.copyAiInstructions || 'Copy the instructions for a project to paste into an AI app',
+					['ai', 'workspace', 'instructions', 'project', 'copy']),
+				cmd('ai-workspaces', 'create', 'create-ai-context-pack', t.commands.createContextPack, 'package', 'none',
+					desc.createContextPack || 'Write a dated context pack for a project',
+					['ai', 'workspace', 'context', 'pack', 'project']),
+				{
+					...cmd('ai-workspaces', 'create', 'review-ai-handback', t.commands.reviewAiHandback, 'inbox', 'active-note',
+						desc.reviewAiHandback || 'Review what an AI app handed back in this note',
+						['ai', 'workspace', 'handback', 'hand-back', 'review']),
+					// Registered only while the capture inbox is on too (handbackActive).
+					alsoRequiresFeatures: ['capture-inbox'],
+				},
 				cmd('audio-narration', 'create', 'narrate-note', t.commands.narrateNote, 'audio-lines', 'active-note',
 					desc.narrateNote || 'Convert this note to a spoken-audio MP3',
 					['narrate', 'audio', 'tts', 'listen', 'voice', 'speak', 'podcast', 'mp3'],
 					['active-note-export']),
-				cmd('audio-narration', 'create', 'play-narration', t.commands.playNarration, 'play-circle', 'active-note',
+				cmd('audio-narration', 'create', 'play-narration', t.commands.playNarration, 'play-circle', 'mp3-file',
 					desc.playNarration || 'Open mp3 in a player with speed and skip controls',
 					['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
 				cmd('flashcards', 'create', 'export-flashcards', t.commands.exportFlashcards, 'layers', 'active-note',
 					desc.exportFlashcards || 'Generate Anki or Brainscape flashcards from note',
 					['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
 					['active-note-export']),
-				cmd('tagging', 'create', 'smart-tag', t.commands.generateTagsForCurrentNote, 'tag', 'active-note',
+				cmd('tagging', 'create', 'smart-tag', t.commands.tag, 'tag', 'active-note',
 					desc.smartTag || 'Generate tags for the active note',
-					['tag', 'tagging', 'categorise', t.commands.tag], ['active-note-refine']),
+					['tag', 'tagging', 'categorise', t.commands.generateTagsForCurrentNote], ['active-note-refine']),
 			],
 		},
 		{
@@ -890,6 +927,13 @@ export function buildCommandCategories(
 			name: t.workflowStages.refine,
 			icon: 'wand-2',
 			commands: [
+				{
+					...cmd('capture-inbox', 'refine', 'open-process', t.commands.openProcess, 'list-todo', 'none',
+						desc.openProcess || 'See what waits for you: captures, AI hand-backs and held tasks',
+						['process', 'queue', 'waiting', 'review', 'handback', 'captures']),
+					// Same gate as the view itself (processViewActive): any feeding feature.
+					anyOfFeatures: ['capture-inbox', 'inbox-sweep', 'ai-workspaces'],
+				},
 				cmd('inbox-sweep', 'refine', 'sweep-inbox', t.commands.sweepInbox, 'inbox', 'none',
 					desc.sweepInbox || 'Read your inbox notes and propose actions for you to review',
 					['inbox', 'sweep', 'tasks', 'actions', 'gtd']),
@@ -959,9 +1003,9 @@ export function buildCommandCategories(
 				// to "Find" still see the search verbs (their canonical home is Pinned).
 				chatLeaf,
 				searchLeaf,
-				cmd('semantic-search', 'find', 'find-related', t.commands.findResources, 'compass', 'active-note',
+				cmd('semantic-search', 'find', 'find-related', t.commands.showRelatedNotes, 'compass', 'active-note',
 					desc.findRelated || 'Find related resources for the active note',
-					[...relatedAliases, 'find', 'resources'], ['active-note-maps']),
+					[...relatedAliases, 'find', 'resources', t.commands.findResources], ['active-note-maps']),
 				cmd('semantic-search', 'find', 'insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
 					desc.insertRelatedNotes || 'Insert related notes into the active note',
 					[...relatedAliases, 'insert'], ['active-note-maps']),
@@ -1045,6 +1089,15 @@ export function buildCommandCategories(
 			],
 		},
 	];
+
+	// Desktop-only leaves: their commands register (or run) only in the desktop app.
+	for (const cat of nonEssentialCategories) {
+		for (const c of cat.commands) {
+			for (const leaf of c.subCommands ?? [c]) {
+				if (DESKTOP_ONLY_LEAVES.has(leaf.id)) leaf.platform = 'desktop';
+			}
+		}
+	}
 
 	// Resolve the user's Pinned selection (max 5). Empty / undefined → fall back to the
 	// static default (chat / search / quick-peek). Look up each ID across

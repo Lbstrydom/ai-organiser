@@ -38,7 +38,7 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     // Command: Enhance note (action menu)
     plugin.addCommand({
         id: 'enhance-note',
-        name: plugin.t.commands.enhance || 'Enhance',
+        name: plugin.t.commands.improveNote,
         icon: 'sparkles',
         callback: () => openEnhanceModal(plugin)
     });
