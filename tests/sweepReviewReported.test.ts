@@ -21,13 +21,13 @@ import { installObsidianDomShims } from './helpers/obsidianDom';
 import { InboxSweepReviewModal } from '../src/ui/modals/InboxSweepReviewModal';
 import type { NoteProposals } from '../src/services/inboxSweep/sweepService';
 import type { CommitInput } from '../src/services/inboxSweep/sweepCommit';
-import { itemKeys } from '../src/services/inboxSweep/sweepItemIdentity';
+import { dropAlreadyReported, itemKeys } from '../src/services/inboxSweep/sweepItemIdentity';
 import { en } from '../src/i18n/en';
 
 beforeAll(() => installObsidianDomShims());
 
 const item = (text: string, evidence: string, kind: 'next_action' | 'waiting_for' = 'next_action') => ({ kind, text, context: '', evidence });
-const plugin = { t: en } as never;
+const plugin = { t: en, settings: {} } as never;
 
 function open(notes: NoteProposals[]) {
 	const results: Array<CommitInput | null> = [];
@@ -120,5 +120,176 @@ describe('InboxSweepReviewModal with items already reported', () => {
 		expect(checkboxes(el).map((b) => b.disabled)).toEqual([false]);
 		expect(el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!.checked).toBe(false);
 		expect(el.textContent).not.toContain(en.inboxSweep.alreadyAdded);
+	});
+});
+
+describe('InboxSweepReviewModal labels and the capture warning', () => {
+	const note: NoteProposals = { path: 'Inbox/b.md', contentHash: 'h', dropped: 0, truncated: false, items: [item('Call Dana', 'Call Dana')] };
+	const routing = {
+		mainId: 'main',
+		lists: [{ id: 'main', title: 'Inbox', needsDate: false }, { id: 'dated', title: 'Waiting', needsDate: true }],
+		rules: [],
+	};
+	const openWith = (captureOn: boolean, withRouting = false) => {
+		const host = { t: en, settings: { featureFlags: { 'capture-inbox': captureOn } } } as never;
+		const modal = new InboxSweepReviewModal({} as never, host, [note], () => undefined, undefined, withRouting ? routing : null);
+		modal.open();
+		return (modal as unknown as { contentEl: HTMLElement }).contentEl;
+	};
+	const hint = (el: HTMLElement) => el.querySelector('.ai-organiser-sweep-swept-hint');
+	const tick = (box: HTMLInputElement, on: boolean) => { box.checked = on; box.dispatchEvent(new Event('change', { bubbles: true })); };
+
+	it('names the destination and date beside their controls, so a list name is not read as the note folder', () => {
+		const el = openWith(false, true);
+		const fields = Array.from(el.querySelectorAll('label.ai-organiser-sweep-field'));
+		expect(fields[0].textContent).toContain(en.inboxSweep.destinationLabel);
+		expect(fields[0].querySelector('select')).not.toBeNull();
+		expect(fields[1].textContent).toContain(en.inboxSweep.dateLabel);
+		expect(fields[1].querySelector('input[type="date"]')).not.toBeNull();
+	});
+
+	it('hides the date label with the date when the list needs no date', () => {
+		const el = openWith(false, true);
+		const dateField = el.querySelectorAll<HTMLElement>('label.ai-organiser-sweep-field')[1];
+		expect(dateField.style.display).toBe('none');
+		const select = el.querySelector<HTMLSelectElement>('label.ai-organiser-sweep-field select')!;
+		select.value = 'list:dated';
+		select.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(dateField.style.display).not.toBe('none');
+	});
+
+	it('warns only while the note is swept, by hand or by ticking an item', () => {
+		const el = openWith(true);
+		expect(hint(el)?.classList.contains('ai-organiser-hidden')).toBe(true);
+		tick(checkboxes(el)[0], true);
+		expect(hint(el)?.classList.contains('ai-organiser-hidden')).toBe(false);
+		tick(checkboxes(el)[0], false);
+		expect(hint(el)?.classList.contains('ai-organiser-hidden')).toBe(true);
+		const swept = el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!;
+		tick(swept, true);
+		expect(hint(el)?.classList.contains('ai-organiser-hidden')).toBe(false);
+	});
+
+	it('shows no warning when the capture inbox is off', () => {
+		const el = openWith(false);
+		tick(checkboxes(el)[0], true);
+		expect(hint(el)).toBeNull();
+	});
+});
+
+describe('InboxSweepReviewModal: a task the person writes', () => {
+	const empty: NoteProposals = { path: '0 Inbox/Block mining indaba travel.md', contentHash: 'hash1', dropped: 0, truncated: false, items: [] };
+	const routing = {
+		mainId: 'main',
+		lists: [{ id: 'main', title: 'Inbox', needsDate: false }, { id: 'dated', title: 'Waiting', needsDate: true }],
+		rules: [],
+	};
+	const openIt = (withRouting = false) => {
+		const results: Array<CommitInput | null> = [];
+		const modal = new InboxSweepReviewModal({} as never, plugin, [empty], (r) => results.push(r), undefined, withRouting ? routing : null);
+		modal.open();
+		return { el: (modal as unknown as { contentEl: HTMLElement }).contentEl, results };
+	};
+	const addTask = (el: HTMLElement) => el.querySelector<HTMLButtonElement>('.ai-organiser-sweep-add-task button')!;
+
+	it('changes nothing until the button is used: no rows, nothing to add', () => {
+		const { el, results } = openIt();
+		expect(checkboxes(el)).toHaveLength(0);
+		expect(primary(el).textContent).toBe(en.inboxSweep.markReviewedButton);
+		expect(primary(el).disabled).toBe(true);
+		expect(results).toHaveLength(0);
+	});
+
+	it('adds a ticked row with the note title, no quote, and replaces the nothing-found line', () => {
+		const { el } = openIt();
+		expect(el.textContent).toContain(en.inboxSweep.noProposals);
+		addTask(el).click();
+		expect(el.textContent).not.toContain(en.inboxSweep.noProposals);
+		expect(checkboxes(el)[0].checked).toBe(true);
+		expect(el.querySelector<HTMLInputElement>('.ai-organiser-sweep-text')!.value).toBe('Block mining indaba travel');
+		expect(el.querySelector('.ai-organiser-sweep-evidence')).toBeNull();
+		expect(primary(el).textContent).toBe(en.inboxSweep.addButton.replace('{count}', '1'));
+		expect(el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!.checked).toBe(true);
+	});
+
+	it('commits the edited wording as the identity, not the suggested title', () => {
+		const { el, results } = openIt();
+		addTask(el).click();
+		const text = el.querySelector<HTMLInputElement>('.ai-organiser-sweep-text')!;
+		text.value = 'Book indaba flights';
+		text.dispatchEvent(new Event('input', { bubbles: true }));
+		primary(el).click();
+		const task = results[0]!.tasks[0];
+		expect(task.text).toBe('Book indaba flights');
+		expect(task.sourcePath).toBe(empty.path);
+		expect(task.sourceHash).toBe('hash1');
+		expect(task.keys).toEqual(itemKeys({ text: 'Book indaba flights', evidence: '' }));
+	});
+
+	it('is not added when unticked', () => {
+		const { el, results } = openIt();
+		addTask(el).click();
+		const box = checkboxes(el)[0];
+		box.checked = false;
+		box.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(primary(el).textContent).toBe(en.inboxSweep.markReviewedButton);
+		// Nothing is ticked and the note follows its items, so mark it swept to be able to finish the review.
+		const swept = el.querySelector<HTMLInputElement>('.ai-organiser-sweep-swept input')!;
+		swept.checked = true;
+		swept.dispatchEvent(new Event('change', { bubbles: true }));
+		primary(el).click();
+		expect(results[0]!.tasks).toHaveLength(0);
+	});
+
+	it('is not added when left blank', () => {
+		const { el, results } = openIt();
+		addTask(el).click();
+		const text = el.querySelector<HTMLInputElement>('.ai-organiser-sweep-text')!;
+		text.value = '   ';
+		text.dispatchEvent(new Event('input', { bubbles: true }));
+		primary(el).click();
+		expect(results[0]!.tasks).toHaveLength(0);
+	});
+
+	it('on a dated list waits for the date, then comes back ticked with list and date in the approval', () => {
+		const { el, results } = openIt(true);
+		addTask(el).click();
+		const box = checkboxes(el)[0];
+		const dest = el.querySelector<HTMLSelectElement>('label.ai-organiser-sweep-field select')!;
+		dest.value = 'list:dated';
+		dest.dispatchEvent(new Event('change', { bubbles: true }));
+		expect(box.checked).toBe(false);
+		expect(box.disabled).toBe(true);
+		const date = el.querySelector<HTMLInputElement>('input[type="date"]')!;
+		date.value = '2026-11-09';
+		date.dispatchEvent(new Event('input', { bubbles: true }));
+		expect(box.checked).toBe(true);
+		primary(el).click();
+		expect(results[0]!.tasks[0]).toMatchObject({ destination: { type: 'list', listId: 'dated' }, due: '2026-11-09', kind: 'next_action' });
+	});
+
+	it('stays unticked after a date if the person unticked it', () => {
+		const { el } = openIt(true);
+		addTask(el).click();
+		const box = checkboxes(el)[0];
+		box.checked = false;
+		box.dispatchEvent(new Event('change', { bubbles: true }));
+		const dest = el.querySelector<HTMLSelectElement>('label.ai-organiser-sweep-field select')!;
+		dest.value = 'list:dated';
+		dest.dispatchEvent(new Event('change', { bubbles: true }));
+		const date = el.querySelector<HTMLInputElement>('input[type="date"]')!;
+		date.value = '2026-11-09';
+		date.dispatchEvent(new Event('input', { bubbles: true }));
+		expect(box.checked).toBe(false);
+	});
+
+	it('the same wording twice in one review is dropped by the commit rule', () => {
+		const { el, results } = openIt();
+		addTask(el).click();
+		addTask(el).click();
+		expect(checkboxes(el)).toHaveLength(2);
+		primary(el).click();
+		const tasks = results[0]!.tasks;
+		expect(dropAlreadyReported(tasks, {}, []).kept).toHaveLength(1);
 	});
 });

@@ -4822,7 +4822,9 @@ export const en: Translations = {
         itemText: "Item text",
         itemContext: "Context",
         noContext: "No context",
+        addTaskButton: "Add a task",
         markSwept: "Mark this note as swept",
+        sweptSkipsCapture: "The capture inbox will not pick up a swept note either, until the note changes. Leave this unticked if you still want to file it from there.",
         addButton: "Add {count} to sweep report",
         markReviewedButton: "Mark reviewed",
         kindLabels: { next_action: "Next action", waiting_for: "Waiting for", project: "Project", someday_maybe: "Someday" }

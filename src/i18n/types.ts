@@ -4495,7 +4495,9 @@ export interface Translations {
         itemText: string;
         itemContext: string;
         noContext: string;
+        addTaskButton: string;
         markSwept: string;
+        sweptSkipsCapture: string;
         addButton: string;
         markReviewedButton: string;
         kindLabels: Record<'next_action' | 'waiting_for' | 'project' | 'someday_maybe', string>;
