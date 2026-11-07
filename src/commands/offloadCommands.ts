@@ -5,6 +5,7 @@
  * Desktop only: the commands are not registered on mobile, and the offload needs the local
  * Google Drive for desktop folder.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -59,7 +60,7 @@ export function registerOffloadCommands(plugin: AIOrganiserPlugin): void {
     if (!Platform.isDesktopApp) return;
     plugin.addCommand({
         id: 'resume-offload',
-        name: plugin.t.commands.resumeOffload,
+        name: actionName(plugin.t, 'resume-offload'),
         icon: 'cloud-upload',
         callback: () => { void resumeOffload(plugin); },
     });

@@ -3,6 +3,7 @@
  * `UpkeepController` (`services/upkeep/upkeepRuntime.ts`); everything here only starts, shows or
  * configures it.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok } from '../core/result';
@@ -121,7 +122,7 @@ export function openUpkeepSetup(plugin: AIOrganiserPlugin, onDone?: () => void):
 
 export function registerUpkeepCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'run-vault-upkeep', name: t.commands.runVaultUpkeep, icon: 'broom', callback: () => { void runUpkeepNow(plugin); } });
-    plugin.addCommand({ id: 'setup-vault-upkeep', name: t.commands.setupVaultUpkeep, icon: 'sparkles', callback: () => openUpkeepSetup(plugin) });
-    plugin.addCommand({ id: 'open-upkeep-review', name: t.commands.openUpkeepReview, icon: 'clipboard-list', callback: () => openUpkeepReview(plugin) });
+    plugin.addCommand({ id: 'run-vault-upkeep', name: actionName(t, 'run-vault-upkeep'), icon: 'broom', callback: () => { void runUpkeepNow(plugin); } });
+    plugin.addCommand({ id: 'setup-vault-upkeep', name: actionName(t, 'setup-vault-upkeep'), icon: 'sparkles', callback: () => openUpkeepSetup(plugin) });
+    plugin.addCommand({ id: 'open-upkeep-review', name: actionName(t, 'open-upkeep-review'), icon: 'clipboard-list', callback: () => openUpkeepReview(plugin) });
 }

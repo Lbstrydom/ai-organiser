@@ -3002,6 +3002,12 @@ export interface Translations {
                 copyAiInstructions: string;
                 createContextPack: string;
                 reviewAiHandback: string;
+                refreshTaskStatus: string;
+                copyCombinedGoogleScript: string;
+                quickAddTextPending: string;
+                quickAddUrlPending: string;
+                dropSelectionPending: string;
+                manageIndex: string;
                 pendingGroup: string;
                 ensureNoteStructure: string;
                 addToPending: string;

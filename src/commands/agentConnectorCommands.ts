@@ -3,6 +3,7 @@
  * copy and never edits another application's files; the export writes only into the folder the
  * person chose, behind a confirmation that names what leaves the computer when they upload it.
  */
+import { actionName } from '../core/actionRegistry';
 import { optedInScope } from '../services/agentConnectors/connectorRuntime';
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
@@ -83,6 +84,6 @@ export async function runExportCommand(plugin: AIOrganiserPlugin): Promise<void>
 
 export function registerAgentConnectorCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'open-agent-connectors', name: t.commands.openAgentConnectors, icon: 'plug-zap', callback: () => openAgentConnectors(plugin) });
-    plugin.addCommand({ id: 'export-vault-map', name: t.commands.exportVaultMap, icon: 'file-up', callback: () => { void runExportCommand(plugin); } });
+    plugin.addCommand({ id: 'open-agent-connectors', name: actionName(t, 'open-agent-connectors'), icon: 'plug-zap', callback: () => openAgentConnectors(plugin) });
+    plugin.addCommand({ id: 'export-vault-map', name: actionName(t, 'export-vault-map'), icon: 'file-up', callback: () => { void runExportCommand(plugin); } });
 }

@@ -3,6 +3,7 @@
  * Commands for migrating notes to Obsidian Bases format
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { MigrationModal } from '../ui/modals/MigrationModal';
@@ -14,7 +15,7 @@ export function registerMigrationCommands(plugin: AIOrganiserPlugin) {
     // Command: Upgrade to Bases Metadata
     plugin.addCommand({
         id: 'upgrade-metadata',
-        name: plugin.t.commands.upgradeToBases,
+        name: actionName(plugin.t, 'upgrade-metadata'),
         icon: 'database',
         callback: () => {
             const modal = new MigrationModal(plugin.app, plugin);
@@ -25,7 +26,7 @@ export function registerMigrationCommands(plugin: AIOrganiserPlugin) {
     // Command: Upgrade Folder to Bases Metadata
     plugin.addCommand({
         id: 'upgrade-folder-metadata',
-        name: plugin.t.commands.upgradeFolderToBases,
+        name: actionName(plugin.t, 'upgrade-folder-metadata'),
         icon: 'folder-sync',
         callback: () => {
             const activeFile = plugin.app.workspace.getActiveFile();

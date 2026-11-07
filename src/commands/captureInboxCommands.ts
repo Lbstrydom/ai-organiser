@@ -9,6 +9,7 @@
  *
  * File events and "opened Obsidian" are only hints to look; they never start paid work on their own.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, TAbstractFile, TFile, type Plugin } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
@@ -340,9 +341,9 @@ export function registerCaptureInboxCommands(plugin: AIOrganiserPlugin): void {
         else if (getCorruptJournalStore(plugin)) guidance(plugin, 'capture-journal-corrupt', 12000);
         else new Notice(t.captureInbox.queueChecking, 3000);
     };
-    plugin.addCommand({ id: 'process-capture-inbox', name: t.commands.processCaptureInbox, icon: 'inbox', callback: () => withController((c) => { c.processNow().catch((e: unknown) => logger.error('CaptureInbox', 'Process failed', e)); }) });
-    plugin.addCommand({ id: 'review-captures', name: t.commands.reviewCaptures, icon: 'list-checks', callback: () => withController((c) => c.openQueue()) });
-    plugin.addCommand({ id: 'setup-capture-inbox', name: t.commands.setupCaptureInbox, icon: 'sparkles', callback: () => openCaptureInboxSetup(plugin) });
+    plugin.addCommand({ id: 'process-capture-inbox', name: actionName(t, 'process-capture-inbox'), icon: 'inbox', callback: () => withController((c) => { c.processNow().catch((e: unknown) => logger.error('CaptureInbox', 'Process failed', e)); }) });
+    plugin.addCommand({ id: 'review-captures', name: actionName(t, 'review-captures'), icon: 'list-checks', callback: () => withController((c) => c.openQueue()) });
+    plugin.addCommand({ id: 'setup-capture-inbox', name: actionName(t, 'setup-capture-inbox'), icon: 'sparkles', callback: () => openCaptureInboxSetup(plugin) });
     start(plugin).catch((e: unknown) => {
         // Stay active: the capture journal never loaded, so the sweep must keep waiting rather than read held captures.
         logger.error('CaptureInbox', 'Could not start the capture inbox', e);

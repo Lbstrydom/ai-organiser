@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 /**
  * Research Commands
  *
@@ -11,7 +12,7 @@ import { UnifiedChatModal } from '../ui/modals/UnifiedChatModal';
 export function registerResearchCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'research-web',
-        name: (plugin.t.commands as Record<string, string>).researchWeb || 'Research',
+        name: actionName(plugin.t, 'research-web'),
         icon: 'telescope',
         callback: () => {
             const activeEditor = plugin.app.workspace.activeEditor?.editor;

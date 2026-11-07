@@ -3,6 +3,7 @@
  * `ai-workspaces` is enabled. Each one that shares text goes through the preview: nothing is copied or written before the
  * person confirms the exact notes.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
@@ -76,7 +77,7 @@ export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
     if (handbackActive(plugin)) {
         plugin.addCommand({
             id: 'review-ai-handback',
-            name: t.commands.reviewAiHandback,
+            name: actionName(t, 'review-ai-handback'),
             icon: 'inbox',
             callback: () => {
                 const file = plugin.app.workspace.getActiveFile();
@@ -87,19 +88,19 @@ export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
     }
     plugin.addCommand({
         id: 'edit-ai-workspace',
-        name: t.commands.editAiWorkspace,
+        name: actionName(t, 'edit-ai-workspace'),
         icon: 'messages-square',
         callback: () => chooseProject(plugin, (project) => new AiWorkspaceModal(plugin.app, plugin, project.aioId).open()),
     });
     plugin.addCommand({
         id: 'copy-ai-instructions',
-        name: t.commands.copyAiInstructions,
+        name: actionName(t, 'copy-ai-instructions'),
         icon: 'clipboard-copy',
         callback: () => chooseProject(plugin, (project) => { void share(plugin, project, 'copy'); }),
     });
     plugin.addCommand({
         id: 'create-ai-context-pack',
-        name: t.commands.createContextPack,
+        name: actionName(t, 'create-ai-context-pack'),
         icon: 'package',
         callback: () => chooseProject(plugin, (project) => { void share(plugin, project, 'pack'); }),
     });

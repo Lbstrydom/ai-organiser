@@ -6,6 +6,7 @@
 
 import type { CommandCategory, PickerCommand } from './CommandPickerModal';
 import type { FeatureId } from '../../core/features';
+import { actionFeatureOn } from '../../core/actionAvailability';
 
 /** Predicate: is the feature owning a leaf enabled? Supplied by the modal. */
 export type FeatureLeafPredicate = (feature: FeatureId) => boolean;
@@ -22,11 +23,7 @@ export function filterCategoriesByFeature(
 	categories: CommandCategory[],
 	isEnabled: FeatureLeafPredicate,
 ): CommandCategory[] {
-	const keepLeaf = (leaf: PickerCommand): boolean => {
-		if (leaf.feature === undefined) return false;
-		const owned = leaf.anyOfFeatures ? leaf.anyOfFeatures.some(isEnabled) : isEnabled(leaf.feature);
-		return owned && (leaf.alsoRequiresFeatures ?? []).every(isEnabled);
-	};
+	const keepLeaf = (leaf: PickerCommand): boolean => actionFeatureOn(leaf, isEnabled);
 	const out: CommandCategory[] = [];
 	for (const cat of categories) {
 		const commands: PickerCommand[] = [];

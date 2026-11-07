@@ -16,6 +16,7 @@ import {
 } from './commandPickerViewModel';
 import { checkLeaf, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
 import type { FeatureId } from '../../core/features';
+import { ACTIONS, DEFAULT_PINNED, PICKER_CATEGORIES, PICKER_GROUPS, type ActionDef, type RequirementKind } from '../../core/actionRegistry';
 import type { WorkflowStage } from '../../core/workflowStages';
 import { isFeatureEnabled } from '../../services/featureService';
 
@@ -26,14 +27,7 @@ export interface CommandCategory {
 	commands: PickerCommand[];
 }
 
-/** Render-time precondition for a command — drives the requirement chip. */
-export type RequirementKind =
-	| 'none'             // always available
-	| 'active-note'      // requires an open .md file
-	| 'selection'        // requires a non-empty editor selection
-	| 'vault'            // requires ≥1 .md file in the vault
-	| 'semantic-search'  // requires enableSemanticSearch + vectorStore
-	| 'mp3-file';        // requires an active .mp3 (Play narration's own checkCallback)
+export type { RequirementKind } from '../../core/actionRegistry';
 
 export interface PickerCommand {
 	id: string;
@@ -701,423 +695,96 @@ function findLeafByIdInCategories(
 	return null;
 }
 
-/**
- * Leaves whose command exists or works only in the desktop app: the canvas boards and
- * OneDrive commands refuse on mobile, and Resume offload registers only on desktop
- * (`offloadCommands.ts`, `Platform.isDesktopApp`).
- */
-export const DESKTOP_ONLY_LEAVES: ReadonlySet<string> = new Set([
-	'build-investigation-canvas', 'build-context-canvas', 'build-cluster-canvas',
-	'insert-onedrive-link', 'refresh-onedrive-embed',
-	'resume-offload',
-]);
+/** Leaves whose command exists or works only in the desktop app (from the action registry). */
+export const DESKTOP_ONLY_LEAVES: ReadonlySet<string> = new Set(
+	ACTIONS.filter((a) => a.platform === 'desktop').map((a) => a.id),
+);
 
+/** Build one picker leaf from its registry entry. */
+function leafFromAction(
+	def: ActionDef,
+	t: Translations,
+	executeCommand: (commandId: string) => void,
+): PickerCommand {
+	const desc = t.modals.commandPicker.descriptions;
+	const legacyHomes = [...(def.legacyHomes ?? [])];
+	return {
+		id: def.id,
+		name: t.commands[def.labelKey],
+		icon: def.icon,
+		feature: def.feature,
+		stage: def.stage,
+		callback: () => executeCommand(`ai-organiser:${def.id}`),
+		requires: def.requires,
+		description: desc[def.descKey] || def.descFallback,
+		aliases: [
+			...(def.synonymKeys ?? []).map((k) => t.commands[k]),
+			...(def.synonyms ?? []),
+			...legacyHomes.flatMap(legacyHomeAliases),
+		],
+		legacyHomes,
+		...(def.platform ? { platform: def.platform } : {}),
+		...(def.anyOfFeatures ? { anyOfFeatures: [...def.anyOfFeatures] } : {}),
+		...(def.alsoRequiresFeatures ? { alsoRequiresFeatures: [...def.alsoRequiresFeatures] } : {}),
+		...(def.canonicalCategoryId ? { canonicalCategoryId: def.canonicalCategoryId } : {}),
+	};
+}
+
+/**
+ * The picker tree, built from the action registry. Each leaf object is created once, so the
+ * Pinned cross-listings are the SAME objects as their stage-category placements (search-mode
+ * dedup relies on identity). Group containers appear where their first member sits.
+ */
 export function buildCommandCategories(
 	t: Translations,
 	executeCommand: (commandId: string) => void,
 	pinnedCommandIds: readonly string[] = [],
 ): CommandCategory[] {
-	const summarizeAliases = [
-		t.commands.summarizeSmart,
-		t.commands.summarizeFromUrl,
-		t.commands.summarizeFromPdf,
-		t.commands.summarizeFromYouTube,
-		t.commands.summarizeFromAudio,
-		'youtube', 'pdf', 'url', 'audio', 'video', 'web',
-	];
-	const relatedAliases = ['related', 'similar', 'connections', 'linked'];
-	const desc = t.modals.commandPicker.descriptions ?? {} as Record<string, string>;
-
-	// Helper — terse leaf builder. `feature` (FT-4) + `stage` (unified taxonomy) are the
-	// leading REQUIRED args so no leaf can ship untagged or off-stage (a typo is a compile
-	// error, not a silent leak). `stage` MUST equal the id of the category the leaf is placed
-	// in (asserted by crossSurfaceTaxonomy.test). legacyHomes drives backward-compat alias
-	// derivation — moved commands keep their old taxonomy terms searchable.
-	const cmd = (
-		feature: FeatureId, stage: WorkflowStage, id: string, name: string, icon: string, requires: RequirementKind,
-		description: string, aliases: string[] = [], legacyHomes: string[] = [],
-	): PickerCommand => ({
-		id, name, icon, feature, stage,
-		callback: () => executeCommand(`ai-organiser:${id}`),
-		requires, description,
-		aliases: [...aliases, ...legacyHomes.flatMap(legacyHomeAliases)],
-		legacyHomes,
+	const cp = t.modals.commandPicker;
+	const leaves = new Map(ACTIONS.map((def) => [def.id, leafFromAction(def, t, executeCommand)]));
+	const stageCategories: CommandCategory[] = PICKER_CATEGORIES.map((cat) => {
+		const commands: PickerCommand[] = [];
+		const groups = new Map<string, PickerCommand>();
+		for (const def of ACTIONS) {
+			if (def.legacyPlacement.category !== cat.id) continue;
+			const leaf = leaves.get(def.id)!;
+			const groupId = def.legacyPlacement.group;
+			if (!groupId) { commands.push(leaf); continue; }
+			let group = groups.get(groupId);
+			if (!group) {
+				const g = PICKER_GROUPS.find((x) => x.id === groupId)!;
+				group = {
+					id: g.id,
+					name: cp[g.nameKey],
+					icon: g.icon,
+					description: cp.descriptions[g.nameKey as keyof typeof cp.descriptions],
+					callback: () => {},
+					subCommands: [],
+				};
+				groups.set(groupId, group);
+				commands.push(group);
+			}
+			group.subCommands!.push(leaf);
+		}
+		return { id: cat.id, name: t.workflowStages[cat.id], icon: cat.icon, commands };
 	});
 
-	// Cross-listings — defined ONCE, referenced TWICE (browse): in Pinned AND in their
-	// real stage category (Find). canonicalCategoryId 'pinned' tells search-mode dedup
-	// which placement's chip to show (audit Gemini-G2 — explicit field, not array order).
-	// Their `stage` stays 'find' (real home) — the pinned category is exempt from the
-	// stage===categoryId invariant (it's a favourites cross-cut, not a stage).
-	const chatLeaf: PickerCommand = {
-		...cmd('chat', 'find', 'chat-with-ai', t.commands.chatWithAI, 'message-circle', 'none',
-			desc.chatWithAI || 'Free-form AI chat with file attachments and projects',
-			['ask', 'question', 'chat', 'rag', 'passages']),
-		canonicalCategoryId: 'pinned',
-	};
-	const searchLeaf: PickerCommand = {
-		...cmd('semantic-search', 'find', 'semantic-search', t.commands.searchSemanticVault, 'search', 'semantic-search',
-			desc.semanticSearch || 'Find notes by meaning, not just keywords',
-			['semantic', 'search', 'find', 'query', 'lookup']),
-		canonicalCategoryId: 'pinned',
-	};
-	const peekLeaf: PickerCommand = {
-		...cmd('quick-peek', 'find', 'quick-peek', t.commands.quickPeek, 'zap', 'active-note',
-			desc.quickPeek || 'Fast 1-paragraph triage of embedded sources',
-			['peek', 'quick', 'triage', 'skim', 'preview', 'sources']),
-		canonicalCategoryId: 'pinned',
-	};
-
-	const nonEssentialCategories: CommandCategory[] = [
-		{
-			id: 'capture',
-			name: t.workflowStages.capture,
-			icon: 'inbox',
-			commands: [
-				cmd('research', 'capture', 'research-web', t.commands.researchWeb, 'globe', 'none',
-					desc.researchWeb || 'Web research with citations',
-					['research', 'web', 'citations'], ['capture']),
-				cmd('cloud-inventory', 'capture', 'refresh-cloud-inventories', t.commands.refreshCloudInventories, 'refresh-cw', 'vault',
-					desc.refreshCloudInventories || 'Update the Drive file lists in your hub notes',
-					['drive', 'google', 'inventory', 'refresh']),
-				cmd('cloud-inventory', 'capture', 'check-cloud-inventories', t.commands.checkCloudInventories, 'list-checks', 'vault',
-					desc.checkCloudInventories || 'See which Drive folders changed without writing anything',
-					['drive', 'google', 'inventory', 'check']),
-				cmd('cloud-inventory', 'capture', 'setup-cloud-inventory', t.commands.setupCloudInventory, 'cloud', 'vault',
-					desc.setupCloudInventory || 'Pair a Drive folder with a vault folder step by step',
-					['drive', 'google', 'inventory', 'setup', 'pair']),
-				cmd('web-reader', 'capture', 'web-reader', t.commands.webReader, 'newspaper', 'active-note',
-					desc.webReader || 'Triage web URLs in the active note',
-					['web', 'reader', 'triage', 'article'], ['capture']),
-				cmd('kindle', 'capture', 'kindle-sync', t.commands.kindleSync, 'book-open', 'none',
-					desc.kindleSync || 'Sync Kindle highlights into the vault',
-					['kindle', 'sync', 'highlights'], ['capture']),
-				// One feature, one sub-group: the newsletter commands stay together inside Capture
-				// instead of becoming a sixth top-level stage (the stage vocabulary is shared with settings).
-				{
-					id: 'capture-newsletter',
-					name: t.modals.commandPicker.groupCaptureNewsletter,
-					icon: 'mail',
-					description: t.modals.commandPicker.descriptions.groupCaptureNewsletter,
-					callback: () => {},
-					subCommands: [
-						cmd('newsletter', 'capture', 'newsletter-fetch', t.commands.newsletterFetch, 'mail', 'none',
-							desc.newsletter || 'Fetch newsletters from Gmail and triage them',
-							['newsletter', 'digest', 'fetch', 'recurring'], ['capture']),
-						cmd('newsletter', 'capture', 'newsletter-audio', t.commands.newsletterAudio, 'headphones', 'none',
-							desc.newsletterAudio || 'Make one audio that catches you up on the days you missed',
-							['newsletter', 'audio', 'podcast', 'catch up', 'catch-up', 'listen', 'missed']),
-						cmd('newsletter', 'capture', 'newsletter-mark-caught-up', t.commands.newsletterMarkCaughtUp, 'check-check', 'none',
-							desc.newsletterMarkCaughtUp || 'Tell the daily brief you are up to date on earlier stories',
-							['newsletter', 'caught up', 'listened', 'read', 'catch up'], ['capture']),
-						cmd('newsletter', 'capture', 'newsletter-mark-brief-read', t.commands.newsletterMarkBriefRead, 'book-open-check', 'active-note',
-							desc.newsletterMarkBriefRead || 'Tell the daily brief you read this day\'s brief',
-							['newsletter', 'read', 'brief', 'seen', 'digest']),
-						cmd('newsletter', 'capture', 'newsletter-mark-catchup-listened', t.commands.newsletterMarkCatchUpListened, 'check-circle-2', 'active-note',
-							desc.newsletterMarkCatchUpListened || 'Mark the catch-up episode in this note as listened',
-							['newsletter', 'listened', 'episode', 'heard']),
-					],
-				},
-				cmd('summarize', 'capture', 'record-audio', t.commands.recordAudio, 'mic', 'none',
-					desc.recordAudio || 'Record audio directly in Obsidian',
-					['record', 'voice', 'dictate', 'audio', 'microphone'], ['capture']),
-				cmd('onedrive-link', 'capture', 'insert-onedrive-link', t.commands.insertOneDriveLink, 'link', 'active-note',
-					desc.insertOneDriveLink || 'Insert a link to a file in your local OneDrive folder',
-					['onedrive', 'link', 'file']),
-			],
-		},
-		{
-			id: 'create',
-			name: t.workflowStages.create,
-			icon: 'sparkles',
-			commands: [
-				{
-					id: 'create-write',
-					name: t.modals.commandPicker.groupCreateWrite,
-					icon: 'pen-line',
-					description: t.modals.commandPicker.descriptions.groupCreateWrite,
-					callback: () => {},
-					subCommands: [
-						cmd('summarize', 'create', 'smart-summarize', t.commands.summarize, 'file-text', 'none',
-							desc.smartSummarize || 'Summarize content from URL, PDF, YouTube, or audio',
-							[...summarizeAliases, 'create', 'summary'], ['capture']),
-						cmd('minutes', 'create', 'create-meeting-minutes', t.commands.createMeetingMinutes, 'clipboard-list', 'none',
-							desc.createMeetingMinutes || 'Generate structured minutes from a transcript',
-							['minutes', 'meeting', 'transcript', 'transcribe', 'audio', 'speech-to-text'], ['capture']),
-						cmd('minutes', 'create', 'transcribe-audio', t.commands.transcribeAudio, 'mic', 'none',
-							desc.transcribeAudio || 'Transcribe an audio file to a speaker-labelled note',
-							['transcribe', 'audio', 'speech-to-text', 'whisper', 'minutes'], ['capture']),
-						cmd('translate', 'create', 'smart-translate', t.commands.translate, 'languages', 'active-note',
-							desc.smartTranslate || 'Translate the active note into another language',
-							['translate', 'language', 'locale', t.commands.translateNote, t.commands.translateSelection],
-							['active-note-refine']),
-						cmd('export', 'create', 'export-note', t.commands.exportNote, 'file-output', 'active-note',
-							desc.exportNote || 'Export as PDF, Word, or PowerPoint document',
-							['pdf', 'docx', 'pptx', 'word', 'powerpoint'], ['active-note-export']),
-						cmd('minutes', 'create', 'export-minutes-docx', t.commands.exportMinutesDocx, 'file-text', 'active-note',
-							desc.exportMinutesDocx || 'Export meeting minutes as Word document',
-							['minutes', 'meeting', 'word', 'docx'], ['active-note-export']),
-					],
-				},
-				{
-					id: 'create-visualise',
-					name: t.modals.commandPicker.groupCreateVisualise,
-					icon: 'palette',
-					description: t.modals.commandPicker.descriptions.groupCreateVisualise,
-					callback: () => {},
-					subCommands: [
-						cmd('presentation', 'create', 'presentation-chat', t.commands.presentationChat, 'presentation', 'active-note',
-							desc.presentationChat || 'Generate a structured slide deck from this note',
-							['slides', 'presentation', 'deck', 'pitch'], ['active-note-refine']),
-						cmd('presentation', 'create', 'build-presentation-from-storyline', t.commands.buildFromStoryline, 'wand-2', 'active-note',
-								desc.buildFromStoryline || 'Rebuild a deck from a saved consultant storyline note',
-								['storyline', 'rebuild', 'slides', 'deck'], ['active-note-refine']),
-						cmd('mermaid-chat', 'create', 'edit-mermaid-diagram', t.commands.editMermaidDiagram, 'workflow', 'active-note',
-							desc.editMermaidDiagram || 'Conversational Mermaid diagram editing',
-							['mermaid', 'diagram', 'flowchart'], ['active-note-refine']),
-						cmd('sketch', 'create', 'new-sketch', t.commands.newSketch, 'pencil', 'none',
-							desc.newSketch || 'Open the sketch pad to draw a quick sketch',
-							['sketch', 'draw', 'whiteboard'], ['capture']),
-						cmd('canvas', 'create', 'build-investigation-canvas', t.commands.buildInvestigationCanvas, 'compass', 'active-note',
-							desc.buildInvestigationCanvas || 'Build an investigation canvas from related notes',
-							['canvas', 'investigate', 'board'], ['active-note-maps']),
-						cmd('canvas', 'create', 'build-context-canvas', t.commands.buildContextCanvas, 'layout-grid', 'active-note',
-							desc.buildContextCanvas || 'Build a context canvas from embedded sources',
-							['canvas', 'context', 'board'], ['active-note-maps']),
-						cmd('canvas', 'create', 'build-cluster-canvas', t.commands.buildClusterCanvas, 'network', 'vault',
-							desc.buildClusterCanvas || 'Build a cluster canvas grouping vault notes by tag',
-							['canvas', 'cluster', 'board'], ['vault-visualize']),
-					],
-				},
-				// Direct leaves — single-action verbs.
-				cmd('ai-workspaces', 'create', 'edit-ai-workspace', t.commands.editAiWorkspace, 'messages-square', 'none',
-					desc.editAiWorkspace || 'Choose what a project shares with an AI app',
-					['ai', 'workspace', 'share', 'project', 'claude', 'chatgpt']),
-				cmd('ai-workspaces', 'create', 'copy-ai-instructions', t.commands.copyAiInstructions, 'clipboard-copy', 'none',
-					desc.copyAiInstructions || 'Copy the instructions for a project to paste into an AI app',
-					['ai', 'workspace', 'instructions', 'project', 'copy']),
-				cmd('ai-workspaces', 'create', 'create-ai-context-pack', t.commands.createContextPack, 'package', 'none',
-					desc.createContextPack || 'Write a dated context pack for a project',
-					['ai', 'workspace', 'context', 'pack', 'project']),
-				{
-					...cmd('ai-workspaces', 'create', 'review-ai-handback', t.commands.reviewAiHandback, 'inbox', 'active-note',
-						desc.reviewAiHandback || 'Review what an AI app handed back in this note',
-						['ai', 'workspace', 'handback', 'hand-back', 'review']),
-					// Registered only while the capture inbox is on too (handbackActive).
-					alsoRequiresFeatures: ['capture-inbox'],
-				},
-				cmd('audio-narration', 'create', 'narrate-note', t.commands.narrateNote, 'audio-lines', 'active-note',
-					desc.narrateNote || 'Convert this note to a spoken-audio MP3',
-					['narrate', 'audio', 'tts', 'listen', 'voice', 'speak', 'podcast', 'mp3'],
-					['active-note-export']),
-				cmd('audio-narration', 'create', 'play-narration', t.commands.playNarration, 'play-circle', 'mp3-file',
-					desc.playNarration || 'Open mp3 in a player with speed and skip controls',
-					['play', 'audio', 'speed', 'skip', 'mp3'], ['active-note-export']),
-				cmd('flashcards', 'create', 'export-flashcards', t.commands.exportFlashcards, 'layers', 'active-note',
-					desc.exportFlashcards || 'Generate Anki or Brainscape flashcards from note',
-					['flashcards', 'anki', 'brainscape', 'cards', 'study', 'quiz'],
-					['active-note-export']),
-				cmd('tagging', 'create', 'smart-tag', t.commands.tag, 'tag', 'active-note',
-					desc.smartTag || 'Generate tags for the active note',
-					['tag', 'tagging', 'categorise', t.commands.generateTagsForCurrentNote], ['active-note-refine']),
-			],
-		},
-		{
-			id: 'refine',
-			name: t.workflowStages.refine,
-			icon: 'wand-2',
-			commands: [
-				{
-					...cmd('capture-inbox', 'refine', 'open-process', t.commands.openProcess, 'list-todo', 'none',
-						desc.openProcess || 'See what waits for you: captures, AI hand-backs and held tasks',
-						['process', 'queue', 'waiting', 'review', 'handback', 'captures']),
-					// Same gate as the view itself (processViewActive): any feeding feature.
-					anyOfFeatures: ['capture-inbox', 'inbox-sweep', 'ai-workspaces'],
-				},
-				cmd('inbox-sweep', 'refine', 'sweep-inbox', t.commands.sweepInbox, 'inbox', 'none',
-					desc.sweepInbox || 'Read your inbox notes and propose actions for you to review',
-					['inbox', 'sweep', 'tasks', 'actions', 'gtd']),
-				cmd('inbox-sweep', 'refine', 'setup-inbox-sweep', t.commands.setupInboxSweep, 'sparkles', 'none',
-					desc.setupInboxSweep || 'Choose inbox folders and what to keep out, step by step',
-					['inbox', 'sweep', 'setup', 'keep out']),
-				cmd('capture-inbox', 'refine', 'process-capture-inbox', t.commands.processCaptureInbox, 'inbox', 'none',
-					desc.processCaptureInbox || 'Turn voice memos, photos and quick notes in your inbox into readable text with a proposed title, tags and folder',
-					['capture', 'inbox', 'voice', 'memo', 'photo', 'transcribe', 'clarify', 'gtd']),
-				cmd('capture-inbox', 'refine', 'review-captures', t.commands.reviewCaptures, 'list-checks', 'none',
-					desc.reviewCaptures || 'See the captures that are waiting for your review',
-					['capture', 'review', 'queue', 'inbox']),
-				cmd('capture-inbox', 'refine', 'setup-capture-inbox', t.commands.setupCaptureInbox, 'sparkles', 'none',
-					desc.setupCaptureInbox || 'Choose the inbox, what to keep out and where organised notes may go, step by step',
-					['capture', 'inbox', 'setup', 'keep out']),
-				cmd('google-tasks-export', 'refine', 'send-tasks-to-google', t.commands.sendTasksToGoogle, 'send', 'none',
-					desc.sendTasksToGoogle || 'Send the tasks you approved to your Google Tasks list',
-					['google', 'tasks', 'send', 'export']),
-				cmd('google-tasks-export', 'refine', 'make-google-task', t.commands.makeGoogleTask, 'list-plus', 'active-note',
-					desc.makeGoogleTask || 'Turn this note, or the selected text, into one Google task without AI',
-					['google', 'tasks', 'task', 'todo', 'right click', 'quick']),
-				cmd('google-tasks-export', 'refine', 'setup-google-tasks', t.commands.setupGoogleTasks, 'list-checks', 'none',
-					desc.setupGoogleTasks || 'Connect your own Google Tasks list step by step',
-					['google', 'tasks', 'setup']),
-				cmd('google-tasks-export', 'refine', 'adopt-project', t.commands.adoptProject, 'folder-kanban', 'active-note',
-					desc.adoptProject || 'Mark the active note as a project with one small reviewed edit; nothing is moved',
-					['project', 'adopt', 'para', 'gtd']),
-				cmd('smart-note', 'refine', 'enhance-note', t.commands.improveNote, 'sparkles', 'active-note',
-					desc.enhanceNote || 'Improve the active note with AI suggestions',
-					['improve', 'polish', 'enhance', 'rewrite', t.commands.enhance],
-					['active-note-refine']),
-				{
-					id: 'refine-pending',
-					name: t.modals.commandPicker.groupRefinePending,
-					icon: 'merge',
-					description: t.modals.commandPicker.descriptions.groupRefinePending,
-					callback: () => {},
-					subCommands: [
-						cmd('smart-note', 'refine', 'integrate-pending-content', t.commands.integratePendingContent, 'merge', 'active-note',
-							desc.integratePending || 'Integrate pending content into the active note',
-							['integrate', 'merge'], ['active-note-pending']),
-						cmd('smart-note', 'refine', 'add-to-pending-integration', t.commands.addToPendingIntegration, 'plus-square', 'active-note',
-							desc.addToPending || 'Add the active note to the pending-integration queue',
-							['add'], ['active-note-pending']),
-						cmd('smart-note', 'refine', 'resolve-pending-embeds', t.commands.resolvePendingEmbeds, 'link', 'active-note',
-							desc.resolveEmbeds || 'Resolve embedded content references in the active note',
-							['embeds', 'resolve', 'expand'], ['active-note-pending']),
-					],
-				},
-				cmd('digitisation', 'refine', 'digitise-image', t.commands.digitiseImage, 'scan', 'active-note',
-					desc.digitiseImage || 'Digitise a handwritten or whiteboard image',
-					['digitise', 'digitize', 'ocr', 'image', 'scan'], ['active-note-refine']),
-				cmd('tagging', 'refine', 'clear-tags', t.commands.clearTags, 'eraser', 'active-note',
-					desc.clearTags || 'Clear tags from the active note',
-					['clear', 'tags', 'reset'], ['active-note-refine']),
-				cmd('onedrive-link', 'refine', 'refresh-onedrive-embed', t.commands.refreshOneDriveEmbed, 'refresh-cw', 'active-note',
-					desc.refreshOneDriveEmbed || 'Re-sync any OneDrive embeds in this note with their source files',
-					['onedrive', 'refresh', 'sync', 'update']),
-			],
-		},
-		{
-			id: 'find',
-			name: t.workflowStages.find,
-			icon: 'search',
-			commands: [
-				// Cross-listed from Pinned — kept at top so users who jumped straight
-				// to "Find" still see the search verbs (their canonical home is Pinned).
-				chatLeaf,
-				searchLeaf,
-				cmd('semantic-search', 'find', 'find-related', t.commands.showRelatedNotes, 'compass', 'active-note',
-					desc.findRelated || 'Find related resources for the active note',
-					[...relatedAliases, 'find', 'resources', t.commands.findResources], ['active-note-maps']),
-				cmd('semantic-search', 'find', 'insert-related-notes', t.commands.insertRelatedNotes, 'list-tree', 'active-note',
-					desc.insertRelatedNotes || 'Insert related notes into the active note',
-					[...relatedAliases, 'insert'], ['active-note-maps']),
-				peekLeaf,
-				cmd('google-tasks-export', 'find', 'open-project', t.commands.openProject, 'folder-open', 'none',
-					desc.openProject || 'Find one of your adopted projects and open its note',
-					['project', 'open', 'para', 'gtd']),
-				cmd('agent-index', 'find', 'copy-claude-permissions', t.commands.copyClaudePermissions, 'shield', 'none',
-					desc.copyClaudePermissions || 'Copy the Claude Code permission rules for your excluded and protected folders',
-					['claude', 'permissions', 'deny', 'agent']),
-				cmd('agent-index', 'find', 'write-agent-instructions', t.commands.writeAgentInstructions, 'file-pen-line', 'none',
-					desc.writeAgentInstructions || 'Preview and write the instructions block into your AGENTS.md',
-					['agents', 'instructions', 'block', 'write']),
-				cmd('agent-index', 'find', 'build-agent-index', t.commands.buildAgentIndex, 'list-tree', 'vault',
-					desc.buildAgentIndex || 'Write the note index that AI coding tools can read',
-					['agent', 'index', 'claude', 'cursor', 'map']),
-				cmd('agent-index', 'find', 'check-agent-index', t.commands.checkAgentIndex, 'list-checks', 'vault',
-					desc.checkAgentIndex || 'See whether the agent index still matches your notes',
-					['agent', 'index', 'check', 'stale']),
-				cmd('agent-index', 'find', 'copy-agent-instructions', t.commands.copyAgentInstructions, 'clipboard-copy', 'vault',
-					desc.copyAgentInstructions || 'Copy the routing text and permission rules for your AI coding tool',
-					['agent', 'instructions', 'claude', 'permissions', 'deny']),
-				cmd('agent-connectors', 'find', 'open-agent-connectors', t.commands.openAgentConnectors, 'plug-zap', 'none',
-					desc.openAgentConnectors || 'Step-by-step help to connect Claude Desktop, Codex or a command-line agent',
-					['connect', 'claude', 'codex', 'agent', 'mcp']),
-				cmd('agent-connectors', 'find', 'export-vault-map', t.commands.exportVaultMap, 'file-up', 'none',
-					desc.exportVaultMap || 'Make one file of note paths, tags and links to upload to a chat project',
-					['export', 'chat', 'project', 'upload', 'map']),
-				cmd('agent-index', 'find', 'setup-agent-index', t.commands.setupAgentIndex, 'sparkles', 'vault',
-					desc.setupAgentIndex || 'Choose what the agent index covers, with a preview',
-					['agent', 'index', 'setup']),
-			],
-		},
-		{
-			id: 'maintain',
-			name: t.workflowStages.maintain,
-			icon: 'wrench',
-			commands: [
-				cmd('tagging', 'maintain', 'show-tag-network', t.commands.showTagNetwork, 'network', 'vault',
-					desc.showTagNetwork || 'Visualise the tag network for the vault',
-					['tags', 'network', 'graph'], ['vault-visualize']),
-				cmd('tagging', 'maintain', 'collect-all-tags', t.commands.collectAllTags, 'tags', 'vault',
-					desc.collectAllTags || 'Collect every tag in the vault into a list',
-					['tags', 'collect', 'list'], ['vault-visualize']),
-				cmd('cloud-offload', 'maintain', 'resume-offload', t.commands.resumeOffload, 'cloud-upload', 'none',
-					desc.resumeOffload || 'Continue an unfinished move of a large file to Google Drive',
-					['drive', 'google', 'offload', 'resume', 'large']),
-				cmd('vault-upkeep', 'maintain', 'run-vault-upkeep', t.commands.runVaultUpkeep, 'broom', 'none',
-					desc.runVaultUpkeep || 'Check your vault now and list what needs attention',
-					['upkeep', 'sweep', 'check', 'maintenance']),
-				cmd('vault-upkeep', 'maintain', 'open-upkeep-review', t.commands.openUpkeepReview, 'clipboard-list', 'none',
-					desc.openUpkeepReview || 'See the result of the last vault upkeep run',
-					['upkeep', 'review', 'report']),
-				cmd('vault-upkeep', 'maintain', 'setup-vault-upkeep', t.commands.setupVaultUpkeep, 'sparkles', 'none',
-					desc.setupVaultUpkeep || 'Choose how often to check and what to check, step by step',
-					['upkeep', 'setup', 'schedule']),
-				cmd('embed-scan', 'maintain', 'find-embeds', t.commands.findEmbeds, 'puzzle', 'vault',
-					desc.findEmbeds || 'Find every embedded asset in the vault',
-					['embeds', 'find', 'hygiene'], ['vault']),
-				{
-					id: 'maintain-bases',
-					name: t.modals.commandPicker.groupMaintainBases,
-					icon: 'database',
-					description: t.modals.commandPicker.descriptions.groupMaintainBases,
-					callback: () => {},
-					subCommands: [
-						cmd('bases', 'maintain', 'upgrade-metadata', t.commands.upgradeToBases, 'database', 'vault',
-							desc.upgradeMetadata || 'Upgrade vault notes to Bases metadata format',
-							['migrate', 'upgrade', 'bases', 'metadata']),
-						cmd('bases', 'maintain', 'upgrade-folder-metadata', t.commands.upgradeFolderToBases, 'folder-sync', 'active-note',
-							desc.upgradeFolderMetadata || 'Upgrade current folder notes to Bases metadata',
-							['migrate', 'folder', 'upgrade', 'bases']),
-						cmd('bases', 'maintain', 'create-bases-dashboard', t.commands.createBasesDashboard, 'gauge', 'vault',
-							desc.createDashboard || 'Create a Bases dashboard for the vault',
-							['dashboard', 'bases', 'create'], ['vault-visualize']),
-					],
-				},
-				cmd('notebooklm', 'maintain', 'notebooklm-export', t.commands.notebookLMExport, 'book-open', 'vault',
-					desc.notebookLMExport || 'Export selected notes as NotebookLM source pack',
-					['notebooklm', 'export', 'pdf', 'pack'], ['tools']),
-			],
-		},
-	];
-
-	// Desktop-only leaves: their commands register (or run) only in the desktop app.
-	for (const cat of nonEssentialCategories) {
-		for (const c of cat.commands) {
-			for (const leaf of c.subCommands ?? [c]) {
-				if (DESKTOP_ONLY_LEAVES.has(leaf.id)) leaf.platform = 'desktop';
-			}
-		}
-	}
-
-	// Resolve the user's Pinned selection (max 5). Empty / undefined → fall back to the
-	// static default (chat / search / quick-peek). Look up each ID across
-	// nonEssentialCategories so the SAME object reference is pushed into Pinned too —
-	// preserves cross-listing semantics for search dedup. IDs not found are silently skipped.
+	// The user's Pinned selection (max 5), else the default. IDs not found are skipped.
 	const customPinned = pinnedCommandIds
 		.slice(0, 5)
-		.map(id => findLeafByIdInCategories(id, nonEssentialCategories))
+		.map(id => findLeafByIdInCategories(id, stageCategories))
 		.filter((leaf): leaf is PickerCommand => leaf !== null);
 	const pinnedCommands = customPinned.length > 0
 		? customPinned
-		: [chatLeaf, searchLeaf, peekLeaf];
+		: DEFAULT_PINNED.map((id) => leaves.get(id)!).filter(Boolean);
 
 	return [
 		{
 			id: 'pinned',
-			name: t.modals.commandPicker.categoryPinned,
+			name: cp.categoryPinned,
 			icon: 'star',
 			commands: pinnedCommands,
 		},
-		...nonEssentialCategories,
+		...stageCategories,
 	];
 }
