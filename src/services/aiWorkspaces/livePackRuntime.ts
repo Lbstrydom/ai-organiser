@@ -7,6 +7,8 @@ import { FileSystemAdapter, Platform, TFile, type EventRef } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { saveSettingsData } from '../../core/pluginDataStore';
 import { logger } from '../../utils/logger';
+import { Result, err } from '../../core/result';
+import { checkMountFolderWithin } from '../offload/localMount';
 import { deviceId } from '../operations/operationIndex';
 import { sharePolicyRevision } from './aiShareScope';
 import { liveDeps, localStorageJournal } from './liveFileWriter';
@@ -66,6 +68,17 @@ export class LivePackRuntime {
         );
         for (const ref of this.refs) this.plugin.registerEvent(ref);
         scheduler.start();
+    }
+
+    /** Check a folder for live packs (the settings button): absolute, existing, outside the vault. Bounded in time. */
+    async checkFolder(raw: string): Promise<Result<string>> {
+        const deps = liveDeps();
+        if (!deps) return err('live-desktop-only');
+        if (raw.trim() === '') return err('live-folder-missing');
+        const base = vaultBase(this.plugin);
+        // Without the vault path the folder cannot be shown to lie outside it: the answer is no.
+        if (!base) return err('mount-vault-unverified');
+        return checkMountFolderWithin(deps, raw, base);
     }
 
     /** Called synchronously at the start of every settings save, before it awaits anything. */

@@ -149,6 +149,18 @@ export class LivePackReviewModal extends Modal {
     }
 }
 
+/** What the person is told after a refresh or a confirmation: every outcome has its own message. */
+export function outcomeMessage(plugin: AIOrganiserPlugin, outcome: RefreshOutcome, path?: string): string {
+    const t = plugin.t.aiWorkspaces.live;
+    switch (outcome.kind) {
+        case 'written':
+        case 'held': return path ? t.writtenNotice.replace('{path}', path) : t.refreshedNotice;
+        case 'unchanged': return t.unchangedNotice;
+        case 'revoked': return t.revokedNotice;
+        case 'needs-review': return t.pausedNotice;
+    }
+}
+
 /** The file's full path for messages, with the folder's own separator. */
 export function livePathOf(folder: string, fileName: string): string {
     const sep = folder.includes('\\') ? '\\' : '/';
@@ -164,9 +176,8 @@ export async function openLiveReview(plugin: AIOrganiserPlugin, aioId: string, i
     new LivePackReviewModal(plugin.app, plugin, review.value,
         (preview) => service.confirm(review.value, preview),
         (outcome) => {
-            const t = plugin.t.aiWorkspaces.live;
             const path = livePathOf(review.value.folder, review.value.fileName);
-            new Notice(outcome.kind === 'needs-review' ? t.pausedNotice : t.writtenNotice.replace('{path}', path), 10000);
+            new Notice(outcomeMessage(plugin, outcome, path), 10000);
             after?.();
         },
         (ticks) => { void openLiveReview(plugin, aioId, ticks, after); },

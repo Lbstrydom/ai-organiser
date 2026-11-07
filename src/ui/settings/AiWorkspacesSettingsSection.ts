@@ -1,6 +1,4 @@
-import { ButtonComponent, FileSystemAdapter, Notice, Setting } from 'obsidian';
-import { checkMountFolderWithin } from '../../services/offload/localMount';
-import { liveDeps } from '../../services/aiWorkspaces/liveFileWriter';
+import { ButtonComponent, Notice, Setting } from 'obsidian';
 import { liveStatusText } from '../modals/LivePackReviewModal';
 import type AIOrganiserPlugin from '../../main';
 import type { AIOrganiserSettingTab } from './AIOrganiserSettingTab';
@@ -105,16 +103,19 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
                         tx.setValue(s.aiWorkspaceLiveFolder);
                         return;
                     }
+                    const before = s.aiWorkspaceLiveFolder;
                     s.aiWorkspaceLiveFolder = next;
-                    this.plugin.saveSettings().catch((e: unknown) => logger.error('AiWorkspaces', 'Could not save the live pack folder', e));
+                    // Not saved = not changed: the previous value comes back and the person is told.
+                    this.plugin.saveSettings().catch((e: unknown) => { logger.error('AiWorkspaces', 'Could not save the live pack folder', e); this.restore(() => { s.aiWorkspaceLiveFolder = before; }); });
                 };
             })
             .addButton((b) => b.setButtonText(t.folderCheck).onClick(() => { void this.checkFolder(b); }));
 
         new Setting(this.containerEl).setName(t.delayName).setDesc(t.delayDesc)
             .addSlider((sl) => sl.setLimits(1, 60, 1).setValue(s.aiWorkspaceLiveDelayMinutes).setDynamicTooltip().onChange((v) => {
+                const before = s.aiWorkspaceLiveDelayMinutes;
                 s.aiWorkspaceLiveDelayMinutes = v;
-                this.plugin.saveSettings().catch((e: unknown) => logger.error('AiWorkspaces', 'Could not save the live pack delay', e));
+                this.plugin.saveSettings().catch((e: unknown) => { logger.error('AiWorkspaces', 'Could not save the live pack delay', e); this.restore(() => { s.aiWorkspaceLiveDelayMinutes = before; }); });
             }));
 
         this.containerEl.createEl('h4', { text: t.statusHeading });
@@ -131,18 +132,19 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
         for (const r of pending) new Setting(this.containerEl).setName(r.fileName).setDesc(t.stateRevoking);
     }
 
+    /** A live pack setting that did not save: put the previous value back, say so, and show the real state. */
+    private restore(undo: () => void): void {
+        undo();
+        new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 9000);
+        this.plugin.settingTab?.display();
+    }
+
     private async checkFolder(button: ButtonComponent): Promise<void> {
-        const deps = liveDeps();
-        if (!deps) { new Notice(formatGuidance(describeError(this.plugin.t, 'live-desktop-only')), 8000); return; }
+        const runtime = this.plugin.livePacks;
+        if (!runtime) { new Notice(formatGuidance(describeError(this.plugin.t, 'live-desktop-only')), 8000); return; }
         button.setDisabled(true);
         try {
-            const adapter = this.plugin.app.vault.adapter;
-            const base = adapter instanceof FileSystemAdapter ? adapter.getBasePath() : undefined;
-            const raw = this.plugin.settings.aiWorkspaceLiveFolder;
-            // Without the vault path the folder cannot be shown to lie outside it: the answer is no.
-            const res = raw.trim() === '' ? { ok: false as const, error: 'live-folder-missing' }
-                : !base ? { ok: false as const, error: 'mount-vault-unverified' }
-                : await checkMountFolderWithin(deps, raw, base);
+            const res = await runtime.checkFolder(this.plugin.settings.aiWorkspaceLiveFolder);
             new Notice(res.ok ? this.plugin.t.aiWorkspaces.live.folderOk : formatGuidance(describeError(this.plugin.t, res.error)), 8000);
         } finally {
             button.setDisabled(false);

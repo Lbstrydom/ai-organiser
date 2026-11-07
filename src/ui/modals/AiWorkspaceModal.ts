@@ -1,6 +1,6 @@
 import { App, ButtonComponent, Modal, Notice, Setting } from 'obsidian';
 import { ConfirmationModal } from './ConfirmationModal';
-import { liveStatusText, openLiveReview } from './LivePackReviewModal';
+import { liveStatusText, openLiveReview, outcomeMessage } from './LivePackReviewModal';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { MAX_CHATS, MAX_CONTEXT_SOURCES, validateChatUrl, type ChatApp, type WorkspaceRecord } from '../../services/aiWorkspaces/workspaceRecord';
@@ -101,7 +101,10 @@ export class AiWorkspaceModal extends Modal {
         const row = new Setting(el).then((r) => r.settingEl.addClass('ai-organiser-wrap-row'));
         const run = (b: ButtonComponent, job: () => Promise<void>): void => {
             b.setDisabled(true);
-            job().catch((e: unknown) => logger.error('AiWorkspaces', 'Live pack action failed', e)).finally(() => { if (this.contentEl.isConnected) this.draw(); });
+            job().catch((e: unknown) => {
+                logger.error('AiWorkspaces', 'Live pack action failed', e);
+                new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 9000);
+            }).finally(() => { if (this.contentEl.isConnected) this.draw(); });
         };
         if (!live) {
             row.addButton((b) => b.setCta().setButtonText(t.turnOn).onClick(() => { void openLiveReview(this.plugin, this.aioId, null, () => this.draw()); }));
@@ -114,7 +117,7 @@ export class AiWorkspaceModal extends Modal {
             row.addButton((b) => b.setButtonText(t.refreshNow).onClick(() => run(b, async () => {
                 const res = await service.refresh(this.aioId, { force: true });
                 if (!res.ok) new Notice(formatGuidance(describeError(this.plugin.t, res.error)), 9000);
-                else new Notice(res.value.kind === 'needs-review' ? t.pausedNotice : t.refreshedNotice, 5000);
+                else new Notice(outcomeMessage(this.plugin, res.value), 6000);
             })));
         }
         row.addButton((b) => b.setWarning().setButtonText(t.turnOff).onClick(() => {

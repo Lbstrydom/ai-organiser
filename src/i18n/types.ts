@@ -4390,6 +4390,7 @@ export interface Translations {
             refreshedNotice: string;
             unchangedNotice: string;
             pausedNotice: string;
+            revokedNotice: string;
         };
     };
     googleScript: {

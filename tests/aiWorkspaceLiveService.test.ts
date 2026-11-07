@@ -133,6 +133,43 @@ describe('turning the live pack on', () => {
         expect(await svc.previewSelection(review.value, ['P/Reading.md'])).toEqual({ ok: false, error: 'live-needs-review' });
     });
 
+    it('a turn-off while a re-review is being confirmed wins', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        const review = await svc.prepareReview(ID);
+        const preview = review.ok ? await svc.previewSelection(review.value, ['P/Pkm.md']) : null;
+        if (!review.ok || !preview?.ok) throw new Error('setup');
+        let once = true;
+        w.hooks.beforeCollect = () => { if (once) { once = false; void svc.turnOff(ID); } };
+        expect(await svc.confirm(review.value, preview.value)).toEqual({ ok: false, error: 'pack-preview-stale' });
+        w.hooks.beforeCollect = undefined;
+        await svc.reconcile();
+        expect(w.settings.aiWorkspaces[ID].live).toBeUndefined();
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('aio-live-state: no-longer-shared');
+    });
+
+    it('an approval that could not be saved is not an approval', async () => {
+        const w = world();
+        const svc = new LivePackService({ ...w.env, saveConsent: async () => { throw new Error('disk full'); } });
+        const review = await svc.prepareReview(ID);
+        const preview = review.ok ? await svc.previewSelection(review.value, ['P/Pkm.md']) : null;
+        if (!review.ok || !preview?.ok) throw new Error('setup');
+        expect((await svc.confirm(review.value, preview.value)).ok).toBe(false);
+        expect(w.settings.aiWorkspaces[ID].live).toBeUndefined();
+        expect(fs.existsSync(livePath())).toBe(false);
+    });
+
+    it('a turn-off that could not be saved still writes the stub and says so', async () => {
+        const w = world();
+        let fail = false;
+        const svc = new LivePackService({ ...w.env, saveConsent: async () => { if (fail) throw new Error('disk full'); } });
+        await turnOn(w, svc);
+        fail = true;
+        expect(await svc.turnOff(ID)).toEqual({ ok: false, error: 'live-revocation-unsaved' });
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('aio-live-state: no-longer-shared');
+    });
+
     it('is refused on another installation\'s publication', async () => {
         const w = world();
         const svc = new LivePackService(w.env);

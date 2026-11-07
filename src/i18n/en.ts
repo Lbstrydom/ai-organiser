@@ -4705,6 +4705,7 @@ export const en: Translations = {
             writtenNotice: "Live pack written to {path}. Copy the project instructions again so the AI app knows to look for it.",
             refreshedNotice: "Live pack refreshed.",
             unchangedNotice: "Nothing changed since the last write.",
+            revokedNotice: "A note in this live pack may no longer be shared, so the file now says the project is no longer shared. Review the notes to resume.",
             pausedNotice: "The live pack is paused until you review its notes.",
         },
     },

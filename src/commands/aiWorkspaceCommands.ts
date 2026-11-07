@@ -14,7 +14,7 @@ import { HandbackReviewModal } from '../ui/modals/HandbackReviewModal';
 import { confirmInstructions, confirmPack, preparePack } from '../services/aiWorkspaces/workspaceService';
 import { AiWorkspaceModal } from '../ui/modals/AiWorkspaceModal';
 import { SharePreviewModal } from '../ui/modals/SharePreviewModal';
-import { openLiveReview } from '../ui/modals/LivePackReviewModal';
+import { openLiveReview, outcomeMessage } from '../ui/modals/LivePackReviewModal';
 import { ProjectPickerModal } from '../ui/components/ProjectPicker';
 import { logger } from '../utils/logger';
 
@@ -67,12 +67,11 @@ async function share(plugin: AIOrganiserPlugin, project: ProjectRef, mode: 'pack
 async function refreshLive(plugin: AIOrganiserPlugin, project: ProjectRef): Promise<void> {
     const service = plugin.livePacks?.service;
     if (!service) { guidance(plugin, 'live-desktop-only'); return; }
-    const t = plugin.t.aiWorkspaces.live;
     try {
         const res = await service.refresh(project.aioId, { force: true });
         if (!res.ok) { guidance(plugin, res.error); return; }
         if (res.value.kind === 'needs-review') { await openLiveReview(plugin, project.aioId); return; }
-        new Notice(res.value.kind === 'revoked' ? t.turnedOffNotice : t.refreshedNotice, 5000);
+        new Notice(outcomeMessage(plugin, res.value), 6000);
     } catch (e) {
         logger.error('AiWorkspaces', 'Live pack refresh failed', e);
         guidance(plugin, 'unknown');

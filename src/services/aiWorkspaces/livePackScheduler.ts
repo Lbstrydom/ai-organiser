@@ -31,6 +31,7 @@ export class LivePackScheduler {
 
     constructor(private readonly service: LivePackService, private readonly delayMs: () => number, private readonly t: SchedulerTimers) {
         service.onSnapshot = (s) => this.applySnapshot(s);
+        service.onRetry = (id) => this.schedule(id);
     }
 
     /** Replace what one project watches with what its newest snapshot read. */
@@ -115,7 +116,8 @@ export class LivePackScheduler {
         this.watchers.clear();
         this.paths.clear();
         this.projectNotes.clear();
-        if (this.service.onSnapshot) this.service.onSnapshot = null;
+        this.service.onSnapshot = null;
+        this.service.onRetry = null;
     }
 
     /** For tests and the status line: projects with a refresh waiting. */

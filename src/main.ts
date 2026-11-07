@@ -1711,13 +1711,19 @@ export default class AIOrganiserPlugin extends Plugin {
      */
     public async onExternalSettingsChange(): Promise<void> {
         if (!this.livePacks) return;
+        const runtime = this.livePacks;
         try {
-            const fresh = migrateOldSettings(await this.loadData());
-            if (!fresh) return;
-            const s = this.settings;
-            s.aiWorkspaces = (fresh.aiWorkspaces as typeof s.aiWorkspaces | undefined) ?? s.aiWorkspaces;
-            s.aiWorkspaceLiveRevocations = (fresh.aiWorkspaceLiveRevocations as typeof s.aiWorkspaceLiveRevocations | undefined) ?? s.aiWorkspaceLiveRevocations;
-            this.livePacks.externalChange();
+            // Read and applied inside the live pack queue: it never interleaves with a review being confirmed or a turn-off, and
+            // overlapping notifications apply in the order they arrived.
+            await runtime.service.enqueue(async () => {
+                const fresh = migrateOldSettings(await this.loadData());
+                if (!fresh) return;
+                const s = this.settings;
+                s.aiWorkspaces = (fresh.aiWorkspaces as typeof s.aiWorkspaces | undefined) ?? s.aiWorkspaces;
+                s.aiWorkspaceLiveRevocations = (fresh.aiWorkspaceLiveRevocations as typeof s.aiWorkspaceLiveRevocations | undefined) ?? s.aiWorkspaceLiveRevocations;
+                runtime.service.bumpEpoch();
+            });
+            runtime.externalChange();
         } catch (e) {
             logger.warn('AiWorkspaces', 'Could not read the synced live pack settings', e);
         }

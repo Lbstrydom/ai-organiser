@@ -95,6 +95,8 @@ export class LivePackService {
     private readonly applied = new Map<string, number>();
     /** Set by the scheduler: receives every snapshot, newest only */
     onSnapshot: ((snapshot: CandidateSnapshot) => void) | null = null;
+    /** Set by the scheduler: a write was withdrawn because something changed; try again after the quiet time */
+    onRetry: ((aioId: string) => void) | null = null;
 
     private closed = false;
 
@@ -144,6 +146,20 @@ export class LivePackService {
 
     /** The one reader of candidates: project note, Area note, context sources, each with shareability, approval and hash. */
     async collectCandidates(aioId: string): Promise<Result<{ snapshot: CandidateSnapshot; notes: PackNotes; input: PackInput }>> {
+        try {
+            return await this.collectCandidatesUnsafe(aioId);
+        } catch (e) {
+            logger.error('AiWorkspaces', 'Could not read the live pack sources', e);
+            return err('project-not-found');
+        }
+    }
+
+    /** Run a job in the live pack queue (for settings applied from another device, so they never interleave with a consent change). */
+    enqueue<T>(job: () => Promise<T>): Promise<T> {
+        return this.run(job);
+    }
+
+    private async collectCandidatesUnsafe(aioId: string): Promise<Result<{ snapshot: CandidateSnapshot; notes: PackNotes; input: PackInput }>> {
         const revision = (this.revisions.get(aioId) ?? 0) + 1;
         this.revisions.set(aioId, revision);
         const notes = await this.env.collectNotes(aioId);
@@ -266,10 +282,21 @@ export class LivePackService {
                     fileName: review.fileName,
                     generation: (live?.generation ?? 0) + 1,
                 };
+                // Checked again with no await before the install: a turn-off (recorded synchronously) while this ran wins.
+                const current = this.record(review.aioId);
+                if (!current || (current.live?.generation ?? 0) !== review.generation || (current.live?.deviceId ?? null) !== review.owner || this.pendingFor(review.aioId)) return err('pack-preview-stale');
                 const s = this.env.settings();
-                s.aiWorkspaces = { ...s.aiWorkspaces, [review.aioId]: { ...record, live: approval } };
+                s.aiWorkspaces = { ...s.aiWorkspaces, [review.aioId]: { ...current, live: approval } };
                 this.bumpEpoch();
-                await this.env.saveConsent();
+                try {
+                    await this.env.saveConsent();
+                } catch (e) {
+                    // Not saved = not approved: the previous state comes back, unless something newer replaced this approval meanwhile.
+                    logger.error('AiWorkspaces', 'Could not save the live pack approval', e);
+                    if (this.record(review.aioId)?.live?.generation === approval.generation) s.aiWorkspaces = { ...s.aiWorkspaces, [review.aioId]: current };
+                    this.bumpEpoch();
+                    return err('unknown');
+                }
                 return await this.publish(review.aioId, true, this.epoch);
             } catch (e) {
                 logger.error('AiWorkspaces', 'Could not turn on the live pack', e);
@@ -362,8 +389,9 @@ export class LivePackService {
         const written = await writeLiveFile(deps, this.env.journal, target, pack.text, this.env.vaultBase(), authorized);
         if (!written.ok) {
             if (written.error === 'live-needs-review') {
-                // Something changed between the build and the write: nothing was written; look again with the new state.
-                void this.refresh(aioId);
+                // Something changed between the build and the write: nothing was written. The watcher waits its quiet time
+                // and tries again (a policy change has its own immediate check), so a busy note never spins rebuilds.
+                try { this.onRetry?.(aioId); } catch (e) { logger.warn('AiWorkspaces', 'Could not schedule the live pack again', e); }
                 return ok({ kind: 'needs-review', snapshot });
             }
             return this.fail(aioId, written.error);
@@ -417,18 +445,17 @@ export class LivePackService {
         this.persistRevocation(aioId, 'turn-off');
         const owner = live.deviceId === this.env.deviceId();
         return this.run(async () => {
-            try {
-                await this.env.saveConsent();
-                if (!owner || !this.env.deps()) {
-                    await this.setStatus(aioId, { state: 'other-device' });
-                    return ok('requested' as const);
-                }
-                const res = await this.processRevocations();
-                return res.errors.some((e) => e.source === aioId) ? err(res.errors.find((e) => e.source === aioId)?.error ?? 'live-write-failed') : ok('stubbed' as const);
-            } catch (e) {
-                logger.error('AiWorkspaces', 'Could not turn off the live pack', e);
-                return err('live-write-failed');
+            let saved = true;
+            try { await this.env.saveConsent(); } catch (e) { logger.error('AiWorkspaces', 'Could not save turning off the live pack', e); saved = false; }
+            if (!owner || !this.env.deps()) {
+                await this.setStatus(aioId, { state: 'other-device' });
+                return saved ? ok('requested' as const) : err('live-revocation-unsaved');
             }
+            // The stub is written even when the request could not be saved: stopping the sharing comes first.
+            const res = await this.processRevocations();
+            const failed = res.errors.find((e) => e.source === aioId);
+            if (failed) return err(failed.error);
+            return saved ? ok('stubbed' as const) : err('live-revocation-unsaved');
         });
     }
 
