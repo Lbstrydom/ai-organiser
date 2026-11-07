@@ -64,10 +64,31 @@ export interface ApprovedTask {
 }
 
 
+/** What the person chose to do with the note once its tasks are safe: move it into a folder, or put it in the trash. */
+export type Filing = { type: 'move'; folder: string } | { type: 'trash' };
+
 export interface Disposition {
     sourcePath: string;
     sourceHash: string;
     markSwept: boolean;
+    /** Present only when the person chose to file the note; absent keeps a record byte-identical to before */
+    filing?: Filing;
+    /** Set once the filing ran ('done') or was given up with a reason the person was told ('skipped') */
+    filed?: 'done' | 'skipped';
+}
+
+/**
+ * Whether a note's filing may run now. It waits until every task approved from that note is safe where it is going: exported to
+ * Google, or kept in the report only. With Google Tasks off, the report is the destination, so a finished record is enough.
+ * A task that can never be exported ('failed' with a terminal conflict) blocks the filing for good: the note is the only copy.
+ */
+export function filingReadiness(record: ApprovalRecord, d: Disposition, googleOn: boolean): 'ready' | 'wait' | 'blocked' | 'none' {
+    if (!d.filing || d.filed) return 'none';
+    if (!record.reportDone || !record.ledgerDone) return 'wait';
+    if (!googleOn) return 'ready';
+    const tasks = record.tasks.filter((t) => t.sourcePath === d.sourcePath);
+    if (tasks.some((t) => t.state === 'failed' && (t.error === 'conflict' || t.error === 'target-conflict'))) return 'blocked';
+    return tasks.every((t) => t.state === 'exported' || t.state === 'kept') ? 'ready' : 'wait';
 }
 
 export interface ApprovalRecord {

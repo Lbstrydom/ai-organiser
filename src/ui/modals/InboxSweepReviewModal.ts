@@ -21,6 +21,8 @@ import { itemKeys } from '../../services/inboxSweep/sweepItemIdentity';
 import { approvalFields, changeDestination, checkRow, defaultRowRouting, needsDate, type ReviewRouting, type RowRouting } from '../../services/inboxSweep/reviewRouting';
 import { isFeatureEnabled } from '../../services/featureService';
 import { ConfirmationModal } from './ConfirmationModal';
+import { filingFoldersFor } from '../../services/inboxSweep/sweepFiling';
+import type { Filing } from '../../services/inboxSweep/sweepLedger';
 import { listen } from '../utils/domUtils';
 import { plural } from '../../utils/plural';
 
@@ -62,6 +64,10 @@ export class InboxSweepReviewModal extends Modal {
     private rows: Row[];
     /** undefined = follow the items (swept when any of its items is ticked); boolean = the user chose */
     private sweptChoice = new Map<string, boolean>();
+    /** What to do with each note once its tasks are safe; absent = leave it where it is */
+    private filingChoice = new Map<string, Filing>();
+    /** The folders a note can be filed into, read once when the window opens */
+    private folders: string[] = [];
     private settled = false;
     private footer!: HTMLElement;
     /** The person agreed to drop what they did in this review */
@@ -93,6 +99,7 @@ export class InboxSweepReviewModal extends Modal {
 
     onOpen(): void {
         const t = this.t;
+        try { this.folders = filingFoldersFor(this.plugin); } catch { this.folders = []; }
         this.contentEl.createEl('h3', { text: this.quick ? t.quickTitle : t.reviewTitle, cls: 'ai-organiser-modal-title' });
         this.contentEl.createEl('p', { text: this.quick ? t.quickIntro : t.reviewIntro, cls: 'setting-item-description' });
         if (this.notes.length === 0) this.contentEl.createEl('p', { text: t.reviewEmpty });
@@ -142,6 +149,26 @@ export class InboxSweepReviewModal extends Modal {
         this.cleanups.push(listen(box, 'change', () => {
             if (!this.sweptChoice.has(note.path)) sweptBox.checked = this.isSwept(note);
             captureHint?.toggleClass('ai-organiser-hidden', !sweptBox.checked);
+        }));
+        this.renderFiling(box, note);
+    }
+
+    /** Then: leave the note, move it into a PARA folder, or put it in the trash, once its tasks are safe. Offered where swept is. */
+    private renderFiling(box: HTMLElement, note: NoteProposals): void {
+        const t = this.t;
+        const field = box.createEl('label', { cls: 'ai-organiser-sweep-field ai-organiser-sweep-filing' });
+        field.createSpan({ text: t.thenLabel, cls: 'setting-item-description' });
+        const select = field.createEl('select');
+        select.createEl('option', { text: t.filingLeave, value: '' });
+        for (const folder of this.folders) select.createEl('option', { text: t.filingMoveTo.replace('{folder}', folder), value: 'move:' + folder });
+        select.createEl('option', { text: t.filingTrash, value: 'trash' });
+        const hint = box.createDiv({ text: t.filingTrashHint, cls: 'setting-item-description ai-organiser-hidden' });
+        this.cleanups.push(listen(select, 'change', () => {
+            const v = select.value;
+            if (v === '') this.filingChoice.delete(note.path);
+            else this.filingChoice.set(note.path, v === 'trash' ? { type: 'trash' } : { type: 'move', folder: v.slice(5) });
+            hint.toggleClass('ai-organiser-hidden', v !== 'trash');
+            this.renderFooter();
         }));
     }
 
@@ -236,7 +263,7 @@ export class InboxSweepReviewModal extends Modal {
         this.footerCleanups = [];
         this.footer.empty();
         const n = this.selected().length;
-        const anySwept = this.notes.some((note) => this.isSwept(note));
+        const anySwept = this.notes.some((note) => this.isSwept(note)) || this.filingChoice.size > 0;
         const label = this.quick ? plural(t.quickSendButton, n) : n > 0 ? t.addButton.replace('{count}', String(n)) : t.markReviewedButton;
         const primary = this.footer.createEl('button', { cls: 'mod-cta', text: label });
         primary.disabled = n === 0 && !anySwept;
@@ -266,7 +293,11 @@ export class InboxSweepReviewModal extends Modal {
             // Stamped only for a custom set: a record made under the built-in set is exactly what it always was.
             ...(isDefaultContextSet(this.contexts) ? {} : { contexts: [...this.contexts] }),
         }));
-        const dispositions = this.notes.map((note) => ({ sourcePath: note.path, sourceHash: note.contentHash, markSwept: this.isSwept(note) }));
+        const dispositions = this.notes.map((note) => {
+            const filing = this.offersSwept ? this.filingChoice.get(note.path) : undefined;
+            // Stamped only when chosen: a note left where it is gives exactly the disposition it always did.
+            return { sourcePath: note.path, sourceHash: note.contentHash, markSwept: this.isSwept(note), ...(filing ? { filing } : {}) };
+        });
         this.settled = true;
         this.onDone({ tasks, dispositions });
         this.close();
@@ -276,8 +307,9 @@ export class InboxSweepReviewModal extends Modal {
     private hasWork(): boolean {
         if (this.settled) return false;
         // Quick mode opens with its one row already written: only a change by the person is something to lose.
-        if (this.quick) return this.rows.length > 1 || this.rows[0]?.text.trim() !== this.rows[0]?.item.text || [...this.sweptChoice.values()].some(Boolean);
-        return this.rows.some((r) => r.manual || (r.checked && !r.reported)) || [...this.sweptChoice.values()].some(Boolean);
+        const chose = [...this.sweptChoice.values()].some(Boolean) || this.filingChoice.size > 0;
+        if (this.quick) return this.rows.length > 1 || this.rows[0]?.text.trim() !== this.rows[0]?.item.text || chose;
+        return this.rows.some((r) => r.manual || (r.checked && !r.reported)) || chose;
     }
 
     /** Every way out comes through here (the X, Esc, a click beside the window, Cancel), so a stray click cannot lose a review. */

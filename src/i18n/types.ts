@@ -4507,6 +4507,13 @@ export interface Translations {
         quickTitle: string;
         quickIntro: string;
         quickSendButton: string;
+        thenLabel: string;
+        filingLeave: string;
+        filingTrash: string;
+        filingMoveTo: string;
+        filingTrashHint: string;
+        filingDoneNotice: string;
+        filingSkipped: Record<'changed' | 'protected' | 'name-taken' | 'folder-gone' | 'blocked' | 'failed', string>;
         kindLabels: Record<'next_action' | 'waiting_for' | 'project' | 'someday_maybe', string>;
     };
     captureInbox: {

@@ -15,7 +15,7 @@ import { isValidDue, normaliseRoutingRules, normaliseTasksLists, type RoutingRul
 import type { SweepItemKind } from '../services/prompts/sweepPrompts';
 import type { AzureCapabilityId, AzureCapabilityChoice } from '../services/azure/azureCapabilities';
 import type { VisualProbeResult } from '../services/visualEmbedding/azureCohereV4ImageProbe';
-import type { ApprovalRecord, SweepLedger } from '../services/inboxSweep/sweepLedger';
+import type { ApprovalRecord, Disposition, Filing, SweepLedger } from '../services/inboxSweep/sweepLedger';
 import type { ReportedItems } from '../services/inboxSweep/sweepItemIdentity';
 import type { Proposal, RunSummary } from '../services/upkeep/upkeepTasks';
 import { DEFAULT_AUDIO_MODE, deriveAudioMode, type NewsletterAudioMode } from '../services/newsletter/newsletterAudioMode';
@@ -1495,6 +1495,14 @@ function carryRoutedFields(x: Record<string, unknown>): Partial<ApprovalRecord['
     return out;
 }
 
+/** A disposition's filing choice and its outcome, kept only when well formed; anything else is dropped (the note is then left where it is). */
+function carryFiling(x: Record<string, unknown>): Pick<Disposition, 'filing' | 'filed'> {
+    const f = x.filing as Record<string, unknown> | undefined;
+    const filing: Filing | undefined = f?.type === 'trash' ? { type: 'trash' } : f?.type === 'move' && typeof f.folder === 'string' && f.folder.trim() !== '' ? { type: 'move', folder: f.folder } : undefined;
+    if (!filing) return {};
+    return { filing, ...(x.filed === 'done' || x.filed === 'skipped' ? { filed: x.filed } : {}) };
+}
+
 export function migrateOldSettings(oldSettings: Record<string, unknown> | null): Record<string, unknown> | null {
     if (!oldSettings) return oldSettings;
 
@@ -1878,7 +1886,7 @@ export function migrateSweepSettings(old: Record<string, unknown>): void {
             });
             const dispositions = rawDispositions.flatMap((dd): ApprovalRecord['dispositions'] => {
                 const x = dd as Record<string, unknown> | null;
-                return x && typeof x.sourcePath === 'string' && typeof x.sourceHash === 'string' && typeof x.markSwept === 'boolean' ? [{ sourcePath: x.sourcePath, sourceHash: x.sourceHash, markSwept: x.markSwept }] : [];
+                return x && typeof x.sourcePath === 'string' && typeof x.sourceHash === 'string' && typeof x.markSwept === 'boolean' ? [{ sourcePath: x.sourcePath, sourceHash: x.sourceHash, markSwept: x.markSwept, ...carryFiling(x) }] : [];
             });
             // A record is one unit: if any task or disposition is unusable, none of it can be trusted, and
             // half a record (tasks without their dispositions, or the reverse) would corrupt recovery.
