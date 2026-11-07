@@ -159,6 +159,29 @@ export function appendSection(text: string, runId: string, section: string): Res
     return check.state === 'ok' ? ok(composed) : err('marker-conflict');
 }
 
+/**
+ * Tick the report lines of tasks done in Google: `- [ ]` becomes `- [x]` on a task line whose id is in `ids`. Only task lines in the
+ * body count (never inside a code block or comment); a line already ticked is left alone, and nothing is ever unticked. Returns the
+ * new text, the ids whose line was found (ticked now or already), and how many were ticked now.
+ */
+export function tickDone(text: string, ids: ReadonlySet<string>): { text: string; found: string[]; ticked: number } {
+    const lines = text.split('\n');
+    const hidden = nonBodyLines(lines);
+    const found: string[] = [];
+    let ticked = 0;
+    const out = lines.map((raw, i) => {
+        if (hidden[i]) return raw;
+        const line = raw.replace(/\r$/, '');
+        const m = TASK_LINE.exec(line);
+        if (!m || !ids.has(m[1])) return raw;
+        found.push(m[1]);
+        if (!line.startsWith('- [ ] ')) return raw;
+        ticked++;
+        return `- [x] ${raw.slice(6)}`;
+    });
+    return { text: out.join('\n'), found, ticked };
+}
+
 /** Recovery decision for the report step: compare the ids in the note with the approval record's. */
 export function reconcileReport(text: string, runId: string, expectedIds: readonly string[]): 'done' | 'redo' | 'conflict' {
     const found = findSection(text, runId);

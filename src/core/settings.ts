@@ -1496,6 +1496,7 @@ function carryRoutedFields(x: Record<string, unknown>): Partial<ApprovalRecord['
     if (typeof x.projectId === 'string' && x.projectId !== '') out.projectId = x.projectId;
     if (x.remoteStatus === 'needsAction' || x.remoteStatus === 'completed' || x.remoteStatus === 'deleted') out.remoteStatus = x.remoteStatus;
     if (typeof x.checkedAt === 'number' && Number.isFinite(x.checkedAt) && x.checkedAt >= 0) out.checkedAt = x.checkedAt;
+    if (x.reportTicked === true) out.reportTicked = true;
     return out;
 }
 

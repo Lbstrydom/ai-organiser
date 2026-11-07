@@ -4468,6 +4468,7 @@ export interface Translations {
         dateNeededHint: string;
         refreshing: string;
         refreshedNotice: string;
+        refreshedTicked: string;
         contextsDesc: string;
         contextsReset: string;
         contextsDropped: string;
@@ -4511,6 +4512,8 @@ export interface Translations {
         markedNotice: string;
         sending: string;
         sentNotice: string;
+        /** Appended to a failed or held send: where to send again, now that settings has no send button. */
+        sendAgainHint: string;
         reviewTitle: string;
         reviewIntro: string;
         reviewEmpty: string;
@@ -4729,6 +4732,8 @@ export interface Translations {
         removeList: string;
         addList: string;
         loadMyLists: string;
+        loadListsName: string;
+        loadListsDesc: string;
         newScriptName: string;
         newScriptDesc: string;
         scriptCopiedUnchecked: string;
@@ -4749,7 +4754,6 @@ export interface Translations {
         statusName: string;
         description: string;
         setupButton: string;
-        sendNow: string;
         pendingLine: string;
         wizardTitle: string;
         setupSaved: string;
@@ -4769,6 +4773,7 @@ export interface Translations {
         connectedAutomatic: string;
         alsoUseList: string;
         finishIntroAutomatic: string;
+        repairListsTitle: string;
         autoListsName: string;
         autoListsDesc: string;
         approveLists: string;
