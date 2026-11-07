@@ -53,6 +53,31 @@ Settings: **Apply this list to the connector and the vault map** (`aiShareRequir
 - **Pack tool `get_workspace_pack { id }`**: listed only while the published scope carries `packs: { folder, revision }` (that is, while AI workspaces are on). It serves the latest pack of one project, read-only, and re-checks at serving time: the pointer (`latest.json`, written beside the pack with its `sources`) must carry the policy revision published now, every source must pass `scopeAllows` AND the share allow-list AND lie outside the pack folder, the pointer must name a pack file in that project's own folder, and the file's SHA-256 must equal the pointer's digest. Any failure is "no longer available"; changing the allow-list republishes the scope (new revision), which withdraws older packs at once. Packs follow the allow-list with or without the opt-in.
 - Deviation from the original plan: the pack policy travels inside the scope document (one atomic, tombstoned publication) rather than a separate `share-policy.json`, so a scope and a policy can never disagree.
 
+## Live pack (opt-in per project, desktop only)
+
+While it is on, the plugin rebuilds a project's pack when its notes change and overwrites ONE file, `<project> - live pack.md`, in a
+folder inside Google Drive for desktop (outside the vault). The Claude project's instructions gain a `<live_pack>` section telling
+Claude to search Drive for that exact name at the start of each chat. Verified 2026-11-07: a claude.ai project chat on a phone found
+such a file through Drive search; an in-place local edit reached Drive in about 12 s with the same file id; a new chat read the change.
+
+| Part | File | What it is |
+|---|---|---|
+| Approval | `workspaceRecord.ts` (`live?: LiveApproval`) | Approved paths, policy revision, writer `deviceId`, destination `folder` + `fileName` (fixed at the first approval, kept by every re-review), `generation`. Absent = off, and the key is absent, so a record without it normalises exactly as before. An approval that fails validation but still names a file becomes a pending revocation in the migration. |
+| Pure build | `livePack.ts` | `buildLivePack`: approved notes only; shareable but unapproved notes are **held** (listed under `## Held for review`, links to them read `[not in this pack]`); an approved note that is no longer shareable returns `revoke`; a renamed project note returns `needs-review`. Marker `aio-live-pack: <id>` as a top-level frontmatter key; the date is outside the digest. `buildLiveStub` is the "no longer shared" text. |
+| Writer | `liveFileWriter.ts` | The only Node `fs` writer of the live pack. Folder checked like the offload mount (absolute, exists, not the vault). One handle per write: `lstat`, open `r+` (or `wx+`), `fstat` identity (`dev:ino` as strings), single link only, ownership marker read through the handle, the caller's authorization callback, the same checks again, a device-local intent record, `truncate`, full write loop, `sync`, bounded read-back (`LIVE_FILE_MAX_BYTES + 1`), close in `finally`. **In place, never rename-over**: that is what keeps the Drive id. |
+| Service | `livePackService.ts` | One queue for review, confirm, refresh, turn off and revocations. An authorization epoch bumped synchronously by every settings save and consent change; each write re-checks epoch, approval, policy and source hashes immediately before it. Unchanged digest + verified file = no write. Status in `aiWorkspaceLiveStatus` (status only). |
+| Scheduler | `livePackScheduler.ts` | Quiet time (`aiWorkspaceLiveDelayMinutes`, default 5) with a 30-minute maximum wait; watches the paths of the newest snapshot of each project (a changed `area` link is picked up when the project note changes). |
+| Runtime | `livePackRuntime.ts` | Desktop only. Revoke-only reconciler at start-up (runs with the feature off; writes stubs only, saves nothing when nothing is pending), the settings-save hook, `onExternalSettingsChange`, the feature teardown. |
+| UI | `LivePackReviewModal.ts`, `AiWorkspaceModal.ts`, `AiWorkspacesSettingsSection.ts` | Review with one checkbox per note (project note required, approved ticked, **new unticked**), the selected size from the exact live output, previews one at a time. Command **Refresh live pack now** (desktop). |
+
+Invariants:
+- **Off is unchanged.** No `live` key, no `<live_pack>` section, the same escaping, the same pack bytes (`tests/aiWorkspaceLiveOffPath.test.ts` pins them at `2b29b6b`), and nothing is saved at start-up when nothing is pending.
+- **Consent is per note and per policy.** A change of the share policy pauses the live pack (`needs-review`); if an approved note is no longer shareable the file becomes the stub.
+- **Revocation is durable.** A `PendingRevocation` is saved before an approval is cleared and removed only after the stub is written and read back; none is dropped for space. Only the writing computer writes; another one can only request it.
+- **Never a foreign file.** A file without this project's marker (or an open intent for its exact `dev:ino`), a symlink or a hard link is never written.
+- **Copies are not retracted.** What an AI app already read stays there; the settings, the review and the turn-off confirmation say so.
+- Known limits: two computers turning on the same project while offline from each other is unsupported (the synced record keeps one owner; the other stops). An interrupted write can leave the Drive file empty until the writing computer runs again (Drive keeps version history).
+
 ## Not in this slice
 
 Hand-back from the connector (a mailbox tool) is deferred by the roadmap. A signed manifest in the cryptographic sense is not built: the digest and the policy revision bind a pack to what the plugin wrote and published, in the same way the scope document is trusted (a vault write is already full access).

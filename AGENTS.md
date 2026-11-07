@@ -310,7 +310,7 @@ Repo-wide rules that bind *every* subsystem are in
 
 | Subsystem | What it is | Read it when |
 |---|---|---|
-| AI workspaces | Default-deny sharing allow-list (`aiShareFolders`), a per-project workspace record and owned block, deterministic instructions and a dated context pack; a preview bound to a snapshot (hashes + policy revision) stands before any copy or write; the plugin sends nothing | Changing what may be shared, the pack or instructions bytes, the preview binding, or the `## Handoff` contract |
+| AI workspaces | Default-deny sharing allow-list (`aiShareFolders`), a per-project workspace record and owned block, deterministic instructions and a dated context pack; a preview bound to a snapshot (hashes + policy revision) stands before any copy or write; the plugin sends nothing. Opt-in desktop **live pack**: approved notes only, rewritten in place into one Drive for desktop file outside the vault, durable revocation to a stub | Changing what may be shared, the pack or instructions bytes, the preview binding, the live pack writer or its consent, or the `## Handoff` contract |
 
 ### [Projects, Operations and the Google Script Row](docs/features/projects.md)
 
