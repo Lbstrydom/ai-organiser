@@ -59,7 +59,7 @@ One task from one note, written by the person, with no model involved (`commands
 
 ## Filing the note (Then)
 
-GTD clarifies and organises in one pass, so the review offers, per note where the swept box is offered, **Then**: leave it here (default), move it into a PARA folder, or move it to the trash (`services/inboxSweep/sweepFiling.ts`). The folders are the projects / areas / reference / archive roots of the shared `paraRoots` setting and up to two levels below them, never a protected or hidden folder; with no roots only the trash is offered.
+GTD clarifies and organises in one pass, so the review offers, per note where the swept box is offered, **Then**: leave it here (default), move it to the trash, or move it into a PARA folder (listed in that order) (`services/inboxSweep/sweepFiling.ts`). The folders are the projects / areas / reference / archive roots of the shared `paraRoots` setting and up to two levels below them, never a protected or hidden folder; with no roots only the trash is offered.
 
 - **The choice is a field on the disposition** (`filing`, outcome in `filed`), saved with the approval record; a note left where it is gives a disposition byte-identical to before. The settings migration keeps a well-formed choice and drops a malformed one (the note then stays put). An older plugin drops the field, so it never files anything.
 - **Order.** Filing runs only when `filingReadiness` says every task from that note is safe: exported or kept (report-only), or, with Google Tasks off, once the record is finished. It runs after the commit when nothing is sent, and after every successful send. A send that fails leaves the note; a task that can never be sent (terminal conflict) blocks the filing for good.
