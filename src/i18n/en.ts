@@ -4840,7 +4840,8 @@ export const en: Translations = {
         filingTrash: "Move it to the trash",
         filingMoveTo: "Move it to {folder}",
         filingTrashHint: "It goes to the trash only after its tasks reach Google Tasks, and only if you have not changed it since this review.",
-        filingDoneNotice: "Filed: {moved} moved, {trashed} put in the trash.",
+        filingMoved: "{count} note[s] moved.",
+        filingTrashed: "{count} note[s] put in the trash.",
         filingSkipped: {
             changed: "{name} was changed after the review, so it was not put in the trash.",
             protected: "{name} was left where it is: it is in, or linked from, a protected folder.",

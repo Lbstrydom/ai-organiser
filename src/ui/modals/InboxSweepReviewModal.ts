@@ -264,7 +264,8 @@ export class InboxSweepReviewModal extends Modal {
         this.footer.empty();
         const n = this.selected().length;
         const anySwept = this.notes.some((note) => this.isSwept(note)) || this.filingChoice.size > 0;
-        const label = this.quick ? plural(t.quickSendButton, n) : n > 0 ? t.addButton.replace('{count}', String(n)) : t.markReviewedButton;
+        // With nothing ticked the button only saves the choices (swept, Then), in a sweep and in quick mode alike.
+        const label = n === 0 ? t.markReviewedButton : this.quick ? plural(t.quickSendButton, n) : t.addButton.replace('{count}', String(n));
         const primary = this.footer.createEl('button', { cls: 'mod-cta', text: label });
         primary.disabled = n === 0 && !anySwept;
         this.footerCleanups.push(listen(primary, 'click', () => this.finish()));

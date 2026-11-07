@@ -225,7 +225,9 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<{ 
         return { saved: out.stoppedAt !== 'persist', send: false };
     }
     const added = input.tasks.length - (out.duplicates ?? 0);
-    new Notice(added > 0 ? plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
+    // Nothing added and nothing marked (a filing choice only): the filing says what happened, so no notice here.
+    if (added > 0) new Notice(plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath), 6000);
+    else if (input.dispositions.some((d) => d.markSwept)) new Notice(t.markedNotice, 6000);
     if (out.duplicates) new Notice(plural(t.duplicatesSkipped, out.duplicates), 6000);
     return { saved: true, send: added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && !!plugin.settings.tasksListId };
 }

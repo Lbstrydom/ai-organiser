@@ -493,6 +493,17 @@ describe('InboxSweepReviewModal: Then (file the note)', () => {
 		spy.mockRestore();
 	});
 
+	it('quick mode with the task unticked and a filing chosen reads Mark reviewed, not Send 0', async () => {
+		const { el } = openWith(await withFolders(), { text: 'Call the dentist', allowSwept: true });
+		// The fixture note also has a proposal row; the quick row is the last one.
+		const box = checkboxes(el).at(-1)!;
+		box.checked = false;
+		box.dispatchEvent(new Event('change', { bubbles: true }));
+		choose(el, 'move:2 Areas');
+		expect(primary(el).textContent).toBe(en.inboxSweep.markReviewedButton);
+		expect(primary(el).disabled).toBe(false);
+	});
+
 	it('quick mode outside the inbox offers no filing', async () => {
 		const { el } = openWith(await withFolders(), { text: 'x', allowSwept: false });
 		expect(then(el)).toBeNull();

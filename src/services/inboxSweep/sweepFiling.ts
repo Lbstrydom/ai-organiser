@@ -19,6 +19,7 @@ import { assertWritable, isInsideOrEqual, normalisePath } from '../../core/prote
 import { referrersProtectedActive } from '../../utils/protectedGuard';
 import { isFeatureEnabled } from '../featureService';
 import { logger } from '../../utils/logger';
+import { plural } from '../../utils/plural';
 import type { ParaKind, ParaRoot } from '../projects/paraRoots';
 import { normaliseParaRoots } from '../projects/paraRoots';
 import { filingReadiness, type ApprovalRecord, type Disposition } from './sweepLedger';
@@ -134,7 +135,8 @@ export function runPendingFiling(plugin: AIOrganiserPlugin): Promise<void> {
         } catch (e) {
             logger.error('Sweep', 'Filing stopped', e);
         }
-        if (moved + trashed > 0) new Notice(t.filingDoneNotice.replace('{moved}', String(moved)).replace('{trashed}', String(trashed)), 7000);
+        const done = [moved > 0 ? plural(t.filingMoved, moved) : '', trashed > 0 ? plural(t.filingTrashed, trashed) : ''].filter(Boolean).join(' ');
+        if (done) new Notice(done, 7000);
         for (const line of told) new Notice(line, 12000);
     });
 }

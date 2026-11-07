@@ -4512,7 +4512,8 @@ export interface Translations {
         filingTrash: string;
         filingMoveTo: string;
         filingTrashHint: string;
-        filingDoneNotice: string;
+        filingMoved: string;
+        filingTrashed: string;
         filingSkipped: Record<'changed' | 'protected' | 'name-taken' | 'folder-gone' | 'blocked' | 'failed', string>;
         kindLabels: Record<'next_action' | 'waiting_for' | 'project' | 'someday_maybe', string>;
     };
