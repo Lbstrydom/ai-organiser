@@ -116,6 +116,16 @@ export interface PackNotes {
 
 /** One reader for every pack, live or not: what a pack is made from is decided here only. */
 export async function collectPackNotes(plugin: AIOrganiserPlugin, aioId: string): Promise<Result<PackNotes>> {
+    // The declared contract is a Result: a vault read that throws becomes an error, never a rejection.
+    try {
+        return await collectPackNotesUnsafe(plugin, aioId);
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Could not read the notes of the pack', e);
+        return err('project-not-found');
+    }
+}
+
+async function collectPackNotesUnsafe(plugin: AIOrganiserPlugin, aioId: string): Promise<Result<PackNotes>> {
     const service = getProjectService(plugin);
     const anchor = service?.resolveAnchor(aioId);
     if (!anchor?.ok) return err(anchor ? anchor.error : 'project-not-found');
