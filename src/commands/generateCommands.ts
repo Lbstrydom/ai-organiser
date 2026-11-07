@@ -68,7 +68,7 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     addMenuProvider(plugin, (target) => {
         if (target.kind === 'file' && target.file.extension === 'md') {
             const file = target.file;
-            return [{ id: 'smart-tag', title: plugin.t.commands.aiTagThisNote, icon: 'tag', priority: 'ranked', run: () => { void plugin.analyzeAndTagFiles([file]); } }];
+            return [{ id: 'smart-tag', title: plugin.t.commands.aiTagThisNote, icon: 'tag', priority: 'ranked', run: () => plugin.analyzeAndTagFiles([file]) }];
         }
         if (target.kind !== 'files') return [];
         const markdownFiles = selectedMarkdownFiles(target.files);
@@ -78,7 +78,7 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
             title: plugin.t.commands.aiTagSelectedNotes.replace('{count}', String(markdownFiles.length)),
             icon: 'tag',
             priority: 'cursor',
-            run: () => { void tagSelected(plugin, markdownFiles); },
+            run: () => tagSelected(plugin, markdownFiles),
         }];
     });
 }

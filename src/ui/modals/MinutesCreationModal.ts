@@ -208,7 +208,7 @@ export class MinutesCreationModal extends Modal {
     /** Container for the SpeakerReviewPanel — kept across renders for in-place re-render */
     private speakerReviewContainerEl: HTMLElement | null = null;
 
-    /** A recording to attach when the window first opens (the Meeting recording to minutes job). */
+    /** A recording attached by the Meeting recording to minutes job; kept for the window's life. */
     private initialAudio: TFile | null = null;
 
     constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies, options?: { initialAudio?: TFile }) {
@@ -300,11 +300,6 @@ export class MinutesCreationModal extends Modal {
             this.sectionRegistry = new SectionRegistryController();
             this.sourceFileAtOpen = this.app.workspace.getActiveFile();
             this.controllersInitialized = true;
-            // The job's recording: attached through the same detection path an embed uses.
-            if (this.initialAudio) {
-                this.audioController.addDetectedFromContent(`![[${this.initialAudio.path}]]`);
-                this.initialAudio = null;
-            }
         }
 
         // Audio attach coordinator — owns picker dispatch, vault-import wiring,
@@ -348,6 +343,9 @@ export class MinutesCreationModal extends Modal {
         // / file-system deps that don't exist on mobile) so mobile users can
         // still surface + transcribe audio embeds in their notes (round 10).
         await this.detectEmbeddedAudioOnly();
+        // The job's recording joins the detected audio the window renders and transcribes from.
+        // Re-applied on every render (detection above rebuilds the list); idempotent.
+        if (this.initialAudio) this.injectVaultFileAsDetected(this.initialAudio);
 
         // Document + dictionary detection is desktop-only.
         if (!Platform.isMobile) {

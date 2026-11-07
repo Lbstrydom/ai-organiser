@@ -1844,7 +1844,7 @@ export default class AIOrganiserPlugin extends Plugin {
                     }
                     (this.app as App & { commands: { executeCommandById: (id: string) => void } })
                         .commands.executeCommandById(`ai-organiser:${offer.commandId}`);
-                })(); },
+                })().catch((e: unknown) => logger.error('Core', 'Could not continue the chosen action', e)); },
             );
         } else if (offer.kind === 'job' && JOB_BY_ID.has(offer.jobId)) {
             const jobId = offer.jobId as JobId;
@@ -1904,6 +1904,7 @@ export default class AIOrganiserPlugin extends Plugin {
             },
             reasonText: (state) => this.t.activation.reasons[state],
             staleTarget: this.t.pluginMenu.staleTarget,
+            failed: this.t.messages.failedToGenerate,
         };
     }
 
@@ -1938,10 +1939,12 @@ export default class AIOrganiserPlugin extends Plugin {
             },
             turnOn: (actionId) => new FeatureActivationModal(this.app, this, actionId, jobId).open(),
             run: exec,
+            openSettings: () => openSettingsSection(this, 'ai-provider', 'ai-provider'),
             start: (job, input) => {
                 if (job.id === 'meeting-minutes') {
-                    void import('./ui/modals/MinutesCreationModal').then((m) =>
-                        new m.MinutesCreationModal(this.app, this, undefined, input ? { initialAudio: input } : undefined).open());
+                    void import('./ui/modals/MinutesCreationModal')
+                        .then((m) => new m.MinutesCreationModal(this.app, this, undefined, input ? { initialAudio: input } : undefined).open())
+                        .catch((e: unknown) => { logger.error('Jobs', 'Could not open meeting minutes', e); new Notice(this.t.messages.failedToGenerate, 6000); });
                     return;
                 }
                 exec('sweep-inbox'); // its review already files notes
@@ -1963,13 +1966,23 @@ export default class AIOrganiserPlugin extends Plugin {
         }).open();
     }
 
+    /** Run an action on the active note, but only if it is still the note it was offered for. */
+    private runOnActive(actionId: string, offeredFor: TFile, selection?: string): void {
+        const editorSelection = this.app.workspace.activeEditor?.editor?.getSelection() ?? '';
+        if (this.app.workspace.getActiveFile() !== offeredFor || (selection && selection.trim() && editorSelection !== selection)) {
+            new Notice(this.t.pluginMenu.staleTarget, 6000);
+            return;
+        }
+        runAction(this, actionId, { kind: 'active' }, this.runContext());
+    }
+
     /** What the one right-click section needs from the plugin. */
     public menuDeps(): MenuDeps {
         return {
             rankedFor: (target) => this.rankedForTarget(target),
-            openScoped: (target, items) => this.openCommandPicker({ label: targetLabel(target), items: items.map((c) => ({ id: c.id, title: c.title, icon: c.icon, run: c.run })) }),
+            openScoped: (target, items) => this.openCommandPicker({ label: targetLabel(target), items: items.map((c) => ({ id: c.id, title: c.title, icon: c.icon, run: () => { void c.run(); } })) }),
             labels: () => ({ title: this.t.pluginMenu.title, mobileTitle: this.t.pluginMenu.mobileTitle, more: this.t.pluginMenu.more }),
-            onError: (e) => logger.warn('Menu', 'A menu contribution failed', e),
+            onError: (e) => { logger.error('Menu', 'A menu item failed', e); new Notice(this.t.messages.failedToGenerate, 6000); },
         };
     }
 
@@ -1981,8 +1994,10 @@ export default class AIOrganiserPlugin extends Plugin {
             const active = this.app.workspace.getActiveFile()?.path === file.path;
             const defs = candidatesFor(this.rolesOfFile(file), this.availabilityWith(this.fileRequirement(file)),
                 (def) => acceptsTarget(def.id, 'file') || (active && acceptsTarget(def.id, 'active')));
-            return defs.map((def) => toContribution(def, () => runAction(this, def.id,
-                acceptsTarget(def.id, 'file') ? { kind: 'file', file } : { kind: 'active' }, this.runContext())));
+            return defs.map((def) => toContribution(def, () => {
+                if (acceptsTarget(def.id, 'file')) { runAction(this, def.id, { kind: 'file', file }, this.runContext()); return; }
+                this.runOnActive(def.id, file);
+            }));
         }
         if (target.kind === 'files') {
             const files = target.files;
@@ -1993,7 +2008,9 @@ export default class AIOrganiserPlugin extends Plugin {
             // The editor's note is the active one: its actions run as from the palette.
             const defs = candidatesFor(this.rolesOfFile(target.file, target.selection.trim().length > 0),
                 this.availabilityWith(this.activeRequirement()), () => true);
-            return defs.map((def) => toContribution(def, () => runAction(this, def.id, { kind: 'active' }, this.runContext())));
+            const file = target.file;
+            const selection = target.selection;
+            return defs.map((def) => toContribution(def, () => this.runOnActive(def.id, file, selection)));
         }
         return [];
     }

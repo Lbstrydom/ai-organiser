@@ -57,6 +57,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
      *  snapshotted on the first keystroke and restored when the query is cleared (an overlay,
      *  never persisted). */
     private searchQuery = '';
+    /** What is typed in the box right now (ahead of the debounce), so a redraw keeps it. */
+    private searchDraft: string | null = null;
     private expandedBeforeSearch: Set<string> | null = null;
     private searchTimer: number | null = null;
     private noMatchEl: HTMLElement | null = null;
@@ -471,12 +473,14 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             cls: 'ai-organiser-settings-search-input',
             attr: { placeholder: t.placeholder, 'aria-label': t.placeholder },
         });
-        input.value = this.searchQuery;
+        input.value = this.searchDraft ?? this.searchQuery;
         this.noMatchEl = box.createDiv({ cls: 'ai-organiser-settings-search-empty ai-organiser-hidden' });
         input.addEventListener('input', () => {
+            this.searchDraft = input.value;
             if (this.searchTimer !== null) window.clearTimeout(this.searchTimer);
             this.searchTimer = window.setTimeout(() => {
                 this.searchTimer = null;
+                if (!input.isConnected) return; // the tab re-rendered: a newer box owns the query
                 this.setSearch(input.value);
             }, 150);
         });
@@ -524,6 +528,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
 
     /** End the search: restore exactly the open/closed state the user had before it. */
     private endSearch(): void {
+        if (this.searchTimer !== null) { window.clearTimeout(this.searchTimer); this.searchTimer = null; }
+        this.searchDraft = null;
         this.searchQuery = '';
         const before = this.expandedBeforeSearch;
         this.expandedBeforeSearch = null;

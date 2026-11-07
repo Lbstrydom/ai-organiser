@@ -121,6 +121,22 @@ describe('the coordinator owns the three menu events', () => {
         expect(deps.onError).toHaveBeenCalled();
     });
 
+    it('a failing item is reported, not lost (sync throw and rejected promise)', async () => {
+        const { handlers, plugin, deps } = setup();
+        addMenuProvider(plugin, () => [
+            { id: 'boom', title: 'boom', icon: 'x', priority: 'cursor', run: () => { throw new Error('sync'); } },
+            { id: 'later', title: 'later', icon: 'x', priority: 'cursor', run: () => Promise.reject(new Error('async')) },
+        ]);
+        registerPluginMenu(plugin as never, { ...deps, rankedFor: () => [] });
+        const menu = new FakeMenu();
+        handlers['file-menu'](menu, file('a.md', 'md'));
+        const sub = (menu.items[0] as FakeItem).sub!;
+        (sub.items[0] as FakeItem).click!();
+        (sub.items[1] as FakeItem).click!();
+        await new Promise((r) => setTimeout(r, 0));
+        expect(deps.onError).toHaveBeenCalledTimes(2);
+    });
+
     it('More… passes the frozen target and every item, not only the capped ones', () => {
         const { handlers, plugin, deps } = setup();
         registerPluginMenu(plugin as never, deps);

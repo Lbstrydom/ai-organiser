@@ -28,7 +28,7 @@ export interface MenuContribution {
     readonly icon: string;
     /** 'cursor' items are specific to where the user clicked and always come first. */
     readonly priority: 'cursor' | 'ranked';
-    readonly run: () => void;
+    readonly run: () => void | Promise<void>;
 }
 
 export type MenuProvider = (target: MenuTarget) => readonly MenuContribution[];
@@ -104,7 +104,7 @@ export function renderPluginSection(
         item.setSection(MENU_SECTION).setTitle(labels.title).setIcon('ai-organiser');
         const sub = (item as unknown as SubmenuCapable).setSubmenu?.();
         if (sub) {
-            for (const c of items) sub.addItem((i) => i.setTitle(c.title).setIcon(c.icon).onClick(c.run));
+            for (const c of items) sub.addItem((i) => i.setTitle(c.title).setIcon(c.icon).onClick(() => { void c.run(); }));
             if (items.length > 0) sub.addSeparator();
             sub.addItem((i) => i.setTitle(labels.more).setIcon('more-horizontal').onClick(onMore));
         } else {
@@ -114,7 +114,7 @@ export function renderPluginSection(
             flat = true;
         }
     });
-    if (flat) for (const c of items) menu.addItem((i) => i.setSection(MENU_SECTION).setTitle(c.title).setIcon(c.icon).onClick(c.run));
+    if (flat) for (const c of items) menu.addItem((i) => i.setSection(MENU_SECTION).setTitle(c.title).setIcon(c.icon).onClick(() => { void c.run(); }));
 }
 
 /** Build the target from what Obsidian passes to each event. */
@@ -154,9 +154,19 @@ function showSection(plugin: object, menu: Menu, target: MenuTarget | null, deps
     const contributions = collectContributions(menuProviders(plugin), target, deps.onError);
     let ranked: MenuContribution[] = [];
     try { ranked = deps.rankedFor(target); } catch (e) { deps.onError(e); }
-    const items = planMenuSection(contributions, ranked);
+    // Every item runs inside one error boundary: a throw or a rejected promise is reported, never lost.
+    const guard = (c: MenuContribution): MenuContribution => ({
+        ...c,
+        run: () => {
+            try {
+                const r = c.run();
+                if (r instanceof Promise) r.catch(deps.onError);
+            } catch (e) { deps.onError(e); }
+        },
+    });
+    const items = planMenuSection(contributions, ranked).map(guard);
     // The scoped picker lists every contribution, not only the capped few.
-    const all = planMenuSection(contributions, ranked, Number.MAX_SAFE_INTEGER);
+    const all = planMenuSection(contributions, ranked, Number.MAX_SAFE_INTEGER).map(guard);
     renderPluginSection(menu, items, deps.labels(), () => deps.openScoped(target, all));
 }
 

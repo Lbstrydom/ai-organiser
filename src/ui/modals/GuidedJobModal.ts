@@ -16,6 +16,8 @@ export interface GuidedJobDeps {
     turnOn: (actionId: string) => void;
     /** Run a setup or other action as from the palette. */
     run: (actionId: string) => void;
+    /** Open the plugin settings (the fix for a setup row with no specific setup action). */
+    openSettings: () => void;
     /** Hand off to the job's own flow. */
     start: (job: JobDef, input: TFile | null) => void;
 }
@@ -86,9 +88,13 @@ export class GuidedJobModal extends Modal {
         setting.settingEl.addClass(state === 'ready' ? 'ai-organiser-job-row-ready' : 'ai-organiser-job-row-missing');
         if (state === 'feature-off' && p.kind === 'action') {
             setting.addButton((b) => b.setButtonText(t.turnOn).onClick(() => { this.close(); this.deps.turnOn(p.actionId); }));
-        } else if (state === 'needs-setup' && p.fixActionId) {
+        } else if (state === 'needs-setup') {
             const fix = p.fixActionId;
-            setting.addButton((b) => b.setButtonText(t.setUp).onClick(() => { this.close(); this.deps.run(fix); }));
+            setting.addButton((b) => b.setButtonText(t.setUp).onClick(() => {
+                this.close();
+                if (fix) this.deps.run(fix);
+                else this.deps.openSettings();
+            }));
         }
     }
 

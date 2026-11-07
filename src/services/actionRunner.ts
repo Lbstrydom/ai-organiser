@@ -50,14 +50,22 @@ export interface RunContext {
     availabilityOf: (actionId: string) => Availability | null;
     reasonText: (state: Exclude<Availability['state'], 'ready'>) => string;
     staleTarget: string;
+    /** Shown when the handler itself fails; the error is logged with the action id. */
+    failed?: string;
 }
 
 /** Re-check the target right before running. Returns a reason when it must not run. */
 export function targetStillValid(plugin: AIOrganiserPlugin, target: ActionTarget): boolean {
+    // The vault must still hold the SAME object at the path: a file deleted and recreated under
+    // the same name is a different file, and is refused.
     const vault = plugin.app.vault;
-    if (target.kind === 'file') return vault.getAbstractFileByPath(target.file.path) instanceof TFile;
-    if (target.kind === 'folder') return vault.getAbstractFileByPath(target.folder.path) instanceof TFolder;
-    if (target.kind === 'files') return target.files.every((f) => vault.getAbstractFileByPath(f.path) instanceof TFile);
+    const same = (f: TFile | TFolder): boolean => {
+        const now = vault.getAbstractFileByPath(f.path);
+        return now === f && (f instanceof TFile ? now instanceof TFile : now instanceof TFolder);
+    };
+    if (target.kind === 'file') return same(target.file);
+    if (target.kind === 'folder') return same(target.folder);
+    if (target.kind === 'files') return target.files.every(same);
     if (target.kind === 'selection') {
         const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);
         if (view?.file?.path !== target.file.path) return false;
@@ -84,12 +92,16 @@ export function runAction(plugin: AIOrganiserPlugin, actionId: string, target: A
         return;
     }
     const binding = ACTION_TARGET_HANDLERS[actionId];
+    const fail = (e: unknown): void => {
+        logger.error('Actions', `Action ${actionId} failed`, e);
+        if (ctx.failed) new Notice(ctx.failed, 6000);
+    };
     try {
         const result = target.kind === 'file' ? binding.file!(plugin, target.file)
             : target.kind === 'files' ? binding.files!(plugin, target.files)
                 : undefined;
-        if (result instanceof Promise) result.catch((e: unknown) => logger.error('Actions', `Action ${actionId} failed`, e));
+        if (result instanceof Promise) result.catch(fail);
     } catch (e) {
-        logger.error('Actions', `Action ${actionId} failed`, e);
+        fail(e);
     }
 }

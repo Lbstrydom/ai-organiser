@@ -65,6 +65,15 @@ describe('runAction', () => {
         expect(mockNotices).toEqual(['stale']);
     });
 
+    it('a failing handler is logged and told to the user', async () => {
+        const a = file('a.md');
+        const { p } = plugin([a]);
+        (p as unknown as { analyzeAndTagFiles: () => Promise<void> }).analyzeAndTagFiles = async () => { throw new Error('boom'); };
+        runAction(p as never, 'smart-tag', { kind: 'file', file: a }, ctx({ failed: 'it failed' }));
+        await new Promise((r) => setTimeout(r, 0));
+        expect(mockNotices).toEqual(['it failed']);
+    });
+
     it('an action that is no longer ready runs nothing and says why', () => {
         const { p, exec } = plugin([]);
         runAction(p as never, 'sweep-inbox', { kind: 'active' }, ctx({ availabilityOf: () => ({ state: 'feature-off', reasons: ['feature-off'] }) }));
@@ -78,6 +87,11 @@ describe('targetStillValid', () => {
         const a = file('a.md');
         const { p } = plugin([a]);
         expect(targetStillValid(p as never, { kind: 'selection', file: a, text: 'x', from: 0, to: 1 })).toBe(false);
+    });
+    it('a file deleted and recreated under the same path is a different file, and stale', () => {
+        const original = file('a.md');
+        const { p } = plugin([file('a.md')]); // same path, a new object
+        expect(targetStillValid(p as never, { kind: 'file', file: original })).toBe(false);
     });
     it('a multi-selection with one file gone is stale', () => {
         const a = file('a.md');
