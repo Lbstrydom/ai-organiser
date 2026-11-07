@@ -5,12 +5,13 @@
  *   on desktop and on mobile, is either an action or a declared hidden command. Nothing can
  *   become palette-only again by accident.
  * - One label: each registered command's palette name is its registry label.
- * - Phase 2 oracle: the picker tree is the Phase 1 tree plus exactly the enumerated additions.
+ * - Migration oracle: the picker lists the Phase 1 actions, unchanged, plus exactly the enumerated
+ *   additions; only their placement moved (stages became the All actions filter).
  */
 import { describe, it, expect, afterEach } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { Platform } from 'obsidian';
-import { ACTIONS, ACTION_BY_ID, HIDDEN_COMMANDS, PICKER_GROUPS, actionName } from '../src/core/actionRegistry';
+import { ACTIONS, ACTION_BY_ID, HIDDEN_COMMANDS, actionName } from '../src/core/actionRegistry';
 import { REGISTER_BY_FEATURE } from '../src/commands/index';
 import { registerProcessCommands } from '../src/commands/processCommands';
 import { buildCommandCategories } from '../src/ui/modals/CommandPickerModal';
@@ -128,14 +129,6 @@ describe('registry shape', () => {
         }
     });
 
-    it('every grouped action names a declared group in its own category', () => {
-        for (const def of ACTIONS) {
-            if (!def.legacyPlacement.group) continue;
-            const g = PICKER_GROUPS.find((x) => x.id === def.legacyPlacement.group);
-            expect(g?.category, def.id).toBe(def.legacyPlacement.category);
-        }
-    });
-
     it('setup actions are kind setup', () => {
         for (const def of ACTIONS) if (def.id.startsWith('setup-')) expect(def.kind, def.id).toBe('setup');
     });
@@ -150,38 +143,36 @@ describe('registry shape', () => {
     });
 });
 
-describe('Phase 2 oracle: the picker is the Phase 1 tree plus the enumerated additions', () => {
+describe('migration oracle: the Phase 1 actions plus the enumerated additions, unchanged', () => {
     const phase1: LeafRow[] = JSON.parse(readFileSync('tests/fixtures/navigation/picker-tree-phase1.json', 'utf8'));
-    const current = snapshotPickerTree(buildCommandCategories(en, () => {}));
-    const key = (r: LeafRow): string => `${r.category}/${r.group ?? ''}/${r.id}`;
+    const rows = snapshotPickerTree(buildCommandCategories(en, () => {}));
+    // The picker lists each action once, plus the default Pinned cross-listings.
+    const current = new Map(rows.filter((r) => r.category !== 'pinned').map((r) => [r.id, r]));
+    /** Public commands that were palette-only before Phase 2, plus the AI workspaces settings action (Phase 3). */
     const ADDED = [
-        'capture/capture-newsletter/newsletter-regenerate-audio',
-        'refine//refresh-task-status',
-        'refine//copy-combined-google-script',
-        'refine/refine-pending/ensure-note-structure',
-        'refine/refine-pending/quick-add-text-pending',
-        'refine/refine-pending/quick-add-url-pending',
-        'refine/refine-pending/drop-selection-pending',
-        'find//manage-index',
-        'maintain//notebooklm-toggle-selection',
-        'maintain//notebooklm-clear-selection',
-        'maintain//notebooklm-open-export-folder',
+        'newsletter-regenerate-audio', 'refresh-task-status', 'copy-combined-google-script',
+        'ensure-note-structure', 'quick-add-text-pending', 'quick-add-url-pending', 'drop-selection-pending',
+        'manage-index', 'notebooklm-toggle-selection', 'notebooklm-clear-selection', 'notebooklm-open-export-folder',
+        'open-ai-workspaces-settings',
     ];
+    const phase1Ids = new Set(phase1.filter((r) => r.category !== 'pinned').map((r) => r.id));
 
-    it('every Phase 1 leaf is unchanged: same place, name, owner, requirement and platform', () => {
-        const now = new Map(current.map((r) => [key(r), r]));
-        for (const old of phase1) expect(now.get(key(old)), key(old)).toEqual(old);
+    it('lists exactly the Phase 1 actions plus the additions, each once', () => {
+        expect([...current.keys()].sort()).toEqual([...phase1Ids, ...ADDED].sort());
+        expect(rows.filter((r) => r.category !== 'pinned').length).toBe(current.size);
     });
 
-    it('adds exactly the enumerated, previously palette-only commands', () => {
-        const before = new Set(phase1.map(key));
-        expect(current.filter((r) => !before.has(key(r))).map(key).sort()).toEqual([...ADDED].sort());
+    it('keeps every Phase 1 action\'s name, owner, stage, requirement, platform and gates', () => {
+        const strip = (r: LeafRow) => ({ ...r, category: undefined, group: undefined });
+        for (const old of phase1) {
+            if (old.category === 'pinned') continue;
+            expect(strip(current.get(old.id)!), old.id).toEqual(strip(old));
+        }
     });
 
-    it('each added leaf carries its command\'s label and owning feature', () => {
-        for (const k of ADDED) {
-            const id = k.split('/')[2];
-            const row = current.find((r) => r.id === id)!;
+    it('each addition carries its command\'s label and owning feature', () => {
+        for (const id of ADDED) {
+            const row = current.get(id)!;
             expect(row.name).toBe(actionName(en, id));
             expect(row.feature).toBe(ACTION_BY_ID.get(id)!.feature);
         }

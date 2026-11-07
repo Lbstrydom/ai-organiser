@@ -205,6 +205,9 @@ export const GUIDANCE_CODES = [
     'read-unparsable',
     'read-no-match',
     'read-save-failed',
+    // Feature activation from the picker
+    'activation-reload-unsupported',
+    'activation-reenable-failed',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

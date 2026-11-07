@@ -187,10 +187,15 @@ All commands use i18n names and a contextual Lucide icon, and every registrar is
 by its feature (`REGISTER_BY_FEATURE`) so a disabled feature leaks no command into the
 native palette.
 
-**Top-level picker categories are Pinned + the five workflow stages** (`capture`,
-`create`, `refine`, `find`, `maintain`), declared once in `src/core/workflowStages.ts`
-and projected into both the settings menu and the command picker. A cross-surface CI
-test fails the build when the two disagree. Adding or moving a leaf:
+**Every public command is one entry in the action registry** (`src/core/actionRegistry.ts`):
+its label (Ctrl+P names come from `actionName`), owning feature, stage, `kind` (daily /
+setup / tool), requirement and platform. A command that is neither an action nor in
+`HIDDEN_COMMANDS` fails `tests/actionRegistry.test.ts`. **The picker's top level is its
+sections** (For this context, Pinned, Jobs, All actions, Setup and tools); the five workflow
+stages (`src/core/workflowStages.ts`) are the shared classification, the Features settings
+grouping and the All actions filter, and each row's stage chip shows its declared stage
+(`tests/crossSurfaceTaxonomy.test.ts`). Actions of an off feature are listed under
+"Available to turn on" and open activation, never run. Adding an action:
 [platform](docs/features/platform.md#command-picker-architecture).
 
 ## Feature Subsystems

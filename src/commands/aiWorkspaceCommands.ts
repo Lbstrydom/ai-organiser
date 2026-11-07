@@ -1,3 +1,4 @@
+import { openSettingsSection } from '../utils/noticeUtils';
 /**
  * AI workspace commands: edit a project's workspace, copy its instructions, create its context pack. Registered only while
  * `ai-workspaces` is enabled. Each one that shares text goes through the preview: nothing is copied or written before the
@@ -86,6 +87,12 @@ export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
             },
         });
     }
+    plugin.addCommand({
+        id: 'open-ai-workspaces-settings',
+        name: actionName(plugin.t, 'open-ai-workspaces-settings'),
+        icon: 'settings',
+        callback: () => openSettingsSection(plugin, 'integrations', 'sub-ai-workspaces'),
+    });
     plugin.addCommand({
         id: 'edit-ai-workspace',
         name: actionName(t, 'edit-ai-workspace'),

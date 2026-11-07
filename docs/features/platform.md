@@ -144,10 +144,10 @@ Kills the taxonomy-drift class between the **Features settings menu** and the **
 
 ### Two projections (rhyme, not identical)
 - **Settings** (`src/services/featureProjection.ts` — pure, structure-only, no `t`/icon): `projectSettingsGroups(registry)` folds → Core (the `core` flag wins) → the 5 stages → **Integrations** (features whose `boundary∋'external-account'`), `defaultOn`-first within each group. `FeaturesSettingsSection` renders it; `src/ui/settings/featureStagePresentation.ts` maps group→icon/label (keeps Lucide/i18n out of `services`).
-- **Picker** (`CommandPickerModal.buildCommandCategories` — hand-built): top-level categories are **Pinned + the 5 stages**, labelled from `t.workflowStages.*`. Each leaf declares a `stage` (required on leaves via the `cmd()` helper) that MUST equal its category id. "Manage"/"Essentials" retired (`Essentials→Pinned`, persisted setting `pickerEssentialsCommandIds→pickerPinnedCommandIds` + `migrateOldSettings` copy-forward & category-id remap).
+- **Picker** (`CommandPickerModal.buildCommandCategories`, built from the action registry since the navigation plan): the top level is the picker **sections**, not the stages (contract revision, docs/plans/navigation-discoverability.md decision 8). Each action declares its `stage` in the registry; All actions is ordered by stage, the stage chips filter it, and each row's stage chip shows the declared stage. "Manage"/"Essentials" retired earlier (`Essentials→Pinned`); the old stage category ids in `pickerExpandedCategoryIds` migrate to `all`.
 
 ### The drift-killer (the deliverable)
-`tests/crossSurfaceTaxonomy.test.ts` asserts both surfaces are derivable from ONE declared dataset — **no UNDECLARED divergence**: every feature/leaf `stage` ∈ vocab; non-`pinned` category id === stage and every leaf `stage` === its category id; `pinned` holds only genuine cross-listings (real stage + same object in the stage category + `canonicalCategoryId === 'pinned'`); the Integrations float is driven ONLY by `external-account` (kindle/newsletter float; **bases + notebooklm do NOT** — both are LOCAL tools, no remote-account auth); every cross-stage `leaf.stage` is an enumerated declared override; completeness (every non-core feature reachable). Any new feature/leaf placed inconsistently fails CI.
+`tests/crossSurfaceTaxonomy.test.ts` asserts both surfaces are derivable from ONE declared dataset — **no UNDECLARED divergence**: every feature/leaf `stage` ∈ vocab; every top-level picker category is a section (never a stage) and every All actions row's stage chip equals its declared stage (this replaced the old "leaf stage === category id" assertion); `pinned` holds only genuine cross-listings (real stage + same object in the stage category + `canonicalCategoryId === 'pinned'`); the Integrations float is driven ONLY by `external-account` (kindle/newsletter float; **bases + notebooklm do NOT** — both are LOCAL tools, no remote-account auth); every cross-stage `leaf.stage` is an enumerated declared override; completeness (every non-core feature reachable). Any new feature/leaf placed inconsistently fails CI.
 
 ### Key patterns
 - **`stage`/`boundary` are declared data, not runtime grouping** — the picker stays hand-authored (icons/aliases/legacyHomes/sub-groups inline); `leaf.stage` is *assertion metadata*. Avoided a projection engine that would relocate drift-free metadata (right-sizing).
@@ -262,10 +262,40 @@ await this.summarizationSection.display();  // Correct
 
 ## Command Picker Architecture
 
-The picker's construction, cross-listing and gating mechanics. Note the taxonomy
-block below is the **pre-2026-06 layout**, kept for the mechanics it documents;
-the live top-level categories are Pinned + the five workflow stages — see
-[Unified Feature Taxonomy](#unified-feature-taxonomy-one-ssot-two-projected-surfaces).
+### Current layout (navigation plan, 2026-11)
+
+```
+For this context   ← up to 3 actions for the open note / file (Phase 4)
+Pinned             ← user favourites (max 5; default Chat / Semantic search / Quick peek)
+Jobs               ← guided entry points (Phase 5)
+All actions        ← every ready daily action, flat, by stage; stage chips filter it
+                     └ Available to turn on (n)   ← actions of off features: open activation
+Setup and tools    ← every ready setup / tool action (Set up …, Open Process, Manage index …)
+```
+
+- **One action registry** (`src/core/actionRegistry.ts`): one `ActionDef` per public command.
+  `kind` picks the section, `stage` the order and chip, `labelKey` the one label on every
+  surface (`actionName(t, id)` in every `addCommand`). `HIDDEN_COMMANDS` lists the deliberate
+  exceptions (highlight colours, the picker itself). `tests/actionRegistry.test.ts` runs every
+  registrar on desktop and on mobile with every feature on and fails on an unclassified id.
+- **Availability** (`src/core/actionAvailability.ts`): `desktop-only` → `feature-off` →
+  `needs-setup` → `missing-key` → `wrong-target` → `ready`, with every unmet reason.
+- **Off features are discoverable, never runnable.** Their actions sit under "Available to turn
+  on" (open until the user closes it: `pickerAvailableExpanded`). The row is operable (not
+  `aria-disabled`), says "Feature off", and opens `FeatureActivationModal`: what the feature
+  does, the actions it adds, the features turned on with it, its setup, "Turn on and reload".
+- **Activation** (`src/services/featureActivation.ts`): one `saveSettings` holds the flags and
+  the resume intent (`pendingResume`, versioned, ≤10 min); a failed write reverts both. The
+  reload goes through `src/services/pluginLifecycle.ts` (Obsidian's internal plugin manager,
+  checked first); without it, or if the re-enable fails, a guidance code tells the user what to
+  do. After the reload the chosen action is offered once ("Continue: …"), never run.
+- **Adding an action**: one registry entry + its i18n label and description. Every surface
+  picks it up; the classification test forces the decision for any new command id.
+
+### Earlier layouts (mechanics still apply)
+
+The taxonomy block below is the **pre-2026-06 layout**, kept for the mechanics it documents
+(cross-listing, requirement gating, legacy aliases).
 
 **Command Picker Categories** (`CommandPickerModal.ts`) — output-anchored, two-layer (locked 2026-05-02):
 ```

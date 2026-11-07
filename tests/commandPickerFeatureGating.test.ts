@@ -89,24 +89,24 @@ describe('filterCategoriesByFeature (FT-10ii)', () => {
 describe('buildVisibleItems feature gating', () => {
     const categories = buildCommandCategories(en, noop);
 
-    it('emits no category-header for a fully-disabled category (empty-category suppression)', () => {
-        // Disable every feature that appears in Maintain so the whole category empties.
-        const maintain = categories.find((c) => c.id === 'maintain')!;
-        const maintainFeatures = new Set<FeatureId>(
-            collectLeaves([maintain]).map((l) => l.feature!).filter(Boolean),
+    it('emits no category-header for a fully-disabled section (empty-category suppression)', () => {
+        // Disable every feature that appears in Setup and tools so the whole section empties.
+        const setup = categories.find((c) => c.id === 'setup')!;
+        const setupFeatures = new Set<FeatureId>(
+            collectLeaves([setup]).map((l) => l.feature!).filter(Boolean),
         );
         const items = buildVisibleItems(
             categories, new Set(), null, new Set(categories.map((c) => c.id)),
-            (f) => !maintainFeatures.has(f),
+            (f) => !setupFeatures.has(f),
         );
-        expect(items.some((i) => i.kind === 'category-header' && i.categoryId === 'maintain')).toBe(false);
+        expect(items.some((i) => i.kind === 'category-header' && i.categoryId === 'setup')).toBe(false);
     });
 
     it('keeps an enabled category visible', () => {
         const items = buildVisibleItems(
-            categories, new Set(), null, new Set(['create']),
+            categories, new Set(), null, new Set(['all']),
             () => true,
         );
-        expect(items.some((i) => i.kind === 'category-header' && i.categoryId === 'create')).toBe(true);
+        expect(items.some((i) => i.kind === 'category-header' && i.categoryId === 'all')).toBe(true);
     });
 });

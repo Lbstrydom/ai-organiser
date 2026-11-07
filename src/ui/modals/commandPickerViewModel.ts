@@ -6,6 +6,7 @@
 
 import type { CommandCategory, PickerCommand } from './CommandPickerModal';
 import type { FeatureId } from '../../core/features';
+import type { WorkflowStage } from '../../core/workflowStages';
 import { actionFeatureOn } from '../../core/actionAvailability';
 
 /** Predicate: is the feature owning a leaf enabled? Supplied by the modal. */
@@ -23,7 +24,9 @@ export function filterCategoriesByFeature(
 	categories: CommandCategory[],
 	isEnabled: FeatureLeafPredicate,
 ): CommandCategory[] {
-	const keepLeaf = (leaf: PickerCommand): boolean => actionFeatureOn(leaf, isEnabled);
+	// An off leaf the builder placed under "Available to turn on" is kept on purpose: it is
+	// listed so it can be turned on, and the modal never runs it.
+	const keepLeaf = (leaf: PickerCommand): boolean => leaf.featureOff === true || actionFeatureOn(leaf, isEnabled);
 	const out: CommandCategory[] = [];
 	for (const cat of categories) {
 		const commands: PickerCommand[] = [];
@@ -331,4 +334,30 @@ function reducePlacements(
 		categoryIcon: canonicalCat.icon,
 		categoryId: canonicalCat.id,
 	};
+}
+
+/**
+ * Keep only one stage's actions in one section (the All actions stage chips). Groups keep the
+ * matching children and disappear when none match. Pure.
+ */
+export function filterSectionByStage(categories: CommandCategory[], sectionId: string, stage: WorkflowStage): CommandCategory[] {
+	return categories.map((cat) => {
+		if (cat.id !== sectionId) return cat;
+		const commands: PickerCommand[] = [];
+		for (const cmd of cat.commands) {
+			if (cmd.subCommands && cmd.subCommands.length > 0) {
+				const subs = cmd.subCommands.filter((c) => c.stage === stage);
+				if (subs.length > 0) commands.push({ ...cmd, subCommands: subs });
+			} else if (cmd.stage === stage) {
+				commands.push(cmd);
+			}
+		}
+		return { ...cat, commands };
+	});
+}
+
+/** The stage chip a row shows: every All actions row names its own declared stage. */
+export function stageChipFor(item: Pick<VisibleItem, 'categoryId' | 'kind' | 'command'>): WorkflowStage | null {
+	if (item.categoryId !== 'all' || item.kind === 'category-header' || item.kind === 'group') return null;
+	return item.command.stage ?? null;
 }

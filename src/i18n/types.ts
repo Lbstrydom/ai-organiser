@@ -1376,6 +1376,7 @@ export interface Translations {
         copyCombinedGoogleScript: string;
         openProject: string;
         editAiWorkspace: string;
+        openAiWorkspacesSettings: string;
         copyAiInstructions: string;
         createContextPack: string;
         reviewAiHandback: string;
@@ -2959,6 +2960,14 @@ export interface Translations {
             // Output-anchored category labels (locked 2026-05-01)
             // Pinned favourites cross-cut; the 5 stage categories use `t.workflowStages.*`.
             categoryPinned: string;
+            categoryAll: string;
+            categorySetup: string;
+            availableTitle: string;
+            availableDesc: string;
+            chipFeatureOff: string;
+            featureOffAria: string;
+            stageFilterLabel: string;
+            stageFilterAll: string;
             // Verb-anchored sub-group labels (within a stage; presentation detail)
             groupCreateWrite: string;
             groupCreateVisualise: string;
@@ -2999,6 +3008,7 @@ export interface Translations {
                 quickPeek: string;
                 openProcess: string;
                 editAiWorkspace: string;
+                openAiWorkspacesSettings: string;
                 copyAiInstructions: string;
                 createContextPack: string;
                 reviewAiHandback: string;
@@ -4713,6 +4723,23 @@ export interface Translations {
         resetJournal: string;
         resetJournalConfirm: string;
         resetJournalDone: string;
+    };
+    activation: {
+        title: string;
+        addsHeading: string;
+        alsoHeading: string;
+        setupHeading: string;
+        setupStep: string;
+        setupNone: string;
+        reloadNote: string;
+        desktopOnly: string;
+        turnOn: string;
+        busy: string;
+        cancel: string;
+        continueAction: string;
+        resumeReady: string;
+        resumeNotReady: string;
+        reasons: Record<'desktop-only' | 'feature-off' | 'needs-setup' | 'missing-key' | 'wrong-target', string>;
     };
     googleTasks: {
         listsTitle: string;

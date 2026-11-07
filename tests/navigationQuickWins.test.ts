@@ -111,21 +111,22 @@ describe('new leaves follow their commands\' registration gates', () => {
 });
 
 describe('one label per action on Ctrl+P and the picker', () => {
-    // The command modules' own `name:` expressions, read from source: they must name the
-    // same i18n key the picker leaf uses, so the two surfaces cannot drift apart.
-    const SOURCES: Array<[string, string, string]> = [
-        ['src/commands/summarizeCommands.ts', 'smart-summarize', 'plugin.t.commands.summarize'],
-        ['src/commands/generateCommands.ts', 'smart-tag', 'plugin.t.commands.tag'],
-        ['src/commands/smartNoteCommands.ts', 'enhance-note', 'plugin.t.commands.improveNote'],
-        ['src/commands/semanticSearchCommands.ts', 'find-related', 'plugin.t.commands.showRelatedNotes'],
-        ['src/commands/quickPeekCommands.ts', 'quick-peek', 'plugin.t.commands.quickPeek'],
+    // Since Phase 2 every command takes its name from the action registry (actionName), and
+    // tests/actionRegistry.test.ts checks every registered name against it. Here: the five
+    // commands that used to disagree.
+    const SOURCES: Array<[string, string]> = [
+        ['src/commands/summarizeCommands.ts', 'smart-summarize'],
+        ['src/commands/generateCommands.ts', 'smart-tag'],
+        ['src/commands/smartNoteCommands.ts', 'enhance-note'],
+        ['src/commands/semanticSearchCommands.ts', 'find-related'],
+        ['src/commands/quickPeekCommands.ts', 'quick-peek'],
     ];
-    it.each(SOURCES)('%s names %s from %s', (file, id, expr) => {
+    it.each(SOURCES)('%s names %s through the registry', (file, id) => {
         const src = readFileSync(file, 'utf8');
         const at = src.indexOf(`id: '${id}'`);
         expect(at, `${id} registration`).toBeGreaterThan(-1);
         const nameLine = src.slice(at, at + 200).split('\n').find((l) => l.trim().startsWith('name:'))!;
-        expect(nameLine.trim().startsWith(`name: ${expr}`), nameLine).toBe(true);
+        expect(nameLine.trim(), nameLine).toBe(`name: actionName(plugin.t, '${id}'),`);
     });
 
     it('the picker shows the same strings', () => {

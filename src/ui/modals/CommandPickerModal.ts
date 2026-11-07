@@ -13,11 +13,14 @@ import {
 	type VisibleItem,
 	buildVisibleItems,
 	flattenSingleChildGroups,
+	filterSectionByStage,
+	stageChipFor,
 } from './commandPickerViewModel';
 import { checkLeaf, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
 import type { FeatureId } from '../../core/features';
-import { ACTIONS, DEFAULT_PINNED, PICKER_CATEGORIES, PICKER_GROUPS, type ActionDef, type RequirementKind } from '../../core/actionRegistry';
-import type { WorkflowStage } from '../../core/workflowStages';
+import { ACTIONS, DEFAULT_PINNED, type ActionDef, type RequirementKind } from '../../core/actionRegistry';
+import { actionFeatureOn } from '../../core/actionAvailability';
+import { WORKFLOW_STAGES, type WorkflowStage } from '../../core/workflowStages';
 import { isFeatureEnabled } from '../../services/featureService';
 
 export interface CommandCategory {
@@ -70,6 +73,9 @@ export interface PickerCommand {
 	anyOfFeatures?: FeatureId[];
 	/** Features that must ALSO be on, beyond `feature` (a command gated on an AND). */
 	alsoRequiresFeatures?: FeatureId[];
+	/** Its feature is off: the row is listed under "Available to turn on" and choosing it
+	 *  opens activation instead of running the command. */
+	featureOff?: true;
 }
 
 export class CommandPickerModal extends Modal {
@@ -91,6 +97,9 @@ export class CommandPickerModal extends Modal {
 	private query = '';
 	private visibleItems: VisibleItem[] = [];
 	private isExecuting = false;
+	/** All actions stage filter (null = every stage). Session-only. */
+	private stageFilter: WorkflowStage | null = null;
+	private chipsEl: HTMLElement | null = null;
 	/** Cached requirement context for the modal's lifetime. Built lazily on
 	 *  first render; reused across keystrokes so getFiles() doesn't scan the
 	 *  vault on every input event (audit M12). selectItem() rebuilds fresh
@@ -117,6 +126,8 @@ export class CommandPickerModal extends Modal {
 		this.expandedCategories = new Set<string>(
 			persisted && persisted.length > 0 ? persisted : ['pinned'],
 		);
+		// "Available to turn on" starts open and stays as the user last left it.
+		if (this.plugin.settings.pickerAvailableExpanded !== false) this.expandedGroups.add(AVAILABLE_GROUP_ID);
 	}
 
 	/** Build a fresh `RequirementContext` from current app state. Called
@@ -199,6 +210,13 @@ export class CommandPickerModal extends Modal {
 			inst.createEl('span', { text: hint.purpose });
 		}
 
+		// All actions stage filter. Buttons outside the listbox, so the list keeps its option roles.
+		this.chipsEl = promptEl.createDiv({
+			cls: 'ai-organiser-picker-stage-chips',
+			attr: { role: 'group', 'aria-label': this.t.modals.commandPicker.stageFilterLabel },
+		});
+		this.renderStageChips();
+
 		// Suggestion list (inside prompt container — matches Obsidian's suggest modal DOM structure)
 		this.listEl = promptEl.createDiv({
 			cls: 'prompt-results',
@@ -246,8 +264,11 @@ export class CommandPickerModal extends Modal {
 			? prepareFuzzySearch(this.query)
 			: null;
 
+		const categories = this.stageFilter && !this.query
+			? filterSectionByStage(this.categories, 'all', this.stageFilter)
+			: this.categories;
 		this.visibleItems = buildVisibleItems(
-			this.categories, this.expandedGroups, fuzzyMatcher, this.expandedCategories,
+			categories, this.expandedGroups, fuzzyMatcher, this.expandedCategories,
 			(feature) => isFeatureEnabled(this.plugin.settings, feature),
 		);
 
@@ -256,7 +277,34 @@ export class CommandPickerModal extends Modal {
 			this.activeIndex = Math.max(0, this.visibleItems.length - 1);
 		}
 
+		this.chipsEl?.toggleClass('ai-organiser-hidden', !!this.query || !this.expandedCategories.has('all'));
 		this.renderList();
+	}
+
+	private renderStageChips(): void {
+		const el = this.chipsEl;
+		if (!el) return;
+		el.empty();
+		const cp = this.t.modals.commandPicker;
+		const choices: Array<{ stage: WorkflowStage | null; label: string }> = [
+			{ stage: null, label: cp.stageFilterAll },
+			...WORKFLOW_STAGES.map((stage) => ({ stage, label: this.t.workflowStages[stage] })),
+		];
+		for (const choice of choices) {
+			const pressed = this.stageFilter === choice.stage;
+			const btn = el.createEl('button', {
+				cls: 'ai-organiser-picker-stage-chip' + (pressed ? ' is-active' : ''),
+				text: choice.label,
+				attr: { type: 'button', 'aria-pressed': pressed ? 'true' : 'false' },
+			});
+			this.cleanups.push(listen(btn, 'click', () => {
+				this.stageFilter = choice.stage;
+				this.activeIndex = 0;
+				this.renderStageChips();
+				this.rebuild();
+				this.inputEl.focus();
+			}));
+		}
 	}
 
 	private renderList(): void {
@@ -319,8 +367,13 @@ export class CommandPickerModal extends Modal {
 
 	private applyItemClasses(el: HTMLElement, item: VisibleItem, index: number, ctx: RequirementContext): void {
 		// Requirement gate first — render-time disable + a11y describedby.
+		if (item.command.featureOff) {
+			// Operable: choosing it opens activation, so it is NOT aria-disabled.
+			el.addClass('ai-organiser-picker-feature-off');
+			el.setAttribute('aria-label', this.t.modals.commandPicker.featureOffAria.replace('{name}', item.command.name));
+		}
 		const reqState = checkLeaf(item.command, ctx, this.t);
-		if (!reqState.met) {
+		if (!item.command.featureOff && !reqState.met) {
 			el.addClass('is-gated');
 			el.setAttribute('aria-disabled', 'true');
 			el.setAttribute('aria-describedby', `picker-req-${item.command.id}-${index}`);
@@ -413,6 +466,12 @@ export class CommandPickerModal extends Modal {
 
 	private renderItemCategory(el: HTMLElement, item: VisibleItem): void {
 		if (item.kind === 'sub-leaf' && !this.query) return;
+		const stage = stageChipFor(item);
+		if (stage) {
+			const chip = el.createEl('span', { cls: 'ai-organiser-command-picker-category' });
+			chip.appendText(this.t.workflowStages[stage]);
+			return;
+		}
 		const catEl = el.createEl('span', { cls: 'ai-organiser-command-picker-category' });
 		const catIconEl = catEl.createEl('span', { cls: 'ai-organiser-command-picker-category-icon' });
 		setIcon(catIconEl, item.categoryIcon);
@@ -424,6 +483,12 @@ export class CommandPickerModal extends Modal {
 	 *  preconditions). The chip carries an icon + short label + sr-only
 	 *  full reason for screen readers (matches the row's aria-describedby). */
 	private renderItemRequires(metaEl: HTMLElement, item: VisibleItem, ctx: RequirementContext, index: number): void {
+		if (item.command.featureOff) {
+			const chip = metaEl.createEl('span', { cls: 'ai-organiser-command-picker-requires ai-organiser-picker-chip-off' });
+			setIcon(chip.createEl('span', { cls: 'ai-organiser-command-picker-requires-icon' }), 'power');
+			chip.createEl('span', { cls: 'ai-organiser-command-picker-requires-text', text: this.t.modals.commandPicker.chipFeatureOff });
+			return;
+		}
 		const reqState = checkLeaf(item.command, ctx, this.t);
 		if (reqState.met) return;
 		const chip = metaEl.createEl('span', {
@@ -450,6 +515,10 @@ export class CommandPickerModal extends Modal {
 		// Gated row → tooltip is the requirement reason (full text). This
 		// runs before the badge tooltip so a gated badge-row prefers the
 		// gate explanation.
+		if (item.command.featureOff) {
+			setTooltip(el, this.t.modals.commandPicker.availableDesc);
+			return;
+		}
 		const reqState = checkLeaf(item.command, ctx, this.t);
 		if (!reqState.met) {
 			setTooltip(el, reqState.reason!);
@@ -529,6 +598,13 @@ export class CommandPickerModal extends Modal {
 		// expand/collapse, not an executable.
 		if (item.kind === 'group') {
 			this.toggleGroup(item, index);
+			return;
+		}
+
+		// An off feature's action never runs: its callback opens activation instead.
+		if (item.command.featureOff) {
+			this.close();
+			void item.command.callback();
 			return;
 		}
 
@@ -630,6 +706,11 @@ export class CommandPickerModal extends Modal {
 			this.expandedGroups.add(groupId);
 		}
 
+		if (groupId === AVAILABLE_GROUP_ID) {
+			this.plugin.settings.pickerAvailableExpanded = !wasExpanded;
+			void this.plugin.saveSettings();
+		}
+
 		// Rebuild
 		this.rebuild();
 
@@ -674,26 +755,6 @@ export class CommandPickerModal extends Modal {
  *
  * Plan: docs/plans/unified-feature-taxonomy.md (audit-converged — GPT ×3 + Gemini APPROVE).
  */
-/** Find a leaf command by id across an arbitrary category tree. Searches
- *  top-level commands first, then descends into `subCommands`. Returns
- *  the SAME object reference (preserves cross-listing identity for the
- *  search-mode dedup logic). Used by `buildCommandCategories` to resolve
- *  user-configurable Pinned. */
-function findLeafByIdInCategories(
-	id: string,
-	categories: readonly CommandCategory[],
-): PickerCommand | null {
-	for (const cat of categories) {
-		for (const c of cat.commands) {
-			if (c.id === id) return c;
-			if (c.subCommands) {
-				const sub = c.subCommands.find(s => s.id === id);
-				if (sub) return sub;
-			}
-		}
-	}
-	return null;
-}
 
 /** Leaves whose command exists or works only in the desktop app (from the action registry). */
 export const DESKTOP_ONLY_LEAVES: ReadonlySet<string> = new Set(
@@ -730,61 +791,73 @@ function leafFromAction(
 	};
 }
 
+/** Top-level picker sections, in order (docs/plans/navigation-discoverability.md, decision 4). */
+export const PICKER_SECTION_IDS = ['context', 'pinned', 'jobs', 'all', 'setup'] as const;
+export type PickerSectionId = typeof PICKER_SECTION_IDS[number];
+/** The group inside All actions that lists actions whose feature is off. */
+export const AVAILABLE_GROUP_ID = 'available-to-turn-on';
+
+export interface PickerBuildOptions {
+	/** Feature predicate. Omitted = every feature on (no "Available to turn on" block). */
+	isEnabled?: (feature: FeatureId) => boolean;
+	/** Called instead of running the command when an off action is chosen. */
+	onActivate?: (actionId: string) => void;
+}
+
 /**
- * The picker tree, built from the action registry. Each leaf object is created once, so the
- * Pinned cross-listings are the SAME objects as their stage-category placements (search-mode
- * dedup relies on identity). Group containers appear where their first member sits.
+ * The picker, built from the action registry, in five sections: For this context (Phase 4),
+ * Pinned, Jobs (Phase 5), All actions and Setup & tools. Every action sits directly in its
+ * section, so any leaf is at most two clicks away. Actions whose feature is off are listed,
+ * never run, in the "Available to turn on" group at the end of All actions; choosing one
+ * calls `onActivate`. Each leaf object is created once, so the Pinned cross-listings are the
+ * SAME objects as their section placements (search-mode dedup relies on identity).
  */
 export function buildCommandCategories(
 	t: Translations,
 	executeCommand: (commandId: string) => void,
 	pinnedCommandIds: readonly string[] = [],
+	options: PickerBuildOptions = {},
 ): CommandCategory[] {
 	const cp = t.modals.commandPicker;
-	const leaves = new Map(ACTIONS.map((def) => [def.id, leafFromAction(def, t, executeCommand)]));
-	const stageCategories: CommandCategory[] = PICKER_CATEGORIES.map((cat) => {
-		const commands: PickerCommand[] = [];
-		const groups = new Map<string, PickerCommand>();
-		for (const def of ACTIONS) {
-			if (def.legacyPlacement.category !== cat.id) continue;
-			const leaf = leaves.get(def.id)!;
-			const groupId = def.legacyPlacement.group;
-			if (!groupId) { commands.push(leaf); continue; }
-			let group = groups.get(groupId);
-			if (!group) {
-				const g = PICKER_GROUPS.find((x) => x.id === groupId)!;
-				group = {
-					id: g.id,
-					name: cp[g.nameKey],
-					icon: g.icon,
-					description: cp.descriptions[g.nameKey as keyof typeof cp.descriptions],
-					callback: () => {},
-					subCommands: [],
-				};
-				groups.set(groupId, group);
-				commands.push(group);
-			}
-			group.subCommands!.push(leaf);
+	const isEnabled = options.isEnabled ?? (() => true);
+	const stageOrder = new Map(WORKFLOW_STAGES.map((stage, i) => [stage, i]));
+	const ordered = [...ACTIONS].sort((x, y) => (stageOrder.get(x.stage) ?? 0) - (stageOrder.get(y.stage) ?? 0));
+	const leaves = new Map(ordered.map((def) => {
+		const leaf = leafFromAction(def, t, executeCommand);
+		leaf.aliases = [...(leaf.aliases ?? []), t.workflowStages[def.stage]];
+		if (!actionFeatureOn(def, isEnabled)) {
+			leaf.featureOff = true;
+			leaf.callback = () => options.onActivate?.(def.id);
 		}
-		return { id: cat.id, name: t.workflowStages[cat.id], icon: cat.icon, commands };
-	});
+		return [def.id, leaf] as const;
+	}));
+
+	const ready = (def: ActionDef): boolean => !leaves.get(def.id)!.featureOff;
+	const all: PickerCommand[] = ordered.filter((d) => d.kind === 'daily' && ready(d)).map((d) => leaves.get(d.id)!);
+	const off = ordered.filter((d) => !ready(d)).map((d) => leaves.get(d.id)!);
+	if (off.length > 0) {
+		all.push({
+			id: AVAILABLE_GROUP_ID,
+			name: `${cp.availableTitle} (${off.length})`,
+			icon: 'power',
+			description: cp.availableDesc,
+			callback: () => {},
+			subCommands: off,
+		});
+	}
+	const setup = ordered.filter((d) => d.kind !== 'daily' && ready(d)).map((d) => leaves.get(d.id)!);
 
 	// The user's Pinned selection (max 5), else the default. IDs not found are skipped.
-	const customPinned = pinnedCommandIds
-		.slice(0, 5)
-		.map(id => findLeafByIdInCategories(id, stageCategories))
-		.filter((leaf): leaf is PickerCommand => leaf !== null);
+	const customPinned = pinnedCommandIds.slice(0, 5)
+		.map((id) => leaves.get(id))
+		.filter((leaf): leaf is PickerCommand => !!leaf);
 	const pinnedCommands = customPinned.length > 0
 		? customPinned
-		: DEFAULT_PINNED.map((id) => leaves.get(id)!).filter(Boolean);
+		: DEFAULT_PINNED.map((id) => leaves.get(id)).filter((leaf): leaf is PickerCommand => !!leaf);
 
 	return [
-		{
-			id: 'pinned',
-			name: cp.categoryPinned,
-			icon: 'star',
-			commands: pinnedCommands,
-		},
-		...stageCategories,
+		{ id: 'pinned', name: cp.categoryPinned, icon: 'star', commands: pinnedCommands },
+		{ id: 'all', name: cp.categoryAll, icon: 'layout-list', commands: all },
+		{ id: 'setup', name: cp.categorySetup, icon: 'settings', commands: setup },
 	];
 }
