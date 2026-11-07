@@ -64,6 +64,35 @@ describe('applyActivation — one write for flags and intent', () => {
         expect(h.settings.pendingResume).toBeUndefined();
     });
 
+    it('keeps a toggle made after the window opened (no lost update)', async () => {
+        const h = host(async () => {});
+        const plan = planActivation(h.settings.featureFlags, 'inbox-sweep', false);
+        h.settings.featureFlags = { ...h.settings.featureFlags, kindle: true }; // changed elsewhere meanwhile
+        await applyActivation(h, plan, intent);
+        expect(h.settings.featureFlags.kindle).toBe(true);
+        expect(h.settings.featureFlags['inbox-sweep']).toBe(true);
+    });
+
+    it('refuses a second activation while one is saving (no interleaved rollback)', async () => {
+        let release!: () => void;
+        const h = host(() => new Promise<void>((r) => { release = r; }));
+        const first = applyActivation(h, planActivation(h.settings.featureFlags, 'inbox-sweep', false), intent);
+        const second = await applyActivation(h, planActivation(h.settings.featureFlags, 'kindle', false), intent);
+        expect(second).toEqual({ ok: false, error: 'busy' });
+        release();
+        expect((await first).ok).toBe(true);
+        expect(h.settings.featureFlags.kindle).toBeUndefined();
+    });
+
+    it('a failed write does not overwrite a state that replaced it meanwhile', async () => {
+        const h = host(async () => {
+            h.settings.featureFlags = { tagging: true, kindle: true }; // someone else wrote meanwhile
+            throw new Error('disk full');
+        });
+        await applyActivation(h, planActivation(h.settings.featureFlags, 'inbox-sweep', false), intent);
+        expect(h.settings.featureFlags).toEqual({ tagging: true, kindle: true });
+    });
+
     it('a blocked plan writes nothing', async () => {
         const h = host(async () => {});
         const spy = vi.spyOn(h, 'saveSettings');
@@ -120,6 +149,11 @@ describe('consumePendingResume — the one-shot offer', () => {
 
     it('offers Continue when the action is now ready', () => {
         expect(consumePendingResume(intent(), ctx())).toEqual({ kind: 'continue', commandId: 'sweep-inbox', feature: 'inbox-sweep' });
+    });
+
+    it('carries a stored file target into the offer, so Continue runs on that note', () => {
+        const offer = consumePendingResume(intent({ target: { kind: 'file', path: 'a.md' } } as Partial<ResumeIntent>), ctx());
+        expect(offer).toEqual({ kind: 'continue', commandId: 'sweep-inbox', feature: 'inbox-sweep', target: { kind: 'file', path: 'a.md' } });
     });
 
     it('says why when the action is still not ready', () => {

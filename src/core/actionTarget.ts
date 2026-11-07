@@ -29,7 +29,8 @@ export interface StoredTarget {
  */
 export function toStoredTarget(target: ActionTarget): StoredTarget | null {
     if (target.kind === 'file') return { kind: 'file', path: target.file.path };
-    if (target.kind === 'folder') return { kind: 'folder', path: target.folder.path };
+    // The vault root has an empty path; it is never a stored target (nothing could validate it).
+    if (target.kind === 'folder') return target.folder.path ? { kind: 'folder', path: target.folder.path } : null;
     return null;
 }
 

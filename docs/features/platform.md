@@ -150,9 +150,9 @@ Kills the taxonomy-drift class between the **Features settings menu** and the **
 `tests/crossSurfaceTaxonomy.test.ts` asserts both surfaces are derivable from ONE declared dataset — **no UNDECLARED divergence**: every feature/leaf `stage` ∈ vocab; every top-level picker category is a section (never a stage) and every All actions row's stage chip equals its declared stage (this replaced the old "leaf stage === category id" assertion); `pinned` holds only genuine cross-listings (real stage + same object in the stage category + `canonicalCategoryId === 'pinned'`); the Integrations float is driven ONLY by `external-account` (kindle/newsletter float; **bases + notebooklm do NOT** — both are LOCAL tools, no remote-account auth); every cross-stage `leaf.stage` is an enumerated declared override; completeness (every non-core feature reachable). Any new feature/leaf placed inconsistently fails CI.
 
 ### Key patterns
-- **`stage`/`boundary` are declared data, not runtime grouping** — the picker stays hand-authored (icons/aliases/legacyHomes/sub-groups inline); `leaf.stage` is *assertion metadata*. Avoided a projection engine that would relocate drift-free metadata (right-sizing).
+- **`stage`/`boundary` are declared data.** Since the navigation plan the picker is built from the action registry (`src/core/actionRegistry.ts`), and an action's `stage` drives the All actions order, its filter chip and its row chip.
 - **`external-account` = genuinely authenticates/transmits to a remote account** — never "relates to an external product." Mislabeling a local tool would pollute the settings privacy signal.
-- **`stage` optional on the `PickerCommand` type, required on leaves via the test** — parallel to the existing `feature?` convention.
+- **`stage` is required on every `ActionDef`** (the registry type); it stays optional on `PickerCommand` only because group rows carry none.
 
 ### Tests
 `tests/{featureProjection,featureRegistry,crossSurfaceTaxonomy,commandPicker,commandPickerFeatureGating,settingsMigration}.test.ts`.

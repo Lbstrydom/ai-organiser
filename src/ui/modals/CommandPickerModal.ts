@@ -100,6 +100,8 @@ export class CommandPickerModal extends Modal {
 	/** All actions stage filter (null = every stage). Session-only. */
 	private stageFilter: WorkflowStage | null = null;
 	private chipsEl: HTMLElement | null = null;
+	/** Listeners of the current stage chips; released on every chip re-render and on close. */
+	private readonly chipCleanups: (() => void)[] = [];
 	/** Cached requirement context for the modal's lifetime. Built lazily on
 	 *  first render; reused across keystrokes so getFiles() doesn't scan the
 	 *  vault on every input event (audit M12). selectItem() rebuilds fresh
@@ -249,6 +251,7 @@ export class CommandPickerModal extends Modal {
 		this.rowCleanups.length = 0;
 		for (const cleanup of this.cleanups) cleanup();
 		this.cleanups.length = 0;
+		for (const cleanup of this.chipCleanups.splice(0)) cleanup();
 		this.cachedRequirementCtx = null;
 		this.contentEl.empty();
 	}
@@ -284,6 +287,7 @@ export class CommandPickerModal extends Modal {
 	private renderStageChips(): void {
 		const el = this.chipsEl;
 		if (!el) return;
+		for (const cleanup of this.chipCleanups.splice(0)) cleanup();
 		el.empty();
 		const cp = this.t.modals.commandPicker;
 		const choices: Array<{ stage: WorkflowStage | null; label: string }> = [
@@ -297,7 +301,7 @@ export class CommandPickerModal extends Modal {
 				text: choice.label,
 				attr: { type: 'button', 'aria-pressed': pressed ? 'true' : 'false' },
 			});
-			this.cleanups.push(listen(btn, 'click', () => {
+			this.chipCleanups.push(listen(btn, 'click', () => {
 				this.stageFilter = choice.stage;
 				this.activeIndex = 0;
 				this.renderStageChips();

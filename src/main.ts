@@ -2,7 +2,7 @@ import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plug
 import { FeatureActivationModal } from './ui/modals/FeatureActivationModal';
 import { consumePendingResume } from './services/featureActivation';
 import { actionAvailability } from './core/actionAvailability';
-import { actionName } from './core/actionRegistry';
+import { ACTION_BY_ID, actionName, type ActionDef } from './core/actionRegistry';
 import { buildContext, checkRequirement } from './ui/modals/pickerRequirements';
 import { noticeWithAction } from './utils/noticeUtils';
 import { toModelText } from './utils/excalidrawContent';
@@ -1776,7 +1776,7 @@ export default class AIOrganiserPlugin extends Plugin {
             logger.warn('Core', 'Could not clear the pending resume; not offering it', e);
             return;
         }
-        const reqCtx = buildContext({
+        const requirementCtx = () => buildContext({
             activeFile: this.app.workspace.getActiveFile(),
             editor: this.app.workspace.activeEditor?.editor ?? null,
             hasMarkdownFiles: this.app.vault.getMarkdownFiles().length > 0,
@@ -1784,13 +1784,17 @@ export default class AIOrganiserPlugin extends Plugin {
             hasVectorStore: !!this.vectorStore,
             isMobile: Platform.isMobile,
         });
-        const offer = consumePendingResume(intent, {
-            now: Date.now(),
-            availabilityOf: (def) => actionAvailability(def, {
+        const availabilityOf = (def: ActionDef) => {
+            const ctx = requirementCtx();
+            return actionAvailability(def, {
                 isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
                 isMobile: Platform.isMobile,
-                requirementMet: (kind) => checkRequirement(kind, reqCtx, this.t).met,
-            }),
+                requirementMet: (kind) => checkRequirement(kind, ctx, this.t).met,
+            });
+        };
+        const offer = consumePendingResume(intent, {
+            now: Date.now(),
+            availabilityOf,
             pathExists: (path) => this.app.vault.getAbstractFileByPath(path) !== null,
         });
         const a = this.t.activation;
@@ -1799,8 +1803,33 @@ export default class AIOrganiserPlugin extends Plugin {
             noticeWithAction(
                 a.resumeReady.replace('{feature}', this.t.features[offer.feature].label),
                 a.continueAction.replace('{action}', name),
-                () => (this.app as App & { commands: { executeCommandById: (id: string) => void } })
-                    .commands.executeCommandById(`ai-organiser:${offer.commandId}`),
+                () => { void (async () => {
+                    // A stored target is the note the action was chosen for: open it first, so the
+                    // command runs on that note and not on whatever happens to be active.
+                    if (offer.target?.kind === 'file') {
+                        const file = this.app.vault.getAbstractFileByPath(offer.target.path);
+                        if (!(file instanceof TFile)) {
+                            new Notice(a.resumeNotReady
+                                .replace('{feature}', this.t.features[offer.feature].label)
+                                .replace('{action}', name)
+                                .replace('{reason}', a.reasons['wrong-target']), 10000);
+                            return;
+                        }
+                        await this.app.workspace.getLeaf(false).openFile(file);
+                    }
+                    // Re-check when pressed: the note or the feature may have changed since the notice.
+                    const def = ACTION_BY_ID.get(offer.commandId);
+                    const now = def ? availabilityOf(def) : null;
+                    if (!now || now.state !== 'ready') {
+                        new Notice(a.resumeNotReady
+                            .replace('{feature}', this.t.features[offer.feature].label)
+                            .replace('{action}', name)
+                            .replace('{reason}', a.reasons[now ? (now.state as Exclude<typeof now.state, 'ready'>) : 'feature-off']), 10000);
+                        return;
+                    }
+                    (this.app as App & { commands: { executeCommandById: (id: string) => void } })
+                        .commands.executeCommandById(`ai-organiser:${offer.commandId}`);
+                })(); },
             );
         } else if (offer.kind === 'not-ready') {
             new Notice(a.resumeNotReady

@@ -71,12 +71,25 @@ describe('filterCategoriesByFeature (FT-10ii)', () => {
         expect(ids).toContain('new-sketch');
     });
 
-    it('suppresses a sub-group whose every leaf is gated out', () => {
-        // maintain-bases holds the 3 bases commands → all owned by `bases`. Disable it.
-        const out = filterCategoriesByFeature(categories, (f) => f !== 'bases');
-        const maintain = out.find((c) => c.id === 'maintain');
-        const groupIds = maintain?.commands.filter((c) => c.subCommands).map((c) => c.id) ?? [];
-        expect(groupIds).not.toContain('maintain-bases');
+    it('suppresses a sub-group whose every leaf is gated out, and keeps one with a survivor', () => {
+        const leaf = (id: string, feature: FeatureId): PickerCommand => ({ id, name: id, icon: 'x', feature, callback: noop });
+        const tree: CommandCategory[] = [{ id: 'all', name: 'All', icon: 'x', commands: [
+            { id: 'g-bases', name: 'G', icon: 'x', callback: noop, subCommands: [leaf('a', 'bases'), leaf('b', 'bases')] },
+            { id: 'g-mixed', name: 'M', icon: 'x', callback: noop, subCommands: [leaf('c', 'bases'), leaf('d', 'tagging')] },
+        ] }];
+        const out = filterCategoriesByFeature(tree, (f) => f !== 'bases');
+        const groups = out[0].commands.map((c) => c.id);
+        expect(groups).not.toContain('g-bases');
+        expect(groups).toContain('g-mixed');
+        expect(out[0].commands.find((c) => c.id === 'g-mixed')!.subCommands!.map((c) => c.id)).toEqual(['d']);
+    });
+
+    it('keeps an off leaf the builder marked for "Available to turn on"', () => {
+        const tree: CommandCategory[] = [{ id: 'all', name: 'All', icon: 'x', commands: [
+            { id: 'off', name: 'Off', icon: 'x', feature: 'bases', featureOff: true, callback: noop },
+            { id: 'plain', name: 'Plain', icon: 'x', feature: 'bases', callback: noop },
+        ] }];
+        expect(filterCategoriesByFeature(tree, () => false)[0].commands.map((c) => c.id)).toEqual(['off']);
     });
 
     it('returns a new tree (no mutation of the source)', () => {

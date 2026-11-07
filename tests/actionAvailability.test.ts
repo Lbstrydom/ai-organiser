@@ -75,6 +75,10 @@ describe('actionTarget — what survives a reload', () => {
         expect(toStoredTarget({ kind: 'file', file })).toEqual({ kind: 'file', path: 'a/b.md' });
         expect(toStoredTarget({ kind: 'folder', folder })).toEqual({ kind: 'folder', path: 'a' });
     });
+    it('never stores the vault root, which has no path to check', () => {
+        const root = Object.assign(new TFolder(), { path: '' });
+        expect(toStoredTarget({ kind: 'folder', folder: root })).toBeNull();
+    });
     it('never stores a selection, a multi-file pick or the active context', () => {
         expect(toStoredTarget({ kind: 'active' })).toBeNull();
         expect(toStoredTarget({ kind: 'files', files: [file] })).toBeNull();

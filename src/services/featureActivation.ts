@@ -14,6 +14,7 @@ import { ACTION_BY_ID, ACTIONS, type ActionDef } from '../core/actionRegistry';
 import { FEATURE_BY_ID, type FeatureId } from '../core/features';
 import { err, ok, type Result } from '../core/result';
 import { RESUME_MAX_AGE_MS, type ResumeIntent } from '../core/resumeIntent';
+import type { StoredTarget } from '../core/actionTarget';
 import type { Availability } from '../core/actionAvailability';
 import { resolveEnable } from './featureService';
 
@@ -67,30 +68,44 @@ export interface ActivationHost {
 }
 
 /**
- * Write the flags and the intent together. On a failed write both are restored in memory and
- * `save-failed` is returned: nothing reloads, nothing is half-saved.
+ * Write the flags and the intent together. The flags are resolved again from the settings as
+ * they are NOW (a toggle made while the window was open is kept, never overwritten by the
+ * snapshot the window showed). On a failed write both are restored in memory and `save-failed`
+ * is returned: nothing reloads, nothing is half-saved.
  */
+const activating = new WeakSet<object>();
+
 export async function applyActivation(host: ActivationHost, plan: ActivationPlan, intent?: ResumeIntent): Promise<Result<'saved'>> {
     if (plan.blocked) return err('blocked');
+    // Single-flight: a second activation while one is saving is refused, so two rollbacks can
+    // never interleave and undo each other.
+    if (activating.has(host)) return err('busy');
+    activating.add(host);
     const prevFlags = { ...host.settings.featureFlags };
     const prevIntent = host.settings.pendingResume;
-    host.settings.featureFlags = { ...plan.flags };
+    const written = { ...resolveEnable(prevFlags, plan.feature).flags };
+    host.settings.featureFlags = written;
     if (intent) host.settings.pendingResume = intent;
     else delete host.settings.pendingResume;
     try {
         await host.saveSettings();
         return ok('saved');
     } catch {
-        host.settings.featureFlags = prevFlags;
-        if (prevIntent) host.settings.pendingResume = prevIntent;
-        else delete host.settings.pendingResume;
+        // Restore only if nothing replaced our write meanwhile (identity, not equality).
+        if (host.settings.featureFlags === written) {
+            host.settings.featureFlags = prevFlags;
+            if (prevIntent) host.settings.pendingResume = prevIntent;
+            else delete host.settings.pendingResume;
+        }
         return err('save-failed');
+    } finally {
+        activating.delete(host);
     }
 }
 
 export type ResumeOffer =
     | { readonly kind: 'none' }
-    | { readonly kind: 'continue'; readonly commandId: string; readonly feature: FeatureId }
+    | { readonly kind: 'continue'; readonly commandId: string; readonly feature: FeatureId; readonly target?: StoredTarget }
     | { readonly kind: 'not-ready'; readonly commandId: string; readonly feature: FeatureId; readonly reason: Exclude<Availability['state'], 'ready'> }
     | { readonly kind: 'job'; readonly jobId: string };
 
@@ -113,7 +128,9 @@ export function consumePendingResume(intent: ResumeIntent | undefined, ctx: Resu
     if (!def) return { kind: 'none' };
     if (intent.target && !ctx.pathExists(intent.target.path)) return { kind: 'none' };
     const availability = ctx.availabilityOf(def);
-    if (availability.state === 'ready') return { kind: 'continue', commandId: def.id, feature: def.feature };
+    if (availability.state === 'ready') {
+        return { kind: 'continue', commandId: def.id, feature: def.feature, ...(intent.target ? { target: intent.target } : {}) };
+    }
     return { kind: 'not-ready', commandId: def.id, feature: def.feature, reason: availability.state };
 }
 

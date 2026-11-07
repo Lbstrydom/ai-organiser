@@ -33,19 +33,24 @@ function inert(): unknown {
     return proxy;
 }
 
-/** Run registrars against a fake plugin and record every addCommand id and name. */
-function collect(registrars: readonly Registrar[]): Map<string, string> {
-    const commands = new Map<string, string>();
+/** Run registrars against a fake plugin and record every addCommand call, duplicates included. */
+function collectAll(registrars: readonly Registrar[]): Array<{ id: string; name: string }> {
+    const commands: Array<{ id: string; name: string }> = [];
     const settings = { ...DEFAULT_SETTINGS, featureFlags: Object.fromEntries(FEATURE_REGISTRY.map((f) => [f.id, true])) };
     const plugin = new Proxy({
         t: en,
         settings,
-        addCommand: (c: { id: string; name: string }) => { commands.set(c.id, c.name); return c; },
+        addCommand: (c: { id: string; name: string }) => { commands.push({ id: c.id, name: c.name }); return c; },
     } as Record<string | symbol, unknown>, {
         get: (target, key) => (key in target ? target[key] : inert()),
     });
     for (const register of registrars) register(plugin as never);
     return commands;
+}
+
+/** The same calls keyed by id (for the checks that need a lookup). */
+function collect(registrars: readonly Registrar[]): Map<string, string> {
+    return new Map(collectAll(registrars).map((c) => [c.id, c.name]));
 }
 
 const ALL_REGISTRARS: Registrar[] = [
@@ -58,13 +63,17 @@ const setPlatform = (mobile: boolean): void => {
 };
 afterEach(() => setPlatform(false));
 
-function registeredEverywhere(): Map<string, string> {
+function registeredOn(mobile: boolean): Array<{ id: string; name: string }> {
+    setPlatform(mobile);
+    const calls = collectAll(ALL_REGISTRARS);
     setPlatform(false);
-    const desktop = collect(ALL_REGISTRARS);
-    setPlatform(true);
-    const mobile = collect(ALL_REGISTRARS);
-    setPlatform(false);
-    return new Map([...mobile, ...desktop]);
+    return calls;
+}
+
+/** main.ts registers the picker command itself; read its id from the source rather than assume it. */
+function mainRegisteredIds(): string[] {
+    const src = readFileSync('src/main.ts', 'utf8');
+    return [...src.matchAll(/this\.addCommand\(\{\s*id: '([^']+)'/g)].map((m) => m[1]);
 }
 
 /** Ids that are neither an action nor a declared hidden command. */
@@ -73,9 +82,21 @@ function unclassified(ids: Iterable<string>): string[] {
 }
 
 describe('classification: every registered command is an action or declared hidden', () => {
-    const registered = registeredEverywhere();
-    // open-picker is registered by main.ts itself, not by a feature registrar.
-    registered.set('open-picker', en.commands.openCommandPicker);
+    const desktop = registeredOn(false);
+    const mobile = registeredOn(true);
+    const registered = new Map<string, string>([...mobile, ...desktop].map((c) => [c.id, c.name]));
+    for (const id of mainRegisteredIds()) registered.set(id, '(main.ts)');
+
+    it('main.ts registers exactly the picker command (observed from its source)', () => {
+        expect(mainRegisteredIds()).toEqual(['open-picker']);
+    });
+
+    it('no command id is registered twice on one platform', () => {
+        for (const calls of [desktop, mobile]) {
+            const ids = calls.map((c) => c.id);
+            expect(ids.filter((id, i) => ids.indexOf(id) !== i)).toEqual([]);
+        }
+    });
 
     it('finds the commands (positive control: the harness really collects)', () => {
         expect(registered.size).toBeGreaterThan(90);
@@ -96,8 +117,10 @@ describe('classification: every registered command is an action or declared hidd
         expect(new Set(ACTIONS.map((a) => a.id)).size).toBe(ACTIONS.length);
     });
 
-    it('each action command is named by its registry label in Ctrl+P', () => {
-        for (const def of ACTIONS) expect(registered.get(def.id), def.id).toBe(actionName(en, def.id));
+    it('each action command is named by its registry label in Ctrl+P, on both platforms', () => {
+        for (const c of [...desktop, ...mobile]) {
+            if (ACTION_BY_ID.has(c.id)) expect(c.name, c.id).toBe(actionName(en, c.id));
+        }
     });
 
     it('catches an unclassified command under a default-off feature', () => {
