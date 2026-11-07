@@ -24,7 +24,13 @@ export function registerProjectCommands(plugin: AIOrganiserPlugin): void {
             if (!service) { guidance(plugin, 'unknown'); return; }
             if (!file || file.extension !== 'md') { new Notice(t.projects.noActiveNote, 5000); return; }
             void service.adoptProject(file.path).then((res) => {
-                if (res.ok) new Notice(t.projects.adoptedNotice.replace('{path}', res.value.notePath), 6000);
+                if (res.ok) {
+                    const { notePath, replacedMark } = res.value;
+                    const text = replacedMark
+                        ? t.projects.adoptedReplacedMarkNotice.replace('{path}', notePath).replace('{mark}', replacedMark)
+                        : t.projects.adoptedNotice.replace('{path}', notePath);
+                    new Notice(text, 6000);
+                }
                 // A reviewer who declines the edit is not an error to shout about.
                 else if (res.error !== 'rejected') guidance(plugin, res.error);
             });

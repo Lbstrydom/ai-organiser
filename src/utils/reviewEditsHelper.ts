@@ -20,7 +20,8 @@ export function showReviewOrApply(
     plugin: AIOrganiserPlugin,
     oldContent: string,
     newContent: string,
-    applyFn: () => void | Promise<void>
+    applyFn: () => void | Promise<void>,
+    note?: string
 ): Promise<ReviewAction> {
     // Fast exit — skip O(m*n) diff when feature is off
     if (!plugin.settings.enableReviewedEdits) {
@@ -53,7 +54,8 @@ export function showReviewOrApply(
                 }
                 // 'reject' — do nothing
                 resolve(action);
-            })(); }
+            })(); },
+            note
         );
         modal.open();
     });

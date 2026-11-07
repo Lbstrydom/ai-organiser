@@ -10532,3 +10532,8 @@
 .ai-organiser-project-picker-detail { overflow-wrap: anywhere; }
 .ai-organiser-project-picker-list { list-style: none; margin: 0; padding: 0; }
 .ai-organiser-project-picker-search { width: 100%; box-sizing: border-box; }
+
+.ai-organiser-review-edits-note {
+    color: var(--text-muted);
+    margin: 0 0 var(--size-4-2);
+}

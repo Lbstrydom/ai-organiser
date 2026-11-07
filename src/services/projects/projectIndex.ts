@@ -9,6 +9,7 @@
 import { Result, ok, err } from '../../core/result';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { rootOf, type ParaKind, type ParaRoot } from './paraRoots';
+import { STATUS_VALUES } from '../../core/constants';
 
 export const AIO_ID_KEY = 'aio-id';
 export const AIO_ROLE_KEY = 'aio-role';
@@ -67,15 +68,27 @@ const folderOf = (path: string): string => {
     return at === -1 ? '' : p.slice(0, at);
 };
 
-/** The user's `status`: a string, or the first string of a list; trimmed. */
+/**
+ * The plugin's own processing mark (`processed` / `pending` / `error`, see `STATUS_VALUES`), written to the same
+ * `status` property by summarise and tag runs. It says the AI handled the note; it is not a project status.
+ */
+export function isAiProcessingMark(value: unknown): boolean {
+    return typeof value === 'string' && (STATUS_VALUES as readonly string[]).includes(value.trim());
+}
+
+/**
+ * The user's `status`: a string, or the first string of a list; trimmed. The plugin's processing mark is not a project
+ * status, so a note whose status is only that mark reads as having none (adoption gives such a note `status: active`).
+ */
 export function statusOf(frontmatter: Record<string, unknown> | null | undefined): string {
     const raw = frontmatter?.status;
-    if (typeof raw === 'string') return raw.trim();
-    if (Array.isArray(raw)) {
+    let value = '';
+    if (typeof raw === 'string') value = raw.trim();
+    else if (Array.isArray(raw)) {
         const first = raw.find((v): v is string => typeof v === 'string' && v.trim() !== '');
-        return first ? first.trim() : '';
+        value = first ? first.trim() : '';
     }
-    return '';
+    return isAiProcessingMark(value) ? '' : value;
 }
 
 function roleOf(frontmatter: Record<string, unknown>): ProjectRole | null {

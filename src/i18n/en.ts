@@ -4571,6 +4571,8 @@ export const en: Translations = {
         adoptCommand: "Adopt note as project",
         openCommand: "Open project",
         adoptedNotice: "Adopted as a project: {path}",
+        adoptReplacesMark: "The status \"{mark}\" is AI Organiser's processing mark, not a project status, so this edit sets the status to active.",
+        adoptedReplacedMarkNotice: "Adopted as a project: {path}. Its status \"{mark}\" was AI Organiser's processing mark, so it is now active.",
         noActiveNote: "Open the note you want to adopt first.",
         pickerTitle: "Choose a project",
         pickerPlaceholder: "Search projects by name, folder or status",
