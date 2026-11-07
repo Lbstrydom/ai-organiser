@@ -31,7 +31,7 @@ write exists. It adds `ai-workspaces` as a consumer of the project service (`pro
 
 ## Hand-back (markdown `## Handoff`)
 
-Command **Review AI hand-back** on the open note. Gate: `ai-workspaces` AND `capture-inbox` enabled (either off: no command, nothing changes). In this version it is command-driven; routing a capture-inbox file to the review automatically, Office files, `captureDocuments` and the "Read it anyway" fallback extraction are not built.
+Command **Review AI hand-back** on the open note. Gate: `ai-workspaces` AND `capture-inbox` enabled (either off: no command, nothing changes). While it is active the inbox sweep and the capture inbox both skip hand-back notes, so only this review reads them and a capture Accept never changes a hand-back's id. In this version it is command-driven; routing a capture-inbox file to the review automatically, Office files, `captureDocuments` and the "Read it anyway" fallback extraction are not built.
 
 | Part | File | What it is |
 |---|---|---|

@@ -15,6 +15,7 @@ import { sha256Hex } from '../attachmentDuplicateService';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { rankByTitleOverlap } from '../attachmentHomeService';
 import { exclusionReason, policyRevisionOf, type SweepPolicy } from '../inboxSweep/sweepGuard';
+import { looksLikeHandback } from '../aiWorkspaces/handoffParser';
 import { buildCaptureClassifyPrompt, buildCaptureFolderContext, parseProposal, type RawProposal } from './captureClassify';
 import { bump, bumpBucket, canStartProcessing, finish, getEntry, upsertEntry } from './captureJournal';
 import { findCaptureBlock } from './enrichmentBlock';
@@ -58,6 +59,8 @@ export interface CaptureDeps {
     port: ProcessorPort;
     vault: CaptureVaultPort;
     isSwept(path: string, text: string): Promise<boolean>;
+    /** AI hand-backs are left to their own review (see `ScanDeps.skipHandbacks`). */
+    skipHandbacks?(): boolean;
     isEnabled(): boolean;
     now(): number;
     digitisationEnabled(): boolean;
@@ -157,11 +160,12 @@ export async function syncEntries(deps: CaptureDeps, scan: ScanOutcome, opts: { 
         const held = getEntry(snapshot, skip.id);
         if (held) {
             // A kept-out rule that now covers a held capture drops its text at once: nothing excluded stays in data.json.
-            if (skip.reason === 'excluded' && !['processing', 'accept_pending_write', 'accepted', 'organised'].includes(held.state)) {
+            // So does a capture that turned out to be an AI hand-back: it leaves the queue for its own review.
+            if ((skip.reason === 'excluded' || skip.reason === 'handback') && !['processing', 'accept_pending_write', 'accepted', 'organised'].includes(held.state)) {
                 hard.push((j) => {
                     const live = getEntry(j, skip.id);
                     if (!live || ['processing', 'accept_pending_write', 'accepted', 'organised'].includes(live.state)) return j;
-                    return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', 'excluded'), skip.id, 'skipped', now, revision, 'excluded');
+                    return finish(bumpBucket(upsertEntry(j, { ...live, text: undefined, noteText: undefined, proposal: undefined }), 'skipped', skip.reason), skip.id, 'skipped', now, revision, skip.reason);
                 });
             }
             continue;
@@ -319,6 +323,7 @@ async function stillAllowed(deps: CaptureDeps, cap: ScannedCapture, extra?: stri
         // A note that cannot be read now cannot be judged now: the job is dropped and the next scan starts it afresh.
         if (!read.ok || read.value !== cap.text) throw new Cancelled();
         if (exclusionReason(cap.id, read.value, policy)) return 'excluded';
+        if (deps.skipHandbacks?.() === true && looksLikeHandback(read.value)) return 'handback';
     }
     if (extra !== undefined && machineTextExclusion(cap.id, extra, policy)) return 'excluded';
     return null;
