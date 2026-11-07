@@ -9,7 +9,8 @@ import { isFeatureEnabled } from '../services/featureService';
 import { normaliseShareFolders } from '../services/aiWorkspaces/aiShareScope';
 import { normaliseHandbacks, type HandbackRecord } from '../services/aiWorkspaces/handbackJournal';
 import { normaliseChatMap } from '../services/aiWorkspaces/handoffMatch';
-import { normaliseWorkspaces, type WorkspaceRecord } from '../services/aiWorkspaces/workspaceRecord';
+import { normaliseLive, normaliseRevocations, normaliseWorkspaces, readableDestination, type PendingRevocation, type WorkspaceRecord } from '../services/aiWorkspaces/workspaceRecord';
+import { normaliseLiveStatus, type LiveStatus } from '../services/aiWorkspaces/liveStatus';
 import { normaliseParaRoots, type ParaRoot } from '../services/projects/paraRoots';
 import { isValidDue, normaliseRoutingRules, normaliseTasksLists, type RoutingRule, type TasksListConfig } from '../services/inboxSweep/tasksRouting';
 import type { SweepItemKind } from '../services/prompts/sweepPrompts';
@@ -460,6 +461,14 @@ export interface AIOrganiserSettings {
     aiWorkspacePackFolder: string;
     /** Workspace records by project or Area id (chat projects, context sources, packs made). */
     aiWorkspaces: Record<string, WorkspaceRecord>;
+    /** Default folder (absolute, inside Google Drive for desktop, outside the vault) offered when a live pack is turned on. Writes outside the vault. */
+    aiWorkspaceLiveFolder: string;
+    /** Quiet minutes after the last change before a live pack is rebuilt (1-60). */
+    aiWorkspaceLiveDelayMinutes: number;
+    /** What each live pack last did, by project id. Status only: never consulted for consent. */
+    aiWorkspaceLiveStatus: Record<string, LiveStatus>;
+    /** Live pack files that must be replaced by the "no longer shared" text, kept until that is done. */
+    aiWorkspaceLiveRevocations: PendingRevocation[];
     /** Remembered `<app>:<chat project name>` -> project id, so the next hand-back from that chat project matches exactly. */
     aiWorkspaceChatMap: Record<string, string>;
     /** The hand-back journal: items frozen on first review, each with its state. */
@@ -1098,6 +1107,10 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aiWorkspacePackFolder: 'AI-Organiser/Workspace packs',
     aiWorkspaces: {},
     aiWorkspaceChatMap: {},
+    aiWorkspaceLiveFolder: '',
+    aiWorkspaceLiveDelayMinutes: 5,
+    aiWorkspaceLiveStatus: {},
+    aiWorkspaceLiveRevocations: [],
     aiHandbacks: {},
     agentInstructionsWrite: false,
     agentInstructionsPath: 'AGENTS.md',
@@ -1718,7 +1731,22 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
     old.aiShareFolders = normaliseShareFolders(old.aiShareFolders);
     old.aiShareRequireOptIn = old.aiShareRequireOptIn === true;
     old.aiWorkspacePackFolder = typeof old.aiWorkspacePackFolder === 'string' && old.aiWorkspacePackFolder.trim() !== '' ? old.aiWorkspacePackFolder.trim() : d.aiWorkspacePackFolder;
+    // A live approval that no longer validates may still name a file in Drive: that file is retired, never forgotten.
+    const revocations = normaliseRevocations(old.aiWorkspaceLiveRevocations);
+    if (old.aiWorkspaces && typeof old.aiWorkspaces === 'object') {
+        for (const raw of Object.values(old.aiWorkspaces as Record<string, unknown>)) {
+            const rec = raw && typeof raw === 'object' ? raw as Record<string, unknown> : null;
+            if (!rec || rec.live === undefined || normaliseLive(rec.live)) continue;
+            const dest = readableDestination(rec.live);
+            if (dest && typeof rec.anchorId === 'string') revocations.push({ aioId: rec.anchorId, ...dest, projectName: '', requestedAt: new Date().toISOString() });
+        }
+    }
     old.aiWorkspaces = normaliseWorkspaces(old.aiWorkspaces);
+    old.aiWorkspaceLiveRevocations = normaliseRevocations(revocations);
+    old.aiWorkspaceLiveFolder = typeof old.aiWorkspaceLiveFolder === 'string' ? old.aiWorkspaceLiveFolder.trim() : d.aiWorkspaceLiveFolder;
+    old.aiWorkspaceLiveDelayMinutes = typeof old.aiWorkspaceLiveDelayMinutes === 'number' && Number.isFinite(old.aiWorkspaceLiveDelayMinutes)
+        ? Math.min(60, Math.max(1, Math.round(old.aiWorkspaceLiveDelayMinutes))) : d.aiWorkspaceLiveDelayMinutes;
+    old.aiWorkspaceLiveStatus = normaliseLiveStatus(old.aiWorkspaceLiveStatus, Object.keys(old.aiWorkspaces as Record<string, unknown>));
     old.aiWorkspaceChatMap = normaliseChatMap(old.aiWorkspaceChatMap);
     old.aiHandbacks = normaliseHandbacks(old.aiHandbacks);
 

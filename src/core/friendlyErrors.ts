@@ -205,6 +205,16 @@ export const GUIDANCE_CODES = [
     'read-unparsable',
     'read-no-match',
     'read-save-failed',
+    // AI workspace live pack
+    'live-folder-missing',
+    'live-desktop-only',
+    'live-name-invalid',
+    'live-file-not-ours',
+    'live-write-failed',
+    'live-other-device',
+    'live-needs-review',
+    'live-not-on',
+    'live-folder-in-use',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];
