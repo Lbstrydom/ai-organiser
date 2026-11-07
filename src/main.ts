@@ -1,3 +1,4 @@
+import { createLivePackRuntime, type LivePackRuntime } from './services/aiWorkspaces/livePackRuntime';
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
 import { toModelText } from './utils/excalidrawContent';
 import {
@@ -173,6 +174,8 @@ export default class AIOrganiserPlugin extends Plugin {
     private newsletterFetchTimer: number | null = null;
     /** The vault upkeep scheduler; created only while the feature is on */
     public upkeep: UpkeepController | null = null;
+    /** The AI workspace live pack (desktop only): its service, scheduler and revoke-only reconciler. */
+    public livePacks: LivePackRuntime | null = null;
     private lastUpkeepKey = '';
     /** Keeps the read-only connector's scope file true to the settings (created on first use) */
     private connectorScope: ScopePublisher | null = null;
@@ -314,6 +317,8 @@ export default class AIOrganiserPlugin extends Plugin {
     }
 
     public async saveSettings(): Promise<void> {
+        // Synchronous, before anything is awaited: a live pack write already queued sees that the settings changed.
+        this.livePacks?.beforeSave();
         // An output-folder edit that would land inside a protected folder is undone here.
         enforceOutputDisjointness(this);
         const embeddingSettingsChanged =
@@ -328,6 +333,7 @@ export default class AIOrganiserPlugin extends Plugin {
             this.settings.newsletterAutoFetchIntervalMins !== this.lastNewsletterConfig.intervalMins;
 
         await saveSettingsData(this, this.settings);
+        this.livePacks?.afterSave();
         await this.initializeLLMService();
         // Turning automatic replacement on starts a fresh observation; turning it off clears the memory.
         void this.catchUpPlayback?.onSettingsChanged();
@@ -452,6 +458,9 @@ export default class AIOrganiserPlugin extends Plugin {
             this.app.workspace.detachLeavesOfType(RELATED_NOTES_VIEW_TYPE);
         } else if (id === 'newsletter') {
             this.stopNewsletterScheduler();
+        } else if (id === 'ai-workspaces') {
+            // Every live pack file written here becomes the "no longer shared" text; the request is saved first.
+            this.livePacks?.teardown();
         }
         // Other features own no active background work → reload-deferred (FT-5).
     }
@@ -1155,6 +1164,10 @@ export default class AIOrganiserPlugin extends Plugin {
         }
 
         this.eventHandlers.registerEventHandlers();
+        // The live pack (desktop only), before the commands and settings that use it: pending stubs are finished even with AI
+        // workspaces off; refreshes run only while it is on.
+        this.livePacks = createLivePackRuntime(this);
+        this.app.workspace.onLayoutReady(() => this.livePacks?.start());
         this.settingTab = new AIOrganiserSettingTab(this.app, this);
         this.addSettingTab(this.settingTab);
         registerCommands(this);
@@ -1692,7 +1705,26 @@ export default class AIOrganiserPlugin extends Plugin {
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    /**
+     * Obsidian calls this when data.json changed on disk (settings synced from another device). Only the live pack reacts, and only
+     * to its consent fields: a turn-off asked for on another device must replace the file written here. Nothing else is reloaded.
+     */
+    public async onExternalSettingsChange(): Promise<void> {
+        if (!this.livePacks) return;
+        try {
+            const fresh = migrateOldSettings(await this.loadData());
+            if (!fresh) return;
+            const s = this.settings;
+            s.aiWorkspaces = (fresh.aiWorkspaces as typeof s.aiWorkspaces | undefined) ?? s.aiWorkspaces;
+            s.aiWorkspaceLiveRevocations = (fresh.aiWorkspaceLiveRevocations as typeof s.aiWorkspaceLiveRevocations | undefined) ?? s.aiWorkspaceLiveRevocations;
+            this.livePacks.externalChange();
+        } catch (e) {
+            logger.warn('AiWorkspaces', 'Could not read the synced live pack settings', e);
+        }
+    }
+
     public onunload(): void {
+        this.livePacks?.stop();
         // Invalidate any read-signal session that already qualified, so it cannot commit after unload.
         bumpReadGeneration();
         this.catchUpStatusBar?.dispose();
