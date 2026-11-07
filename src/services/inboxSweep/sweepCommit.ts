@@ -33,7 +33,7 @@ import {
     type Disposition,
 } from './sweepLedger';
 import { dropAlreadyReported, recordReportedItems } from './sweepItemIdentity';
-import { appendSection, reconcileReport, renderSection, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
+import { appendSection, reconcileReport, renderSection, tickDone, validateReportPath, RUN_ID_PATTERN } from './sweepReport';
 import { exportApproved, approvedBeyondConfigured, pingTasksScript, type ExportSummary, type SourceCheck } from './tasksExportService';
 import { configuredListIds } from './tasksScriptSelect';
 import { resolveTasksLists, type ExportContext } from './tasksRouting';
@@ -369,7 +369,7 @@ export function mergeStatusFields(current: ApprovalRecord | undefined, incoming:
  * Read the completion of every exported task (read-only). Needs the read-back switch and a script that reports the `status`
  * capability: without it, only this is unavailable (export keeps working), with guidance.
  */
-export async function refreshStatuses(plugin: AIOrganiserPlugin, signal?: AbortSignal): Promise<Result<{ checked: number; failed: number }>> {
+export async function refreshStatuses(plugin: AIOrganiserPlugin, signal?: AbortSignal): Promise<Result<{ checked: number; failed: number; ticked: number }>> {
     const s = plugin.settings;
     if (!isFeatureEnabled(s, 'google-tasks-export')) return err('tasks-not-ready');
     if (!s.tasksReadBack) return err('tasks-readback-off');
@@ -397,7 +397,62 @@ export async function refreshStatuses(plugin: AIOrganiserPlugin, signal?: AbortS
         checked += out.value.batch.items.filter((i) => i.outcome === 'ok' || i.outcome === 'not-found').length;
         failed += out.value.batch.errors.length;
     }
-    return ok({ checked, failed });
+    // Done in Google: tick the report line, once. A failure here never fails the read (the observation is already saved).
+    const ticked = await runExclusive(() => tickDoneInReports(plugin));
+    return ok({ checked, failed, ticked });
+}
+
+/**
+ * Tick the report line of every exported task Google says is completed and whose line was never ticked by this check. Each task is
+ * ticked at most once (`reportTicked`), so a line the person unticks stays unticked. The report is written through the note-edit seam,
+ * only in a valid, unprotected report path. Returns how many lines were ticked now. Caller holds the approval lock.
+ */
+async function tickDoneInReports(plugin: AIOrganiserPlugin): Promise<number> {
+    const byReport = new Map<string, Set<string>>();
+    for (const r of plugin.settings.sweepApprovals) {
+        for (const t of r.tasks) {
+            if (t.remoteStatus !== 'completed' || t.reportTicked) continue;
+            const ids = byReport.get(r.reportPath) ?? new Set<string>();
+            ids.add(t.id);
+            byReport.set(r.reportPath, ids);
+        }
+    }
+    let ticked = 0;
+    for (const [reportPath, ids] of byReport) {
+        try {
+            const path = validateReportPath(reportPath, plugin.settings.protectedFolders);
+            if (!path.ok) continue;
+            const file = plugin.app.vault.getAbstractFileByPath(path.value);
+            if (!(file instanceof TFile)) continue;
+            const baseline = await plugin.app.vault.read(file);
+            let found: string[] = [];
+            let now = 0;
+            const res = await applyNoteEdit(plugin, {
+                kind: 'composite',
+                filePath: path.value,
+                baseline,
+                recompute: (latest) => {
+                    const next = tickDone(latest, ids);
+                    found = next.found;
+                    now = next.ticked;
+                    return ok({ content: next.text });
+                },
+            }, { review: false });
+            if (!res.ok) continue;
+            ticked += now;
+            // A line that was found (ticked now, or ticked by hand already) is done with; a line not in the note is left to a later read.
+            const done = new Set(found);
+            const before = plugin.settings.sweepApprovals;
+            plugin.settings.sweepApprovals = before.map((r) => (r.tasks.some((t) => done.has(t.id))
+                ? { ...r, tasks: r.tasks.map((t) => (done.has(t.id) ? { ...t, reportTicked: true as const } : t)) }
+                : r));
+            const saved = await save(plugin);
+            if (!saved.ok && plugin.settings.sweepApprovals !== before) plugin.settings.sweepApprovals = before;
+        } catch (e) {
+            logger.error('Sweep', 'Could not tick done tasks in the report', e);
+        }
+    }
+    return ticked;
 }
 
 export async function sendApproved(plugin: AIOrganiserPlugin, signal?: AbortSignal): Promise<Result<ExportSummary>> {
