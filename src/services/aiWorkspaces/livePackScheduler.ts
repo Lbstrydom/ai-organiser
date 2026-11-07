@@ -104,6 +104,8 @@ export class LivePackScheduler {
         if (this.stopped) return;
         const owned = new Set(this.service.ownedProjects());
         for (const id of [...this.paths.keys()]) if (!owned.has(id)) this.forget(id);
+        // A refresh waiting for a project that is no longer live here is dropped.
+        for (const [id, timer] of [...this.timers]) if (!owned.has(id)) { this.t.clear(timer.id); this.timers.delete(id); }
         for (const id of owned) void this.service.recollect(id);
     }
 

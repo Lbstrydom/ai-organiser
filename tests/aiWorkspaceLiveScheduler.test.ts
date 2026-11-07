@@ -81,6 +81,21 @@ describe('live pack scheduler', () => {
         expect(refreshed).toEqual([ID]);
     });
 
+    it('a refresh waiting for a project that was turned off is dropped', () => {
+        const c = clock();
+        const { svc, refreshed } = fakeService();
+        let owned = [ID];
+        (svc as { ownedProjects: () => string[] }).ownedProjects = () => owned;
+        const s = new LivePackScheduler(svc as unknown as LivePackService, () => MIN, c.t);
+        s.applySnapshot(snap(1, 'Areas/A.md'));
+        s.touched('P/Reading.md');
+        owned = [];
+        s.resync();
+        c.advance(5 * MIN);
+        expect(refreshed).toEqual([]);
+        expect(s.pending()).toEqual([]);
+    });
+
     it('start reads each project and schedules a catch-up; stop clears every timer', () => {
         const c = clock();
         let reads = 0;

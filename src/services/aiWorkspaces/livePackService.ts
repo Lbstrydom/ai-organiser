@@ -332,7 +332,8 @@ export class LivePackService {
         if (!gate.ok) return err(gate.error);
         const deps = gate.value;
         const live = this.record(aioId)?.live;
-        if (!live) return this.fail(aioId, 'live-not-on');
+        // Turned off since this was asked for: nothing to do, and the status ("off") stays as the turn-off left it.
+        if (!live) return err('live-not-on');
         if (live.deviceId !== this.env.deviceId()) return this.fail(aioId, 'live-other-device');
         if (this.pendingFor(aioId)) {
             const done = await this.processRevocations();
@@ -529,7 +530,15 @@ export class LivePackService {
     checkPolicyAll(): void {
         const ids = Object.keys(this.env.settings().aiWorkspaces).filter((id) => this.record(id)?.live?.deviceId === this.env.deviceId());
         void this.run(async () => {
-            const policy = await this.env.sharePolicy();
+            let policy: string;
+            try {
+                policy = await this.env.sharePolicy();
+            } catch (e) {
+                // The policy cannot be read: every live pack here is checked by a refresh, which withdraws when it cannot prove sharing.
+                logger.warn('AiWorkspaces', 'Could not read the share policy for the live packs', e);
+                for (const id of ids) void this.refresh(id);
+                return;
+            }
             for (const id of ids) {
                 const live = this.record(id)?.live;
                 if (live && live.approvedPolicy !== policy) void this.refresh(id);
