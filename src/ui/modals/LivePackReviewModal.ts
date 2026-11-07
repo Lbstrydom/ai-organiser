@@ -2,7 +2,8 @@ import { App, Modal, Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import type { Result } from '../../core/result';
-import type { LiveReview, RefreshOutcome, SelectionPreview } from '../../services/aiWorkspaces/livePackService';
+import type { LivePackService, LiveReview, RefreshOutcome, SelectionPreview } from '../../services/aiWorkspaces/livePackService';
+import { logger } from '../../utils/logger';
 import { plural } from '../../utils/plural';
 
 /**
@@ -22,6 +23,7 @@ export class LivePackReviewModal extends Modal {
     private statusEl: HTMLElement | null = null;
     private problemEl: HTMLElement | null = null;
     private confirmButton: HTMLButtonElement | null = null;
+    private readonly boxes: HTMLInputElement[] = [];
 
     constructor(
         app: App,
@@ -61,10 +63,13 @@ export class LivePackReviewModal extends Modal {
             const box = label.createEl('input', { type: 'checkbox' });
             box.checked = this.ticked.has(n.path);
             box.disabled = isProject;
+            if (!isProject) this.boxes.push(box);
             box.setAttribute('aria-label', n.path);
             label.appendText(` ${n.path} `);
             label.createSpan({ text: `(${isProject ? t.tagProject : n.approved ? t.tagApproved : t.tagNew})`, cls: 'setting-item-description' });
             box.addEventListener('change', () => {
+                // While a confirmation runs, the selection is the one being written: it cannot change.
+                if (this.busy) { box.checked = this.ticked.has(n.path); return; }
                 if (box.checked) this.ticked.add(n.path); else this.ticked.delete(n.path);
                 this.requestPreview();
             });
@@ -107,7 +112,13 @@ export class LivePackReviewModal extends Modal {
                 this.pending = false;
                 const rev = this.revision;
                 const ticked = [...this.ticked];
-                const res = await this.plugin.livePacks?.service.previewSelection(this.review, ticked);
+                let res: Awaited<ReturnType<LivePackService['previewSelection']>> | undefined;
+                try {
+                    res = await this.plugin.livePacks?.service.previewSelection(this.review, ticked);
+                } catch (e) {
+                    logger.error('AiWorkspaces', 'Could not preview the live pack', e);
+                    res = { ok: false, error: 'unknown' };
+                }
                 // A late answer for an older selection, or after closing, is dropped.
                 if (this.closed || rev !== this.revision) continue;
                 if (res?.ok) { this.preview = res.value; this.previewFor = rev; this.problemEl?.setText(''); }
@@ -128,6 +139,7 @@ export class LivePackReviewModal extends Modal {
                 : t.updating);
         }
         if (this.confirmButton) this.confirmButton.disabled = this.busy || !current;
+        for (const b of this.boxes) b.disabled = this.busy;
     }
 
     private async confirm(): Promise<void> {
@@ -142,6 +154,9 @@ export class LivePackReviewModal extends Modal {
             // Stale: a fresh review is opened with the same ticks (this one was bound to notes that changed). Failed: the reason stays here.
             if (res.error === 'pack-preview-stale') { const ticks = [...this.ticked]; this.close(); this.onStale(ticks); return; }
             this.problemEl?.setText(formatGuidance(describeError(this.plugin.t, res.error)));
+        } catch (e) {
+            logger.error('AiWorkspaces', 'Could not turn on the live pack', e);
+            if (!this.closed) this.problemEl?.setText(formatGuidance(describeError(this.plugin.t, 'unknown')));
         } finally {
             this.busy = false;
             if (!this.closed) this.refresh();
@@ -171,7 +186,8 @@ export function livePathOf(folder: string, fileName: string): string {
 export async function openLiveReview(plugin: AIOrganiserPlugin, aioId: string, initialTicks: readonly string[] | null = null, after?: () => void): Promise<void> {
     const service = plugin.livePacks?.service;
     if (!service) { new Notice(formatGuidance(describeError(plugin.t, 'live-desktop-only')), 9000); return; }
-    const review = await service.prepareReview(aioId);
+    let review: Awaited<ReturnType<LivePackService['prepareReview']>>;
+    try { review = await service.prepareReview(aioId); } catch (e) { logger.error('AiWorkspaces', 'Could not open the live pack review', e); review = { ok: false, error: 'unknown' }; }
     if (!review.ok) { new Notice(formatGuidance(describeError(plugin.t, review.error)), 9000); return; }
     new LivePackReviewModal(plugin.app, plugin, review.value,
         (preview) => service.confirm(review.value, preview),

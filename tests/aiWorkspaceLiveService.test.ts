@@ -304,6 +304,29 @@ describe('refreshing', () => {
         expect(fs.readFileSync(livePath(), 'utf8')).toContain('aio-live-state: no-longer-shared');
     });
 
+    it('notes that cannot be read under a changed policy withdraw the file; under the same policy it stays', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        const before = fs.readFileSync(livePath(), 'utf8');
+        w.notes.delete('P/Pkm.md');
+        expect((await svc.refresh(ID)).ok).toBe(false);
+        expect(fs.readFileSync(livePath(), 'utf8')).toBe(before);
+        w.policy.value = 'f'.repeat(64);
+        expect(await svc.refresh(ID)).toMatchObject({ ok: true, value: { kind: 'revoked' } });
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('aio-live-state: no-longer-shared');
+    });
+
+    it('a finished revocation removes only its own entry', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        const other = { aioId: '44444444-4444-4444-8444-444444444444', deviceId: THEM, folder: drive, fileName, projectName: 'Other', requestedAt: 'x' };
+        w.settings.aiWorkspaceLiveRevocations = [other];
+        await svc.turnOff(ID);
+        expect(w.settings.aiWorkspaceLiveRevocations).toEqual([other]);
+    });
+
     it('refreshes run one at a time and requests coalesce', async () => {
         const w = world();
         const svc = new LivePackService(w.env);

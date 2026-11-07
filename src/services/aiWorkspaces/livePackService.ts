@@ -340,7 +340,14 @@ export class LivePackService {
             return failed ? err(failed.error) : ok({ kind: 'revoked', snapshot: null });
         }
         const c = await this.collectCandidates(aioId);
-        if (!c.ok) return this.fail(aioId, c.error);
+        if (!c.ok) {
+            // The notes could not be read. Shareability changes only with the share policy: if that changed too, nothing proves the
+            // approved notes may still be shared, so the file is withdrawn. Otherwise the last approved file stays and the error shows.
+            let policy: string | null = null;
+            try { policy = await this.env.sharePolicy(); } catch (e) { logger.warn('AiWorkspaces', 'Could not read the share policy', e); }
+            if (policy !== live.approvedPolicy) { const r = await this.revokeNow(aioId, 'scope-lost'); return r.ok ? ok({ kind: 'revoked', snapshot: null }) : err(r.error); }
+            return this.fail(aioId, c.error);
+        }
         const snapshot = c.value.snapshot;
         this.deliver(snapshot);
         // The share policy changed since the approval: stop, and withdraw if an approved note may no longer be shared.
@@ -496,7 +503,7 @@ export class LivePackService {
             const present = await verifyLiveFile(deps, this.env.journal, target, '', this.env.vaultBase());
             const res = present.ok && present.value === 'missing' ? ok(null) : await writeLiveFile(deps, this.env.journal, target, stub, this.env.vaultBase());
             if (res.ok) {
-                s.aiWorkspaceLiveRevocations = s.aiWorkspaceLiveRevocations.filter((x) => x !== r && !(x.folder === r.folder && x.fileName === r.fileName));
+                s.aiWorkspaceLiveRevocations = s.aiWorkspaceLiveRevocations.filter((x) => x !== r && !(x.aioId === r.aioId && x.deviceId === r.deviceId && x.folder === r.folder && x.fileName === r.fileName));
                 const still = this.record(r.aioId)?.live;
                 s.aiWorkspaceLiveStatus = { ...s.aiWorkspaceLiveStatus, [r.aioId]: { ...this.status(r.aioId), state: still ? 'needs-review' : 'off', lastDigest: undefined, lastFileSha: undefined, lastError: undefined } };
                 result.items.push(r.aioId);

@@ -35,6 +35,9 @@ export function sharingSaverFor(plugin: AIOrganiserPlugin): SharingSaver {
 
 /** AI workspaces: which folders may be shared with AI apps (default none), the opt-in for the connector, and the pack folder. */
 export class AiWorkspacesSettingsSection extends BaseSettingSection {
+    private delayRevision = 0;
+    private delaySaved = 5;
+
     constructor(plugin: AIOrganiserPlugin, containerEl: HTMLElement, settingTab: AIOrganiserSettingTab) {
         super(plugin, containerEl, settingTab);
     }
@@ -111,11 +114,16 @@ export class AiWorkspacesSettingsSection extends BaseSettingSection {
             })
             .addButton((b) => b.setButtonText(t.folderCheck).onClick(() => { void this.checkFolder(b); }));
 
+        this.delaySaved = s.aiWorkspaceLiveDelayMinutes;
         new Setting(this.containerEl).setName(t.delayName).setDesc(t.delayDesc)
             .addSlider((sl) => sl.setLimits(1, 60, 1).setValue(s.aiWorkspaceLiveDelayMinutes).setDynamicTooltip().onChange((v) => {
-                const before = s.aiWorkspaceLiveDelayMinutes;
+                // The slider saves often: only the newest change may be undone, and only to the last value that really saved.
+                const mine = ++this.delayRevision;
                 s.aiWorkspaceLiveDelayMinutes = v;
-                this.plugin.saveSettings().catch((e: unknown) => { logger.error('AiWorkspaces', 'Could not save the live pack delay', e); this.restore(() => { s.aiWorkspaceLiveDelayMinutes = before; }); });
+                this.plugin.saveSettings().then(() => { if (mine === this.delayRevision) this.delaySaved = v; }, (e: unknown) => {
+                    logger.error('AiWorkspaces', 'Could not save the live pack delay', e);
+                    if (mine === this.delayRevision) this.restore(() => { s.aiWorkspaceLiveDelayMinutes = this.delaySaved; });
+                });
             }));
 
         this.containerEl.createEl('h4', { text: t.statusHeading });
