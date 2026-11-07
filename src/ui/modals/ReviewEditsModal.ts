@@ -17,6 +17,7 @@ export class ReviewEditsModal extends Modal {
     private newContent: string;
     private onAction: (action: ReviewAction) => void;
     private actionFired = false;
+    private note?: string;
 
     constructor(
         app: App,
@@ -24,7 +25,8 @@ export class ReviewEditsModal extends Modal {
         diff: DiffLine[],
         stats: DiffStats,
         newContent: string,
-        onAction: (action: ReviewAction) => void
+        onAction: (action: ReviewAction) => void,
+        note?: string
     ) {
         super(app);
         this.plugin = plugin;
@@ -32,6 +34,7 @@ export class ReviewEditsModal extends Modal {
         this.stats = stats;
         this.newContent = newContent;
         this.onAction = onAction;
+        this.note = note;
     }
 
     onOpen(): void {
@@ -42,6 +45,8 @@ export class ReviewEditsModal extends Modal {
         contentEl.addClass('ai-organiser-review-edits-modal');
 
         contentEl.createEl('h2', { text: t.title });
+        // A caller's sentence on what the edit changes beyond what the diff makes obvious (absent: nothing is shown).
+        if (this.note) contentEl.createEl('p', { cls: 'ai-organiser-review-edits-note', text: this.note });
 
         // Stats bar — color-coded chips
         const statsEl = contentEl.createDiv({ cls: 'ai-organiser-diff-stats' });

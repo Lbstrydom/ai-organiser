@@ -17,10 +17,11 @@ vi.mock('../src/services/noteEdit/applyNoteEdit', () => ({
 }));
 
 import { createTFile } from './mocks/obsidian';
-import { insertFrontmatterKeys, readFrontmatterRecord, yamlScalar } from '../src/utils/frontmatterKeys';
+import { insertFrontmatterKeys, readFrontmatterRecord, replaceFrontmatterScalar, yamlScalar } from '../src/utils/frontmatterKeys';
+import { applyNoteEdit } from '../src/services/noteEdit/applyNoteEdit';
 import { planAdoption } from '../src/services/projects/projectAdoption';
 import {
-  buildProjectIndex, isAioId, resolveAnchor, resolveProject, resolveSourceProject, searchProjects, statusOf, type NoteIdentity, type SourceProjectPort,
+  buildProjectIndex, isAiProcessingMark, isAioId, resolveAnchor, resolveProject, resolveSourceProject, searchProjects, statusOf, type NoteIdentity, type SourceProjectPort,
 } from '../src/services/projects/projectIndex';
 import { MAX_PARA_ROOTS, normaliseParaRoots, rootOf, validateParaRoots } from '../src/services/projects/paraRoots';
 import { ProjectService, getProjectService, linkpathOf, peekProjectService, projectServiceActive } from '../src/services/projects/projectService';
@@ -59,6 +60,25 @@ describe('frontmatterKeys', () => {
     expect(yamlScalar('a: b')).toBe('"a: b"');
     expect(readFrontmatterRecord('---\na: 1\n---\n')).toEqual({ a: 1 });
     expect(readFrontmatterRecord('no frontmatter')).toBeNull();
+  });
+});
+
+describe('replaceFrontmatterScalar', () => {
+  const mark = (v: string) => v === 'processed';
+
+  it('replaces only the value of a one-line scalar, keeping a trailing comment, CRLF and every other byte', () => {
+    expect(replaceFrontmatterScalar('---\ntitle: X\nstatus: processed\nsummary: S\n---\nBody status: processed\n', 'status', mark, 'active'))
+      .toEqual({ ok: true, value: '---\ntitle: X\nstatus: active\nsummary: S\n---\nBody status: processed\n' });
+    expect(replaceFrontmatterScalar('---\nstatus: "processed"  # by AI\n---\n', 'status', mark, 'active'))
+      .toEqual({ ok: true, value: '---\nstatus: active  # by AI\n---\n' });
+    expect(replaceFrontmatterScalar('---\r\nstatus: processed\r\ntitle: X\r\n---\r\nx', 'status', mark, 'active'))
+      .toEqual({ ok: true, value: '---\r\nstatus: active\r\ntitle: X\r\n---\r\nx' });
+  });
+
+  it('refuses a missing key, a value it does not accept, a list, a block, and no frontmatter', () => {
+    for (const bad of ['---\ntitle: X\n---\n', '---\nstatus: on-hold\n---\n', '---\nstatus: [processed]\n---\n', '---\nstatus:\n  - processed\n---\n', '---\nstatus: >-\n  processed\n---\n', 'status: processed']) {
+      expect(replaceFrontmatterScalar(bad, 'status', mark, 'active')).toEqual({ ok: false, error: 'frontmatter-key-not-replaceable' });
+    }
   });
 });
 
@@ -102,6 +122,25 @@ describe('planAdoption', () => {
     expect(planAdoption(`---\naio-id: ${A}\naio-role: area\n---\nx`, 'project')).toEqual({ ok: false, error: 'project-role-conflict' });
     expect(planAdoption(`---\naio-id: ${A}\naio-role: project\nstatus: active\n---\nx`, 'project')).toEqual({ ok: false, error: 'project-already-adopted' });
     expect(planAdoption('---\ntitle: X\nunclosed', 'project')).toEqual({ ok: false, error: 'project-frontmatter-unreadable' });
+  });
+
+  it('replaces the AI processing mark with an active status in the same edit, and says which mark it was', () => {
+    for (const m of ['processed', 'pending', 'error']) {
+      const plan = planAdoption(`---\nsummary: Acme\nstatus: ${m}\n---\nText\n`, 'project', fixed);
+      expect(plan.ok && plan.value.text).toBe(`---\nsummary: Acme\nstatus: active\naio-id: ${A}\naio-role: project\n---\nText\n`);
+      expect(plan.ok && plan.value.added).toEqual(['aio-id', 'aio-role']);
+      expect(plan.ok && plan.value.replacedMark).toBe(m);
+    }
+  });
+
+  it('leaves a real project status, an area\'s mark, and a mark it cannot replace line-for-line as they are', () => {
+    const own = planAdoption('---\nstatus: on-hold\n---\nx', 'project', fixed);
+    expect(own.ok && own.value.replacedMark).toBeUndefined();
+    const area = planAdoption('---\nstatus: processed\n---\nx', 'area', fixed);
+    expect(area.ok && area.value.text).toBe(`---\nstatus: processed\naio-id: ${A}\naio-role: area\n---\nx`);
+    const list = planAdoption('---\nstatus: [processed]\n---\nx', 'project', fixed);
+    expect(list.ok && list.value.text).toBe(`---\nstatus: [processed]\naio-id: ${A}\naio-role: project\n---\nx`);
+    expect(list.ok && list.value.replacedMark).toBeUndefined();
   });
 
   it('the same input always plans the same bytes (preview equals write)', () => {
@@ -174,6 +213,17 @@ describe('project index', () => {
     expect(statusOf(null)).toBe('');
     expect(isAioId(A)).toBe(true);
     expect(isAioId('1111')).toBe(false);
+  });
+
+  it('statusOf reads the AI processing mark as no project status; a real status is kept', () => {
+    for (const m of ['processed', 'pending', 'error', ' processed ']) expect(statusOf({ status: m })).toBe('');
+    expect(statusOf({ status: ['processed'] })).toBe('');
+    expect(statusOf({ status: 'Processed' })).toBe('Processed');
+    expect(statusOf({ status: 'done' })).toBe('done');
+    expect(isAiProcessingMark('pending')).toBe(true);
+    expect(isAiProcessingMark('active')).toBe(false);
+    const idx = buildProjectIndex([note('P/Danielle MBO.md', { 'aio-id': A, 'aio-role': 'project', status: 'processed' })]);
+    expect(idx.projects[0].status).toBe('');
   });
 
   it('the picker search ranks exact, prefix, substring, then folder or status; empty query lists by name', () => {
@@ -280,6 +330,7 @@ describe('ProjectService (faked vault)', () => {
     const frontmatterOf = (path: string): Record<string, unknown> | undefined => readFrontmatterRecord(vault.get(path) ?? '') ?? undefined;
     const plugin = {
       settings: { featureFlags: flags, paraRoots: [], protectedFolders: [] },
+      t: { projects: { adoptReplacesMark: 'Mark {mark} becomes active.' } },
       registerEvent: (e: string) => registered.push(e),
       register: () => undefined,
       app: {
@@ -329,6 +380,27 @@ describe('ProjectService (faked vault)', () => {
     expect(await service.adoptProject('Projects/Acme.md')).toEqual({ ok: false, error: 'project-already-adopted' });
     expect(await service.adoptProject('Missing.md')).toEqual({ ok: false, error: 'project-not-found' });
     expect(w.vault.get('Projects/Acme.md')).toBe(after);
+  });
+
+  it('adoptProject replaces the AI processing mark with active, notes it in the review, and reports it', async () => {
+    const w = world({ 'inbox-sweep': true, 'google-tasks-export': true }, { 'Projects/MBO.md': '---\nsummary: MBO\nstatus: processed\n---\nBody\n' });
+    const service = getProjectService(w.plugin)!;
+    const edit = vi.mocked(applyNoteEdit);
+    edit.mockClear();
+    const res = await service.adoptProject('Projects/MBO.md');
+    expect(res.ok && res.value.replacedMark).toBe('processed');
+    expect(w.vault.get('Projects/MBO.md')).toMatch(/^---\nsummary: MBO\nstatus: active\naio-id: [0-9a-f-]{36}\naio-role: project\n---\nBody\n$/);
+    expect(edit.mock.calls[0][2]).toEqual({ reviewNote: 'Mark processed becomes active.' });
+    expect(service.projects()[0].status).toBe('active');
+  });
+
+  it('adoptProject passes no review note when no mark is replaced', async () => {
+    const w = world({ 'inbox-sweep': true, 'google-tasks-export': true }, { 'Projects/Acme.md': '---\nstatus: on-hold\n---\n' });
+    const edit = vi.mocked(applyNoteEdit);
+    edit.mockClear();
+    const res = await getProjectService(w.plugin)!.adoptProject('Projects/Acme.md');
+    expect(res.ok && res.value.replacedMark).toBeUndefined();
+    expect(edit.mock.calls[0][2]).toEqual({});
   });
 
   it('adoption refuses a note whose id another note also carries', async () => {

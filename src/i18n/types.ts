@@ -4277,6 +4277,8 @@ export interface Translations {
         adoptCommand: string;
         openCommand: string;
         adoptedNotice: string;
+        adoptReplacesMark: string;
+        adoptedReplacedMarkNotice: string;
         noActiveNote: string;
         pickerTitle: string;
         pickerPlaceholder: string;

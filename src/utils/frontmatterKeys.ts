@@ -97,3 +97,31 @@ function verifyInserted(text: string, entries: ReadonlyArray<readonly [string, s
     const record = readFrontmatterRecord(text);
     return !!record && entries.every(([key, value]) => record[key] === value);
 }
+
+/**
+ * Replace the value of one top-level `key: value` line in the frontmatter, only when that line is a plain or quoted
+ * scalar whose value `accepts`. Every other byte is kept. Refuses (`frontmatter-key-not-replaceable`), writing nothing,
+ * when the note has no readable frontmatter, the key is missing, is not written as a one-line scalar (a list, a block, a
+ * flow value), appears more than once, or the value is not one `accepts` takes.
+ */
+export function replaceFrontmatterScalar(text: string, key: string, accepts: (value: string) => boolean, next: string): Result<string> {
+    const region = findFrontmatter(text);
+    if (region === null || region === 'unclosed') return err('frontmatter-key-not-replaceable');
+    const record = readFrontmatterRecord(text);
+    const current = record?.[key];
+    if (typeof current !== 'string' || !accepts(current)) return err('frontmatter-key-not-replaceable');
+    const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const keyLine = new RegExp(`^${escaped}[ \\t]*:`);
+    const scalarLine = new RegExp(`^(${escaped}[ \\t]*:[ \\t]*)(['"]?)([^'"#\\r\\n]*?)\\2([ \\t]*(?:#[^\\r\\n]*)?)(\\r?)$`);
+    const body = text.slice(region.bodyStart, region.closerStart);
+    const lines = body.split('\n');
+    const hits = lines.map((l, i) => (keyLine.test(l) ? i : -1)).filter((i) => i !== -1);
+    if (hits.length !== 1) return err('frontmatter-key-not-replaceable');
+    const m = scalarLine.exec(lines[hits[0]]);
+    if (!m || m[3].trim() !== current) return err('frontmatter-key-not-replaceable');
+    lines[hits[0]] = `${m[1]}${yamlScalar(next)}${m[4]}${m[5]}`;
+    const out = text.slice(0, region.bodyStart) + lines.join('\n') + text.slice(region.closerStart);
+    const after = readFrontmatterRecord(out);
+    if (!after || after[key] !== next) return err('frontmatter-key-not-replaceable');
+    return ok(out);
+}

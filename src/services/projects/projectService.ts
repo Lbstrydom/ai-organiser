@@ -33,6 +33,8 @@ export interface AdoptOutcome {
     aioId: string;
     notePath: string;
     role: ProjectRole;
+    /** The AI processing mark that the edit replaced with `status: active`, when it did */
+    replacedMark?: string;
 }
 
 const WIKILINK = /^\s*\[\[([^\]|#]+)(?:#[^\]|]*)?(?:\|[^\]]*)?\]\]\s*$/;
@@ -111,7 +113,8 @@ export class ProjectService {
     }
 
     /**
-     * Adopt an existing note: one reviewed edit adds `aio-id`, `aio-role` and (for a project with none) `status: active`.
+     * Adopt an existing note: one reviewed edit adds `aio-id`, `aio-role` and (for a project with none) `status: active`;
+     * a project whose `status` is only the AI's processing mark gets `status: active` in its place, in the same edit.
      * Nothing is moved, renamed or re-written. A note that already carries a role is refused, never silently changed.
      */
     adoptProject(notePath: string): Promise<Result<AdoptOutcome>> {
@@ -135,18 +138,21 @@ export class ProjectService {
             if (this.index().duplicates.has(first.value.aioId)) return err('duplicate-project-id');
             // The id is fixed by the first plan, so the preview and the write add the same id.
             const fixed = first.value.aioId;
+            let replacedMark = first.value.replacedMark;
+            const reviewNote = replacedMark ? this.plugin.t.projects.adoptReplacesMark.replace('{mark}', replacedMark) : undefined;
             const res = await applyNoteEdit(this.plugin, {
                 kind: 'composite',
                 filePath: file.path,
                 baseline,
                 recompute: (current) => {
                     const plan = planAdoption(current, role, () => fixed);
+                    if (plan.ok) replacedMark = plan.value.replacedMark;
                     return plan.ok ? ok({ content: plan.value.text }) : err(plan.error);
                 },
-            });
+            }, reviewNote ? { reviewNote } : {});
             if (!res.ok) return err(res.error);
             this.invalidate();
-            return ok({ aioId: fixed, notePath: file.path, role });
+            return ok({ aioId: fixed, notePath: file.path, role, ...(replacedMark ? { replacedMark } : {}) });
         } catch (e) {
             logger.error('Projects', 'Adopt failed', e);
             return err('project-adopt-failed');

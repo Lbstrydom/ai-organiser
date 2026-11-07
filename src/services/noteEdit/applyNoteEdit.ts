@@ -104,6 +104,8 @@ export interface ApplyNoteEditOptions {
      * owns a preview gate (e.g. the summary preview modal) to avoid a double prompt.
      */
     review?: boolean;
+    /** One sentence shown above the diff in the review, for a change the diff alone does not explain. */
+    reviewNote?: string;
 }
 
 /** Build a snapshot from a file path + its (captured) editor. */
@@ -247,7 +249,7 @@ export async function applyNoteEdit(
     } else {
         const action = await showReviewOrApply(plugin, target.baseline, candidate, async () => {
             commitRes = await writeNote(app, file, apply, plugin.settings);
-        });
+        }, opts.reviewNote);
         if (action === 'reject' || action === 'copy') {
             // User chose not to apply (copy already wrote to clipboard via the modal).
             return err('rejected');
