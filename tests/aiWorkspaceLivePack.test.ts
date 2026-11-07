@@ -147,9 +147,13 @@ describe('live approval record', () => {
         expect(readableDestination({ folder: 'x' })).toBeNull();
     });
 
-    it('revocations are validated and de-duplicated by destination', () => {
+    it('revocations: only the very same obligation is a duplicate, and none is dropped for space', () => {
         const r = { aioId: ID, deviceId: live.deviceId, folder: live.folder, fileName: live.fileName, projectName: 'Pkm', requestedAt: 'x' };
-        expect(normaliseRevocations([r, { ...r, folder: live.folder.toUpperCase() }, { ...r, aioId: 'nope' }])).toHaveLength(1);
+        expect(normaliseRevocations([r, { ...r }, { ...r, aioId: 'nope' }])).toHaveLength(1);
+        // a differently spelled folder is a different file on a case-sensitive file system; another writer is another obligation
+        expect(normaliseRevocations([r, { ...r, folder: live.folder.toUpperCase() }, { ...r, deviceId: '22222222-2222-4222-8222-222222222222' }])).toHaveLength(3);
+        const many = Array.from({ length: 150 }, (_, i) => ({ ...r, fileName: `P${i} - live pack.md` }));
+        expect(normaliseRevocations(many)).toHaveLength(150);
     });
 
     it('status entries survive only for known projects and valid fields', () => {

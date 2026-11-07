@@ -9,6 +9,7 @@ import { buildLiveStub, LIVE_FILE_MAX_BYTES } from '../src/services/aiWorkspaces
 const ID = '3f2b8f4e-1c2d-4e5f-8a6b-7c8d9e0f1a2b';
 const OTHER = '00000000-0000-4000-8000-000000000000';
 const deps = { fs, path, crypto } as unknown as LiveDeps;
+const fidOf = (p: string) => { const st = fs.statSync(p, { bigint: true }); return `${st.dev}:${st.ino}`; };
 const sha = (s: string | Uint8Array) => crypto.createHash('sha256').update(s).digest('hex');
 
 function memoryJournal(): IntentJournal & { map: Map<string, LiveIntent> } {
@@ -84,15 +85,43 @@ describe('writing the live file', () => {
     it('an unmarked file is ours only through an open intent for the same inode, never over a foreign marker', async () => {
         const dest = path.join(drive, fileName);
         fs.writeFileSync(dest, '');
-        const ino = fs.statSync(dest, { bigint: true }).ino;
+        const st = fs.statSync(dest, { bigint: true });
         const j = memoryJournal();
-        j.set(dest, { aioId: ID, ino: (ino + 1n).toString(), generation: 1, startedAt: 'x' });
+        j.set(dest, { aioId: ID, fid: `${st.dev}:${st.ino + 1n}`, generation: 1, startedAt: 'x' });
         expect(await writeLiveFile(deps, j, target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
-        j.set(dest, { aioId: ID, ino: ino.toString(), generation: 1, startedAt: 'x' });
+        j.set(dest, { aioId: ID, fid: `${st.dev + 1n}:${st.ino}`, generation: 1, startedAt: 'x' });
+        expect(await writeLiveFile(deps, j, target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+        j.set(dest, { aioId: ID, fid: fidOf(dest), generation: 1, startedAt: 'x' });
         expect((await writeLiveFile(deps, j, target(), pack('one'), vault)).ok).toBe(true);
         fs.writeFileSync(dest, buildLiveStub(fileName, OTHER, 'x'));
-        j.set(dest, { aioId: ID, ino: fs.statSync(dest, { bigint: true }).ino.toString(), generation: 1, startedAt: 'x' });
+        j.set(dest, { aioId: ID, fid: fidOf(dest), generation: 1, startedAt: 'x' });
         expect(await writeLiveFile(deps, j, target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+    });
+
+    it('the marker counts only as a top-level frontmatter key', async () => {
+        const dest = path.join(drive, fileName);
+        fs.writeFileSync(dest, `---\ndescription: |\n  aio-live-pack: ${ID}\n---\nmine\n`);
+        expect(await writeLiveFile(deps, memoryJournal(), target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+        fs.writeFileSync(dest, `# title\naio-live-pack: ${ID}\n`);
+        expect(await writeLiveFile(deps, memoryJournal(), target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+    });
+
+    it('refuses a hard link (a second name of another file)', async () => {
+        const protectedFile = path.join(vault, 'Protected.md');
+        fs.writeFileSync(protectedFile, pack('protected words'));
+        try { fs.linkSync(protectedFile, path.join(drive, fileName)); } catch { return; /* no hard links on this file system */ }
+        expect(await writeLiveFile(deps, memoryJournal(), target(), pack('one'), vault)).toEqual({ ok: false, error: 'live-file-not-ours' });
+        expect(fs.readFileSync(protectedFile, 'utf8')).toBe(pack('protected words'));
+    });
+
+    it('a file swapped while the authorization check runs is not truncated', async () => {
+        const j = memoryJournal();
+        await writeLiveFile(deps, j, target(), pack('one'), vault);
+        const dest = path.join(drive, fileName);
+        const swap = () => { fs.renameSync(dest, path.join(tmp, 'moved.md')); fs.writeFileSync(dest, 'someone else'); return true; };
+        expect(await writeLiveFile(deps, j, target(), pack('two'), vault, swap)).toEqual({ ok: false, error: 'live-file-not-ours' });
+        expect(fs.readFileSync(dest, 'utf8')).toBe('someone else');
+        expect(fs.readFileSync(path.join(tmp, 'moved.md'), 'utf8')).toBe(pack('one'));
     });
 
     it('refuses a symlink at the destination', async () => {
@@ -130,7 +159,7 @@ describe('writing the live file', () => {
         expect(await writeLiveFile(failing, j, target(), pack('two'), vault)).toEqual({ ok: false, error: 'live-write-failed' });
         expect(closed).toBe(1);
         expect(fs.readFileSync(dest, 'utf8')).toBe('');
-        expect(j.map.get(dest)?.ino).toBe(fs.statSync(dest, { bigint: true }).ino.toString());
+        expect(j.map.get(dest)?.fid).toBe(fidOf(dest));
         expect((await writeLiveFile(deps, j, target(), pack('three'), vault)).ok).toBe(true);
         expect(fs.readFileSync(dest, 'utf8')).toBe(pack('three'));
         expect(j.map.size).toBe(0);

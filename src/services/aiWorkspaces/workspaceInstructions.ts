@@ -111,7 +111,7 @@ export function buildWorkspaceInstructions(input: InstructionsInput): string {
         '</role>',
         ...(input.livePackName ? [
             '<live_pack>',
-            `The newest notes for this project are in a Google Drive file named "${esc(input.livePackName.replace(/["\s]+/g, ' ').trim())}". At the start of each chat, search Google Drive for that exact name and use the newest version. If the file says the project is no longer shared, do not use it or earlier copies.`,
+            `The newest notes for this project are in a Google Drive file named "${esc(input.livePackName)}". At the start of each chat, search Google Drive for that exact name and use the newest version. If the file says the project is no longer shared, do not use it or earlier copies.`,
             '</live_pack>',
         ] : []),
         '<project>',

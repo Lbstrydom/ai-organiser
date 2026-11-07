@@ -26,8 +26,8 @@ export function liveDeps(): LiveDeps | null {
 /** A write in progress, recorded before the file is truncated; device-local, never synced. */
 export interface LiveIntent {
     aioId: string;
-    /** File identity as a decimal string (Windows file ids exceed 2^53, so a number would lose digits) */
-    ino: string;
+    /** Device and file id ("dev:ino", decimal) of the file the intent was recorded for */
+    fid: string;
     generation: number;
     startedAt: string;
 }
@@ -111,45 +111,59 @@ async function destinationOf(deps: LiveDeps, target: LiveTarget, vaultBase: stri
     return ok({ root: root.value, dest });
 }
 
+/** A file's identity: device and file id together, as decimal strings (Windows file ids exceed 2^53, so a number would lose digits). */
+const identityOf = (s: import('fs').BigIntStats): string => `${s.dev.toString()}:${s.ino.toString()}`;
+
+/** True when the path names exactly this regular file now: not a link, one name only (no hard-link alias), inside the folder. */
+async function stillNamed(deps: LiveDeps, root: string, dest: string, fid: string): Promise<boolean> {
+    try {
+        const st = await deps.fs.promises.lstat(dest, { bigint: true });
+        if (st.isSymbolicLink() || !st.isFile() || st.nlink > 1n || identityOf(st) !== fid) return false;
+        return inside(deps, root, await deps.fs.promises.realpath(dest));
+    } catch {
+        return false;
+    }
+}
+
 /** Open an existing destination and prove, through the handle, that it is the regular file the path named. */
-async function openExisting(deps: LiveDeps, root: string, dest: string): Promise<Result<{ handle: Handle; ino: string } | null>> {
+async function openExisting(deps: LiveDeps, root: string, dest: string): Promise<Result<{ handle: Handle; fid: string } | null>> {
     let st: import('fs').BigIntStats;
     try {
         st = await deps.fs.promises.lstat(dest, { bigint: true });
     } catch (e) {
         return (e as NodeJS.ErrnoException).code === 'ENOENT' ? ok(null) : err('live-write-failed');
     }
-    if (st.isSymbolicLink() || !st.isFile()) return err('live-file-not-ours');
+    // A link, or a second name of another file (a hard link could alias a protected one): never ours to write through.
+    if (st.isSymbolicLink() || !st.isFile() || st.nlink > 1n) return err('live-file-not-ours');
     const handle = await deps.fs.promises.open(dest, 'r+');
     try {
         const hs = await handle.stat({ bigint: true });
         // Replaced between the lstat and the open: not the file we checked.
-        if (!hs.isFile() || hs.ino !== st.ino || hs.dev !== st.dev) { await handle.close(); return err('live-file-not-ours'); }
-        const real = await deps.fs.promises.realpath(dest);
-        if (!inside(deps, root, real)) { await handle.close(); return err('live-file-not-ours'); }
-        return ok({ handle, ino: hs.ino.toString() });
+        if (!hs.isFile() || identityOf(hs) !== identityOf(st) || !(await stillNamed(deps, root, dest, identityOf(hs)))) { await handle.close(); return err('live-file-not-ours'); }
+        return ok({ handle, fid: identityOf(hs) });
     } catch (e) {
         await handle.close().catch(() => undefined);
         throw e;
     }
 }
 
-/** Ours = this project's marker, or no marker at all with an open intent of ours for this exact path and inode. */
-function owned(head: string, target: LiveTarget, intent: LiveIntent | null, ino: string): boolean {
+/** Ours = this project's marker, or no marker at all with an open intent of ours for this exact path and file identity. */
+function owned(head: string, target: LiveTarget, intent: LiveIntent | null, fid: string): boolean {
     if (hasLiveMarker(head, target.aioId)) return true;
     if (hasAnyLiveMarker(head)) return false;
-    return intent !== null && intent.aioId === target.aioId.toLowerCase() && intent.ino === ino;
+    return intent !== null && intent.aioId === target.aioId.toLowerCase() && intent.fid === fid;
 }
 
 export interface WriteOutcome {
     fileSha: string;
-    /** File identity as a decimal string (Windows file ids exceed 2^53, so a number would lose digits) */
-    ino: string;
+    /** Device and file id of the written file */
+    fid: string;
 }
 
 /**
  * Write `text` as the live file. `beforeDestroy` runs after every check and immediately before the file is truncated or created:
- * the caller's last authorization check (a false answer writes nothing).
+ * the caller's last authorization check (a false answer writes nothing). The folder and the file's identity are checked again after
+ * it, because the file system may have changed while it ran, and once more after the write.
  */
 export async function writeLiveFile(
     deps: LiveDeps,
@@ -168,29 +182,39 @@ export async function writeLiveFile(
         const { root, dest } = where.value;
         const existing = await openExisting(deps, root, dest);
         if (!existing.ok) return err(existing.error);
-        let ino: string;
+        let fid: string;
+        const intent = (id: string): LiveIntent => ({ aioId: target.aioId.toLowerCase(), fid: id, generation: target.generation, startedAt: new Date().toISOString() });
         if (existing.value) {
             handle = existing.value.handle;
-            ino = existing.value.ino;
+            fid = existing.value.fid;
             const head = decoder.decode((await boundedRead(handle, HEAD_BYTES)).bytes);
-            if (!owned(head, target, intents.get(dest), ino)) return err('live-file-not-ours');
+            if (!owned(head, target, intents.get(dest), fid)) return err('live-file-not-ours');
             if (!(await beforeDestroy())) return err('live-needs-review');
-            intents.set(dest, { aioId: target.aioId.toLowerCase(), ino, generation: target.generation, startedAt: new Date().toISOString() });
+            const again = await destinationOf(deps, target, vaultBase);
+            if (!again.ok) return err(again.error);
+            if (again.value.dest !== dest || !(await stillNamed(deps, root, dest, fid))) return err('live-file-not-ours');
+            intents.set(dest, intent(fid));
             await handle.truncate(0);
         } else {
             if (!(await beforeDestroy())) return err('live-needs-review');
-            // Exclusive read/write: fails if a file appeared since the lstat.
+            const again = await destinationOf(deps, target, vaultBase);
+            if (!again.ok) return err(again.error);
+            if (again.value.dest !== dest) return err('live-file-not-ours');
+            // Exclusive read/write: fails if a file appeared meanwhile.
             handle = await deps.fs.promises.open(dest, 'wx+');
-            ino = (await handle.stat({ bigint: true })).ino.toString();
-            intents.set(dest, { aioId: target.aioId.toLowerCase(), ino, generation: target.generation, startedAt: new Date().toISOString() });
+            fid = identityOf(await handle.stat({ bigint: true }));
+            if (!(await stillNamed(deps, root, dest, fid))) return err('live-file-not-ours');
+            intents.set(dest, intent(fid));
         }
         await writeAll(handle, bytes);
         await handle.sync();
         const back = await boundedRead(handle, LIVE_FILE_MAX_BYTES);
         const fileSha = sha256Hex(deps, bytes);
         if (back.over || sha256Hex(deps, back.bytes) !== fileSha) return err('live-write-failed');
+        // What we wrote must still be the file the path names (the intent stays when it is not).
+        if (!(await stillNamed(deps, root, dest, fid))) return err('live-write-failed');
         intents.clear(dest);
-        return ok({ fileSha, ino });
+        return ok({ fileSha, fid });
     } catch (e) {
         logger.warn('AiWorkspaces', 'Could not write the live pack file', e);
         return err('live-write-failed');
@@ -212,7 +236,7 @@ export async function verifyLiveFile(deps: LiveDeps, intents: IntentJournal, tar
         if (!existing.value) return ok('missing');
         handle = existing.value.handle;
         const { bytes, over } = await boundedRead(handle, LIVE_FILE_MAX_BYTES);
-        if (!owned(decoder.decode(bytes.subarray(0, HEAD_BYTES)), target, intents.get(where.value.dest), existing.value.ino)) return err('live-file-not-ours');
+        if (!owned(decoder.decode(bytes.subarray(0, HEAD_BYTES)), target, intents.get(where.value.dest), existing.value.fid)) return err('live-file-not-ours');
         if (over) return ok('differs');
         return ok((sha256Hex(deps, bytes)) === expectedSha ? 'match' : 'differs');
     } catch (e) {
@@ -237,7 +261,7 @@ export function localStorageJournal(load: (key: string) => unknown, save: (key: 
         const out: Record<string, LiveIntent> = {};
         for (const [dest, v] of Object.entries(raw as Record<string, unknown>)) {
             const i = v as Partial<LiveIntent> | null;
-            if (i && typeof i.aioId === 'string' && typeof i.ino === 'string' && /^[0-9]{1,40}$/.test(i.ino) && typeof i.generation === 'number' && typeof i.startedAt === 'string') out[dest] = { aioId: i.aioId, ino: i.ino, generation: i.generation, startedAt: i.startedAt };
+            if (i && typeof i.aioId === 'string' && typeof i.fid === 'string' && /^[0-9]{1,40}:[0-9]{1,40}$/.test(i.fid) && typeof i.generation === 'number' && typeof i.startedAt === 'string') out[dest] = { aioId: i.aioId, fid: i.fid, generation: i.generation, startedAt: i.startedAt };
         }
         return out;
     };

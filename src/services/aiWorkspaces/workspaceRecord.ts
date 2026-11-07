@@ -118,10 +118,11 @@ export function normaliseRevocations(raw: unknown): PendingRevocation[] {
         if (!isRecord(r) || !isAioId(r.aioId)) continue;
         const dest = readableDestination(r);
         if (!dest) continue;
-        const key = `${dest.folder.toLowerCase()}|${dest.fileName.toLowerCase()}`;
-        if (out.some((x) => `${x.folder.toLowerCase()}|${x.fileName.toLowerCase()}` === key)) continue;
-        out.push({ aioId: String(r.aioId).trim().toLowerCase(), ...dest, projectName: typeof r.projectName === 'string' ? r.projectName.slice(0, 120) : '', requestedAt: typeof r.requestedAt === 'string' ? r.requestedAt : '' });
-        if (out.length >= 100) break;
+        // Only the very same obligation is a duplicate (same project, same writer, same destination spelled the same way); none is
+        // ever dropped for space: each one is a file in Drive that must stop being shared.
+        const aioId = String(r.aioId).trim().toLowerCase();
+        if (out.some((x) => x.aioId === aioId && x.deviceId === dest.deviceId && x.folder === dest.folder && x.fileName === dest.fileName)) continue;
+        out.push({ aioId, ...dest, projectName: typeof r.projectName === 'string' ? r.projectName.slice(0, 120) : '', requestedAt: typeof r.requestedAt === 'string' ? r.requestedAt : '' });
     }
     return out;
 }

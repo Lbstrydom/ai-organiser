@@ -6,6 +6,7 @@
  * Nothing here reads the vault or writes a file: the caller supplies the notes and the policy, as for a pack.
  */
 import { Result, ok, err } from '../../core/result';
+import { logger } from '../../utils/logger';
 import { buildContextPack, PACK_BUDGET_BYTES, packSha256, type PackInput, type PackNote, type PackSource, type SkipReason } from './contextPack';
 import { LIVE_FILE_SUFFIX } from './workspaceRecord';
 
@@ -41,6 +42,16 @@ function withFrontmatterLines(text: string, lines: readonly string[]): string {
 }
 
 export async function buildLivePack(input: LiveBuildInput): Promise<Result<LiveBuild>> {
+    // A callback may throw: the declared contract is a Result, never a rejection.
+    try {
+        return await buildLivePackUnsafe(input);
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Could not build the live pack', e);
+        return err('pack-write-failed');
+    }
+}
+
+async function buildLivePackUnsafe(input: LiveBuildInput): Promise<Result<LiveBuild>> {
     const approved = new Set(input.approved.map(norm));
     const candidates: PackNote[] = [input.project, ...(input.area ? [input.area] : []), ...input.sources];
     const seen = new Set<string>();
@@ -94,16 +105,21 @@ export function buildLiveStub(fileName: string, aioId: string, since: string): s
 
 /** True when the first bytes of a file carry this project's marker inside the leading frontmatter. */
 export function hasLiveMarker(head: string, aioId: string): boolean {
-    if (!head.startsWith('---\n') && !head.startsWith('---\r\n')) return false;
-    const end = head.indexOf('\n---', 3);
-    const front = end < 0 ? head : head.slice(0, end);
-    return front.split(/\r?\n/).some((l) => l.trim() === markerLine(aioId));
+    return frontmatterLines(head)?.some((l) => l === markerLine(aioId)) ?? false;
 }
 
-/** True when the first bytes carry any live marker (of this or another project). */
+/** True when the frontmatter has a top-level live marker of any project. */
 export function hasAnyLiveMarker(head: string): boolean {
-    if (!head.startsWith('---')) return false;
-    const end = head.indexOf('\n---', 3);
-    const front = end < 0 ? head : head.slice(0, end);
-    return front.split(/\r?\n/).some((l) => l.trim().startsWith(`${LIVE_MARKER_KEY}:`));
+    return frontmatterLines(head)?.some((l) => l.startsWith(`${LIVE_MARKER_KEY}:`)) ?? false;
+}
+
+/**
+ * The lines of the leading frontmatter (null when there is none, or it is not closed within the bytes read). Only a line starting at
+ * column 0 can equal the marker: an indented line belongs to a block or list value and never counts.
+ */
+function frontmatterLines(head: string): string[] | null {
+    const lines = head.split('\n').map((l) => l.replace(/\r$/, ''));
+    if (lines[0] !== '---') return null;
+    const close = lines.indexOf('---', 1);
+    return close < 0 ? null : lines.slice(1, close);
 }
