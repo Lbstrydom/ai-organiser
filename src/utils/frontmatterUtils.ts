@@ -14,6 +14,8 @@ import { assertWritableActive } from '../core/protectedPaths';
 export interface AIOMetadata {
     [AIO_META.SUMMARY]?: string;
     [AIO_META.STATUS]?: StatusValue;
+    /** The same mark, kept here instead of `status` once the user opts in (`aiStatusProperty`) */
+    'aio-status'?: StatusValue;
     [AIO_META.TYPE]?: ContentType;
     [AIO_META.PROCESSED]?: string;
     [AIO_META.MODEL]?: string;

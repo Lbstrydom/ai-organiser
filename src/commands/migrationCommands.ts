@@ -6,6 +6,8 @@
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { MigrationModal } from '../ui/modals/MigrationModal';
+import { AiStatusMoveModal } from '../ui/modals/AiStatusMoveModal';
+import { AIO_STATUS_KEY, aiStatusKey } from '../core/aiStatus';
 
 /**
  * Register migration commands
@@ -43,6 +45,20 @@ export function registerMigrationCommands(plugin: AIOrganiserPlugin) {
             
             const modal = new MigrationModal(plugin.app, plugin, folder);
             modal.open();
+        }
+    });
+
+    // Command: move the AI's marks from `status` to `aio-status` (opt-in; a review comes before any write)
+    plugin.addCommand({
+        id: 'move-ai-status-marks',
+        name: plugin.t.commands.moveAiStatusMarks,
+        icon: 'arrow-right-left',
+        callback: () => {
+            if (aiStatusKey(plugin.settings) !== AIO_STATUS_KEY) {
+                new Notice(plugin.t.modals.aiStatusMove.notOptedIn, 8000);
+                return;
+            }
+            new AiStatusMoveModal(plugin.app, plugin).open();
         }
     });
 }
