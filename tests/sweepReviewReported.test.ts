@@ -438,3 +438,79 @@ describe('InboxSweepReviewModal quick mode (Make a Google task)', () => {
 		expect(results[0]!.tasks[0]).toMatchObject({ destination: { type: 'list', listId: 'dated' }, due: '2026-11-20' });
 	});
 });
+
+describe('InboxSweepReviewModal: Then (file the note)', () => {
+	const note: NoteProposals = { path: '0 Inbox/call dentist.md', contentHash: 'hd', dropped: 0, truncated: false, items: [item('Call the dentist', 'Call the dentist')] };
+	const withFolders = async () => {
+		const { createTFolder } = await import('./mocks/obsidian');
+		return {
+			t: en,
+			settings: { paraRoots: [{ path: '2 Areas', kind: 'areas' }], protectedFolders: [] },
+			app: { vault: { getAllLoadedFiles: () => [createTFolder('2 Areas'), createTFolder('2 Areas/Health'), createTFolder('0 Inbox')] } },
+		} as never;
+	};
+	const openWith = (host: never, quick: { text: string; allowSwept: boolean } | null = null) => {
+		const results: Array<CommitInput | null> = [];
+		const modal = new InboxSweepReviewModal({} as never, host, [note], (r) => results.push(r), undefined, null, undefined, quick);
+		modal.open();
+		return { modal, el: (modal as unknown as { contentEl: HTMLElement }).contentEl, results };
+	};
+	const then = (el: HTMLElement) => el.querySelector<HTMLSelectElement>('.ai-organiser-sweep-filing select');
+	const choose = (el: HTMLElement, value: string) => { const s = then(el)!; s.value = value; s.dispatchEvent(new Event('change', { bubbles: true })); };
+
+	it('offers leave, the PARA folders and the trash, leave first', async () => {
+		const { el } = openWith(await withFolders());
+		expect(Array.from(then(el)!.options).map((o) => o.value)).toEqual(['', 'move:2 Areas', 'move:2 Areas/Health', 'trash']);
+	});
+
+	it('left alone, the disposition is exactly what it always was', async () => {
+		const { el, results } = openWith(await withFolders());
+		checkboxes(el)[0].checked = true;
+		checkboxes(el)[0].dispatchEvent(new Event('change', { bubbles: true }));
+		primary(el).click();
+		expect(results[0]!.dispositions).toEqual([{ sourcePath: note.path, sourceHash: 'hd', markSwept: true }]);
+	});
+
+	it('stamps the move or the trash on the disposition, and filing alone enables the button', async () => {
+		const a = openWith(await withFolders());
+		choose(a.el, 'move:2 Areas/Health');
+		expect(primary(a.el).disabled).toBe(false);
+		primary(a.el).click();
+		expect(a.results[0]!.dispositions[0].filing).toEqual({ type: 'move', folder: '2 Areas/Health' });
+		const b = openWith(await withFolders());
+		choose(b.el, 'trash');
+		expect(b.el.textContent).toContain(en.inboxSweep.filingTrashHint);
+		primary(b.el).click();
+		expect(b.results[0]!.dispositions[0].filing).toEqual({ type: 'trash' });
+	});
+
+	it('a filing choice counts as work when closing', async () => {
+		const { modal, el } = openWith(await withFolders());
+		choose(el, 'trash');
+		const spy = vi.spyOn(Modal.prototype as unknown as { open(): void }, 'open');
+		modal.close();
+		expect(spy).toHaveBeenCalled();
+		spy.mockRestore();
+	});
+
+	it('quick mode with the task unticked and a filing chosen reads Mark reviewed, not Send 0', async () => {
+		const { el } = openWith(await withFolders(), { text: 'Call the dentist', allowSwept: true });
+		// The fixture note also has a proposal row; the quick row is the last one.
+		const box = checkboxes(el).at(-1)!;
+		box.checked = false;
+		box.dispatchEvent(new Event('change', { bubbles: true }));
+		choose(el, 'move:2 Areas');
+		expect(primary(el).textContent).toBe(en.inboxSweep.markReviewedButton);
+		expect(primary(el).disabled).toBe(false);
+	});
+
+	it('quick mode outside the inbox offers no filing', async () => {
+		const { el } = openWith(await withFolders(), { text: 'x', allowSwept: false });
+		expect(then(el)).toBeNull();
+	});
+
+	it('with no PARA roots only leave and trash are offered', () => {
+		const { el } = openWith(plugin);
+		expect(Array.from(then(el)!.options).map((o) => o.value)).toEqual(['', 'trash']);
+	});
+});

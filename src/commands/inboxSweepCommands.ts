@@ -44,6 +44,7 @@ import { InboxSweepReviewModal, type QuickTask } from '../ui/modals/InboxSweepRe
 import { draftFromSettings, exclusionCount, lines, propertyLines, previewScope, renderInboxFolders, renderKeepOut, validateKeepOut } from '../ui/setup/inboxScopeSteps';
 import { refreshProcessViews } from '../ui/views/processRefresh';
 import { plural } from '../utils/plural';
+import { runPendingFiling } from '../services/inboxSweep/sweepFiling';
 
 // ─── Deps over the live vault ───────────────────────────────────────────────
 
@@ -206,7 +207,9 @@ export function review(plugin: AIOrganiserPlugin, notes: NoteProposals[], contex
                     refreshProcessViews(plugin.app);
                     // The caller is told as soon as the approval is saved; sending to Google is a separate, optional step after that.
                     resolve(outcome.saved ? result : null);
+                    // Filing waits for the tasks: after the send when there is one, at once when there is nothing to send.
                     if (outcome.send) void runSendApproved(plugin);
+                    else if (outcome.saved) void runPendingFiling(plugin);
                 })
                 .catch((e: unknown) => { logger.error('Sweep', 'Commit failed', e); guidanceNotice(plugin, 'unknown'); resolve(null); });
         }, contexts, routing, projectOf, quick ?? null).open();
@@ -222,7 +225,9 @@ async function commit(plugin: AIOrganiserPlugin, input: CommitInput): Promise<{ 
         return { saved: out.stoppedAt !== 'persist', send: false };
     }
     const added = input.tasks.length - (out.duplicates ?? 0);
-    new Notice(added > 0 ? plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath) : t.markedNotice, 6000);
+    // Nothing added and nothing marked (a filing choice only): the filing says what happened, so no notice here.
+    if (added > 0) new Notice(plural(t.addedNotice, added).replace('{path}', plugin.settings.sweepReportPath), 6000);
+    else if (input.dispositions.some((d) => d.markSwept)) new Notice(t.markedNotice, 6000);
     if (out.duplicates) new Notice(plural(t.duplicatesSkipped, out.duplicates), 6000);
     return { saved: true, send: added > 0 && isFeatureEnabled(plugin.settings, 'google-tasks-export') && !!plugin.settings.tasksListId };
 }
@@ -253,6 +258,8 @@ export async function runSendApproved(plugin: AIOrganiserPlugin): Promise<void> 
         const s = res.value;
         if (s.extraApproved) guidanceNotice(plugin, 'tasks-script-approves-extra', 15000);
         if (s.error) { guidanceNotice(plugin, s.error); return; }
+        // Notes whose tasks are now safe are filed as the person chose in the review.
+        void runPendingFiling(plugin);
         new Notice(t.sentNotice.replace('{exported}', String(s.exported)).replace('{pending}', String(s.pending)).replace('{blocked}', String(s.blocked.length)), 8000);
         // Items that were not sent are never silent: each distinct reason is said once, with what to do next.
         for (const reason of new Set((s.held ?? []).map((h) => h.reason))) {

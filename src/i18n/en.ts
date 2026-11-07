@@ -4812,7 +4812,7 @@ export const en: Translations = {
         sending: "Sending tasks to Google Tasks.",
         sentNotice: "{exported} tasks in Google Tasks, {pending} waiting, {blocked} held back.",
         reviewTitle: "Review sweep",
-        reviewIntro: "Tick the items you want. Nothing is added until you press the button at the bottom, and your notes are never changed.",
+        reviewIntro: "Tick the items you want. Nothing is added until you press the button at the bottom. A note’s text is never changed; it is moved or put in the trash only if you choose that under Then.",
         reviewEmpty: "The sweep found nothing to review.",
         truncatedNote: "Only the start of this note was read.",
         droppedNote: "{count} suggestion[s] [was|were] dropped because the note does not support [it|them].",
@@ -4833,8 +4833,23 @@ export const en: Translations = {
         addButton: "Add {count} to sweep report",
         markReviewedButton: "Mark reviewed",
         quickTitle: "Make a Google task",
-        quickIntro: "Check the wording, list and date. Nothing is sent until you press the button, and this note is not changed. The task is also listed in your sweep report.",
+        quickIntro: "Check the wording, list and date. Nothing is sent until you press the button, and this note’s text is not changed. The task is also listed in your sweep report.",
         quickSendButton: "Send {count} task[s] to Google Tasks",
+        thenLabel: "Then",
+        filingLeave: "Leave it here",
+        filingTrash: "Move it to the trash",
+        filingMoveTo: "Move it to {folder}",
+        filingTrashHint: "It goes to the trash only after its tasks reach Google Tasks, and only if you have not changed it since this review.",
+        filingMoved: "{count} note[s] moved.",
+        filingTrashed: "{count} note[s] put in the trash.",
+        filingSkipped: {
+            changed: "{name} was changed after the review, so it was not put in the trash.",
+            protected: "{name} was left where it is: it is in, or linked from, a protected folder.",
+            "name-taken": "{name} was not moved: {folder} already has a note with that name.",
+            "folder-gone": "{name} was not moved: the folder {folder} no longer exists.",
+            blocked: "{name} was left where it is, because one of its tasks could not be sent.",
+            failed: "{name} could not be filed. It is still where it was."
+        },
         kindLabels: { next_action: "Next action", waiting_for: "Waiting for", project: "Project", someday_maybe: "Someday" }
     },
     captureInbox: {

@@ -48,7 +48,7 @@ import { captureSetupConfirmed } from '../captureInbox/captureConfig';
  * only safe if no other commit slipped in between; serialising removes that window.
  */
 let exclusive: Promise<unknown> = Promise.resolve();
-function runExclusive<T>(job: () => Promise<T>): Promise<T> {
+export function runExclusive<T>(job: () => Promise<T>): Promise<T> {
     const run = exclusive.then(job, job);
     exclusive = run.catch(() => undefined);
     return run;
