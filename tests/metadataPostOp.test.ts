@@ -101,6 +101,18 @@ describe('markNoteProcessed', () => {
         expect(ctx.fm.status).toBe('processed');
     });
 
+    it('never writes the mark on an adopted project, area or container, but still refreshes the rest', async () => {
+        for (const role of ['project', 'area', 'container']) {
+            const none = makePlugin({ fmInitial: { 'aio-role': role } });
+            await markNoteProcessed(none.plugin, makeFile());
+            expect(none.fm.status).toBeUndefined();
+            expect(none.fm.word_count).toBe(42);
+        }
+        const pending = makePlugin({ fmInitial: { 'aio-role': 'project', status: 'pending' } });
+        await markNoteProcessed(pending.plugin, makeFile());
+        expect(pending.fm.status).toBe('pending');
+    });
+
     it('leaves custom status alone', async () => {
         const ctx = makePlugin({ fmInitial: { status: 'archived' } });
         await markNoteProcessed(ctx.plugin, makeFile());
