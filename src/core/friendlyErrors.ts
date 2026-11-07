@@ -115,6 +115,7 @@ export const GUIDANCE_CODES = [
     'tasks-due-missing',
     'tasks-readback-off',
     'tasks-no-list',
+    'quick-task-kept-out',
     'tasks-not-ready',
     'tasks-wizard-no-list',
     'tasks-wizard-unchecked',
