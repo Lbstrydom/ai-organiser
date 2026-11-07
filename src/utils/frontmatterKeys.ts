@@ -105,6 +105,30 @@ function verifyInserted(text: string, entries: ReadonlyArray<readonly [string, s
  * flow value), appears more than once, or the value is not one `accepts` takes.
  */
 export function replaceFrontmatterScalar(text: string, key: string, accepts: (value: string) => boolean, next: string): Result<string> {
+    return rewriteScalarLine(text, key, accepts,
+        (m) => `${m.prefix}${yamlScalar(next)}${m.trailer}`,
+        (after) => after[key] === next);
+}
+
+/**
+ * Rename one top-level one-line scalar key, keeping its value (written plain or quoted as needed), its position, a
+ * trailing comment and every other byte. Same refusals as `replaceFrontmatterScalar`, and also when `newKey` is already there.
+ */
+export function renameFrontmatterScalarKey(text: string, key: string, newKey: string, accepts: (value: string) => boolean): Result<string> {
+    const record = readFrontmatterRecord(text);
+    if (record && Object.hasOwn(record, newKey)) return err('frontmatter-key-not-replaceable');
+    const current = record?.[key];
+    return rewriteScalarLine(text, key, accepts,
+        (m) => `${newKey}: ${yamlScalar(m.value)}${m.trailer}`,
+        (after) => after[newKey] === current && !Object.hasOwn(after, key));
+}
+
+interface ScalarLine { prefix: string; value: string; trailer: string }
+
+function rewriteScalarLine(
+    text: string, key: string, accepts: (value: string) => boolean,
+    build: (line: ScalarLine) => string, verify: (after: Record<string, unknown>) => boolean,
+): Result<string> {
     const region = findFrontmatter(text);
     if (region === null || region === 'unclosed') return err('frontmatter-key-not-replaceable');
     const record = readFrontmatterRecord(text);
@@ -119,9 +143,9 @@ export function replaceFrontmatterScalar(text: string, key: string, accepts: (va
     if (hits.length !== 1) return err('frontmatter-key-not-replaceable');
     const m = scalarLine.exec(lines[hits[0]]);
     if (!m || m[3].trim() !== current) return err('frontmatter-key-not-replaceable');
-    lines[hits[0]] = `${m[1]}${yamlScalar(next)}${m[4]}${m[5]}`;
+    lines[hits[0]] = build({ prefix: m[1], value: current, trailer: `${m[4]}${m[5]}` });
     const out = text.slice(0, region.bodyStart) + lines.join('\n') + text.slice(region.closerStart);
     const after = readFrontmatterRecord(out);
-    if (!after || after[key] !== next) return err('frontmatter-key-not-replaceable');
+    if (!after || !verify(after)) return err('frontmatter-key-not-replaceable');
     return ok(out);
 }

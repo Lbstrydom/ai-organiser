@@ -3,8 +3,10 @@
  * Settings for Obsidian Bases integration
  */
 
-import { Setting } from 'obsidian';
+import { Notice, Setting } from 'obsidian';
 import { BaseSettingSection } from './BaseSettingSection';
+import { AIO_STATUS_KEY, aiStatusKey } from '../../core/aiStatus';
+import { AiStatusMoveModal } from '../modals/AiStatusMoveModal';
 
 export class BasesSettingsSection extends BaseSettingSection {
     display(): void {
@@ -49,6 +51,34 @@ export class BasesSettingsSection extends BaseSettingSection {
                         void this.plugin.saveSettings();
                     });
             });
+
+        // Where the AI's processing mark is kept (opt-in move to the plugin-owned `aio-status`)
+        const t = this.plugin.t.settings.bases;
+        new Setting(this.containerEl)
+            .setName(t.aiStatusProperty)
+            .setDesc(t.aiStatusPropertyDesc)
+            .addDropdown(dropdown => {
+                dropdown
+                    .addOption('status', t.aiStatusShared)
+                    .addOption(AIO_STATUS_KEY, t.aiStatusOwn)
+                    .setValue(aiStatusKey(this.plugin.settings))
+                    .onChange((value) => {
+                        this.plugin.settings.aiStatusProperty = value === AIO_STATUS_KEY ? AIO_STATUS_KEY : 'status';
+                        void this.plugin.saveSettings();
+                        if (value === AIO_STATUS_KEY) new Notice(t.aiStatusSwitchedNotice, 10000);
+                        moveRow.settingEl.toggleClass('ai-organiser-hidden', value !== AIO_STATUS_KEY);
+                    });
+            });
+        const moveRow = new Setting(this.containerEl)
+            .setName(t.moveMarksAction)
+            .setDesc(t.moveMarksActionDesc)
+            .addButton(button => {
+                button
+                    .setIcon('arrow-right-left')
+                    .setButtonText(t.moveMarksButton)
+                    .onClick(() => { new AiStatusMoveModal(this.plugin.app, this.plugin).open(); });
+            });
+        moveRow.settingEl.toggleClass('ai-organiser-hidden', aiStatusKey(this.plugin.settings) !== AIO_STATUS_KEY);
 
         // Migration action
         new Setting(this.containerEl)

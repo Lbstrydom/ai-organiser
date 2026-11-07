@@ -4,7 +4,9 @@
  */
 
 import { App, TFile, TFolder } from 'obsidian';
-import { AIO_META, ContentType } from '../core/constants';
+import { AIO_META, ContentType, isAiProcessingMark } from '../core/constants';
+import { AIO_ROLE_KEY } from './projects/projectIndex';
+import { AIO_STATUS_KEY, aiStatusKey } from '../core/aiStatus';
 import { 
     updateAIOMetadata, 
     createSummaryHook, 
@@ -57,6 +59,19 @@ export class MigrationService {
     /**
      * Analyze migration scope - count notes needing migration
      */
+    /**
+     * A note counts as upgraded when it carries a status. With `aio-status` chosen, that is its `aio-status`, or a mark
+     * still in `status` (moved by "Move AI status marks", never duplicated here).
+     */
+    private isMigrated(file: TFile): boolean {
+        if (aiStatusKey(this.plugin.settings) === AIO_STATUS_KEY) {
+            const fm = this.app.metadataCache.getFileCache(file)?.frontmatter;
+            return !!fm && (!!fm[AIO_STATUS_KEY] || isAiProcessingMark(fm[AIO_META.STATUS]));
+        }
+        const metadata = getAIOMetadata(this.app, file);
+        return !!(metadata && metadata[AIO_META.STATUS]);
+    }
+
     public analyzeMigrationScope(folder?: TFolder): MigrationScope {
         const files = folder 
             ? this.getMarkdownFilesInFolder(folder)
@@ -66,8 +81,7 @@ export class MigrationService {
         let alreadyMigrated = 0;
         
         for (const file of files) {
-            const metadata = getAIOMetadata(this.app, file);
-            if (metadata && metadata[AIO_META.STATUS]) {
+            if (this.isMigrated(file)) {
                 alreadyMigrated++;
             } else {
                 needsMigration++;
@@ -91,8 +105,7 @@ export class MigrationService {
     ): Promise<boolean> {
         try {
             // Check if already migrated and should skip
-            const existingMetadata = getAIOMetadata(this.app, file);
-            if (existingMetadata && existingMetadata[AIO_META.STATUS] && !options.overwriteExisting) {
+            if (this.isMigrated(file) && !options.overwriteExisting) {
                 return false; // Skip - already migrated
             }
             
@@ -112,16 +125,27 @@ export class MigrationService {
                 }
             }
             
-            // Set status based on existing tags or processing
-            metadata[AIO_META.STATUS] = this.determineStatus(file, frontmatter);
-            
+            // Set status based on existing tags or processing, but only over no status or the plugin's own mark: a user's
+            // status (a project's `active`, a `draft`) and any adopted project, area or container keep theirs, even when
+            // "Overwrite existing metadata" is on.
+            // Opted in to `aio-status`: the mark goes there, the plugin's own property, and `status` is never touched.
+            const statusKey = aiStatusKey(this.plugin.settings);
+            if (statusKey === AIO_STATUS_KEY) {
+                metadata[AIO_STATUS_KEY] = this.determineStatus(file, frontmatter);
+            } else {
+                const existingStatus: unknown = frontmatter?.[AIO_META.STATUS];
+                const userOwnsStatus = (existingStatus !== undefined && existingStatus !== null && !isAiProcessingMark(existingStatus))
+                    || (!!frontmatter && Object.hasOwn(frontmatter, AIO_ROLE_KEY));
+                if (!userOwnsStatus) metadata[AIO_META.STATUS] = this.determineStatus(file, frontmatter);
+            }
+
             // Auto-detect content type if enabled
             if (this.plugin.settings.autoDetectContentType) {
                 metadata[AIO_META.TYPE] = this.detectContentType(content, frontmatter);
             }
-            
+
             // Set processed timestamp for already-processed notes
-            if (metadata[AIO_META.STATUS] === 'processed') {
+            if (metadata[statusKey] === 'processed') {
                 metadata[AIO_META.PROCESSED] = file.stat.mtime 
                     ? new Date(file.stat.mtime).toISOString()
                     : new Date().toISOString();

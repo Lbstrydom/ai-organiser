@@ -8,6 +8,7 @@ import * as yaml from 'js-yaml';
 import type AIOrganiserPlugin from '../main';
 import type { BasesTemplate } from './configurationService';
 import { logger } from '../utils/logger';
+import { aiStatusKey, retargetStatusFilter } from '../core/aiStatus';
 
 function isMapping(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -240,7 +241,8 @@ export class DashboardService {
             }
 
             // Write the native Bases schema (a template-dialect document is converted), scoped to the folder
-            const content = this.injectFolderFilter(toNativeBase(template.content), options.folder.path);
+            // With the AI mark moved to `aio-status`, a template's `status == "processed"` filter follows it (unchanged otherwise).
+            const content = this.injectFolderFilter(retargetStatusFilter(toNativeBase(template.content), aiStatusKey(this.plugin.settings)), options.folder.path);
 
             // Create dashboard file
             await this.app.vault.create(filePath, content);

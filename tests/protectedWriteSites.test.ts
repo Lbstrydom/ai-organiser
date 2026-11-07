@@ -40,6 +40,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/noteEdit/noteWritePort.ts': { count: 2, cls: 'guarded', exempt: 1, reason: 'the seam; asserts writability before any editor or vault write' },
 	'src/utils/tagUtils.ts': { count: 6, cls: 'guarded', exempt: 3, reason: 'tag writers guard at entry; saveAllTags guards its target; the rest is the tags output file' },
 	'src/utils/frontmatterUtils.ts': { count: 1, cls: 'guarded', reason: 'updateAIOMetadata guards before processFrontMatter' },
+	'src/services/aiStatusMove.ts': { count: 1, cls: 'guarded', reason: 'the reviewed move of AI marks calls assertWritableActive before vault.process; protected folders are never scanned' },
 	'src/utils/editorUtils.ts': { count: 4, cls: 'guarded', reason: 'editor helpers call guardActiveNote' },
 	'src/utils/noteStructure.ts': { count: 8, cls: 'guarded', reason: 'editor helpers call guardActiveNote' },
 	'src/ui/contextMenu.ts': { count: 3, cls: 'guarded', reason: 'selection edits call guardActiveNote' },
