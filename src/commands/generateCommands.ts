@@ -141,7 +141,10 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
     if (!r.ok) return; // reporter already fired "Failed: <detail>" toast
 
     const result = r.value;
-    if (selectedText && result.success) {
+    // The editor captured above may now show another note (the user switched tabs while
+    // the model ran). Editor follow-ups then belong to nobody: skip them.
+    const editorStillOnFile = view.file?.path === file.path && view.editor === editor;
+    if (selectedText && result.success && editorStillOnFile) {
         if (!guardActiveNote(editor)) return;
         // Only restore the selection the user tagged: if it changed while the model ran,
         // writing the old text over the new selection would destroy their edit.
@@ -149,7 +152,7 @@ async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {
     }
     plugin.handleTagUpdateResult(result);
 
-    if (result.success) {
+    if (result.success && editorStillOnFile) {
         ensureNoteStructureIfEnabled(editor, plugin.settings);
     }
 
