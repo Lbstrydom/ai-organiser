@@ -7,7 +7,8 @@
  * Offered from the file menu, the editor menu and the command picker, only while Google Tasks export is on.
  */
 import { actionName } from '../core/actionRegistry';
-import { Menu, Notice, TFile, type Editor } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
+import { addMenuProvider } from '../ui/pluginMenu';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
 import { normalisePath, isInsideOrEqual } from '../core/protectedPaths';
@@ -94,14 +95,11 @@ export function registerQuickTask(plugin: AIOrganiserPlugin): void {
             return true;
         },
     });
-    plugin.registerEvent(plugin.app.workspace.on('file-menu', (menu: Menu, file) => {
-        if (!offered(plugin, file)) return;
-        menu.addItem((item) => item.setTitle(t.commands.makeGoogleTask).setIcon('list-plus').onClick(() => { void runQuickTask(plugin, file); }));
-    }));
-    plugin.registerEvent(plugin.app.workspace.on('editor-menu', (menu: Menu, editor: Editor, view) => {
-        const file = view.file;
-        if (!offered(plugin, file)) return;
-        const selection = editor.getSelection();
-        menu.addItem((item) => item.setTitle(t.commands.makeGoogleTask).setIcon('list-plus').onClick(() => { void runQuickTask(plugin, file, selection); }));
-    }));
+    // Right-click: a contribution to the AI Organiser section (src/ui/pluginMenu.ts).
+    addMenuProvider(plugin, (target) => {
+        const file = target.kind === 'file' ? target.file : target.kind === 'editor' ? target.file : null;
+        if (!file || !offered(plugin, file)) return [];
+        const selection = target.kind === 'editor' ? target.selection : undefined;
+        return [{ id: 'make-google-task', title: actionName(t, 'make-google-task'), icon: 'list-plus', priority: 'ranked', run: () => { void runQuickTask(plugin, file, selection); } }];
+    });
 }

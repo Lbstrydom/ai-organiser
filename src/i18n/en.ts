@@ -2960,6 +2960,7 @@ export const en: Translations = {
             emptyState: "No matching commands",
             categoryPinned: "Pinned",
             categoryAll: "All actions",
+            contextFor: "For: {name}",
             categorySetup: "Setup and tools",
             availableTitle: "Available to turn on",
             availableDesc: "Features that are off. Choose one to see what it adds and turn it on.",
@@ -5078,6 +5079,12 @@ export const en: Translations = {
         resetJournal: "Reset capture journal",
         resetJournalConfirm: "A copy of the unreadable journal is kept. Captures handled before may be processed again, and your provider may charge again. Continue?",
         resetJournalDone: "Capture journal reset. Reload Obsidian to start the capture inbox."
+    },
+    pluginMenu: {
+        title: "AI organiser",
+        mobileTitle: "AI organiser…",
+        more: "More…",
+        staleTarget: "That note, file or selection changed, so nothing was run. Right-click it again.",
     },
     activation: {
         title: "Turn on {feature}",

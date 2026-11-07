@@ -2961,6 +2961,7 @@ export interface Translations {
             // Pinned favourites cross-cut; the 5 stage categories use `t.workflowStages.*`.
             categoryPinned: string;
             categoryAll: string;
+            contextFor: string;
             categorySetup: string;
             availableTitle: string;
             availableDesc: string;
@@ -4723,6 +4724,12 @@ export interface Translations {
         resetJournal: string;
         resetJournalConfirm: string;
         resetJournalDone: string;
+    };
+    pluginMenu: {
+        title: string;
+        mobileTitle: string;
+        more: string;
+        staleTarget: string;
     };
     activation: {
         title: string;

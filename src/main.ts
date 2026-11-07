@@ -1,7 +1,12 @@
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
 import { FeatureActivationModal } from './ui/modals/FeatureActivationModal';
 import { consumePendingResume } from './services/featureActivation';
-import { actionAvailability } from './core/actionAvailability';
+import { actionAvailability, type Availability } from './core/actionAvailability';
+import { candidatesFor, resolveRoles, type ContextRole } from './core/contextResolver';
+import { acceptsTarget, runAction, type RunContext } from './services/actionRunner';
+import { targetLabel, type MenuContribution, type MenuDeps, type MenuTarget } from './ui/pluginMenu';
+import type { PickerContextItem } from './ui/modals/CommandPickerModal';
+import type { RequirementKind } from './core/actionRegistry';
 import { ACTION_BY_ID, actionName, type ActionDef } from './core/actionRegistry';
 import { buildContext, checkRequirement } from './ui/modals/pickerRequirements';
 import { noticeWithAction } from './utils/noticeUtils';
@@ -1746,7 +1751,12 @@ export default class AIOrganiserPlugin extends Plugin {
     /**
      * Opens the command picker modal with all AI Organiser commands
      */
-    public openCommandPicker(): void {
+    /**
+     * Open the picker. With a scope (from a right-click), "For this context" lists that target's
+     * items; without one it lists up to three ready actions for the note that is open.
+     */
+    public openCommandPicker(scope?: { label: string; items: readonly PickerContextItem[] }): void {
+        const context = scope ?? this.activeContext();
         const categories = buildCommandCategories(this.t, (commandId: string) => {
             // Execute the command via Obsidian's command system
             // @ts-ignore - commands API is internal but stable
@@ -1755,6 +1765,7 @@ export default class AIOrganiserPlugin extends Plugin {
             isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
             // An off feature's action opens activation; it never runs.
             onActivate: (actionId) => new FeatureActivationModal(this.app, this, actionId).open(),
+            ...(context ? { context } : {}),
         });
 
         const modal = new CommandPickerModal(this.app, this, this.t, categories);
@@ -1776,22 +1787,7 @@ export default class AIOrganiserPlugin extends Plugin {
             logger.warn('Core', 'Could not clear the pending resume; not offering it', e);
             return;
         }
-        const requirementCtx = () => buildContext({
-            activeFile: this.app.workspace.getActiveFile(),
-            editor: this.app.workspace.activeEditor?.editor ?? null,
-            hasMarkdownFiles: this.app.vault.getMarkdownFiles().length > 0,
-            enableSemanticSearch: isFeatureEnabled(this.settings, 'semantic-search'),
-            hasVectorStore: !!this.vectorStore,
-            isMobile: Platform.isMobile,
-        });
-        const availabilityOf = (def: ActionDef) => {
-            const ctx = requirementCtx();
-            return actionAvailability(def, {
-                isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
-                isMobile: Platform.isMobile,
-                requirementMet: (kind) => checkRequirement(kind, ctx, this.t).met,
-            });
-        };
+        const availabilityOf = (def: ActionDef) => this.availabilityWith(this.activeRequirement())(def);
         const offer = consumePendingResume(intent, {
             now: Date.now(),
             availabilityOf,
@@ -1837,6 +1833,104 @@ export default class AIOrganiserPlugin extends Plugin {
                 .replace('{action}', actionName(this.t, offer.commandId))
                 .replace('{reason}', a.reasons[offer.reason]), 10000);
         }
+    }
+
+    /** Availability of an action against a requirement check (shared by the picker, menus and resume). */
+    private availabilityWith(requirementMet: (kind: RequirementKind) => boolean): (def: ActionDef) => Availability {
+        return (def) => actionAvailability(def, {
+            isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
+            isMobile: Platform.isMobile,
+            requirementMet,
+        });
+    }
+
+    /** Requirement check for the workspace as it is (the active note, editor and index). */
+    private activeRequirement(): (kind: RequirementKind) => boolean {
+        const ctx = buildContext({
+            activeFile: this.app.workspace.getActiveFile(),
+            editor: this.app.workspace.activeEditor?.editor ?? null,
+            hasMarkdownFiles: this.app.vault.getMarkdownFiles().length > 0,
+            enableSemanticSearch: isFeatureEnabled(this.settings, 'semantic-search'),
+            hasVectorStore: !!this.vectorStore,
+            isMobile: Platform.isMobile,
+        });
+        return (kind) => checkRequirement(kind, ctx, this.t).met;
+    }
+
+    /** Requirement check for an explicit file (a right-clicked file is not the active one). */
+    private fileRequirement(file: TFile): (kind: RequirementKind) => boolean {
+        const ext = file.extension.toLowerCase();
+        return (kind) => {
+            if (kind === 'none' || kind === 'vault') return true;
+            if (kind === 'active-note') return ext === 'md';
+            if (kind === 'mp3-file') return ext === 'mp3';
+            if (kind === 'semantic-search') return isFeatureEnabled(this.settings, 'semantic-search') && !!this.vectorStore;
+            return false; // 'selection' needs an editor
+        };
+    }
+
+    private rolesOfFile(file: TFile, hasSelection = false): ContextRole[] {
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+        return resolveRoles({ kind: 'file', path: file.path, extension: file.extension, frontmatter, hasSelection }, this.settings);
+    }
+
+    private runContext(): RunContext {
+        return {
+            availabilityOf: (id) => {
+                const def = ACTION_BY_ID.get(id);
+                return def ? this.availabilityWith(() => true)(def) : null;
+            },
+            reasonText: (state) => this.t.activation.reasons[state],
+            staleTarget: this.t.pluginMenu.staleTarget,
+        };
+    }
+
+    /** "For this context" of the plain picker: the open note's best three ready actions. */
+    private activeContext(): { label: string; items: PickerContextItem[] } | undefined {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return undefined;
+        const selection = this.app.workspace.activeEditor?.editor?.getSelection() ?? '';
+        const defs = candidatesFor(this.rolesOfFile(file, selection.trim().length > 0), this.availabilityWith(this.activeRequirement()), () => true);
+        const items = defs.map((def) => ({
+            id: def.id, title: actionName(this.t, def.id), icon: def.icon,
+            run: () => runAction(this, def.id, { kind: 'active' }, this.runContext()),
+        }));
+        return items.length > 0 ? { label: file.name, items } : undefined;
+    }
+
+    /** What the one right-click section needs from the plugin. */
+    public menuDeps(): MenuDeps {
+        return {
+            rankedFor: (target) => this.rankedForTarget(target),
+            openScoped: (target, items) => this.openCommandPicker({ label: targetLabel(target), items: items.map((c) => ({ id: c.id, title: c.title, icon: c.icon, run: c.run })) }),
+            labels: () => ({ title: this.t.pluginMenu.title, mobileTitle: this.t.pluginMenu.mobileTitle, more: this.t.pluginMenu.more }),
+            onError: (e) => logger.warn('Menu', 'A menu contribution failed', e),
+        };
+    }
+
+    private rankedForTarget(target: MenuTarget): MenuContribution[] {
+        const toContribution = (def: ActionDef, run: () => void): MenuContribution =>
+            ({ id: def.id, title: actionName(this.t, def.id), icon: def.icon, priority: 'ranked', run });
+        if (target.kind === 'file') {
+            const file = target.file;
+            const active = this.app.workspace.getActiveFile()?.path === file.path;
+            const defs = candidatesFor(this.rolesOfFile(file), this.availabilityWith(this.fileRequirement(file)),
+                (def) => acceptsTarget(def.id, 'file') || (active && acceptsTarget(def.id, 'active')));
+            return defs.map((def) => toContribution(def, () => runAction(this, def.id,
+                acceptsTarget(def.id, 'file') ? { kind: 'file', file } : { kind: 'active' }, this.runContext())));
+        }
+        if (target.kind === 'files') {
+            const files = target.files;
+            const defs = candidatesFor(['multi'], this.availabilityWith(() => true), (def) => acceptsTarget(def.id, 'files'));
+            return defs.map((def) => toContribution(def, () => runAction(this, def.id, { kind: 'files', files }, this.runContext())));
+        }
+        if (target.kind === 'editor' && target.file) {
+            // The editor's note is the active one: its actions run as from the palette.
+            const defs = candidatesFor(this.rolesOfFile(target.file, target.selection.trim().length > 0),
+                this.availabilityWith(this.activeRequirement()), () => true);
+            return defs.map((def) => toContribution(def, () => runAction(this, def.id, { kind: 'active' }, this.runContext())));
+        }
+        return [];
     }
 
     public async showTagNetwork(): Promise<void> {

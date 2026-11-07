@@ -26,7 +26,7 @@ export function filterCategoriesByFeature(
 ): CommandCategory[] {
 	// An off leaf the builder placed under "Available to turn on" is kept on purpose: it is
 	// listed so it can be turned on, and the modal never runs it.
-	const keepLeaf = (leaf: PickerCommand): boolean => leaf.featureOff === true || actionFeatureOn(leaf, isEnabled);
+	const keepLeaf = (leaf: PickerCommand): boolean => leaf.featureOff === true || leaf.contextItem === true || actionFeatureOn(leaf, isEnabled);
 	const out: CommandCategory[] = [];
 	for (const cat of categories) {
 		const commands: PickerCommand[] = [];

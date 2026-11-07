@@ -4,7 +4,8 @@
  */
 
 import { actionName } from '../core/actionRegistry';
-import { TFolder, Menu } from 'obsidian';
+import { TFolder } from 'obsidian';
+import { addMenuProvider } from '../ui/pluginMenu';
 import type AIOrganiserPlugin from '../main';
 import { DashboardCreationModal } from '../ui/modals/DashboardCreationModal';
 
@@ -34,27 +35,16 @@ export function registerDashboardCommands(plugin: AIOrganiserPlugin) {
         }
     });
 
-    // Register folder context menu
-    plugin.registerEvent(
-        plugin.app.workspace.on('file-menu', (menu: Menu, file, _source) => {
-            // Only show for folders
-            if (!(file instanceof TFolder)) {
-                return;
-            }
-
-            menu.addItem((item) => {
-                const title = plugin.basesService.isBasesEnabled() 
-                    ? (plugin.t.commands.createBasesDashboardHere || 'Create Bases Dashboard')
-                    : 'Create Dashboard (Bases Recommended)';
-                    
-                item
-                    .setTitle(title)
-                    .setIcon('layout-dashboard')
-                    .onClick(() => {
-                        const modal = new DashboardCreationModal(plugin.app, plugin, file);
-                        modal.open();
-                    });
-            });
-        })
-    );
+    // Right-click on a folder: a contribution to the AI Organiser section.
+    addMenuProvider(plugin, (target) => {
+        if (target.kind !== 'folder') return [];
+        const folder = target.folder;
+        return [{
+            id: 'create-bases-dashboard',
+            title: plugin.t.commands.createBasesDashboardHere || actionName(plugin.t, 'create-bases-dashboard'),
+            icon: 'layout-dashboard',
+            priority: 'ranked',
+            run: () => new DashboardCreationModal(plugin.app, plugin, folder).open(),
+        }];
+    });
 }

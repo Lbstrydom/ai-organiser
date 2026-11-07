@@ -358,3 +358,22 @@ describe('Command Picker — five-section layout', () => {
         });
     });
 });
+
+describe('For this context', () => {
+    it('comes first, names the target, and runs the items as given', () => {
+        const run = vi.fn();
+        const cats = buildCommandCategories(en, vi.fn(), [], { context: { label: 'Team sync.m4a', items: [{ id: 'transcribe-audio', title: 'Transcribe audio', icon: 'mic', run }] } });
+        expect(cats[0].id).toBe('context');
+        expect(cats[0].name).toBe('For: Team sync.m4a');
+        const row = cats[0].commands[0];
+        expect(row.contextItem).toBe(true);
+        expect(row.stage).toBe('create');
+        void row.callback();
+        expect(run).toHaveBeenCalled();
+    });
+
+    it('is absent with no items', () => {
+        const cats = buildCommandCategories(en, vi.fn(), [], { context: { label: 'x', items: [] } });
+        expect(cats.map((c) => c.id)).toEqual(['pinned', 'all', 'setup']);
+    });
+});
