@@ -9,7 +9,11 @@ import type { PickerContextItem } from './ui/modals/CommandPickerModal';
 import type { RequirementKind } from './core/actionRegistry';
 import { ACTION_BY_ID, actionName, type ActionDef } from './core/actionRegistry';
 import { buildContext, checkRequirement } from './ui/modals/pickerRequirements';
-import { noticeWithAction } from './utils/noticeUtils';
+import { noticeWithAction, openSettingsSection } from './utils/noticeUtils';
+import { GuidedJobModal } from './ui/modals/GuidedJobModal';
+import { WelcomeModal } from './ui/modals/WelcomeModal';
+import { JOBS, JOB_BY_ID, type JobId } from './core/jobs';
+import { markWelcomeForExistingInstall } from './core/welcome';
 import { toModelText } from './utils/excalidrawContent';
 import {
     ConnectionTestError,
@@ -251,6 +255,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public async loadSettings(): Promise<void> {
         const oldSettings = await this.loadData();
         const migrated = migrateOldSettings(oldSettings);
+        markWelcomeForExistingInstall(oldSettings, migrated);
         // Strip the non-settings data keys before they enter `this.settings`.
         // `migrateOldSettings` returns the WHOLE loaded object, so without this
         // the settings object carries a load-time snapshot of e.g. the seen-id
@@ -1263,6 +1268,13 @@ export default class AIOrganiserPlugin extends Plugin {
             callback: () => this.openCommandPicker()
         });
 
+        this.addCommand({
+            id: 'open-welcome',
+            name: actionName(this.t, 'open-welcome'),
+            icon: 'door-open',
+            callback: () => this.openWelcome(),
+        });
+
         // Register custom AI Organiser icon
         // Constellation icon — 5 asymmetric stars, two branching paths converging
         // "chaos in, structure out" — distinctive mini-brand silhouette
@@ -1303,7 +1315,12 @@ export default class AIOrganiserPlugin extends Plugin {
         // A feature turned on from the picker: offer the chosen action once, after the layout settles.
         this.app.workspace.onLayoutReady(() => { void this.offerPendingResume(); });
 
-        if (!this.settings.featuresIntroShown) {
+        // First run: the welcome window replaces the old one-line Features notice. An install that
+        // existed before the welcome never sees it (loadSettings marks it seen).
+        if (!this.settings.welcomeSeen) {
+            this.settings.featuresIntroShown = true;
+            this.app.workspace.onLayoutReady(() => this.openWelcome());
+        } else if (!this.settings.featuresIntroShown) {
             this.settings.featuresIntroShown = true;
             void saveSettingsData(this, this.settings).catch((err) =>
                 logger.warn('Core', 'Failed to persist featuresIntroShown marker', err));
@@ -1755,7 +1772,7 @@ export default class AIOrganiserPlugin extends Plugin {
      * Open the picker. With a scope (from a right-click), "For this context" lists that target's
      * items; without one it lists up to three ready actions for the note that is open.
      */
-    public openCommandPicker(scope?: { label: string; items: readonly PickerContextItem[] }): void {
+    public openCommandPicker(scope?: { label: string; items: readonly PickerContextItem[] }, openSections: readonly string[] = []): void {
         const context = scope ?? this.activeContext();
         const categories = buildCommandCategories(this.t, (commandId: string) => {
             // Execute the command via Obsidian's command system
@@ -1766,9 +1783,11 @@ export default class AIOrganiserPlugin extends Plugin {
             // An off feature's action opens activation; it never runs.
             onActivate: (actionId) => new FeatureActivationModal(this.app, this, actionId).open(),
             ...(context ? { context } : {}),
+            jobs: JOBS.map((j) => ({ id: j.id, title: this.t.jobs[j.id].title, desc: this.t.jobs[j.id].desc, icon: j.icon })),
+            onJob: (jobId) => this.openJob(jobId),
         });
 
-        const modal = new CommandPickerModal(this.app, this, this.t, categories);
+        const modal = new CommandPickerModal(this.app, this, this.t, categories, openSections);
         modal.open();
     }
 
@@ -1827,6 +1846,9 @@ export default class AIOrganiserPlugin extends Plugin {
                         .commands.executeCommandById(`ai-organiser:${offer.commandId}`);
                 })(); },
             );
+        } else if (offer.kind === 'job' && JOB_BY_ID.has(offer.jobId)) {
+            const jobId = offer.jobId as JobId;
+            noticeWithAction(this.t.jobs[jobId].title, a.continueAction.replace('{action}', this.t.jobs[jobId].title), () => this.openJob(jobId));
         } else if (offer.kind === 'not-ready') {
             new Notice(a.resumeNotReady
                 .replace('{feature}', this.t.features[offer.feature].label)
@@ -1896,6 +1918,49 @@ export default class AIOrganiserPlugin extends Plugin {
             run: () => runAction(this, def.id, { kind: 'active' }, this.runContext()),
         }));
         return items.length > 0 ? { label: file.name, items } : undefined;
+    }
+
+    /** Open a guided job. Its rows are evaluated against the live settings every time it renders. */
+    public openJob(jobId: string): void {
+        const exec = (id: string) => (this.app as App & { commands: { executeCommandById: (id: string) => void } })
+            .commands.executeCommandById(`ai-organiser:${id}`);
+        const availabilityOf = this.availabilityWith(() => true);
+        new GuidedJobModal(this.app, this, jobId, {
+            rowState: (p) => {
+                if (p.kind === 'inbox-folders') return this.settings.sweepInboxFolders.length > 0 ? 'ready' : 'needs-setup';
+                const def = ACTION_BY_ID.get(p.actionId);
+                if (!def) return 'unavailable';
+                const state = availabilityOf(def).state;
+                if (state === 'ready' || state === 'wrong-target') return 'ready'; // the job supplies the input
+                if (state === 'feature-off') return 'feature-off';
+                if (state === 'desktop-only') return 'unavailable';
+                return 'needs-setup';
+            },
+            turnOn: (actionId) => new FeatureActivationModal(this.app, this, actionId, jobId).open(),
+            run: exec,
+            start: (job, input) => {
+                if (job.id === 'meeting-minutes') {
+                    void import('./ui/modals/MinutesCreationModal').then((m) =>
+                        new m.MinutesCreationModal(this.app, this, undefined, input ? { initialAudio: input } : undefined).open());
+                    return;
+                }
+                exec('sweep-inbox'); // its review already files notes
+            },
+        }).open();
+    }
+
+    /** The first-run welcome: three ways in. */
+    public openWelcome(): void {
+        new WelcomeModal(this.app, this, {
+            jobs: () => this.openCommandPicker(undefined, ['jobs']),
+            setupAi: () => openSettingsSection(this, 'ai-provider', 'ai-provider'),
+            browse: () => this.openCommandPicker(undefined, ['all']),
+            seen: () => {
+                if (this.settings.welcomeSeen) return;
+                this.settings.welcomeSeen = true;
+                void saveSettingsData(this, this.settings).catch((err) => logger.warn('Core', 'Failed to persist welcomeSeen', err));
+            },
+        }).open();
     }
 
     /** What the one right-click section needs from the plugin. */

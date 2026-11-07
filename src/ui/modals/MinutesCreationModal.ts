@@ -208,9 +208,13 @@ export class MinutesCreationModal extends Modal {
     /** Container for the SpeakerReviewPanel — kept across renders for in-place re-render */
     private speakerReviewContainerEl: HTMLElement | null = null;
 
-    constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies) {
+    /** A recording to attach when the window first opens (the Meeting recording to minutes job). */
+    private initialAudio: TFile | null = null;
+
+    constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies, options?: { initialAudio?: TFile }) {
         super(app);
         this.plugin = plugin;
+        this.initialAudio = options?.initialAudio ?? null;
         // Support dependency injection for testing, with default implementations
         this.minutesService = deps?.minutesService ?? new MinutesService(plugin);
         this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, getConfigFolderFullPath(plugin.settings));
@@ -296,6 +300,11 @@ export class MinutesCreationModal extends Modal {
             this.sectionRegistry = new SectionRegistryController();
             this.sourceFileAtOpen = this.app.workspace.getActiveFile();
             this.controllersInitialized = true;
+            // The job's recording: attached through the same detection path an embed uses.
+            if (this.initialAudio) {
+                this.audioController.addDetectedFromContent(`![[${this.initialAudio.path}]]`);
+                this.initialAudio = null;
+            }
         }
 
         // Audio attach coordinator — owns picker dispatch, vault-import wiring,

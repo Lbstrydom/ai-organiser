@@ -265,9 +265,9 @@ await this.summarizationSection.display();  // Correct
 ### Current layout (navigation plan, 2026-11)
 
 ```
-For this context   ← up to 3 actions for the open note / file (Phase 4)
+For this context   ← up to 3 ready actions for the open note, or a right-clicked target's items
 Pinned             ← user favourites (max 5; default Chat / Semantic search / Quick peek)
-Jobs               ← guided entry points (Phase 5)
+Jobs               ← Meeting recording to minutes, Process my inbox (GuidedJobModal)
 All actions        ← every ready daily action, flat, by stage; stage chips filter it
                      └ Available to turn on (n)   ← actions of off features: open activation
 Setup and tools    ← every ready setup / tool action (Set up …, Open Process, Manage index …)
@@ -289,6 +289,8 @@ Setup and tools    ← every ready setup / tool action (Set up …, Open Process
   reload goes through `src/services/pluginLifecycle.ts` (Obsidian's internal plugin manager,
   checked first); without it, or if the re-enable fails, a guidance code tells the user what to
   do. After the reload the chosen action is offered once ("Continue: …"), never run.
+- **Context and menus** (`src/core/contextResolver.ts`, `src/ui/pluginMenu.ts`): roles come only from path, extension, plugin-written frontmatter and settings. `src/ui/pluginMenu.ts` is the ONLY handler of `file-menu` / `files-menu` / `editor-menu`; a feature contributes with `addMenuProvider` from its registrar (so an off feature contributes nothing). Desktop renders one submenu (cursor items, up to 3 ranked, More… = scoped picker); mobile one item. Scoped targets run through `runAction` (`src/services/actionRunner.ts`) and only actions with a binding accept a file.
+- **Settings search and welcome**: the tab searches the live DOM on each query and restores the user's open/closed state on clear; `WelcomeModal` shows once on a new install (`welcomeSeen`, decided from the raw saved data).
 - **Adding an action**: one registry entry + its i18n label and description. Every surface
   picks it up; the classification test forces the decision for any new command id.
 
