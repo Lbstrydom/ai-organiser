@@ -210,6 +210,63 @@ describe('refreshing', () => {
         }
     });
 
+    it('a source deleted between the build and the write stops the write', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        const before = fs.readFileSync(livePath(), 'utf8');
+        w.notes.set('P/Pkm.md', '# Pkm\n\nnewer words\n');
+        let calls = 0;
+        w.hooks.beforeCollect = () => { calls++; if (calls === 2) w.notes.delete('P/Reading.md'); };
+        await svc.refresh(ID, { force: true });
+        w.hooks.beforeCollect = undefined;
+        const after = fs.readFileSync(livePath(), 'utf8');
+        expect(after === before || !after.includes('reading words')).toBe(true);
+    });
+
+    it('a stub that could not be written is never reported as revoked', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        w.shared.delete('P/Reading.md');
+        w.policy.value = 'd'.repeat(64);
+        fs.renameSync(drive, path.join(tmp, 'gone'));
+        const res = await svc.refresh(ID);
+        expect(res.ok).toBe(false);
+        expect(w.settings.aiWorkspaceLiveRevocations).toHaveLength(1);
+    });
+
+    it('after close nothing is published, revocations still run', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        svc.close();
+        expect(await svc.refresh(ID, { force: true })).toEqual({ ok: false, error: 'unknown' });
+        const res = await svc.revokeAll('feature-off');
+        expect(res.items).toEqual([ID]);
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('aio-live-state: no-longer-shared');
+    });
+
+    it('turning the feature off asks for every live pack, including one another computer writes', async () => {
+        const w = world();
+        const svc = new LivePackService(w.env);
+        await turnOn(w, svc);
+        w.device.value = THEM;
+        const res = await svc.revokeAll('feature-off');
+        expect(res.items).toEqual([]);
+        expect(w.settings.aiWorkspaceLiveRevocations).toEqual([expect.objectContaining({ aioId: ID, deviceId: ME })]);
+        expect(w.settings.aiWorkspaces[ID].live).toBeUndefined();
+    });
+
+    it('a revocation that cannot be saved is reported, and the stub is still written', async () => {
+        const w = world();
+        const svc = new LivePackService({ ...w.env, saveStatus: async () => { throw new Error('disk full'); } });
+        await turnOn(w, svc);
+        const res = await svc.revokeAll('feature-off');
+        expect(res.errors).toEqual([{ source: ID, error: 'live-revocation-unsaved' }]);
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('aio-live-state: no-longer-shared');
+    });
+
     it('refreshes run one at a time and requests coalesce', async () => {
         const w = world();
         const svc = new LivePackService(w.env);

@@ -215,6 +215,7 @@ export const GUIDANCE_CODES = [
     'live-needs-review',
     'live-not-on',
     'live-folder-in-use',
+    'live-revocation-unsaved',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

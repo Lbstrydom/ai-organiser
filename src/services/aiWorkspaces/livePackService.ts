@@ -96,7 +96,15 @@ export class LivePackService {
     /** Set by the scheduler: receives every snapshot, newest only */
     onSnapshot: ((snapshot: CandidateSnapshot) => void) | null = null;
 
+    private closed = false;
+
     constructor(private readonly env: LiveEnv) {}
+
+    /** The plugin is unloading or the feature was turned off: no new or queued publication may write. Revocations still run. */
+    close(): void {
+        this.closed = true;
+        this.bumpEpoch();
+    }
 
     /** Any change that could change what may be shared. Synchronous: queued jobs see it before they write. */
     bumpEpoch(): void {
@@ -168,7 +176,7 @@ export class LivePackService {
     }
 
     private gate(): Result<LiveDeps> {
-        if (!this.env.featureOn()) return err('unknown');
+        if (this.closed || !this.env.featureOn()) return err('unknown');
         const deps = this.env.deps();
         return deps ? ok(deps) : err('live-desktop-only');
     }
@@ -299,7 +307,11 @@ export class LivePackService {
         const live = this.record(aioId)?.live;
         if (!live) return this.fail(aioId, 'live-not-on');
         if (live.deviceId !== this.env.deviceId()) return this.fail(aioId, 'live-other-device');
-        if (this.pendingFor(aioId)) { await this.processRevocations(); return ok({ kind: 'revoked', snapshot: null }); }
+        if (this.pendingFor(aioId)) {
+            const done = await this.processRevocations();
+            const failed = done.errors.find((e) => e.source === aioId);
+            return failed ? err(failed.error) : ok({ kind: 'revoked', snapshot: null });
+        }
         const c = await this.collectCandidates(aioId);
         if (!c.ok) return this.fail(aioId, c.error);
         const snapshot = c.value.snapshot;
@@ -307,13 +319,13 @@ export class LivePackService {
         // The share policy changed since the approval: stop, and withdraw if an approved note may no longer be shared.
         if (c.value.input.sharePolicyRevision !== live.approvedPolicy) {
             const lost = snapshot.notes.some((n) => n.approved && !n.shareable) || live.approvedSources.some((p) => !snapshot.notes.some((n) => norm(n.path) === norm(p)) && c.value.input.reasonNotShareable(p) !== null);
-            if (lost) { await this.revokeNow(aioId, 'scope-lost'); return ok({ kind: 'revoked', snapshot }); }
+            if (lost) { const r = await this.revokeNow(aioId, 'scope-lost'); return r.ok ? ok({ kind: 'revoked', snapshot }) : err(r.error); }
             await this.setStatus(aioId, { state: 'needs-review', held: snapshot.notes.filter((n) => n.shareable && !n.approved).map((n) => n.path) });
             return ok({ kind: 'needs-review', snapshot });
         }
         const built = await this.build(c.value.input, live.approvedSources, live.fileName);
         if (!built.ok) return this.fail(aioId, built.error);
-        if (built.value.kind === 'revoke') { await this.revokeNow(aioId, 'scope-lost'); return ok({ kind: 'revoked', snapshot }); }
+        if (built.value.kind === 'revoke') { const r = await this.revokeNow(aioId, 'scope-lost'); return r.ok ? ok({ kind: 'revoked', snapshot }) : err(r.error); }
         if (built.value.kind === 'needs-review') {
             await this.setStatus(aioId, { state: 'needs-review', held: snapshot.notes.filter((n) => n.shareable && !n.approved).map((n) => n.path) });
             return ok({ kind: 'needs-review', snapshot });
@@ -339,10 +351,13 @@ export class LivePackService {
             if ((await this.env.sharePolicy()) !== live.approvedPolicy) return false;
             const fresh = await this.env.collectNotes(aioId);
             if (!fresh.ok) return false;
-            for (const n of [fresh.value.project, ...(fresh.value.area ? [fresh.value.area] : []), ...fresh.value.sources]) {
-                if (pack.sources.some((s) => s.path === n.path) && hashes.get(n.path) !== (await packSha256(stripWorkspaceBlock(n.text)))) return false;
+            // From the built output to the notes now: every note in the pack must still be there, still a source, unchanged.
+            const now2 = new Map([fresh.value.project, ...(fresh.value.area ? [fresh.value.area] : []), ...fresh.value.sources].map((n) => [n.path, n.text]));
+            for (const src of pack.sources) {
+                const text = now2.get(src.path);
+                if (text === undefined || hashes.get(src.path) !== (await packSha256(stripWorkspaceBlock(text)))) return false;
             }
-            return this.epoch === startEpoch;
+            return this.epoch === startEpoch && !this.closed;
         };
         const written = await writeLiveFile(deps, this.env.journal, target, pack.text, this.env.vaultBase(), authorized);
         if (!written.ok) {
@@ -358,10 +373,19 @@ export class LivePackService {
     }
 
     /** Persist the revocation (and clear the approval when the cause ends it), then write the stub. Inside the queue. */
-    private async revokeNow(aioId: string, cause: RevokeCause): Promise<void> {
+    private async revokeNow(aioId: string, cause: RevokeCause): Promise<Result<true>> {
         this.persistRevocation(aioId, cause);
-        await this.env.saveStatus();
-        await this.processRevocations();
+        // The stub is written even when the request could not be saved: stopping the sharing comes first. The failure is reported.
+        const saved = await this.saveRevocations();
+        const done = await this.processRevocations();
+        const failed = done.errors.find((e) => e.source === aioId);
+        if (failed) return err(failed.error);
+        return saved ? ok(true) : err('live-revocation-unsaved');
+    }
+
+    /** Persist the pending revocations; false when the save failed (the caller reports it). */
+    private async saveRevocations(): Promise<boolean> {
+        try { await this.env.saveStatus(); return true; } catch (e) { logger.error('AiWorkspaces', 'Could not save the live pack revocations', e); return false; }
     }
 
     private persistRevocation(aioId: string, cause: RevokeCause): void {
@@ -410,11 +434,17 @@ export class LivePackService {
 
     /** Every publication owned here becomes a pending revocation (synchronous), then the stubs are written in the queue. */
     revokeAll(cause: RevokeCause): Promise<BatchResult<string>> {
-        const ids = Object.keys(this.env.settings().aiWorkspaces).filter((id) => this.record(id)?.live?.deviceId === this.env.deviceId());
+        // Every live pack, whoever writes it: the computer that writes one carries out the request when it next runs.
+        const ids = Object.keys(this.env.settings().aiWorkspaces).filter((id) => !!this.record(id)?.live);
         for (const id of ids) this.persistRevocation(id, cause);
         return this.run(async () => {
-            try { await this.env.saveStatus(); } catch (e) { logger.warn('AiWorkspaces', 'Could not save the pending revocations', e); }
-            return this.processRevocations();
+            const saved = await this.saveRevocations();
+            const res = await this.processRevocations();
+            if (!saved) {
+                for (const id of ids) if (!res.errors.some((e) => e.source === id)) res.errors.push({ source: id, error: 'live-revocation-unsaved' });
+                res.isPartial = res.items.length > 0 && res.errors.length > 0;
+            }
+            return res;
         });
     }
 
@@ -457,9 +487,7 @@ export class LivePackService {
         }
         result.isPartial = result.items.length > 0 && result.errors.length > 0;
         // Nothing pending (every start-up of everyone who never used the live pack): nothing is saved.
-        if (mine.length > 0) {
-            try { await this.env.saveStatus(); } catch (e) { logger.warn('AiWorkspaces', 'Could not save the live pack status', e); }
-        }
+        if (mine.length > 0 && !(await this.saveRevocations())) result.warnings.push('live-revocation-unsaved');
         return result;
     }
 

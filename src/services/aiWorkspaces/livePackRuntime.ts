@@ -95,6 +95,7 @@ export class LivePackRuntime {
     }
 
     stop(): void {
+        this.service.close();
         this.scheduler?.stop();
         this.scheduler = null;
         for (const ref of this.refs.splice(0)) this.plugin.app.vault.offref(ref);
