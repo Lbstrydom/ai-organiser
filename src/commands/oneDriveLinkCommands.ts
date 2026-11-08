@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { Platform, MarkdownView, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import {
@@ -264,7 +265,7 @@ async function performOneDriveRefresh(
 export function registerOneDriveLinkCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'insert-onedrive-link',
-        name: plugin.t.commands.insertOneDriveLink,
+        name: actionName(plugin.t, 'insert-onedrive-link'),
         icon: 'link',
         callback: () => {
             if (Platform.isMobile) {
@@ -290,7 +291,7 @@ export function registerOneDriveLinkCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'refresh-onedrive-embed',
-        name: plugin.t.commands.refreshOneDriveEmbed,
+        name: actionName(plugin.t, 'refresh-onedrive-embed'),
         icon: 'refresh-cw',
         callback: () => {
             if (Platform.isMobile) {

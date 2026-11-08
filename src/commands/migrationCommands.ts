@@ -3,6 +3,7 @@
  * Commands for migrating notes to Obsidian Bases format
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { MigrationModal } from '../ui/modals/MigrationModal';
@@ -16,7 +17,7 @@ export function registerMigrationCommands(plugin: AIOrganiserPlugin) {
     // Command: Upgrade to Bases Metadata
     plugin.addCommand({
         id: 'upgrade-metadata',
-        name: plugin.t.commands.upgradeToBases,
+        name: actionName(plugin.t, 'upgrade-metadata'),
         icon: 'database',
         callback: () => {
             const modal = new MigrationModal(plugin.app, plugin);
@@ -27,7 +28,7 @@ export function registerMigrationCommands(plugin: AIOrganiserPlugin) {
     // Command: Upgrade Folder to Bases Metadata
     plugin.addCommand({
         id: 'upgrade-folder-metadata',
-        name: plugin.t.commands.upgradeFolderToBases,
+        name: actionName(plugin.t, 'upgrade-folder-metadata'),
         icon: 'folder-sync',
         callback: () => {
             const activeFile = plugin.app.workspace.getActiveFile();
@@ -51,7 +52,7 @@ export function registerMigrationCommands(plugin: AIOrganiserPlugin) {
     // Command: move the AI's marks from `status` to `aio-status` (opt-in; a review comes before any write)
     plugin.addCommand({
         id: 'move-ai-status-marks',
-        name: plugin.t.commands.moveAiStatusMarks,
+        name: actionName(plugin.t, 'move-ai-status-marks'),
         icon: 'arrow-right-left',
         callback: () => {
             if (aiStatusKey(plugin.settings) !== AIO_STATUS_KEY) {

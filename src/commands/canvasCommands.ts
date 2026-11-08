@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
@@ -29,7 +30,7 @@ function getCurrentNoteFolder(plugin: AIOrganiserPlugin): string {
 export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
     plugin.addCommand({
         id: 'build-investigation-canvas',
-        name: plugin.t.commands.buildInvestigationCanvas,
+        name: actionName(plugin.t, 'build-investigation-canvas'),
         icon: 'network',
         callback: async () => {
             if (Platform.isMobile) {
@@ -126,7 +127,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
 
     plugin.addCommand({
         id: 'build-context-canvas',
-        name: plugin.t.commands.buildContextCanvas,
+        name: actionName(plugin.t, 'build-context-canvas'),
         icon: 'git-branch',
         callback: async () => {
             if (Platform.isMobile) {
@@ -190,7 +191,7 @@ export function registerCanvasCommands(plugin: AIOrganiserPlugin) {
 
     plugin.addCommand({
         id: 'build-cluster-canvas',
-        name: plugin.t.commands.buildClusterCanvas,
+        name: actionName(plugin.t, 'build-cluster-canvas'),
         icon: 'boxes',
         callback: () => {
             if (Platform.isMobile) {

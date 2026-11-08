@@ -31,7 +31,8 @@ export type SkipReason =
     | 'older-than-setup'
     | 'nothing-to-process'
     | 'digitisation-off'
-    | 'attachment-missing';
+    | 'attachment-missing'
+    | 'handback';
 
 /** Where the readable text of a capture came from. */
 export type CaptureSource = 'note-text' | 'transcript' | 'digitised' | 'mixed';

@@ -6,6 +6,7 @@
  *
  * The index is deterministic and holds structure only; see `services/agentIndex`.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, Setting, TFolder } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok } from '../core/result';
@@ -206,25 +207,25 @@ export function registerAgentIndexCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
     plugin.addCommand({
         id: 'build-agent-index',
-        name: t.commands.buildAgentIndex,
+        name: actionName(t, 'build-agent-index'),
         icon: 'list-tree',
         callback: () => { void runBuild(plugin); },
     });
     plugin.addCommand({
         id: 'check-agent-index',
-        name: t.commands.checkAgentIndex,
+        name: actionName(t, 'check-agent-index'),
         icon: 'list-checks',
         callback: () => { void runCheck(plugin); },
     });
     plugin.addCommand({
         id: 'copy-agent-instructions',
-        name: t.commands.copyAgentInstructions,
+        name: actionName(t, 'copy-agent-instructions'),
         icon: 'clipboard-copy',
         callback: () => copyText(plugin, buildAgentInstructions(plugin.settings), t.agentIndex.instructionsCopied),
     });
     plugin.addCommand({
         id: 'copy-claude-permissions',
-        name: t.commands.copyClaudePermissions,
+        name: actionName(t, 'copy-claude-permissions'),
         icon: 'shield',
         callback: () => {
             const text = buildClaudePermissions(plugin.settings);
@@ -234,7 +235,7 @@ export function registerAgentIndexCommands(plugin: AIOrganiserPlugin): void {
     });
     plugin.addCommand({
         id: 'write-agent-instructions',
-        name: t.commands.writeAgentInstructions,
+        name: actionName(t, 'write-agent-instructions'),
         icon: 'file-pen-line',
         // Hidden from the palette until the user turns the write on.
         checkCallback: (checking) => {
@@ -245,7 +246,7 @@ export function registerAgentIndexCommands(plugin: AIOrganiserPlugin): void {
     });
     plugin.addCommand({
         id: 'setup-agent-index',
-        name: t.commands.setupAgentIndex,
+        name: actionName(t, 'setup-agent-index'),
         icon: 'sparkles',
         callback: () => openAgentIndexSetup(plugin),
     });

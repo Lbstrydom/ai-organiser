@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { Editor, MarkdownFileInfo, MarkdownView, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import type { DetectedContent } from '../utils/embeddedContentDetector';
@@ -7,7 +8,7 @@ import { QuickPeekModal } from '../ui/modals/QuickPeekModal';
 export function registerQuickPeekCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'quick-peek',
-        name: plugin.t.commands.quickPeek,
+        name: actionName(plugin.t, 'quick-peek'),
         icon: 'zap',
         editorCallback: (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
             const file = ctx.file;

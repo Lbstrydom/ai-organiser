@@ -3,6 +3,7 @@
  * Registers the find-embeds command with scope selection, progress UI, and cancel support.
  */
 
+import { actionName } from '../core/actionRegistry';
 import { MarkdownView, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -22,7 +23,7 @@ export function registerEmbedScanCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'find-embeds',
-        name: t.commands.findEmbeds,
+        name: actionName(t, 'find-embeds'),
         icon: 'hard-drive',
         callback: () => {
             const modal = new EmbedScanScopeModal(plugin.app, plugin, (scope) => {

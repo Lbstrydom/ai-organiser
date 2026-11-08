@@ -3,6 +3,7 @@
  * Enables searching vault by semantic similarity
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Notice, Modal, App, Platform, ButtonComponent, TFile, Setting } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -702,7 +703,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
     // Semantic search command
     plugin.addCommand({
         id: 'semantic-search',
-        name: plugin.t.commands.searchSemanticVault,
+        name: actionName(plugin.t, 'semantic-search'),
         callback: () => {
             if (!isFeatureEnabled(plugin.settings, 'semantic-search')) {
                 noticeWithSettingsLink(plugin, plugin.t.messages.semanticSearchDisabled);
@@ -722,7 +723,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
     // Manage index command
     plugin.addCommand({
         id: 'manage-index',
-        name: plugin.t.commands.manageIndex,
+        name: actionName(plugin.t, 'manage-index'),
         callback: () => {
             const modal = new ManageIndexModal(plugin.app, plugin);
             modal.open();
@@ -732,7 +733,7 @@ export function registerSemanticSearchCommands(plugin: AIOrganiserPlugin): void 
     // Show related notes view command
     plugin.addCommand({
         id: 'find-related',
-        name: plugin.t.commands.showRelatedNotes,
+        name: actionName(plugin.t, 'find-related'),
         callback: async () => {
             if (!isFeatureEnabled(plugin.settings, 'semantic-search')) {
                 noticeWithSettingsLink(plugin, plugin.t.messages.semanticSearchDisabled);

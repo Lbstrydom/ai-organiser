@@ -6,6 +6,7 @@
  * URL is the same deployment as the Tasks URL (`inventorySecretFor`), so an inventory that still points at its own script keeps
  * its own secret until the person changes the URL. Registered only while `google-tasks-export` is on.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
@@ -96,7 +97,7 @@ export async function copyScriptForDeployment(plugin: AIOrganiserPlugin, mainLis
 export function registerGoogleScriptCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'copy-combined-google-script',
-        name: plugin.t.commands.copyCombinedGoogleScript,
+        name: actionName(plugin.t, 'copy-combined-google-script'),
         icon: 'clipboard-copy',
         callback: () => { void copyCombinedScript(plugin); },
     });

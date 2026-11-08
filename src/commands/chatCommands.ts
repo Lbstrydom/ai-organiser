@@ -3,6 +3,7 @@
  * Single unified chat command + related notes insertion
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Editor, Notice, TFile } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { RAGService } from '../services/ragService';
@@ -65,7 +66,7 @@ export function registerChatCommands(plugin: AIOrganiserPlugin): void {
     // Unified chat command — auto-selects best mode based on context
     plugin.addCommand({
         id: 'chat-with-ai',
-        name: plugin.t.commands.chatWithAI,
+        name: actionName(plugin.t, 'chat-with-ai'),
         icon: 'message-circle',
         callback: () => openAIChat(plugin),
     });
@@ -83,7 +84,7 @@ export function registerPresentationCommands(plugin: AIOrganiserPlugin): void {
     // Presentation chat — opens UnifiedChatModal in presentation mode
     plugin.addCommand({
         id: 'presentation-chat',
-        name: plugin.t.commands.presentationChat,
+        name: actionName(plugin.t, 'presentation-chat'),
         icon: 'presentation',
         callback: () => {
             const activeEditor = plugin.app.workspace.activeEditor?.editor;
@@ -130,7 +131,7 @@ export function registerPresentationCommands(plugin: AIOrganiserPlugin): void {
     // chat modal was closed (the in-memory gate is gone, but the .md persists).
     plugin.addCommand({
         id: 'build-presentation-from-storyline',
-        name: plugin.t.commands.buildFromStoryline,
+        name: actionName(plugin.t, 'build-presentation-from-storyline'),
         icon: 'wand-2',
         callback: () => { void handleBuildFromStoryline(plugin); },
     });
@@ -170,7 +171,7 @@ export function registerInsertRelatedNotesCommand(plugin: AIOrganiserPlugin): vo
     // Find and insert related notes
     plugin.addCommand({
         id: 'insert-related-notes',
-        name: plugin.t.commands.insertRelatedNotes,
+        name: actionName(plugin.t, 'insert-related-notes'),
         editorCallback: async (editor, view) => {
             // FT-11 sweep: gate on the feature predicate (absorbs enableSemanticSearch).
             if (!plugin.vectorStore || !isFeatureEnabled(plugin.settings, 'semantic-search')) {

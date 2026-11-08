@@ -1,4 +1,10 @@
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
+import { FeatureActivationModal } from './ui/modals/FeatureActivationModal';
+import { consumePendingResume } from './services/featureActivation';
+import { actionAvailability } from './core/actionAvailability';
+import { ACTION_BY_ID, actionName, type ActionDef } from './core/actionRegistry';
+import { buildContext, checkRequirement } from './ui/modals/pickerRequirements';
+import { noticeWithAction } from './utils/noticeUtils';
 import { toModelText } from './utils/excalidrawContent';
 import {
     ConnectionTestError,
@@ -1289,6 +1295,9 @@ export default class AIOrganiserPlugin extends Plugin {
         // First-run intro (FT-7 / L2): point existing + new users at the new Features
         // section. Once-only — the persisted `featuresIntroShown` marker is set + saved
         // immediately so it never re-fires across reloads. Fires after layout settles.
+        // A feature turned on from the picker: offer the chosen action once, after the layout settles.
+        this.app.workspace.onLayoutReady(() => { void this.offerPendingResume(); });
+
         if (!this.settings.featuresIntroShown) {
             this.settings.featuresIntroShown = true;
             void saveSettingsData(this, this.settings).catch((err) =>
@@ -1742,10 +1751,92 @@ export default class AIOrganiserPlugin extends Plugin {
             // Execute the command via Obsidian's command system
             // @ts-ignore - commands API is internal but stable
             (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(commandId);
-        }, this.settings.pickerPinnedCommandIds ?? []);
+        }, this.settings.pickerPinnedCommandIds ?? [], {
+            isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
+            // An off feature's action opens activation; it never runs.
+            onActivate: (actionId) => new FeatureActivationModal(this.app, this, actionId).open(),
+        });
 
         const modal = new CommandPickerModal(this.app, this, this.t, categories);
         modal.open();
+    }
+
+    /**
+     * After a reload that turned a feature on: offer the action the user had chosen, once.
+     * The intent is cleared and saved BEFORE anything is offered (one-shot), and nothing runs
+     * unless the user presses Continue.
+     */
+    private async offerPendingResume(): Promise<void> {
+        const intent = this.settings.pendingResume;
+        if (!intent) return;
+        delete this.settings.pendingResume;
+        try {
+            await saveSettingsData(this, this.settings);
+        } catch (e) {
+            logger.warn('Core', 'Could not clear the pending resume; not offering it', e);
+            return;
+        }
+        const requirementCtx = () => buildContext({
+            activeFile: this.app.workspace.getActiveFile(),
+            editor: this.app.workspace.activeEditor?.editor ?? null,
+            hasMarkdownFiles: this.app.vault.getMarkdownFiles().length > 0,
+            enableSemanticSearch: isFeatureEnabled(this.settings, 'semantic-search'),
+            hasVectorStore: !!this.vectorStore,
+            isMobile: Platform.isMobile,
+        });
+        const availabilityOf = (def: ActionDef) => {
+            const ctx = requirementCtx();
+            return actionAvailability(def, {
+                isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
+                isMobile: Platform.isMobile,
+                requirementMet: (kind) => checkRequirement(kind, ctx, this.t).met,
+            });
+        };
+        const offer = consumePendingResume(intent, {
+            now: Date.now(),
+            availabilityOf,
+            pathExists: (path) => this.app.vault.getAbstractFileByPath(path) !== null,
+        });
+        const a = this.t.activation;
+        if (offer.kind === 'continue') {
+            const name = actionName(this.t, offer.commandId);
+            noticeWithAction(
+                a.resumeReady.replace('{feature}', this.t.features[offer.feature].label),
+                a.continueAction.replace('{action}', name),
+                () => { void (async () => {
+                    // A stored target is the note the action was chosen for: open it first, so the
+                    // command runs on that note and not on whatever happens to be active.
+                    if (offer.target?.kind === 'file') {
+                        const file = this.app.vault.getAbstractFileByPath(offer.target.path);
+                        if (!(file instanceof TFile)) {
+                            new Notice(a.resumeNotReady
+                                .replace('{feature}', this.t.features[offer.feature].label)
+                                .replace('{action}', name)
+                                .replace('{reason}', a.reasons['wrong-target']), 10000);
+                            return;
+                        }
+                        await this.app.workspace.getLeaf(false).openFile(file);
+                    }
+                    // Re-check when pressed: the note or the feature may have changed since the notice.
+                    const def = ACTION_BY_ID.get(offer.commandId);
+                    const now = def ? availabilityOf(def) : null;
+                    if (!now || now.state !== 'ready') {
+                        new Notice(a.resumeNotReady
+                            .replace('{feature}', this.t.features[offer.feature].label)
+                            .replace('{action}', name)
+                            .replace('{reason}', a.reasons[now ? (now.state as Exclude<typeof now.state, 'ready'>) : 'feature-off']), 10000);
+                        return;
+                    }
+                    (this.app as App & { commands: { executeCommandById: (id: string) => void } })
+                        .commands.executeCommandById(`ai-organiser:${offer.commandId}`);
+                })(); },
+            );
+        } else if (offer.kind === 'not-ready') {
+            new Notice(a.resumeNotReady
+                .replace('{feature}', this.t.features[offer.feature].label)
+                .replace('{action}', actionName(this.t, offer.commandId))
+                .replace('{reason}', a.reasons[offer.reason]), 10000);
+        }
     }
 
     public async showTagNetwork(): Promise<void> {

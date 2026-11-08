@@ -181,6 +181,7 @@ export class CaptureRuntime {
             policy: deps.policy(),
             journal: deps.journal.get(),
             isSwept: (path, text) => deps.isSwept(path, text),
+            skipHandbacks: deps.skipHandbacks ? () => deps.skipHandbacks?.() === true : undefined,
             includeExisting,
         });
     }

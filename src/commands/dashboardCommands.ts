@@ -3,6 +3,7 @@
  * Commands for creating Obsidian Bases dashboards
  */
 
+import { actionName } from '../core/actionRegistry';
 import { TFolder, Menu } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { DashboardCreationModal } from '../ui/modals/DashboardCreationModal';
@@ -14,7 +15,7 @@ export function registerDashboardCommands(plugin: AIOrganiserPlugin) {
     // Command: Create Bases Dashboard (uses current file's folder or root)
     plugin.addCommand({
         id: 'create-bases-dashboard',
-        name: plugin.t.commands.createBasesDashboard,
+        name: actionName(plugin.t, 'create-bases-dashboard'),
         icon: 'layout-dashboard',
         callback: () => {
             // Get current file's folder, or root if no file open

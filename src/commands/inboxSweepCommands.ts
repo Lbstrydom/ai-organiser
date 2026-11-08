@@ -10,6 +10,7 @@
  * (a new flow there needs typed phase strings for one short loop); the setup flows are built from the
  * shared GuidedSetupModal inside this file instead of three modal classes.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, Setting, TFile, TAbstractFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
@@ -689,14 +690,14 @@ function registerRenameTracking(plugin: AIOrganiserPlugin): void {
 
 export function registerInboxSweepCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'sweep-inbox', name: t.commands.sweepInbox, icon: 'inbox', callback: () => { void runInboxSweep(plugin); } });
-    plugin.addCommand({ id: 'setup-inbox-sweep', name: t.commands.setupInboxSweep, icon: 'sparkles', callback: () => openInboxSweepSetup(plugin) });
+    plugin.addCommand({ id: 'sweep-inbox', name: actionName(t, 'sweep-inbox'), icon: 'inbox', callback: () => { void runInboxSweep(plugin); } });
+    plugin.addCommand({ id: 'setup-inbox-sweep', name: actionName(t, 'setup-inbox-sweep'), icon: 'sparkles', callback: () => openInboxSweepSetup(plugin) });
     registerRenameTracking(plugin);
 }
 
 export function registerGoogleTasksCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'send-tasks-to-google', name: t.commands.sendTasksToGoogle, icon: 'send', callback: () => { void runSendApproved(plugin); } });
-    plugin.addCommand({ id: 'refresh-task-status', name: t.commands.refreshTaskStatus, icon: 'refresh-cw', callback: () => { void runRefreshStatus(plugin); } });
-    plugin.addCommand({ id: 'setup-google-tasks', name: t.commands.setupGoogleTasks, icon: 'list-checks', callback: () => openTasksSetup(plugin) });
+    plugin.addCommand({ id: 'send-tasks-to-google', name: actionName(t, 'send-tasks-to-google'), icon: 'send', callback: () => { void runSendApproved(plugin); } });
+    plugin.addCommand({ id: 'refresh-task-status', name: actionName(t, 'refresh-task-status'), icon: 'refresh-cw', callback: () => { void runRefreshStatus(plugin); } });
+    plugin.addCommand({ id: 'setup-google-tasks', name: actionName(t, 'setup-google-tasks'), icon: 'list-checks', callback: () => openTasksSetup(plugin) });
 }

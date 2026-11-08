@@ -5,6 +5,7 @@ import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, Ov
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
 import type { AiStatusProperty } from './aiStatus';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
+import { isResumeIntent, type ResumeIntent } from './resumeIntent';
 import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
 import { isFeatureEnabled } from '../services/featureService';
 import { normaliseShareFolders } from '../services/aiWorkspaces/aiShareScope';
@@ -645,6 +646,11 @@ export interface AIOrganiserSettings {
      *  Defaults to ['pinned'] only — other categories collapsed.
      *  Updated on toggle so picker remembers preference across opens. */
     pickerExpandedCategoryIds: string[];
+    /** The picker's "Available to turn on" group: open until the user closes it once. */
+    pickerAvailableExpanded?: boolean;
+    /** An action chosen from the picker whose feature was just turned on; offered once after
+     *  the reload (src/services/featureActivation.ts). */
+    pendingResume?: ResumeIntent;
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)
@@ -2033,7 +2039,11 @@ function migratePickerTaxonomy(s: Record<string, unknown>): void {
 
     // (2) expanded-category id remap + dedup
     if (Array.isArray(s.pickerExpandedCategoryIds)) {
-        const remap: Record<string, string> = { essentials: 'pinned', manage: 'maintain' };
+        // Stage categories became one All actions section (navigation plan, decision 4).
+        const remap: Record<string, string> = {
+            essentials: 'pinned', manage: 'all',
+            capture: 'all', create: 'all', refine: 'all', find: 'all', maintain: 'all',
+        };
         const seen = new Set<string>();
         const out: string[] = [];
         for (const raw of s.pickerExpandedCategoryIds) {
@@ -2043,6 +2053,9 @@ function migratePickerTaxonomy(s: Record<string, unknown>): void {
         }
         s.pickerExpandedCategoryIds = out;
     }
+
+    // (3) a stored resume intent this version cannot read is dropped, never guessed at
+    if ('pendingResume' in s && !isResumeIntent(s.pendingResume)) delete s.pendingResume;
 }
 
 /**

@@ -10,13 +10,14 @@
  * lands alongside it.
  */
 
+import { actionName } from '../core/actionRegistry';
 import type AIOrganiserPlugin from '../main';
 import { TranscribeOnlyModal } from '../ui/modals/TranscribeOnlyModal';
 
 export function registerTranscribeCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'transcribe-audio',
-        name: plugin.t.commands.transcribeAudio || 'Transcribe audio',
+        name: actionName(plugin.t, 'transcribe-audio'),
         icon: 'mic',
         callback: () => {
             new TranscribeOnlyModal(plugin.app, plugin).open();

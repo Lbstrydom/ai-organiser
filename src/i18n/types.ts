@@ -1385,6 +1385,7 @@ export interface Translations {
         copyCombinedGoogleScript: string;
         openProject: string;
         editAiWorkspace: string;
+        openAiWorkspacesSettings: string;
         copyAiInstructions: string;
         createContextPack: string;
         reviewAiHandback: string;
@@ -2985,6 +2986,14 @@ export interface Translations {
             // Output-anchored category labels (locked 2026-05-01)
             // Pinned favourites cross-cut; the 5 stage categories use `t.workflowStages.*`.
             categoryPinned: string;
+            categoryAll: string;
+            categorySetup: string;
+            availableTitle: string;
+            availableDesc: string;
+            chipFeatureOff: string;
+            featureOffAria: string;
+            stageFilterLabel: string;
+            stageFilterAll: string;
             // Verb-anchored sub-group labels (within a stage; presentation detail)
             groupCreateWrite: string;
             groupCreateVisualise: string;
@@ -2996,11 +3005,17 @@ export interface Translations {
             requiresChipSelection: string;
             requiresChipVault: string;
             requiresChipSemanticSearch: string;
+            requiresChipMp3: string;
+            requiresChipDesktop: string;
+            requiresChipUnknown: string;
             requiresReasonNote: string;
             requiresReasonSelection: string;
             requiresReasonVault: string;
             requiresReasonSemanticSearchDisabled: string;
             requiresReasonSemanticSearchUnindexed: string;
+            requiresReasonMp3: string;
+            requiresReasonDesktop: string;
+            requiresReasonUnknown: string;
             descriptions: {
                 mapsGroup: string;
                 buildInvestigationCanvas: string;
@@ -3017,6 +3032,18 @@ export interface Translations {
                 presentationChat: string;
                 buildFromStoryline: string;
                 quickPeek: string;
+                openProcess: string;
+                editAiWorkspace: string;
+                openAiWorkspacesSettings: string;
+                copyAiInstructions: string;
+                createContextPack: string;
+                reviewAiHandback: string;
+                refreshTaskStatus: string;
+                copyCombinedGoogleScript: string;
+                quickAddTextPending: string;
+                quickAddUrlPending: string;
+                dropSelectionPending: string;
+                manageIndex: string;
                 pendingGroup: string;
                 ensureNoteStructure: string;
                 addToPending: string;
@@ -3087,6 +3114,7 @@ export interface Translations {
                 notebookLMOpenFolder: string;
                 upgradeMetadata: string;
                 upgradeFolderMetadata: string;
+                moveAiStatusMarks: string;
                 groupCreateWrite: string;
                 groupCreateVisualise: string;
                 groupRefinePending: string;
@@ -4629,7 +4657,7 @@ export interface Translations {
         failedHelp: Record<'stability' | 'read' | 'transcribe' | 'digitise' | 'classify' | 'write' | 'organise', string>;
         skippedTitle: string;
         skippedExcluded: string;
-        skipHelp: Record<'excluded' | 'too-large' | 'unsupported' | 'invalid-media' | 'already-swept' | 'already-captured' | 'older-than-setup' | 'nothing-to-process' | 'digitisation-off' | 'attachment-missing', string>;
+        skipHelp: Record<'excluded' | 'too-large' | 'unsupported' | 'invalid-media' | 'already-swept' | 'already-captured' | 'older-than-setup' | 'nothing-to-process' | 'digitisation-off' | 'attachment-missing' | 'handback', string>;
         skipRetry: string;
         skipRetryNotice: string;
         skipMore: string;
@@ -4722,6 +4750,23 @@ export interface Translations {
         resetJournal: string;
         resetJournalConfirm: string;
         resetJournalDone: string;
+    };
+    activation: {
+        title: string;
+        addsHeading: string;
+        alsoHeading: string;
+        setupHeading: string;
+        setupStep: string;
+        setupNone: string;
+        reloadNote: string;
+        desktopOnly: string;
+        turnOn: string;
+        busy: string;
+        cancel: string;
+        continueAction: string;
+        resumeReady: string;
+        resumeNotReady: string;
+        reasons: Record<'desktop-only' | 'feature-off' | 'needs-setup' | 'missing-key' | 'wrong-target', string>;
     };
     googleTasks: {
         listsTitle: string;
