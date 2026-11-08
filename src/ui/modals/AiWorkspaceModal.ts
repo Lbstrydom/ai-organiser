@@ -91,8 +91,8 @@ export class AiWorkspaceModal extends Modal {
         const t = this.plugin.t.aiWorkspaces.live;
         el.createEl('h4', { text: t.sectionTitle });
         const live = getWorkspace(this.plugin, this.aioId).live;
-        const fileName = live?.fileName ?? t.sectionTitle;
-        el.createDiv({ text: t.sectionDesc.replace('{file}', fileName), cls: 'setting-item-description' });
+        // Before it is turned on there is no file yet: say what it does, not a name it does not have.
+        el.createDiv({ text: live ? t.sectionDesc.replace('{file}', live.fileName) : t.sectionDescOff, cls: 'setting-item-description' });
         const service = this.plugin.livePacks?.service;
         if (!service) { el.createDiv({ text: t.mobileNote, cls: 'setting-item-description' }); return; }
         el.createDiv({ text: liveStatusText(this.plugin, this.aioId), cls: 'setting-item-description ai-organiser-live-status', attr: { role: 'status' } });
@@ -107,7 +107,37 @@ export class AiWorkspaceModal extends Modal {
             }).finally(() => { if (this.contentEl.isConnected) this.draw(); });
         };
         if (!live) {
-            row.addButton((b) => b.setCta().setButtonText(t.turnOn).onClick(() => { void openLiveReview(this.plugin, this.aioId, null, () => this.draw()); }));
+            // No folder yet: ask for it right here, so Turn on never sends the person off to find a setting.
+            const s = this.plugin.settings;
+            let folder = s.aiWorkspaceLiveFolder;
+            if (folder.trim() === '') {
+                new Setting(el).setName(t.folderName).setDesc(t.folderDesc)
+                    .then((r) => r.settingEl.addClass('ai-organiser-wrap-row'))
+                    .addText((tx) => {
+                        tx.setPlaceholder(t.folderPlaceholder).onChange((v) => { folder = v.trim(); });
+                        tx.inputEl.setAttribute('aria-label', t.folderName);
+                    });
+            }
+            row.addButton((b) => b.setCta().setButtonText(t.turnOn).onClick(() => {
+                if (folder !== s.aiWorkspaceLiveFolder) {
+                    // The folder is shared by every live pack on this computer: it may change only while none uses it.
+                    if (service.ownedProjects().length > 0 || s.aiWorkspaceLiveRevocations.length > 0) {
+                        new Notice(formatGuidance(describeError(this.plugin.t, 'live-folder-in-use')), 9000);
+                        return;
+                    }
+                    const before = s.aiWorkspaceLiveFolder;
+                    s.aiWorkspaceLiveFolder = folder;
+                    run(b, async () => {
+                        try { await this.plugin.saveSettings(); } catch (e) {
+                            s.aiWorkspaceLiveFolder = before;
+                            throw e;
+                        }
+                        await openLiveReview(this.plugin, this.aioId, null, () => this.draw());
+                    });
+                    return;
+                }
+                void openLiveReview(this.plugin, this.aioId, null, () => this.draw());
+            }));
             return;
         }
         if (mine) {

@@ -43,7 +43,10 @@ export class FeaturesSettingsSection extends BaseSettingSection {
         const setting = new Setting(this.containerEl)
             .setName(this.resolveCopy(def.labelKey))
             .setDesc(this.resolveCopy(def.descKey));
+        // The target of each section's "turn off" link.
+        setting.settingEl.setAttribute('data-feature-id', id);
         setting.addToggle((toggle) => {
+            toggle.toggleEl.setAttribute('tabindex', '0');
             toggle.setValue(isFeatureEnabled(this.plugin.settings, id));
             if (def.core) {
                 // Core features can't be disabled — lock the toggle + caption it (FT-6).
@@ -90,6 +93,7 @@ export class FeaturesSettingsSection extends BaseSettingSection {
             onConfirm: () => { void this.plugin.applyFeatureFlags(resolveDisable(this.plugin.settings, id).flags); },
             // Cancel → revert the visual toggle; no flag write, no re-render.
             onCancel: () => { toggle.setValue(true); },
+            hostDocument: toggle.toggleEl.ownerDocument,
         }).open();
     }
 

@@ -9,6 +9,9 @@ export interface Translations {
         title: string;
         desc: string;
         alwaysOn: string;
+        turnOffName: string;
+        turnOffDesc: string;
+        turnOffShow: string;
         reloadNotice: string;
         reloadPending: string;
         alsoEnabled: string;            // "Also enabled: {features}"
@@ -2980,6 +2983,8 @@ export interface Translations {
             noNotesSelected: string;
         };
         commandPicker: {
+            title: string;
+            closeLabel: string;
             placeholder: string;
             navigateHint: string;
             selectHint: string;
@@ -4410,7 +4415,9 @@ export interface Translations {
         live: {
             sectionTitle: string;
             sectionDesc: string;
+            sectionDescOff: string;
             folderName: string;
+            folderPlaceholder: string;
             folderDesc: string;
             folderCheck: string;
             folderOk: string;
@@ -4436,6 +4443,7 @@ export interface Translations {
             requestedNotice: string;
             reviewTitle: string;
             reviewTitleAgain: string;
+            reviewAddHint: string;
             reviewIntro: string;
             tagProject: string;
             tagApproved: string;
@@ -4598,6 +4606,7 @@ export interface Translations {
         truncatedNote: string;
         droppedNote: string;
         noProposals: string;
+        emptyGroup: string;
         alreadyAdded: string;
         looksAdded: string;
         allAlreadyAdded: string;
@@ -4807,8 +4816,8 @@ export interface Translations {
     };
     jobs: {
         title: string;
-        'meeting-minutes': { title: string; desc: string };
-        'process-inbox': { title: string; desc: string };
+        'meeting-minutes': { title: string; desc: string; next: string };
+        'process-inbox': { title: string; desc: string; next: string };
         inputHeading: string;
         chooseAudio: string;
         chosenAudio: string;

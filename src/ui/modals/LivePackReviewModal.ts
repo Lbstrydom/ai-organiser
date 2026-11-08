@@ -75,6 +75,9 @@ export class LivePackReviewModal extends Modal {
             });
         }
 
+        // Only the project, its Area and the context sources are candidates: say how to add another note, so a short list is not a dead end.
+        el.createEl('p', { text: t.reviewAddHint, cls: 'setting-item-description' });
+
         this.statusEl = el.createDiv({ cls: 'setting-item-description ai-organiser-live-status', attr: { role: 'status', 'aria-live': 'polite' } });
         this.problemEl = el.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', attr: { role: 'alert' } });
         new Setting(el)

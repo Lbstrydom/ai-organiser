@@ -103,14 +103,23 @@ export class InboxSweepReviewModal extends Modal {
         this.contentEl.createEl('h3', { text: this.quick ? t.quickTitle : t.reviewTitle, cls: 'ai-organiser-modal-title' });
         this.contentEl.createEl('p', { text: this.quick ? t.quickIntro : t.reviewIntro, cls: 'setting-item-description' });
         if (this.notes.length === 0) this.contentEl.createEl('p', { text: t.reviewEmpty });
-        for (const note of this.notes) this.renderNote(note);
+        // Notes with nothing to propose go last, in one closed group: a review of mostly empty cards hides the few that matter.
+        // Their cards are unchanged inside it (add a task, mark as swept, file it), so collapsing changes nothing that is committed.
+        const empty = (n: NoteProposals): boolean => !this.quick && n.items.length === 0 && !n.truncated && n.dropped === 0;
+        for (const note of this.notes) if (!empty(note)) this.renderNote(note, this.contentEl);
+        const quiet = this.notes.filter(empty);
+        if (quiet.length > 0) {
+            const group = this.contentEl.createEl('details', { cls: 'ai-organiser-sweep-empty-group' });
+            group.createEl('summary', { text: plural(t.emptyGroup, quiet.length) });
+            for (const note of quiet) this.renderNote(note, group);
+        }
         this.footer = this.contentEl.createDiv({ cls: 'ai-organiser-modal-buttons ai-organiser-sweep-footer' });
         this.renderFooter();
     }
 
-    private renderNote(note: NoteProposals): void {
+    private renderNote(note: NoteProposals, parent: HTMLElement): void {
         const t = this.t;
-        const box = this.contentEl.createDiv({ cls: 'ai-organiser-sweep-note' });
+        const box = parent.createDiv({ cls: 'ai-organiser-sweep-note' });
         box.createEl('h4', { text: note.path });
         if (note.truncated) box.createEl('p', { text: t.truncatedNote, cls: 'setting-item-description' });
         if (note.dropped > 0) box.createEl('p', { text: plural(t.droppedNote, note.dropped), cls: 'setting-item-description' });

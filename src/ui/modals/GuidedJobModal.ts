@@ -68,6 +68,8 @@ export class GuidedJobModal extends Modal {
         contentEl.createEl('h4', { text: t.checklistHeading });
         for (const row of result.rows) this.renderRow(row.prerequisite, row.state, row.optional);
 
+        // Say what Continue does before the person presses it.
+        contentEl.createEl('p', { text: t[job.id].next, cls: 'setting-item-description' });
         const buttons = contentEl.createDiv({ cls: 'modal-button-container' });
         new ButtonComponent(buttons).setButtonText(t.cancel).onClick(() => this.close());
         const go = new ButtonComponent(buttons).setButtonText(t.continue).setCta().setDisabled(!result.canStart);
@@ -76,6 +78,8 @@ export class GuidedJobModal extends Modal {
             this.close();
             this.deps.start(job, this.input);
         });
+        // Enter should do the thing the window is for, not cancel it.
+        if (result.canStart) window.setTimeout(() => go.buttonEl.focus(), 0);
     }
 
     private renderRow(p: JobPrerequisite, state: RowState, optional: boolean): void {

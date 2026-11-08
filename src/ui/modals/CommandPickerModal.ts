@@ -182,11 +182,10 @@ export class CommandPickerModal extends Modal {
 			container.setCssProps({ '--pad': '10vh 0 0 0' }); container.addClass('ai-organiser-pad-custom');
 		}
 
-		// Hide title and close button (we rely on Esc to close)
-		const titleEl = this.modalEl.querySelector('.modal-title') as HTMLElement;
-		if (titleEl) titleEl.addClass('ai-organiser-hidden');
-		const closeBtn = this.modalEl.querySelector('.modal-close-button') as HTMLElement;
-		if (closeBtn) closeBtn.addClass('ai-organiser-hidden');
+		// Obsidian's own title and close button sit on the invisible .modal, so they float outside the picker:
+		// hide them (older builds use .modal-close-button, newer ones a .modal-header with header buttons) and draw both inside.
+		this.modalEl.querySelectorAll<HTMLElement>('.modal-title, .modal-close-button, .modal-header, .modal-header-button')
+			.forEach((el) => el.addClass('ai-organiser-hidden'));
 
 		contentEl.setCssProps({ '--overflow': 'visible' }); contentEl.addClass('ai-organiser-overflow-custom');
 		contentEl.setCssProps({ '--pad': '0' }); contentEl.addClass('ai-organiser-pad-custom');
@@ -194,6 +193,12 @@ export class CommandPickerModal extends Modal {
 
 		// Build the prompt container (matches FuzzySuggestModal styling)
 		const promptEl = contentEl.createDiv({ cls: 'prompt' });
+		const headerEl = promptEl.createDiv({ cls: 'ai-organiser-command-picker-header' });
+		headerEl.createEl('span', { cls: 'ai-organiser-command-picker-heading', text: this.t.modals.commandPicker.title, attr: { id: 'picker-title' } });
+		const close = headerEl.createEl('button', { cls: 'clickable-icon ai-organiser-command-picker-close', attr: { type: 'button', 'aria-label': this.t.modals.commandPicker.closeLabel } });
+		setIcon(close, 'x');
+		this.cleanups.push(listen(close, 'click', () => this.close()));
+		this.modalEl.setAttribute('aria-labelledby', 'picker-title');
 
 		// Input
 		const inputContainer = promptEl.createDiv({ cls: 'prompt-input-container' });
@@ -529,7 +534,9 @@ export class CommandPickerModal extends Modal {
 		// runs before the badge tooltip so a gated badge-row prefers the
 		// gate explanation.
 		if (item.command.featureOff) {
-			setTooltip(el, this.t.modals.commandPicker.availableDesc);
+			// setTooltip writes aria-label: the tooltip must carry the accessible name, or a screen reader hears the group description and never 'feature off'.
+			const p = this.t.modals.commandPicker;
+			setTooltip(el, `${p.featureOffAria.replace('{name}', item.command.name)}. ${p.availableDesc}`);
 			return;
 		}
 		const reqState = checkLeaf(item.command, ctx, this.t);

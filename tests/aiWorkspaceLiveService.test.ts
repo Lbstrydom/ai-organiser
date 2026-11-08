@@ -52,7 +52,8 @@ function world(): World {
         featureOn: () => true,
         collectNotes: async (aioId) => {
             w.hooks.beforeCollect?.();
-            const record = settings.aiWorkspaces[aioId];
+            // As the real reader does: a project never saved in the editor reads as an empty record.
+            const record = settings.aiWorkspaces[aioId] ?? emptyWorkspace(aioId);
             const project = notes.get('P/Pkm.md');
             if (!record || project === undefined) return err('project-not-found');
             const sources: PackNote[] = [];
@@ -105,6 +106,16 @@ describe('turning the live pack on', () => {
         const live = w.settings.aiWorkspaces[ID].live;
         expect(live).toMatchObject({ approvedSources: ['P/Pkm.md', 'P/Reading.md'], deviceId: ME, folder: drive, fileName, generation: 1 });
         expect(w.settings.aiWorkspaceLiveStatus[ID]).toMatchObject({ state: 'live' });
+    });
+
+    it('turns on for a project whose workspace was never saved (no stored record)', async () => {
+        const w = world();
+        w.settings.aiWorkspaces = {};
+        const svc = new LivePackService(w.env);
+        const { res } = await turnOn(w, svc, ['P/Pkm.md']);
+        expect(res.ok && res.value.kind).toBe('written');
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('project words');
+        expect(w.settings.aiWorkspaces[ID]).toMatchObject({ anchorId: ID, contextSources: [], live: { approvedSources: ['P/Pkm.md'], generation: 1 } });
     });
 
     it('a stale review is refused: a source edited, the policy changed, or another approval in between', async () => {

@@ -19,7 +19,7 @@ import { checkLiveFolder, liveFileName, verifyLiveFile, writeLiveFile, type Inte
 import type { LiveStatus } from './liveStatus';
 import { stripWorkspaceBlock } from './workspaceBlock';
 import type { PackNotes } from './workspaceService';
-import { normaliseWorkspace, type LiveApproval, type PendingRevocation, type WorkspaceRecord } from './workspaceRecord';
+import { emptyWorkspace, normaliseWorkspace, type LiveApproval, type PendingRevocation, type WorkspaceRecord } from './workspaceRecord';
 
 export interface LiveEnv {
     settings(): AIOrganiserSettings;
@@ -257,8 +257,8 @@ export class LivePackService {
             try {
                 const gate = this.gate();
                 if (!gate.ok) return err(gate.error);
-                const record = this.record(review.aioId);
-                if (!record) return err('project-not-found');
+                // A project that was never saved has no stored record yet: it starts from an empty one, as the workspace editor does.
+                const record = this.record(review.aioId) ?? emptyWorkspace(review.aioId);
                 const live = record.live;
                 if ((live?.generation ?? 0) !== review.generation || (live?.deviceId ?? null) !== review.owner || this.pendingFor(review.aioId)) return err('pack-preview-stale');
                 const c = await this.collectCandidates(review.aioId);
@@ -283,8 +283,8 @@ export class LivePackService {
                     generation: (live?.generation ?? 0) + 1,
                 };
                 // Checked again with no await before the install: a turn-off (recorded synchronously) while this ran wins.
-                const current = this.record(review.aioId);
-                if (!current || (current.live?.generation ?? 0) !== review.generation || (current.live?.deviceId ?? null) !== review.owner || this.pendingFor(review.aioId)) return err('pack-preview-stale');
+                const current = this.record(review.aioId) ?? emptyWorkspace(review.aioId);
+                if ((current.live?.generation ?? 0) !== review.generation || (current.live?.deviceId ?? null) !== review.owner || this.pendingFor(review.aioId)) return err('pack-preview-stale');
                 const s = this.env.settings();
                 s.aiWorkspaces = { ...s.aiWorkspaces, [review.aioId]: { ...current, live: approval } };
                 this.bumpEpoch();

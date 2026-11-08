@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, setIcon } from 'obsidian';
+import { App, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { planSearch, type SearchableSection } from './settingsSearch';
 import { LLMSettingsSection } from './LLMSettingsSection';
@@ -40,7 +40,7 @@ import { AiWorkspacesSettingsSection } from './AiWorkspacesSettingsSection';
 import { integrationRowVisible, renderIntegrationStatusRow } from './IntegrationStatusRow';
 import { VaultUpkeepSettingsSection } from './VaultUpkeepSettingsSection';
 import { AgentConnectorsSettingsSection } from './AgentConnectorsSettingsSection';
-import { SECTION_FEATURE, INFRA_SECTIONS } from '../../core/features';
+import { SECTION_FEATURE, INFRA_SECTIONS, FEATURE_BY_ID, type FeatureId } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
 export class AIOrganiserSettingTab extends PluginSettingTab {
@@ -103,6 +103,51 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         this.sectionRenderSpy?.(sectionId);
         if (!this.isSectionEnabled(sectionId)) return;
         await render();
+        this.addTurnOffLink(sectionId);
+    }
+
+    /**
+     * A feature's own section says where its off switch is and takes the person there: people look for "turn off" in the
+     * section they are reading, not in Features at the top. Core features cannot be turned off, so they get no link.
+     */
+    private addTurnOffLink(sectionId: string): void {
+        const feature = SECTION_FEATURE[sectionId];
+        if (!feature || FEATURE_BY_ID[feature].core) return;
+        const details = this.containerEl.querySelector(`details[data-section-id="${sectionId}"]`);
+        const content = details?.querySelector<HTMLElement>(':scope > .ai-organiser-settings-section-content, :scope > .ai-organiser-settings-sub-section-content');
+        if (!content) return;
+        const t = this.plugin.t.features;
+        const name = this.featureLabel(feature);
+        new Setting(content)
+            .setName(t.turnOffName.replace('{feature}', name))
+            .setDesc(t.turnOffDesc)
+            .then((row) => row.settingEl.addClass('ai-organiser-feature-turn-off'))
+            .addButton((b) => b.setButtonText(t.turnOffShow).onClick(() => this.revealFeatureSwitch(feature)));
+    }
+
+    private featureLabel(id: FeatureId): string {
+        let cur: unknown = this.plugin.t;
+        for (const part of FEATURE_BY_ID[id].labelKey.split('.')) {
+            cur = cur && typeof cur === 'object' ? (cur as Record<string, unknown>)[part] : undefined;
+        }
+        return typeof cur === 'string' ? cur : id;
+    }
+
+    /** Open Features, bring the feature's switch into view and put focus on it. Changes nothing. */
+    private revealFeatureSwitch(id: FeatureId): void {
+        this.endSearch();
+        const features = this.containerEl.querySelector<HTMLDetailsElement>('details[data-section-id="features"]');
+        if (features) { features.open = true; this.expandedSections.add('features'); }
+        const row = this.containerEl.querySelector<HTMLElement>(`[data-feature-id="${id}"]`);
+        if (!row) return;
+        row.scrollIntoView({ block: 'center' });
+        row.querySelector<HTMLElement>('.checkbox-container')?.focus();
+    }
+
+    /** Leaving the settings ends a search, so the next visit shows every section again. */
+    hide(): void {
+        this.endSearch();
+        super.hide();
     }
 
     /**
