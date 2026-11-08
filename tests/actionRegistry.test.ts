@@ -171,12 +171,12 @@ describe('migration oracle: the Phase 1 actions plus the enumerated additions, u
     const rows = snapshotPickerTree(buildCommandCategories(en, () => {}));
     // The picker lists each action once, plus the default Pinned cross-listings.
     const current = new Map(rows.filter((r) => r.category !== 'pinned').map((r) => [r.id, r]));
-    /** Public commands that were palette-only before Phase 2, plus the AI workspaces settings action (Phase 3). */
+    /** Public commands that were palette-only before Phase 2, plus the AI workspaces settings action (Phase 3) and the live pack refresh. */
     const ADDED = [
         'newsletter-regenerate-audio', 'refresh-task-status', 'copy-combined-google-script',
         'ensure-note-structure', 'quick-add-text-pending', 'quick-add-url-pending', 'drop-selection-pending',
         'manage-index', 'notebooklm-toggle-selection', 'notebooklm-clear-selection', 'notebooklm-open-export-folder',
-        'open-ai-workspaces-settings', 'open-welcome',
+        'open-ai-workspaces-settings', 'open-welcome', 'refresh-ai-live-pack',
     ];
     const phase1Ids = new Set(phase1.filter((r) => r.category !== 'pinned').map((r) => r.id));
 

@@ -3013,6 +3013,7 @@ export const en: Translations = {
                 openWelcome: "Jobs, AI setup and all actions, in one window",
                 copyAiInstructions: "Copy a project's instructions for an AI app",
                 createContextPack: "Write a dated context pack for a project",
+                refreshLivePack: "Rewrite a project's live pack in Google Drive now",
                 reviewAiHandback: "Review what an AI app handed back in this note",
                 refreshTaskStatus: "Tick off sweep report lines for tasks done in Google Tasks",
                 copyCombinedGoogleScript: "Copy one Google script for Tasks and Drive folders",

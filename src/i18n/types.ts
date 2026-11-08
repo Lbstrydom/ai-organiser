@@ -3016,6 +3016,7 @@ export interface Translations {
                 openWelcome: string;
                 copyAiInstructions: string;
                 createContextPack: string;
+                refreshLivePack: string;
                 reviewAiHandback: string;
                 refreshTaskStatus: string;
                 copyCombinedGoogleScript: string;

@@ -125,7 +125,7 @@ export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
     if (plugin.livePacks) {
         plugin.addCommand({
             id: 'refresh-ai-live-pack',
-            name: t.commands.refreshLivePack,
+            name: actionName(t, 'refresh-ai-live-pack'),
             icon: 'refresh-cw',
             callback: () => chooseProject(plugin, (project) => { void refreshLive(plugin, project); }),
         });

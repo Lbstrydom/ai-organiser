@@ -242,18 +242,18 @@ describe('Command Picker — five-section layout', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 92 (89 unique + 3 Pinned cross-listings)', () => {
+        it('total picker rows = 93 (90 unique + 3 Pinned cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(92);
+            expect(leafCount).toBe(93);
         });
-        it('unique command IDs = 89', () => {
+        it('unique command IDs = 90', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(89);
+            expect(uniqueIds.size).toBe(90);
         });
-        it('alphabetised ai-organiser:* callbacks (89 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (90 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -327,6 +327,7 @@ describe('Command Picker — five-section layout', () => {
                 'ai-organiser:quick-add-url-pending',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
+                'ai-organiser:refresh-ai-live-pack',
                 'ai-organiser:refresh-cloud-inventories',
                 'ai-organiser:refresh-onedrive-embed',
                 'ai-organiser:refresh-task-status',
@@ -355,7 +356,7 @@ describe('Command Picker — five-section layout', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(89);
+            expect(unique.size).toBe(90);
         });
     });
 });
