@@ -3,6 +3,7 @@ import { AdapterType } from '../services/adapters';
 import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
 import { DEFAULT_MAX_DOCUMENT_CHARS, DEFAULT_MULTI_SOURCE_MAX_DOCUMENT_CHARS, OversizedBehavior, MinutesStyle, DEFAULT_MINUTES_STYLE, MEDIA_SIZE_WARN_BYTES, DEFAULT_RECORDING_FOLDER } from './constants';
 import type { KindleSyncState } from '../services/kindle/kindleTypes';
+import type { AiStatusProperty } from './aiStatus';
 import { FEATURE_REGISTRY, type FeatureId } from './features';
 import { isResumeIntent, type ResumeIntent } from './resumeIntent';
 import { normaliseContexts } from '../services/inboxSweep/sweepContexts';
@@ -267,6 +268,8 @@ export interface AIOrganiserSettings {
     enableStructuredMetadata: boolean;   // Use structured frontmatter properties for Bases
     includeModelInMetadata: boolean;     // Track which LLM model was used
     autoDetectContentType: boolean;      // Auto-classify content type
+    /** Where the AI's processing mark is kept: the shared `status` (default, unchanged) or the plugin-owned `aio-status` (opt-in) */
+    aiStatusProperty: AiStatusProperty;
 
     // Mobile Settings
     mobileProviderMode: 'auto' | 'cloud-only' | 'custom';
@@ -967,6 +970,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     enableStructuredMetadata: true,                     // Enable by default
     includeModelInMetadata: true,                       // Track model usage
     autoDetectContentType: true,                        // Auto-classify content
+    aiStatusProperty: 'status',                         // Opt-in only: the mark stays in `status` unless the user moves it
     
     mobileProviderMode: 'auto',
     mobileFallbackProvider: 'claude',
@@ -1532,6 +1536,11 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
     // language now. Coerce any stored 'zh-cn' so the setting stays valid.
     if (oldSettings.interfaceLanguage === 'zh-cn') {
         oldSettings.interfaceLanguage = 'en';
+    }
+
+    // The AI mark's property: anything but an explicit opt-in is the shared `status` (fail closed to the old behaviour).
+    if (oldSettings.aiStatusProperty !== undefined && oldSettings.aiStatusProperty !== 'status' && oldSettings.aiStatusProperty !== 'aio-status') {
+        oldSettings.aiStatusProperty = 'status';
     }
 
     // Migrate old Ollama settings to local

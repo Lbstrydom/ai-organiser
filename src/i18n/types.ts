@@ -777,6 +777,14 @@ export interface Translations {
             migrateAction: string;
             migrateActionDesc: string;
             migrateButton: string;
+            aiStatusProperty: string;
+            aiStatusPropertyDesc: string;
+            aiStatusShared: string;
+            aiStatusOwn: string;
+            aiStatusSwitchedNotice: string;
+            moveMarksAction: string;
+            moveMarksActionDesc: string;
+            moveMarksButton: string;
             dashboardAction: string;
             dashboardActionDesc: string;
             dashboardButton: string;
@@ -1311,6 +1319,7 @@ export interface Translations {
         insertRelatedNotes: string;
         upgradeToBases: string;
         upgradeFolderToBases: string;
+        moveAiStatusMarks: string;
         createBasesDashboard: string;
         createBasesDashboardHere: string;
         notebookLMExport: string;
@@ -2375,6 +2384,23 @@ export interface Translations {
             applySettings: string;
             settingsApplied: string;
         };
+        aiStatusMove: {
+            title: string;
+            scanning: string;
+            scanFailed: string;
+            nothing: string;
+            intro: string;
+            notesHeading: string;
+            dashboardsHeading: string;
+            dashboardsIntro: string;
+            noteLine: string;
+            projectLine: string;
+            dashboardLine: string;
+            apply: string;
+            cancel: string;
+            done: string;
+            notOptedIn: string;
+        };
         migration: {
             title: string;
             analyzing: string;
@@ -3094,6 +3120,7 @@ export interface Translations {
                 notebookLMOpenFolder: string;
                 upgradeMetadata: string;
                 upgradeFolderMetadata: string;
+                moveAiStatusMarks: string;
                 groupCreateWrite: string;
                 groupCreateVisualise: string;
                 groupRefinePending: string;

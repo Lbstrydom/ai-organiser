@@ -110,6 +110,21 @@ The Bases integration enables structured metadata and dashboard generation for s
 - Migration action button (icon: database): Calls `upgrade-metadata` command
 - Dashboard creation via right-click folder context menu
 
+### Where the AI's processing mark is kept (`aiStatusProperty`, opt-in)
+
+The mark (`processed` / `pending` / `error`) used to share the `status` property with projects and the user's own statuses. `aiStatusProperty` is `'status'` by default. That is the old behaviour, unchanged byte for byte, and it stays the default for every install. `'aio-status'` is opt-in and moves the mark to a property only the plugin writes.
+
+- **One resolver.** `aiStatusKey(settings)` (`src/core/aiStatus.ts`) returns `aio-status` only for an explicit opt-in. Anything else returns `status`, and `migrateOldSettings` coerces an unknown value back to `status`. Each writer and reader that needs the mark asks it: `markNoteProcessed`, `MigrationService` (Upgrade metadata and its "already upgraded" check) and `DashboardService.createDashboard`.
+- **On:** the mark goes to `aio-status` on every note, adopted projects included, and `status` is never written. A caller's explicit `status` patch follows the mark into `aio-status`. Upgrade metadata counts a note as upgraded when it has `aio-status`, or a mark still in `status` (so the mark is never duplicated). New dashboards get `note["aio-status"] == "processed"` through `retargetStatusFilter`, because Bases reads a hyphenated name only through `note[...]`. Templates and the config guide keep their text, and the retarget happens when a dashboard is created.
+- **Off:** `retargetStatusFilter` returns its input, and the default-off paths are pinned by tests (`tests/aiStatusProperty.test.ts`, `tests/baseSchema.test.ts`).
+- **Moving existing marks** (`move-ai-status-marks`, also a **Review** button that shows only while `aio-status` is chosen). Nothing moves on a setting change or on load. Switching only shows a notice.
+  - `scanAiStatusMoves` reads and lists every note whose `status` is a mark, and every `.base` whose filter compares `status` / `note.status` with a mark. Protected folders are left out.
+  - `AiStatusMoveModal` groups them by folder with a checkbox per item and per folder. Everything starts ticked, and nothing is written until **Apply**.
+  - Each note is one line-level edit (`planNoteMove`): `status: processed` becomes `aio-status: processed` in place, keeping comments, CRLF and every other byte (`renameFrontmatterScalarKey`). An adopted project instead becomes `status: active` and gains `aio-status`. A mark written as a list or block, or a note that already has `aio-status`, is not listed.
+  - A dashboard has only its filter text retargeted (`planDashboardMove`). It is refused if the result would not parse, for example inside a YAML flow list.
+  - `applyAiStatusMoves` re-checks protection and writes with `vault.process` only when the file still equals the scanned text. A file changed since the scan is skipped and counted, never forced.
+- Switching back to `status` sends new marks to `status` again and leaves existing `aio-status` values where they are.
+
 ### Summarization Integration
 
 **Conditional Structured Output** ([src/commands/summarizeCommands.ts](../../src/commands/summarizeCommands.ts))

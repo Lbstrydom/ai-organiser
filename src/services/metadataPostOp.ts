@@ -20,6 +20,7 @@ import {
 } from '../utils/frontmatterUtils';
 import { logger } from '../utils/logger';
 import { AIO_ROLE_KEY } from './projects/projectIndex';
+import { AIO_STATUS_KEY, aiStatusKey } from '../core/aiStatus';
 
 export interface MarkNoteProcessedOptions {
     /** Skip the pending → processed status flip (caller manages status itself). */
@@ -67,14 +68,28 @@ export async function markNoteProcessed(
     // not a status oracle). Caller-supplied `status: 'error'` must not be flipped.
     const derived: Partial<AIOMetadata> = {};
 
-    // An adopted project, area or container (`aio-role`) owns its `status`: the AI's mark is never written there, so a
-    // summary of a project note with no status yet does not leave it reading "processed".
-    const adopted = Object.hasOwn(plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {}, AIO_ROLE_KEY);
-    if (!options.skipStatusFlip && !adopted) {
-        const current = getAIOMetadata(plugin.app, file);
-        const currentStatus = current?.status;
-        if (currentStatus === 'pending' || currentStatus === undefined) {
-            derived.status = 'processed';
+    const statusKey = aiStatusKey(plugin.settings);
+    if (statusKey === AIO_STATUS_KEY) {
+        // Opted in: the mark lives in the plugin's own property, so every note gets it and `status` is never touched.
+        if (!options.skipStatusFlip) {
+            const current: unknown = plugin.app.metadataCache.getFileCache(file)?.frontmatter?.[AIO_STATUS_KEY];
+            if (current === 'pending' || current === undefined) derived[AIO_STATUS_KEY] = 'processed';
+        }
+        // A caller's explicit mark follows the same property.
+        if (patch.status !== undefined) {
+            const { status, ...rest } = patch;
+            patch = { ...rest, [AIO_STATUS_KEY]: status };
+        }
+    } else {
+        // An adopted project, area or container (`aio-role`) owns its `status`: the AI's mark is never written there, so
+        // a summary of a project note with no status yet does not leave it reading "processed".
+        const adopted = Object.hasOwn(plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {}, AIO_ROLE_KEY);
+        if (!options.skipStatusFlip && !adopted) {
+            const current = getAIOMetadata(plugin.app, file);
+            const currentStatus = current?.status;
+            if (currentStatus === 'pending' || currentStatus === undefined) {
+                derived.status = 'processed';
+            }
         }
     }
 

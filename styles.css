@@ -10538,6 +10538,21 @@
     margin: 0 0 var(--size-4-2);
 }
 
+.ai-organiser-ai-status-move-group {
+    margin: 0 0 var(--size-4-3);
+}
+
+.ai-organiser-ai-status-move-folder {
+    display: block;
+    font-weight: var(--font-semibold);
+}
+
+.ai-organiser-ai-status-move-item {
+    display: block;
+    padding-left: var(--size-4-5);
+    font-size: var(--font-ui-small);
+}
+
 /* AI workspace live pack */
 .ai-organiser-live-status {
     color: var(--text-muted);

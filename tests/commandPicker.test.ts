@@ -242,18 +242,18 @@ describe('Command Picker — five-section layout', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 93 (90 unique + 3 Pinned cross-listings)', () => {
+        it('total picker rows = 94 (91 unique + 3 Pinned cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(93);
+            expect(leafCount).toBe(94);
         });
-        it('unique command IDs = 90', () => {
+        it('unique command IDs = 91', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(90);
+            expect(uniqueIds.size).toBe(91);
         });
-        it('alphabetised ai-organiser:* callbacks (90 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (91 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -302,6 +302,7 @@ describe('Command Picker — five-section layout', () => {
                 'ai-organiser:kindle-sync',
                 'ai-organiser:make-google-task',
                 'ai-organiser:manage-index',
+                'ai-organiser:move-ai-status-marks',
                 'ai-organiser:narrate-note',
                 'ai-organiser:new-sketch',
                 'ai-organiser:newsletter-audio',
@@ -356,7 +357,7 @@ describe('Command Picker — five-section layout', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(90);
+            expect(unique.size).toBe(91);
         });
     });
 });
