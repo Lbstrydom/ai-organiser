@@ -195,7 +195,7 @@ sections** (For this context, Pinned, Jobs, All actions, Setup and tools); the f
 stages (`src/core/workflowStages.ts`) are the shared classification, the Features settings
 grouping and the All actions filter, and each row's stage chip shows its declared stage
 (`tests/crossSurfaceTaxonomy.test.ts`). Actions of an off feature are listed under
-"Available to turn on" and open activation, never run. Adding an action:
+"Available to turn on" and open activation, never run. **Right-click items are contributions**: a feature calls `addMenuProvider` (`src/ui/pluginMenu.ts`, the only menu-event handler), never `menu.addItem` on its own event. Adding an action:
 [platform](docs/features/platform.md#command-picker-architecture).
 
 ## Feature Subsystems

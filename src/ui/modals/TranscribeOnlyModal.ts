@@ -79,10 +79,15 @@ export class TranscribeOnlyModal extends Modal {
     /** Modal-scoped opt-in mirror — survives coordinator recreation (parity with Minutes modal fix). */
     private diarizationOptedIn = false;
 
-    constructor(app: App, plugin: AIOrganiserPlugin) {
+    /** `initialFile`: an audio file already in the vault, attached as if picked (right-click → Transcribe audio). */
+    constructor(app: App, plugin: AIOrganiserPlugin, initialFile?: TFile) {
         super(app);
         this.plugin = plugin;
         this.outputFolder = getTranscriptOutputFullPath(plugin.settings);
+        if (initialFile) {
+            this.audioFile = initialFile;
+            this.audioDisplayName = initialFile.name;
+        }
     }
 
     onOpen(): void {

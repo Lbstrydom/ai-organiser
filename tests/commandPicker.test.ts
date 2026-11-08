@@ -242,18 +242,18 @@ describe('Command Picker — five-section layout', () => {
     });
 
     describe('counts', () => {
-        it('total picker rows = 91 (88 unique + 3 Pinned cross-listings)', () => {
+        it('total picker rows = 92 (89 unique + 3 Pinned cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(91);
+            expect(leafCount).toBe(92);
         });
-        it('unique command IDs = 88', () => {
+        it('unique command IDs = 89', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(88);
+            expect(uniqueIds.size).toBe(89);
         });
-        it('alphabetised ai-organiser:* callbacks (88 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (89 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -319,6 +319,7 @@ describe('Command Picker — five-section layout', () => {
                 'ai-organiser:open-process',
                 'ai-organiser:open-project',
                 'ai-organiser:open-upkeep-review',
+                'ai-organiser:open-welcome',
                 'ai-organiser:play-narration',
                 'ai-organiser:presentation-chat',
                 'ai-organiser:process-capture-inbox',
@@ -354,7 +355,26 @@ describe('Command Picker — five-section layout', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(88);
+            expect(unique.size).toBe(89);
         });
+    });
+});
+
+describe('For this context', () => {
+    it('comes first, names the target, and runs the items as given', () => {
+        const run = vi.fn();
+        const cats = buildCommandCategories(en, vi.fn(), [], { context: { label: 'Team sync.m4a', items: [{ id: 'transcribe-audio', title: 'Transcribe audio', icon: 'mic', run }] } });
+        expect(cats[0].id).toBe('context');
+        expect(cats[0].name).toBe('For: Team sync.m4a');
+        const row = cats[0].commands[0];
+        expect(row.contextItem).toBe(true);
+        expect(row.stage).toBe('create');
+        void row.callback();
+        expect(run).toHaveBeenCalled();
+    });
+
+    it('is absent with no items', () => {
+        const cats = buildCommandCategories(en, vi.fn(), [], { context: { label: 'x', items: [] } });
+        expect(cats.map((c) => c.id)).toEqual(['pinned', 'all', 'setup']);
     });
 });

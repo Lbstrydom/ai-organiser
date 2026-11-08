@@ -10572,3 +10572,22 @@
     margin: 0;
     padding-left: 20px;
 }
+.ai-organiser-settings-search {
+    margin: 0 0 12px;
+}
+.ai-organiser-settings-search-input {
+    width: 100%;
+}
+.ai-organiser-settings-search-empty {
+    margin-top: 8px;
+    color: var(--text-muted);
+}
+.ai-organiser-settings-hidden {
+    display: none;
+}
+.ai-organiser-job-row-ready .setting-item-description {
+    color: var(--text-success);
+}
+.ai-organiser-job-row-missing .setting-item-description {
+    color: var(--text-warning);
+}

@@ -18,7 +18,8 @@ import type { FeatureId } from '../../core/features';
 export class FeatureActivationModal extends Modal {
     private busy = false;
 
-    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly actionId: string) {
+    /** `resumeJobId`: after the reload, offer this job instead of the action. */
+    constructor(app: App, private readonly plugin: AIOrganiserPlugin, private readonly actionId: string, private readonly resumeJobId?: string) {
         super(app);
     }
 
@@ -70,9 +71,9 @@ export class FeatureActivationModal extends Modal {
         this.busy = true;
         const t = this.plugin.t;
         button.setDisabled(true).setButtonText(t.activation.busy);
-        const saved = await applyActivation(this.plugin, plan, {
-            v: 1, kind: 'action', commandId: this.actionId, createdAt: Date.now(),
-        });
+        const saved = await applyActivation(this.plugin, plan, this.resumeJobId
+            ? { v: 1, kind: 'job', jobId: this.resumeJobId, createdAt: Date.now() }
+            : { v: 1, kind: 'action', commandId: this.actionId, createdAt: Date.now() });
         if (!saved.ok) {
             this.busy = false;
             button.setDisabled(false).setButtonText(t.activation.turnOn);

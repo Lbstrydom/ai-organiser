@@ -18,7 +18,7 @@ import {
 } from './commandPickerViewModel';
 import { checkLeaf, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
 import type { FeatureId } from '../../core/features';
-import { ACTIONS, DEFAULT_PINNED, type ActionDef, type RequirementKind } from '../../core/actionRegistry';
+import { ACTIONS, ACTION_BY_ID, DEFAULT_PINNED, type ActionDef, type RequirementKind } from '../../core/actionRegistry';
 import { actionFeatureOn } from '../../core/actionAvailability';
 import { WORKFLOW_STAGES, type WorkflowStage } from '../../core/workflowStages';
 import { isFeatureEnabled } from '../../services/featureService';
@@ -76,6 +76,10 @@ export interface PickerCommand {
 	/** Its feature is off: the row is listed under "Available to turn on" and choosing it
 	 *  opens activation instead of running the command. */
 	featureOff?: true;
+	/** A "For this context" row: the caller already checked it is ready for its target. */
+	contextItem?: true;
+	/** A guided job: it opens the job window, which checks its own prerequisites. */
+	jobItem?: true;
 }
 
 export class CommandPickerModal extends Modal {
@@ -117,6 +121,8 @@ export class CommandPickerModal extends Modal {
 		private readonly plugin: AIOrganiserPlugin,
 		t: Translations,
 		categories: CommandCategory[],
+		/** Sections to open for this opening only (the welcome's buttons). */
+		openSections: readonly string[] = [],
 	) {
 		super(app);
 		this.t = t;
@@ -130,6 +136,9 @@ export class CommandPickerModal extends Modal {
 		);
 		// "Available to turn on" starts open and stays as the user last left it.
 		if (this.plugin.settings.pickerAvailableExpanded !== false) this.expandedGroups.add(AVAILABLE_GROUP_ID);
+		// "For this context" is always open: it is the reason a scoped picker was opened.
+		if (categories.some((c) => c.id === 'context')) this.expandedCategories.add('context');
+		for (const id of openSections) this.expandedCategories.add(id);
 	}
 
 	/** Build a fresh `RequirementContext` from current app state. Called
@@ -376,7 +385,7 @@ export class CommandPickerModal extends Modal {
 			el.addClass('ai-organiser-picker-feature-off');
 			el.setAttribute('aria-label', this.t.modals.commandPicker.featureOffAria.replace('{name}', item.command.name));
 		}
-		const reqState = checkLeaf(item.command, ctx, this.t);
+		const reqState = item.command.contextItem || item.command.jobItem ? { met: true } as const : checkLeaf(item.command, ctx, this.t);
 		if (!item.command.featureOff && !reqState.met) {
 			el.addClass('is-gated');
 			el.setAttribute('aria-disabled', 'true');
@@ -669,7 +678,7 @@ export class CommandPickerModal extends Modal {
 		else this.expandedCategories.add(categoryId);
 
 		// Persist preference so the next picker open respects it.
-		this.plugin.settings.pickerExpandedCategoryIds = [...this.expandedCategories];
+		this.plugin.settings.pickerExpandedCategoryIds = [...this.expandedCategories].filter((id) => id !== 'context');
 		void this.plugin.saveSettings();
 
 		this.rebuild();
@@ -806,6 +815,19 @@ export interface PickerBuildOptions {
 	isEnabled?: (feature: FeatureId) => boolean;
 	/** Called instead of running the command when an off action is chosen. */
 	onActivate?: (actionId: string) => void;
+	/** The guided jobs; choosing one calls `onJob`. Omitted = no Jobs section. */
+	jobs?: readonly { readonly id: string; readonly title: string; readonly desc: string; readonly icon: string }[];
+	onJob?: (jobId: string) => void;
+	/** "For this context": the target's name and its items (ready, already ranked and capped). */
+	context?: { readonly label: string; readonly items: readonly PickerContextItem[] };
+}
+
+/** One "For this context" row: already checked ready by the caller, run as given. */
+export interface PickerContextItem {
+	readonly id: string;
+	readonly title: string;
+	readonly icon: string;
+	readonly run: () => void;
 }
 
 /**
@@ -859,8 +881,36 @@ export function buildCommandCategories(
 		? customPinned
 		: DEFAULT_PINNED.map((id) => leaves.get(id)).filter((leaf): leaf is PickerCommand => !!leaf);
 
+	const sections: CommandCategory[] = [];
+	if (options.context && options.context.items.length > 0) {
+		sections.push({
+			id: 'context',
+			name: cp.contextFor.replace('{name}', options.context.label),
+			icon: 'crosshair',
+			commands: options.context.items.map((item) => {
+				const def = ACTION_BY_ID.get(item.id);
+				return {
+					id: `context:${item.id}`,
+					name: item.title,
+					icon: item.icon,
+					callback: item.run,
+					contextItem: true as const,
+					...(def ? { feature: def.feature, stage: def.stage, description: leaves.get(def.id)?.description } : {}),
+				};
+			}),
+		});
+	}
+	const jobs: CommandCategory[] = options.jobs && options.jobs.length > 0 ? [{
+		id: 'jobs', name: cp.categoryJobs, icon: 'route',
+		commands: options.jobs.map((j) => ({
+			id: `job:${j.id}`, name: j.title, icon: j.icon, description: j.desc,
+			callback: () => options.onJob?.(j.id), jobItem: true as const,
+		})),
+	}] : [];
 	return [
+		...sections,
 		{ id: 'pinned', name: cp.categoryPinned, icon: 'star', commands: pinnedCommands },
+		...jobs,
 		{ id: 'all', name: cp.categoryAll, icon: 'layout-list', commands: all },
 		{ id: 'setup', name: cp.categorySetup, icon: 'settings', commands: setup },
 	];
