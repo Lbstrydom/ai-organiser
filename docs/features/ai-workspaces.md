@@ -44,6 +44,12 @@ Command **Review AI hand-back** on the open note. Gate: `ai-workspaces` AND `cap
 
 Not written: stamping the project id into the hand-back note's frontmatter (the journal and the mapping carry it).
 
+### Sending a hand-back: the `vault-handback` skill
+
+The sending side is a skill for AI apps, [`docs/skills/vault-handback/SKILL.md`](../skills/vault-handback/SKILL.md); install steps are in [`docs/skills/README.md`](../skills/README.md). No plugin behaviour changes. It writes one end-of-session hand-back in the grammar above, or one capture per note. With a file tool it writes a **new** file to `0 Inbox/From Claude/`: it never overwrites, it refuses a name that exists, and it does not create the folder. Without a file tool it prints paste-ready text with the note name above it and no outer fence, because a fenced `## Handoff` is not seen.
+
+It never emits `aio-id` / `aio-role`, `capture-id` / `capture-status`, `aio:` markers or unquoted YAML, and it defaults decisions to `Suggested:`. **Drift:** the skill is hand-written, so `tests/vaultHandbackSkill.test.ts` pins its grammar block to `renderHandoffContract` and runs every example through `parseHandoff`, `looksLikeHandback`, the sweep guard and the capture text-first rules. Change the grammar and the test fails until the skill matches.
+
 ## Connector and vault map (AI sharing opt-in, pack tool)
 
 Settings: **Apply this list to the connector and the vault map** (`aiShareRequireOptIn`, default off). It is on only while `ai-workspaces` is on (`shareOptInActive`).
