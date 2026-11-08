@@ -146,11 +146,13 @@ describe('project commands in the picker', () => {
     return cat.commands.flatMap(walk).map((l) => ({ ...l, category: cat.id }));
   });
 
-  it('adopt sits in Refine and open in Find, each running the command of that id', () => {
+  it('adopt (Refine) and open (Find) are in All actions with their stage, each running the command of that id', () => {
     const run = vi.fn();
     const all = leaves(buildCommandCategories(en, run));
-    expect(all.find((l) => l.id === 'adopt-project')?.category).toBe('refine');
-    expect(all.find((l) => l.id === 'open-project')?.category).toBe('find');
+    expect(all.find((l) => l.id === 'adopt-project')?.category).toBe('all');
+    expect(all.find((l) => l.id === 'open-project')?.category).toBe('all');
+    expect(all.find((l) => l.id === 'adopt-project')?.stage).toBe('refine');
+    expect(all.find((l) => l.id === 'open-project')?.stage).toBe('find');
     const registered: string[] = [];
     registerProjectCommands({ addCommand: (cmd: { id: string }) => registered.push(cmd.id), t: en } as never);
     expect(registered).toEqual(['adopt-project', 'open-project']);

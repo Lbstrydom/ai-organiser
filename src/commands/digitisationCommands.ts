@@ -1,6 +1,7 @@
 /**
  * Digitisation Commands — Smart Digitisation Feature (Phase 3)
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, MarkdownView, TFile, Editor, MarkdownFileInfo, Modal } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -18,7 +19,7 @@ export function registerDigitisationCommands(plugin: AIOrganiserPlugin) {
     // Command: Digitise image
     plugin.addCommand({
         id: 'digitise-image',
-        name: plugin.t.commands.digitiseImage || 'Digitise Image',
+        name: actionName(plugin.t, 'digitise-image'),
         icon: 'sparkles',
         editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
             const view = ctx instanceof MarkdownView ? ctx : null;

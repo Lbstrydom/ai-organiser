@@ -9,7 +9,8 @@
  *
  * Nothing here registers a command-palette entry: with an empty list the feature is inert.
  */
-import { MarkdownView, Menu, Notice, TAbstractFile, TFolder, type WorkspaceLeaf } from 'obsidian';
+import { MarkdownView, Notice, TAbstractFile, TFolder, type WorkspaceLeaf } from 'obsidian';
+import { addMenuProvider, type MenuContribution } from '../ui/pluginMenu';
 import type AIOrganiserPlugin from '../main';
 import { Result, ok, err } from '../core/result';
 import {
@@ -219,14 +220,17 @@ export function openProtectedFoldersSetup(plugin: AIOrganiserPlugin, onDone?: ()
     }).open();
 }
 
-function addMenuItems(plugin: AIOrganiserPlugin, menu: Menu, file: TAbstractFile): void {
-    if (!(file instanceof TFolder) || file.isRoot()) return;
+/** Right-click on a folder: protect it, or stop protecting it. Always shown in the section. */
+function protectContribution(plugin: AIOrganiserPlugin, file: TAbstractFile): MenuContribution[] {
+    if (!(file instanceof TFolder) || file.isRoot()) return [];
     const t = plugin.t.protectedFolders;
     const already = plugin.settings.protectedFolders.some((f) => normalisePath(f).toLowerCase() === normalisePath(file.path).toLowerCase());
-    menu.addItem((item) => item
-        .setTitle(already ? t.unprotectAction : t.protectAction)
-        .setIcon('shield')
-        .onClick(() => {
+    return [{
+        id: 'protect-folder',
+        title: already ? t.unprotectAction : t.protectAction,
+        icon: 'shield',
+        priority: 'cursor',
+        run: () => {
             void (async () => {
                 if (already) {
                     const res = await applyProtectedFolders(plugin, (current) =>
@@ -244,7 +248,8 @@ function addMenuItems(plugin: AIOrganiserPlugin, menu: Menu, file: TAbstractFile
                     5000,
                 );
             })();
-        }));
+        },
+    }];
 }
 
 /** Install everything. Called once from onload, after settings are loaded. */
@@ -281,7 +286,7 @@ export function registerProtectedFolders(plugin: AIOrganiserPlugin): void {
         });
     }));
 
-    plugin.registerEvent(plugin.app.workspace.on('file-menu', (menu, file) => addMenuItems(plugin, menu, file)));
+    addMenuProvider(plugin, (target) => (target.kind === 'folder' ? protectContribution(plugin, target.folder) : []));
 
     badge?.dispose();
     badge = new ProtectedFolderBadge({

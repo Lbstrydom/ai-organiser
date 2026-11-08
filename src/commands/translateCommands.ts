@@ -3,6 +3,7 @@
  * Commands for translating note content and multi-source content
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Editor, MarkdownView, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -103,7 +104,7 @@ export function registerTranslateCommands(plugin: AIOrganiserPlugin): void {
     // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
     plugin.addCommand({
         id: 'smart-translate',
-        name: plugin.t.commands.translate || plugin.t.commands.translateNote || 'Translate',
+        name: actionName(plugin.t, 'smart-translate'),
         icon: 'languages',
         callback: () => {
             const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);

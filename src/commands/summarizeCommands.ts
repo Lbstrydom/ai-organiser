@@ -3,6 +3,7 @@
  * Commands for URL and PDF summarization
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Editor, MarkdownView, Notice, Platform, TFile, normalizePath } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
@@ -215,7 +216,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     // Uses callback (not editorCallback) so it works from CommandPickerModal via executeCommandById
     plugin.addCommand({
         id: 'smart-summarize',
-        name: plugin.t.commands.summarize || plugin.t.commands.summarizeSmart || 'Summarize',
+        name: actionName(plugin.t, 'smart-summarize'),
         icon: 'file-text',
         callback: () => {
             executeSmartSummarize(plugin, pdfService);
@@ -225,7 +226,7 @@ export function registerSummarizeCommands(plugin: AIOrganiserPlugin): void {
     // Record Audio command (standalone)
     plugin.addCommand({
         id: 'record-audio',
-        name: plugin.t.commands.recordAudio || 'Record Audio',
+        name: actionName(plugin.t, 'record-audio'),
         icon: 'mic',
         callback: () => {
             if (!isRecordingSupported()) {

@@ -3,6 +3,7 @@
  * Commands for adding content to Pending Integration and integrating it into notes
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Editor, MarkdownView, Notice, Modal, App, Setting, TextAreaComponent, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -89,7 +90,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Add content to Pending Integration
     plugin.addCommand({
         id: 'add-to-pending-integration',
-        name: plugin.t.commands.addToPendingIntegration,
+        name: actionName(plugin.t, 'add-to-pending-integration'),
         icon: 'plus-circle',
         editorCallback: (editor: Editor) => {
             const modal = new AddContentModal(plugin.app, plugin.t, (result) => {
@@ -118,7 +119,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Integrate pending content
     plugin.addCommand({
         id: 'integrate-pending-content',
-        name: plugin.t.commands.integratePendingContent,
+        name: actionName(plugin.t, 'integrate-pending-content'),
         icon: 'git-merge',
         editorCallback: async (editor: Editor) => {
             const pendingContent = getPendingIntegrationContent(editor);
@@ -328,7 +329,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Resolve pending embeds
     plugin.addCommand({
         id: 'resolve-pending-embeds',
-        name: plugin.t.commands.resolvePendingEmbeds,
+        name: actionName(plugin.t, 'resolve-pending-embeds'),
         icon: 'scan-text',
         editorCallback: async (editor: Editor) => {
             await resolvePendingEmbeds(plugin, editor);
@@ -338,7 +339,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Ensure standard note structure
     plugin.addCommand({
         id: 'ensure-note-structure',
-        name: plugin.t.commands.ensureNoteStructure,
+        name: actionName(plugin.t, 'ensure-note-structure'),
         icon: 'layout-template',
         editorCallback: (editor: Editor) => {
             ensureStandardStructure(editor);
@@ -349,7 +350,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Quick add text to pending
     plugin.addCommand({
         id: 'quick-add-text-pending',
-        name: plugin.t.commands.quickAddTextPending,
+        name: actionName(plugin.t, 'quick-add-text-pending'),
         icon: 'text',
         editorCallback: (editor: Editor) => {
             const modal = new QuickTextModal(plugin.app, plugin.t, (text) => {
@@ -373,7 +374,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Quick add URL to pending
     plugin.addCommand({
         id: 'quick-add-url-pending',
-        name: plugin.t.commands.quickAddUrlPending,
+        name: actionName(plugin.t, 'quick-add-url-pending'),
         icon: 'link',
         editorCallback: (editor: Editor) => {
             const modal = new QuickUrlModal(plugin.app, plugin.t, (url) => {
@@ -408,7 +409,7 @@ export function registerIntegrationCommands(plugin: AIOrganiserPlugin): void {
     // Command: Drop selection to pending (no modal, instant)
     plugin.addCommand({
         id: 'drop-selection-pending',
-        name: plugin.t.commands.dropSelectionPending,
+        name: actionName(plugin.t, 'drop-selection-pending'),
         icon: 'arrow-down-to-line',
         editorCallback: (editor: Editor) => {
             dropSelectionToPending(plugin, editor);

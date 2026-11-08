@@ -40,6 +40,7 @@ import { registerAiWorkspaceCommands } from './aiWorkspaceCommands';
 import { registerProcessCommands } from './processCommands';
 import { processViewActive } from '../services/process/processGate';
 import { registerContextMenu } from '../ui/contextMenu';
+import { registerPluginMenu } from '../ui/pluginMenu';
 import AIOrganiserPlugin from '../main';
 import { isFeatureEnabled } from '../services/featureService';
 import type { FeatureId } from '../core/features';
@@ -107,4 +108,6 @@ export function registerCommands(plugin: AIOrganiserPlugin) {
         for (const fn of fns) fn(plugin);
     }
     registerContextMenu(plugin);
+    // The only handlers of the three menu events; every item above is a contribution to it.
+    registerPluginMenu(plugin, plugin.menuDeps());
 }

@@ -50,6 +50,8 @@ export function buildRuntimeDeps(plugin: AIOrganiserPlugin, store: CaptureJourna
         port: vault,
         vault,
         isSwept: sweptAlready,
+        // The hand-back review exists only with both features on; otherwise a hand-back is read like any capture, as before.
+        skipHandbacks: () => isFeatureEnabled(plugin.settings, 'ai-workspaces') && isFeatureEnabled(plugin.settings, 'capture-inbox'),
         isEnabled: () => isFeatureEnabled(plugin.settings, 'capture-inbox'),
         now,
         digitisationEnabled: () => isFeatureEnabled(plugin.settings, 'digitisation'),

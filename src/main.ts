@@ -1,5 +1,20 @@
 import { createLivePackRuntime, type LivePackRuntime } from './services/aiWorkspaces/livePackRuntime';
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
+import { FeatureActivationModal } from './ui/modals/FeatureActivationModal';
+import { consumePendingResume } from './services/featureActivation';
+import { actionAvailability, type Availability } from './core/actionAvailability';
+import { candidatesFor, resolveRoles, type ContextRole } from './core/contextResolver';
+import { acceptsTarget, runAction, type RunContext } from './services/actionRunner';
+import { targetLabel, type MenuContribution, type MenuDeps, type MenuTarget } from './ui/pluginMenu';
+import type { PickerContextItem } from './ui/modals/CommandPickerModal';
+import type { RequirementKind } from './core/actionRegistry';
+import { ACTION_BY_ID, actionName, type ActionDef } from './core/actionRegistry';
+import { buildContext, checkRequirement } from './ui/modals/pickerRequirements';
+import { noticeWithAction, openSettingsSection } from './utils/noticeUtils';
+import { GuidedJobModal } from './ui/modals/GuidedJobModal';
+import { WelcomeModal } from './ui/modals/WelcomeModal';
+import { JOBS, JOB_BY_ID, type JobId } from './core/jobs';
+import { markWelcomeForExistingInstall } from './core/welcome';
 import { toModelText } from './utils/excalidrawContent';
 import {
     ConnectionTestError,
@@ -243,6 +258,7 @@ export default class AIOrganiserPlugin extends Plugin {
     public async loadSettings(): Promise<void> {
         const oldSettings = await this.loadData();
         const migrated = migrateOldSettings(oldSettings);
+        markWelcomeForExistingInstall(oldSettings, migrated);
         // Strip the non-settings data keys before they enter `this.settings`.
         // `migrateOldSettings` returns the WHOLE loaded object, so without this
         // the settings object carries a load-time snapshot of e.g. the seen-id
@@ -1265,6 +1281,13 @@ export default class AIOrganiserPlugin extends Plugin {
             callback: () => this.openCommandPicker()
         });
 
+        this.addCommand({
+            id: 'open-welcome',
+            name: actionName(this.t, 'open-welcome'),
+            icon: 'door-open',
+            callback: () => this.openWelcome(),
+        });
+
         // Register custom AI Organiser icon
         // Constellation icon — 5 asymmetric stars, two branching paths converging
         // "chaos in, structure out" — distinctive mini-brand silhouette
@@ -1302,7 +1325,15 @@ export default class AIOrganiserPlugin extends Plugin {
         // First-run intro (FT-7 / L2): point existing + new users at the new Features
         // section. Once-only — the persisted `featuresIntroShown` marker is set + saved
         // immediately so it never re-fires across reloads. Fires after layout settles.
-        if (!this.settings.featuresIntroShown) {
+        // A feature turned on from the picker: offer the chosen action once, after the layout settles.
+        this.app.workspace.onLayoutReady(() => { void this.offerPendingResume(); });
+
+        // First run: the welcome window replaces the old one-line Features notice. An install that
+        // existed before the welcome never sees it (loadSettings marks it seen).
+        if (!this.settings.welcomeSeen) {
+            this.settings.featuresIntroShown = true;
+            this.app.workspace.onLayoutReady(() => this.openWelcome());
+        } else if (!this.settings.featuresIntroShown) {
             this.settings.featuresIntroShown = true;
             void saveSettingsData(this, this.settings).catch((err) =>
                 logger.warn('Core', 'Failed to persist featuresIntroShown marker', err));
@@ -1778,15 +1809,251 @@ export default class AIOrganiserPlugin extends Plugin {
     /**
      * Opens the command picker modal with all AI Organiser commands
      */
-    public openCommandPicker(): void {
+    /**
+     * Open the picker. With a scope (from a right-click), "For this context" lists that target's
+     * items; without one it lists up to three ready actions for the note that is open.
+     */
+    public openCommandPicker(scope?: { label: string; items: readonly PickerContextItem[] }, openSections: readonly string[] = []): void {
+        const context = scope ?? this.activeContext();
         const categories = buildCommandCategories(this.t, (commandId: string) => {
             // Execute the command via Obsidian's command system
             // @ts-ignore - commands API is internal but stable
             (this.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(commandId);
-        }, this.settings.pickerPinnedCommandIds ?? []);
+        }, this.settings.pickerPinnedCommandIds ?? [], {
+            isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
+            // An off feature's action opens activation; it never runs.
+            onActivate: (actionId) => new FeatureActivationModal(this.app, this, actionId).open(),
+            ...(context ? { context } : {}),
+            jobs: JOBS.map((j) => ({ id: j.id, title: this.t.jobs[j.id].title, desc: this.t.jobs[j.id].desc, icon: j.icon })),
+            onJob: (jobId) => this.openJob(jobId),
+        });
 
-        const modal = new CommandPickerModal(this.app, this, this.t, categories);
+        const modal = new CommandPickerModal(this.app, this, this.t, categories, openSections);
         modal.open();
+    }
+
+    /**
+     * After a reload that turned a feature on: offer the action the user had chosen, once.
+     * The intent is cleared and saved BEFORE anything is offered (one-shot), and nothing runs
+     * unless the user presses Continue.
+     */
+    private async offerPendingResume(): Promise<void> {
+        const intent = this.settings.pendingResume;
+        if (!intent) return;
+        delete this.settings.pendingResume;
+        try {
+            await saveSettingsData(this, this.settings);
+        } catch (e) {
+            logger.warn('Core', 'Could not clear the pending resume; not offering it', e);
+            return;
+        }
+        const availabilityOf = (def: ActionDef) => this.availabilityWith(this.activeRequirement())(def);
+        const offer = consumePendingResume(intent, {
+            now: Date.now(),
+            availabilityOf,
+            pathExists: (path) => this.app.vault.getAbstractFileByPath(path) !== null,
+        });
+        const a = this.t.activation;
+        if (offer.kind === 'continue') {
+            const name = actionName(this.t, offer.commandId);
+            noticeWithAction(
+                a.resumeReady.replace('{feature}', this.t.features[offer.feature].label),
+                a.continueAction.replace('{action}', name),
+                () => { void (async () => {
+                    // A stored target is the note the action was chosen for: open it first, so the
+                    // command runs on that note and not on whatever happens to be active.
+                    if (offer.target?.kind === 'file') {
+                        const file = this.app.vault.getAbstractFileByPath(offer.target.path);
+                        if (!(file instanceof TFile)) {
+                            new Notice(a.resumeNotReady
+                                .replace('{feature}', this.t.features[offer.feature].label)
+                                .replace('{action}', name)
+                                .replace('{reason}', a.reasons['wrong-target']), 10000);
+                            return;
+                        }
+                        await this.app.workspace.getLeaf(false).openFile(file);
+                    }
+                    // Re-check when pressed: the note or the feature may have changed since the notice.
+                    const def = ACTION_BY_ID.get(offer.commandId);
+                    const now = def ? availabilityOf(def) : null;
+                    if (!now || now.state !== 'ready') {
+                        new Notice(a.resumeNotReady
+                            .replace('{feature}', this.t.features[offer.feature].label)
+                            .replace('{action}', name)
+                            .replace('{reason}', a.reasons[now ? (now.state as Exclude<typeof now.state, 'ready'>) : 'feature-off']), 10000);
+                        return;
+                    }
+                    (this.app as App & { commands: { executeCommandById: (id: string) => void } })
+                        .commands.executeCommandById(`ai-organiser:${offer.commandId}`);
+                })().catch((e: unknown) => logger.error('Core', 'Could not continue the chosen action', e)); },
+            );
+        } else if (offer.kind === 'job' && JOB_BY_ID.has(offer.jobId)) {
+            const jobId = offer.jobId as JobId;
+            noticeWithAction(this.t.jobs[jobId].title, a.continueAction.replace('{action}', this.t.jobs[jobId].title), () => this.openJob(jobId));
+        } else if (offer.kind === 'not-ready') {
+            new Notice(a.resumeNotReady
+                .replace('{feature}', this.t.features[offer.feature].label)
+                .replace('{action}', actionName(this.t, offer.commandId))
+                .replace('{reason}', a.reasons[offer.reason]), 10000);
+        }
+    }
+
+    /** Availability of an action against a requirement check (shared by the picker, menus and resume). */
+    private availabilityWith(requirementMet: (kind: RequirementKind) => boolean): (def: ActionDef) => Availability {
+        return (def) => actionAvailability(def, {
+            isEnabled: (feature) => isFeatureEnabled(this.settings, feature),
+            isMobile: Platform.isMobile,
+            requirementMet,
+        });
+    }
+
+    /** Requirement check for the workspace as it is (the active note, editor and index). */
+    private activeRequirement(): (kind: RequirementKind) => boolean {
+        const ctx = buildContext({
+            activeFile: this.app.workspace.getActiveFile(),
+            editor: this.app.workspace.activeEditor?.editor ?? null,
+            hasMarkdownFiles: this.app.vault.getMarkdownFiles().length > 0,
+            enableSemanticSearch: isFeatureEnabled(this.settings, 'semantic-search'),
+            hasVectorStore: !!this.vectorStore,
+            isMobile: Platform.isMobile,
+        });
+        return (kind) => checkRequirement(kind, ctx, this.t).met;
+    }
+
+    /** Requirement check for an explicit file (a right-clicked file is not the active one). */
+    private fileRequirement(file: TFile): (kind: RequirementKind) => boolean {
+        const ext = file.extension.toLowerCase();
+        return (kind) => {
+            if (kind === 'none' || kind === 'vault') return true;
+            if (kind === 'active-note') return ext === 'md';
+            if (kind === 'mp3-file') return ext === 'mp3';
+            if (kind === 'semantic-search') return isFeatureEnabled(this.settings, 'semantic-search') && !!this.vectorStore;
+            return false; // 'selection' needs an editor
+        };
+    }
+
+    private rolesOfFile(file: TFile, hasSelection = false): ContextRole[] {
+        const frontmatter = this.app.metadataCache.getFileCache(file)?.frontmatter ?? null;
+        return resolveRoles({ kind: 'file', path: file.path, extension: file.extension, frontmatter, hasSelection }, this.settings);
+    }
+
+    private runContext(): RunContext {
+        return {
+            availabilityOf: (id) => {
+                const def = ACTION_BY_ID.get(id);
+                return def ? this.availabilityWith(() => true)(def) : null;
+            },
+            reasonText: (state) => this.t.activation.reasons[state],
+            staleTarget: this.t.pluginMenu.staleTarget,
+            failed: this.t.messages.failedToGenerate,
+        };
+    }
+
+    /** "For this context" of the plain picker: the open note's best three ready actions. */
+    private activeContext(): { label: string; items: PickerContextItem[] } | undefined {
+        const file = this.app.workspace.getActiveFile();
+        if (!file) return undefined;
+        const selection = this.app.workspace.activeEditor?.editor?.getSelection() ?? '';
+        const defs = candidatesFor(this.rolesOfFile(file, selection.trim().length > 0), this.availabilityWith(this.activeRequirement()), () => true);
+        const items = defs.map((def) => ({
+            id: def.id, title: actionName(this.t, def.id), icon: def.icon,
+            run: () => runAction(this, def.id, { kind: 'active' }, this.runContext()),
+        }));
+        return items.length > 0 ? { label: file.name, items } : undefined;
+    }
+
+    /** Open a guided job. Its rows are evaluated against the live settings every time it renders. */
+    public openJob(jobId: string): void {
+        const exec = (id: string) => (this.app as App & { commands: { executeCommandById: (id: string) => void } })
+            .commands.executeCommandById(`ai-organiser:${id}`);
+        const availabilityOf = this.availabilityWith(() => true);
+        new GuidedJobModal(this.app, this, jobId, {
+            rowState: (p) => {
+                if (p.kind === 'inbox-folders') return this.settings.sweepInboxFolders.length > 0 ? 'ready' : 'needs-setup';
+                const def = ACTION_BY_ID.get(p.actionId);
+                if (!def) return 'unavailable';
+                const state = availabilityOf(def).state;
+                if (state === 'ready' || state === 'wrong-target') return 'ready'; // the job supplies the input
+                if (state === 'feature-off') return 'feature-off';
+                if (state === 'desktop-only') return 'unavailable';
+                return 'needs-setup';
+            },
+            turnOn: (actionId) => new FeatureActivationModal(this.app, this, actionId, jobId).open(),
+            run: exec,
+            openSettings: () => openSettingsSection(this, 'ai-provider', 'ai-provider'),
+            start: (job, input) => {
+                if (job.id === 'meeting-minutes') {
+                    void import('./ui/modals/MinutesCreationModal')
+                        .then((m) => new m.MinutesCreationModal(this.app, this, undefined, input ? { initialAudio: input } : undefined).open())
+                        .catch((e: unknown) => { logger.error('Jobs', 'Could not open meeting minutes', e); new Notice(this.t.messages.failedToGenerate, 6000); });
+                    return;
+                }
+                exec('sweep-inbox'); // its review already files notes
+            },
+        }).open();
+    }
+
+    /** The first-run welcome: three ways in. */
+    public openWelcome(): void {
+        new WelcomeModal(this.app, this, {
+            jobs: () => this.openCommandPicker(undefined, ['jobs']),
+            setupAi: () => openSettingsSection(this, 'ai-provider', 'ai-provider'),
+            browse: () => this.openCommandPicker(undefined, ['all']),
+            seen: () => {
+                if (this.settings.welcomeSeen) return;
+                this.settings.welcomeSeen = true;
+                void saveSettingsData(this, this.settings).catch((err) => logger.warn('Core', 'Failed to persist welcomeSeen', err));
+            },
+        }).open();
+    }
+
+    /** Run an action on the active note, but only if it is still the note it was offered for. */
+    private runOnActive(actionId: string, offeredFor: TFile, selection?: string): void {
+        const editorSelection = this.app.workspace.activeEditor?.editor?.getSelection() ?? '';
+        if (this.app.workspace.getActiveFile() !== offeredFor || (selection && selection.trim() && editorSelection !== selection)) {
+            new Notice(this.t.pluginMenu.staleTarget, 6000);
+            return;
+        }
+        runAction(this, actionId, { kind: 'active' }, this.runContext());
+    }
+
+    /** What the one right-click section needs from the plugin. */
+    public menuDeps(): MenuDeps {
+        return {
+            rankedFor: (target) => this.rankedForTarget(target),
+            openScoped: (target, items) => this.openCommandPicker({ label: targetLabel(target), items: items.map((c) => ({ id: c.id, title: c.title, icon: c.icon, run: () => { void c.run(); } })) }),
+            labels: () => ({ title: this.t.pluginMenu.title, mobileTitle: this.t.pluginMenu.mobileTitle, more: this.t.pluginMenu.more }),
+            onError: (e) => { logger.error('Menu', 'A menu item failed', e); new Notice(this.t.messages.failedToGenerate, 6000); },
+        };
+    }
+
+    private rankedForTarget(target: MenuTarget): MenuContribution[] {
+        const toContribution = (def: ActionDef, run: () => void): MenuContribution =>
+            ({ id: def.id, title: actionName(this.t, def.id), icon: def.icon, priority: 'ranked', run });
+        if (target.kind === 'file') {
+            const file = target.file;
+            const active = this.app.workspace.getActiveFile()?.path === file.path;
+            const defs = candidatesFor(this.rolesOfFile(file), this.availabilityWith(this.fileRequirement(file)),
+                (def) => acceptsTarget(def.id, 'file') || (active && acceptsTarget(def.id, 'active')));
+            return defs.map((def) => toContribution(def, () => {
+                if (acceptsTarget(def.id, 'file')) { runAction(this, def.id, { kind: 'file', file }, this.runContext()); return; }
+                this.runOnActive(def.id, file);
+            }));
+        }
+        if (target.kind === 'files') {
+            const files = target.files;
+            const defs = candidatesFor(['multi'], this.availabilityWith(() => true), (def) => acceptsTarget(def.id, 'files'));
+            return defs.map((def) => toContribution(def, () => runAction(this, def.id, { kind: 'files', files }, this.runContext())));
+        }
+        if (target.kind === 'editor' && target.file) {
+            // The editor's note is the active one: its actions run as from the palette.
+            const defs = candidatesFor(this.rolesOfFile(target.file, target.selection.trim().length > 0),
+                this.availabilityWith(this.activeRequirement()), () => true);
+            const file = target.file;
+            const selection = target.selection;
+            return defs.map((def) => toContribution(def, () => this.runOnActive(def.id, file, selection)));
+        }
+        return [];
     }
 
     public async showTagNetwork(): Promise<void> {

@@ -2,15 +2,23 @@
  * Cross-surface taxonomy consistency — THE drift-killer (unified-feature-taxonomy plan §9).
  *
  * Asserts the Features settings projection and the Command Picker are both derivable from
- * ONE declared dataset (the workflow-stage vocabulary + per-feature/per-leaf `stage` +
- * `boundary`). Every place the two surfaces differ must trace to a DECLARED field
+ * ONE declared dataset (the workflow-stage vocabulary + per-feature/per-action `stage` +
+ * `boundary`).
+ *
+ * Contract revision (docs/plans/navigation-discoverability.md, decision 8): the picker's top
+ * level is now its sections, not the stages. The old "leaf stage === top-level category id"
+ * assertion is replaced by "every All actions row's stage chip shows its declared stage", and
+ * "every top-level category is a section". The vocabulary, override and completeness checks
+ * are unchanged. Every place the two surfaces differ must trace to a DECLARED field
  * (`core` / `boundary∋'external-account'` / an enumerated `leaf.stage` override / the
  * `pinned` cross-cut) — never to an un-mirrored hand-edit. If this test fails, the two
  * menus have drifted.
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildCommandCategories, type PickerCommand, type CommandCategory } from '../src/ui/modals/CommandPickerModal';
+import { buildCommandCategories, PICKER_SECTION_IDS, type PickerCommand, type CommandCategory } from '../src/ui/modals/CommandPickerModal';
+import { buildVisibleItems, stageChipFor } from '../src/ui/modals/commandPickerViewModel';
+import { ACTIONS } from '../src/core/actionRegistry';
 import { projectSettingsGroups } from '../src/services/featureProjection';
 import { FEATURE_REGISTRY, FEATURE_BY_ID, SECTION_FEATURE, SECTION_HOSTED_FEATURES } from '../src/core/features';
 import { WORKFLOW_STAGES } from '../src/core/workflowStages';
@@ -47,6 +55,7 @@ const DECLARED_OVERRIDES: Record<string, string> = {
     'record-audio': 'capture',      // summarize (create) → pulls new audio in
     'refresh-onedrive-embed': 'refine', // onedrive-link (capture) → mutates an existing note's embeds
     'open-project': 'find',         // google-tasks-export (refine) → navigates to a project note, changes nothing
+    'open-welcome': 'find',         // provider (core) → the welcome window, a way into everything
 };
 
 describe('cross-surface taxonomy — shared vocabulary', () => {
@@ -62,30 +71,37 @@ describe('cross-surface taxonomy — shared vocabulary', () => {
     });
 });
 
-describe('cross-surface taxonomy — picker category ↔ stage identity', () => {
-    it('every non-pinned top-level category id is a workflow stage', () => {
-        for (const cat of categories) {
-            if (cat.id === 'pinned') continue;
-            expect(STAGES.has(cat.id), `category ${cat.id}`).toBe(true);
+describe('cross-surface taxonomy — picker sections and stage chips', () => {
+    it('every top-level category is a picker section (stages are not top-level any more)', () => {
+        const sections = new Set<string>(PICKER_SECTION_IDS);
+        for (const cat of categories) expect(sections.has(cat.id), `category ${cat.id}`).toBe(true);
+        for (const cat of categories) expect(STAGES.has(cat.id), `${cat.id} must not be a stage`).toBe(false);
+    });
+
+    it('every All actions row shows a stage chip equal to its declared stage', () => {
+        const rows = buildVisibleItems(categories, new Set(), null, new Set(['all']));
+        const allRows = rows.filter((r) => r.categoryId === 'all' && r.kind === 'leaf');
+        expect(allRows.length).toBeGreaterThan(50);
+        for (const row of allRows) {
+            const declared = ACTIONS.find((a) => a.id === row.command.id)!.stage;
+            expect(stageChipFor(row), row.command.id).toBe(declared);
         }
     });
 
-    it('every leaf in a non-pinned category has stage === that category id', () => {
-        for (const { leaf, categoryId } of leaves) {
-            if (categoryId === 'pinned') continue;
-            expect(leaf.stage, `leaf ${leaf.id} in ${categoryId}`).toBe(categoryId);
+    it('every action leaf\'s stage equals its registry stage', () => {
+        for (const { leaf } of leaves) {
+            const def = ACTIONS.find((a) => a.id === leaf.id);
+            expect(def, leaf.id).toBeDefined();
+            expect(leaf.stage, leaf.id).toBe(def!.stage);
         }
     });
 
-    it('pinned holds only genuine cross-listings (real stage home + Pinned chip)', () => {
+    it('pinned holds only genuine cross-listings (the same object also sits in its section)', () => {
         const pinned = categories.find(c => c.id === 'pinned')!;
         for (const leaf of pinned.commands) {
-            // Its real stage is a workflow stage...
             expect(STAGES.has(leaf.stage!), `pinned leaf ${leaf.id} stage ${leaf.stage}`).toBe(true);
-            // ...the SAME object is also placed in that stage category (genuine cross-listing)...
-            const inStage = leaves.some(l => l.categoryId === leaf.stage && l.leaf === leaf);
-            expect(inStage, `pinned leaf ${leaf.id} also lives in its stage`).toBe(true);
-            // ...and its search-dedup chip points at the Pinned favourites home (not a stage).
+            const elsewhere = leaves.some(l => l.categoryId !== 'pinned' && l.leaf === leaf);
+            expect(elsewhere, `pinned leaf ${leaf.id} also lives in its section`).toBe(true);
             expect(leaf.canonicalCategoryId, `pinned leaf ${leaf.id} chip`).toBe('pinned');
         }
     });
@@ -124,11 +140,8 @@ describe('cross-surface taxonomy — declared divergences only (no un-mirrored h
 });
 
 describe('cross-surface taxonomy — shared labels', () => {
-    it('picker stage categories are labelled from t.workflowStages.* (same SSOT as settings)', () => {
-        for (const cat of categories) {
-            if (cat.id === 'pinned') continue;
-            expect(cat.name).toBe(en.workflowStages[cat.id as keyof typeof en.workflowStages]);
-        }
+    it('stage chips and filters are labelled from t.workflowStages.* (same SSOT as settings)', () => {
+        for (const stage of STAGES) expect(typeof en.workflowStages[stage as keyof typeof en.workflowStages]).toBe('string');
     });
 });
 

@@ -71,3 +71,45 @@ export function noticeWithSettingsLink(
         return new Notice(message, timeout);
     }
 }
+
+/**
+ * A Notice with one action button (for example "Continue: Sweep inbox"). Clicking runs the
+ * action and hides the notice. Falls back to a plain Notice if a fragment cannot be built.
+ */
+export function noticeWithAction(message: string, buttonLabel: string, onClick: () => void, timeoutMs = 15000): Notice {
+    try {
+        const fragment = activeDocument.createDocumentFragment();
+        const wrapper = activeDocument.createElement('div');
+        wrapper.className = 'ai-organiser-notice-with-action';
+        fragment.appendChild(wrapper);
+        const messageEl = activeDocument.createElement('p');
+        messageEl.className = 'ai-organiser-notice-message';
+        messageEl.textContent = message;
+        wrapper.appendChild(messageEl);
+        const button = activeDocument.createElement('button');
+        button.className = 'ai-organiser-notice-settings-link mod-cta';
+        button.textContent = buttonLabel;
+        wrapper.appendChild(button);
+        const notice = new Notice(fragment, timeoutMs);
+        button.addEventListener('click', () => { notice.hide(); onClick(); });
+        return notice;
+    } catch {
+        return new Notice(message, timeoutMs);
+    }
+}
+
+interface SettingTabWithReveal { revealSubSection?: (parentId: string, subId: string) => void; display?: () => unknown }
+
+/**
+ * Open AI Organiser's settings at one sub-section: the parent and the sub-section are opened
+ * and scrolled into view. Uses the same deep link the notices use.
+ */
+export function openSettingsSection(plugin: AIOrganiserPlugin, parentId: string, subId: string): void {
+    const api = (plugin.app as unknown as AppWithSetting & { setting?: { activeTab?: SettingTabWithReveal } }).setting;
+    if (!api || typeof api.open !== 'function' || typeof api.openTabById !== 'function') return;
+    api.open();
+    api.openTabById(plugin.manifest.id);
+    const tab = api.activeTab;
+    tab?.revealSubSection?.(parentId, subId);
+    void tab?.display?.();
+}

@@ -216,6 +216,9 @@ export const GUIDANCE_CODES = [
     'live-not-on',
     'live-folder-in-use',
     'live-revocation-unsaved',
+    // Feature activation from the picker
+    'activation-reload-unsupported',
+    'activation-reenable-failed',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

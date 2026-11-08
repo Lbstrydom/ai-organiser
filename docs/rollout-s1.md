@@ -45,6 +45,7 @@ Manual steps, in order. Nothing here is done for you: the plugin never edits you
 
 ## 9. Hand-backs
 - End a chat session with the Handoff section the instructions ask for, save the reply as a note, open it and run **Review AI hand-back**. Tick what you want: decisions and questions become one reviewed edit to the project note; next actions go through the usual sweep review. Check: the project note has the new lines, each ending with an `aio:handoff` marker (do not delete them: they stop a repeat).
+- Optional, so Claude writes the hand-back for you: install the **vault-handback** skill (`docs/skills/vault-handback/`). Upload it as a zip to claude.ai (*Settings > Capabilities > Skills*), or copy the folder to `~/.claude/skills/` for Claude Code; `docs/skills/README.md` has the commands. For file delivery, create `0 Inbox/From Claude/` yourself; otherwise the skill prints text to paste into a new note. Then ask Claude to "hand back this session".
 - A hand-back note left in a sweep inbox is skipped by the sweep (it has its own review). **Process** (palette: "Open Process") lists captures to review, hand-backs with items left to review, and held tasks.
 
 ## 10. Weekly

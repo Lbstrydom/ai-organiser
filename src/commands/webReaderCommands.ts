@@ -3,6 +3,7 @@
  * Registers the web-reader command that extracts URLs from a note and opens the triage modal.
  */
 
+import { actionName } from '../core/actionRegistry';
 import { ButtonComponent, MarkdownView, Modal, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { detectSourcesFromContent } from '../utils/sourceDetection';
@@ -17,7 +18,7 @@ export function registerWebReaderCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'web-reader',
-        name: t.commands.webReader,
+        name: actionName(t, 'web-reader'),
         icon: 'newspaper',
         callback: async () => {
             const view = plugin.app.workspace.getActiveViewOfType(MarkdownView);

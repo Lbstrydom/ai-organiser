@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { ExportModal } from '../ui/modals/ExportModal';
@@ -5,7 +6,7 @@ import { ExportModal } from '../ui/modals/ExportModal';
 export function registerExportCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'export-note',
-        name: plugin.t.commands.exportNote || 'Export note as\u2026',
+        name: actionName(plugin.t, 'export-note'),
         icon: 'file-output',
         callback: () => {
             const activeFile = plugin.app.workspace.getActiveFile();

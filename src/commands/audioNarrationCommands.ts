@@ -1,3 +1,5 @@
+import { addMenuProvider } from '../ui/pluginMenu';
+import { actionName } from '../core/actionRegistry';
 /**
  * Audio narration commands.
  *
@@ -8,7 +10,7 @@
  * Both paths converge on `handleNarrateActiveNote(plugin, file?)`.
  */
 
-import { Notice, TFile, type MenuItem, type Menu } from 'obsidian';
+import { Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { isAzureMode } from '../services/azure/endpointResolver';
 import { logger } from '../utils/logger';
@@ -330,14 +332,14 @@ export function openAudioPlayer(plugin: AIOrganiserPlugin, file?: TFile): void {
 export function registerAudioNarrationCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: NARRATE_NOTE_CMD_ID,
-        name: plugin.t.commands.narrateNote,
+        name: actionName(plugin.t, NARRATE_NOTE_CMD_ID),
         icon: 'audio-lines',
         callback: () => { void handleNarrateActiveNote(plugin); },
     });
 
     plugin.addCommand({
         id: PLAY_NARRATION_CMD_ID,
-        name: plugin.t.commands.playNarration,
+        name: actionName(plugin.t, PLAY_NARRATION_CMD_ID),
         icon: 'play-circle',
         checkCallback: (checking: boolean) => {
             const active = plugin.app.workspace.getActiveFile();
@@ -347,23 +349,16 @@ export function registerAudioNarrationCommands(plugin: AIOrganiserPlugin): void 
         },
     });
 
-    // File-menu right-click on a .md or .mp3 file
-    plugin.registerEvent(
-        plugin.app.workspace.on('file-menu', (menu: Menu, file) => {
-            if (!(file instanceof TFile)) return;
-            if (file.extension === 'md') {
-                menu.addItem((item: MenuItem) => item
-                    .setTitle(plugin.t.commands.narrateNote)
-                    .setIcon('audio-lines')
-                    .onClick(() => { void handleNarrateActiveNote(plugin, file); })
-                );
-            } else if (file.extension === 'mp3') {
-                menu.addItem((item: MenuItem) => item
-                    .setTitle(plugin.t.commands.playNarration)
-                    .setIcon('play-circle')
-                    .onClick(() => openAudioPlayer(plugin, file))
-                );
-            }
-        }),
-    );
+    // Right-click on a .md (narrate) or an .mp3 (play): a contribution to the AI Organiser section.
+    addMenuProvider(plugin, (target) => {
+        if (target.kind !== 'file') return [];
+        const file = target.file;
+        if (file.extension === 'md') {
+            return [{ id: NARRATE_NOTE_CMD_ID, title: actionName(plugin.t, NARRATE_NOTE_CMD_ID), icon: 'audio-lines', priority: 'ranked', run: () => { void handleNarrateActiveNote(plugin, file); } }];
+        }
+        if (file.extension === 'mp3') {
+            return [{ id: PLAY_NARRATION_CMD_ID, title: actionName(plugin.t, PLAY_NARRATION_CMD_ID), icon: 'play-circle', priority: 'ranked', run: () => openAudioPlayer(plugin, file) }];
+        }
+        return [];
+    });
 }

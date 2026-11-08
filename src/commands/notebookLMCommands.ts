@@ -8,6 +8,7 @@
  * - Open export folder
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Notice, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -24,7 +25,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     // Export Source Pack command
     plugin.addCommand({
         id: 'notebooklm-export',
-        name: t.commands?.notebookLMExport || 'NotebookLM: Export Source Pack',
+        name: actionName(t, 'notebooklm-export'),
         icon: 'package-export',
         callback: async () => {
             if (!plugin.sourcePackService) {
@@ -111,7 +112,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     // Toggle selection on current note
     plugin.addCommand({
         id: 'notebooklm-toggle-selection',
-        name: t.commands?.notebookLMToggle || 'NotebookLM: Toggle Selection',
+        name: actionName(t, 'notebooklm-toggle-selection'),
         icon: 'tag',
         callback: async () => {
             const file = plugin.app.workspace.getActiveFile();
@@ -167,7 +168,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     // Clear selection tags
     plugin.addCommand({
         id: 'notebooklm-clear-selection',
-        name: t.commands?.notebookLMClear || 'NotebookLM: Clear Selection',
+        name: actionName(t, 'notebooklm-clear-selection'),
         icon: 'x-circle',
         callback: async () => {
             if (!plugin.sourcePackService) {
@@ -217,7 +218,7 @@ export function registerNotebookLMCommands(plugin: AIOrganiserPlugin): void {
     // Open export folder
     plugin.addCommand({
         id: 'notebooklm-open-export-folder',
-        name: t.commands?.notebookLMOpenFolder || 'NotebookLM: Open Export Folder',
+        name: actionName(t, 'notebooklm-open-export-folder'),
         icon: 'folder-open',
         callback: () => {
             const exportFolder = getNotebookLMExportFullPath(plugin.settings);

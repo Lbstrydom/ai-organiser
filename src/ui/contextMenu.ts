@@ -1,12 +1,13 @@
 /**
  * Context Menu Handler
  * Centralized right-click context menu registration for all plugin items.
- * Two independent guards:
- *   1. Selection-based items: Highlight, Ask AI, Translate, Add to Pending
- *   2. Cursor-position items: Digitise (when cursor is on an image embed line)
+ * Contributes the editor's right-click items to the one AI Organiser section
+ * (src/ui/pluginMenu.ts): selection items (Highlight, Ask AI, Translate, Add to pending) and
+ * cursor items (Digitise on an image line, Edit diagram in a mermaid fence, Quick peek on a source).
  */
 
-import { Editor, MarkdownView, MarkdownFileInfo, Menu } from 'obsidian';
+import { type App, Editor, TFile } from 'obsidian';
+import { addMenuProvider, type MenuContribution } from './pluginMenu';
 import type AIOrganiserPlugin from '../main';
 import { HighlightColorModal, HighlightColor } from '../ui/modals/HighlightColorModal';
 import { stripExistingHighlight } from '../commands/highlightCommands';
@@ -71,144 +72,69 @@ function openHighlightModal(plugin: AIOrganiserPlugin, editor: Editor, selection
     ).open();
 }
 
-// ── Quick Peek helpers (extracted to keep registerContextMenu CC ≤ 15) ──────
+// ── Editor contributions to the AI Organiser section ─────────────────────────
 
-function addQuickPeekSelectionItem(
-    plugin: AIOrganiserPlugin,
-    editor: Editor,
-    view: MarkdownView | MarkdownFileInfo,
-    menu: Menu
-): void {
-    const currentFile = view instanceof MarkdownView ? view.file : null;
+const runCommand = (plugin: AIOrganiserPlugin, id: string): void => {
+    (plugin.app as App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById(`ai-organiser:${id}`);
+};
+
+/** Quick peek: the sources inside the selection, or on the cursor line when nothing is selected. */
+function quickPeekContribution(plugin: AIOrganiserPlugin, editor: Editor, file: TFile | null, hasSelection: boolean): MenuContribution[] {
+    if (!isFeatureEnabled(plugin.settings, 'quick-peek')) return [];
     // editor lines are 0-based; detected lineNumbers are 1-based → add 1
     const from = editor.getCursor('from').line + 1;
     const to = editor.getCursor('to').line + 1;
-    if (!isFeatureEnabled(plugin.settings, 'quick-peek')) return;
-    const detected = detectEmbeddedContent(plugin.app, editor.getValue(), currentFile ?? undefined);
-    const inSelection = getQuickPeekSources(detected).filter(s => s.lineNumber >= from && s.lineNumber <= to);
-    if (inSelection.length === 0) return;
-    menu.addItem((item) => {
-        item.setTitle(plugin.t.contextMenu.quickPeek || 'Quick peek')
-            .setIcon('zap')
-            .onClick(() => quickPeekFromSelection(plugin, editor, inSelection));
-    });
-}
-
-function addQuickPeekCursorItem(
-    plugin: AIOrganiserPlugin,
-    editor: Editor,
-    view: MarkdownView | MarkdownFileInfo,
-    menu: Menu
-): void {
-    const currentFile = view instanceof MarkdownView ? view.file : null;
-    // editor lines are 0-based; detected lineNumbers are 1-based → add 1
     const cursorLine = editor.getCursor().line + 1;
-    if (!isFeatureEnabled(plugin.settings, 'quick-peek')) return;
-    const detected = detectEmbeddedContent(plugin.app, editor.getValue(), currentFile ?? undefined);
-    const onLine = getQuickPeekSources(detected).filter(s => s.lineNumber === cursorLine);
-    if (onLine.length === 0) return;
-    menu.addItem((item) => {
-        item.setTitle(plugin.t.contextMenu.quickPeek || 'Quick peek')
-            .setIcon('zap')
-            .onClick(() => quickPeekFromSelection(plugin, editor, onLine));
-    });
+    const detected = detectEmbeddedContent(plugin.app, editor.getValue(), file ?? undefined);
+    const sources = getQuickPeekSources(detected).filter((src) => (hasSelection
+        ? src.lineNumber >= from && src.lineNumber <= to
+        : src.lineNumber === cursorLine));
+    if (sources.length === 0) return [];
+    return [{ id: 'quick-peek', title: plugin.t.contextMenu.quickPeek || 'Quick peek', icon: 'zap', priority: 'cursor', run: () => quickPeekFromSelection(plugin, editor, sources) }];
 }
 
 /**
- * Register the centralized editor context menu handler.
- * All plugin right-click items are registered here.
+ * Everything the editor right-click offers, as contributions. All of it is specific to the
+ * selection or the cursor, so it is all `cursor` priority: it comes first in the section.
+ * Each item gates inline by its owning feature (Gemini-G2).
+ */
+export function editorContributions(plugin: AIOrganiserPlugin, editor: Editor, file: TFile | null): MenuContribution[] {
+    const out: MenuContribution[] = [];
+    const selection = editor.getSelection();
+    const hasSelection = !!selection && selection.trim().length > 0;
+    const t = plugin.t;
+    if (hasSelection) {
+        if (isFeatureEnabled(plugin.settings, 'smart-note')) {
+            out.push({ id: 'highlight-selection', title: t.commands.highlightSelection || 'Highlight', icon: 'highlighter', priority: 'cursor', run: () => openHighlightModal(plugin, editor, selection) });
+            if (selection.length <= 5000) {
+                const stripped = stripExistingHighlight(selection);
+                if (stripped !== selection) {
+                    out.push({ id: 'remove-highlight', title: t.commands.removeHighlight || 'Remove highlight', icon: 'eraser', priority: 'cursor', run: () => { if (guardActiveNote(editor)) editor.replaceSelection(stripped); } });
+                }
+            }
+        }
+        out.push({ id: 'ask-ai-selection', title: t.contextMenu.askAI || 'Ask AI', icon: 'sparkles', priority: 'cursor', run: () => { openChatWithSelection(plugin, editor); } });
+        if (isFeatureEnabled(plugin.settings, 'translate')) {
+            out.push({ id: 'translate-selection', title: t.contextMenu.translate || 'Translate', icon: 'languages', priority: 'cursor', run: () => { translateSelectionFromMenu(plugin, editor); } });
+        }
+        if (isFeatureEnabled(plugin.settings, 'smart-note')) {
+            out.push({ id: 'drop-selection-pending', title: t.contextMenu.addToPending || 'Add to pending', icon: 'inbox', priority: 'cursor', run: () => { dropSelectionToPending(plugin, editor); } });
+        }
+    }
+    if (cursorOnImageEmbed(editor) && isFeatureEnabled(plugin.settings, 'digitisation')) {
+        out.push({ id: 'digitise-image', title: t.contextMenu.digitise || 'AI: digitise', icon: 'sparkles', priority: 'cursor', run: () => runCommand(plugin, 'digitise-image') });
+    }
+    if (cursorInsideMermaidFence(editor.getValue(), editor.getCursor().line) && isFeatureEnabled(plugin.settings, 'mermaid-chat')) {
+        out.push({ id: 'edit-mermaid-diagram', title: t.contextMenu.editDiagram || 'AI: edit diagram', icon: 'git-branch', priority: 'cursor', run: () => runCommand(plugin, 'edit-mermaid-diagram') });
+    }
+    out.push(...quickPeekContribution(plugin, editor, file, hasSelection));
+    return out;
+}
+
+/**
+ * Register the editor's contributions. Unconditional (cross-cutting); each item gates by its
+ * feature. The menu itself is rendered once by src/ui/pluginMenu.ts.
  */
 export function registerContextMenu(plugin: AIOrganiserPlugin): void {
-    plugin.registerEvent(
-        plugin.app.workspace.on('editor-menu', (menu: Menu, editor: Editor, view: MarkdownView | MarkdownFileInfo) => {
-            const selection = editor.getSelection();
-            const hasSelection = selection && selection.trim().length > 0;
-
-            // ── Guard 1: Selection-based items ───────────────────────
-            // Each contributed item gates inline by its owning feature
-            // (Gemini-G2): the listener stays registered; disabled features
-            // simply drop their item. `Ask AI` rides on core `chat` (ungated).
-            if (hasSelection) {
-                // Highlight + remove-highlight are owned by smart-note.
-                if (isFeatureEnabled(plugin.settings, 'smart-note')) {
-                    menu.addItem((item) => {
-                        item.setTitle(plugin.t.commands.highlightSelection || 'Highlight')
-                            .setIcon('highlighter')
-                            .onClick(() => openHighlightModal(plugin, editor, selection));
-                    });
-
-                    if (selection.length <= 5000) {
-                        const stripped = stripExistingHighlight(selection);
-                        if (stripped !== selection) {
-                            menu.addItem((item) => {
-                                item.setTitle(plugin.t.commands.removeHighlight || 'Remove highlight')
-                                    .setIcon('eraser')
-                                    .onClick(() => { if (guardActiveNote(editor)) editor.replaceSelection(stripped); });
-                            });
-                        }
-                    }
-                }
-
-                menu.addItem((item) => {
-                    item.setTitle(plugin.t.contextMenu.askAI || 'Ask AI')
-                        .setIcon('sparkles')
-                        .onClick(() => { openChatWithSelection(plugin, editor); });
-                });
-
-                if (isFeatureEnabled(plugin.settings, 'translate')) {
-                    menu.addItem((item) => {
-                        item.setTitle(plugin.t.contextMenu.translate || 'Translate')
-                            .setIcon('languages')
-                            .onClick(() => { translateSelectionFromMenu(plugin, editor); });
-                    });
-                }
-
-                // Add-to-pending is owned by smart-note (the integration flow).
-                if (isFeatureEnabled(plugin.settings, 'smart-note')) {
-                    menu.addSeparator();
-                    menu.addItem((item) => {
-                        item.setTitle(plugin.t.contextMenu.addToPending || 'Add to pending')
-                            .setIcon('inbox')
-                            .onClick(() => { dropSelectionToPending(plugin, editor); });
-                    });
-                }
-
-                // Guard A: Quick Peek — selection contains links (gated inside helper)
-                addQuickPeekSelectionItem(plugin, editor, view, menu);
-            }
-
-            // ── Guard 2: Cursor-position items (no selection required) ──
-            // Per-item feature gating (digitise→digitisation, edit-diagram→mermaid-chat).
-            const onImage = cursorOnImageEmbed(editor) && isFeatureEnabled(plugin.settings, 'digitisation');
-            const onMermaid = cursorInsideMermaidFence(editor.getValue(), editor.getCursor().line)
-                && isFeatureEnabled(plugin.settings, 'mermaid-chat');
-
-            if (onImage || onMermaid) {
-                if (hasSelection) menu.addSeparator();
-                if (onImage) {
-                    menu.addItem((item) => {
-                        item.setTitle(plugin.t.contextMenu.digitise || 'AI: digitise')
-                            .setIcon('sparkles')
-                            .onClick(() => {
-                                (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:digitise-image');
-                            });
-                    });
-                }
-                if (onMermaid) {
-                    menu.addItem((item) => {
-                        item.setTitle(plugin.t.contextMenu.editDiagram || 'AI: edit diagram')
-                            .setIcon('git-branch')
-                            .onClick(() => {
-                                (plugin.app as import('obsidian').App & { commands: { executeCommandById: (id: string) => void } }).commands.executeCommandById('ai-organiser:edit-mermaid-diagram');
-                            });
-                    });
-                }
-            }
-
-            // Guard B: Quick Peek — cursor on a link line (no selection)
-            if (!hasSelection) {
-                addQuickPeekCursorItem(plugin, editor, view, menu);
-            }
-        })
-    );
+    addMenuProvider(plugin, (target) => (target.kind === 'editor' ? editorContributions(plugin, target.editor, target.file) : []));
 }

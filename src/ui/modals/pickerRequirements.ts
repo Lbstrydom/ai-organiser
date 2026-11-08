@@ -35,6 +35,10 @@ export interface RequirementContext {
     semanticSearchEnabled: boolean;
     /** Plugin state: `vectorStore` reference exists. */
     semanticSearchIndexed: boolean;
+    /** Lower-case extension of the active file, or null with no active file. */
+    activeFileExtension: string | null;
+    /** True on Obsidian mobile, where desktop-only commands are not registered. */
+    isMobile: boolean;
 }
 
 export interface RequirementState {
@@ -99,13 +103,41 @@ export function checkRequirement(
             reason,
         };
     }
+    if (requires === 'mp3-file') {
+        // Mirrors Play narration's own checkCallback: it runs only on an active .mp3.
+        if (ctx.activeFileExtension === 'mp3') return { met: true };
+        return {
+            met: false,
+            chipIcon: 'file-audio',
+            chipText: cp.requiresChipMp3,
+            reason: cp.requiresReasonMp3,
+        };
+    }
     // Exhaustive narrowing — TS rejects this assignment if a new
     // RequirementKind value is added and not handled in the branches above.
-    return assertNever(requires);
+    return assertNever(requires, cp);
 }
 
-function assertNever(_value: never): RequirementState {
-    return { met: true };
+/** Fail closed: a requirement this code does not know (bad metadata at runtime) is unmet. */
+function assertNever(_value: never, cp: Translations['modals']['commandPicker']): RequirementState {
+    return { met: false, chipIcon: 'ban', chipText: cp.requiresChipUnknown, reason: cp.requiresReasonUnknown };
+}
+
+/**
+ * Evaluate a whole leaf: platform first (no remedy exists on this device), then its
+ * `requires`. Every render and click path uses this, so a desktop-only leaf can never
+ * run on mobile, where its command is not registered.
+ */
+export function checkLeaf(
+    leaf: { requires?: RequirementKind; platform?: 'desktop' },
+    ctx: RequirementContext,
+    t: Translations,
+): RequirementState {
+    if (leaf.platform === 'desktop' && ctx.isMobile) {
+        const cp = t.modals.commandPicker;
+        return { met: false, chipIcon: 'monitor', chipText: cp.requiresChipDesktop, reason: cp.requiresReasonDesktop };
+    }
+    return checkRequirement(leaf.requires, ctx, t);
 }
 
 /**
@@ -123,6 +155,7 @@ export function buildContext(args: {
     hasMarkdownFiles: boolean;
     enableSemanticSearch: boolean;
     hasVectorStore: boolean;
+    isMobile?: boolean;
 }): RequirementContext {
     return {
         hasActiveMdNote: !!args.activeFile && args.activeFile.extension === 'md',
@@ -130,6 +163,8 @@ export function buildContext(args: {
         hasMarkdownFiles: args.hasMarkdownFiles,
         semanticSearchEnabled: args.enableSemanticSearch,
         semanticSearchIndexed: args.hasVectorStore,
+        activeFileExtension: args.activeFile ? args.activeFile.extension.toLowerCase() : null,
+        isMobile: !!args.isMobile,
     };
 }
 

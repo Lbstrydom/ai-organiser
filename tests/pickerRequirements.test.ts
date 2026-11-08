@@ -6,6 +6,7 @@
 import { describe, it, expect } from 'vitest';
 import {
     checkRequirement,
+    checkLeaf,
     buildContext,
     legacyHomeAliases,
     type RequirementContext,
@@ -19,6 +20,8 @@ const baseCtx: RequirementContext = {
     hasMarkdownFiles: false,
     semanticSearchEnabled: false,
     semanticSearchIndexed: false,
+    activeFileExtension: null,
+    isMobile: false,
 };
 
 describe('checkRequirement — none / undefined', () => {
@@ -142,5 +145,46 @@ describe('legacyHomeAliases — backward-compat search vocabulary derivation', (
     });
     it('returns empty array for unknown legacy home', () => {
         expect(legacyHomeAliases('made-up-home')).toEqual([]);
+    });
+});
+
+describe('checkRequirement — mp3-file (Play narration)', () => {
+    it('is unmet with an active Markdown note', () => {
+        const r = checkRequirement('mp3-file', { ...baseCtx, hasActiveMdNote: true, activeFileExtension: 'md' }, t);
+        expect(r.met).toBe(false);
+        expect(r.chipText).toBe(t.modals.commandPicker.requiresChipMp3);
+        expect(r.reason).toBe(t.modals.commandPicker.requiresReasonMp3);
+    });
+    it('is met with an active .mp3, matching the command checkCallback', () => {
+        expect(checkRequirement('mp3-file', { ...baseCtx, activeFileExtension: 'mp3' }, t).met).toBe(true);
+    });
+    it('buildContext lower-cases the active extension', () => {
+        const ctx = buildContext({ activeFile: { extension: 'MP3' }, editor: null, hasMarkdownFiles: false, enableSemanticSearch: false, hasVectorStore: false });
+        expect(ctx.activeFileExtension).toBe('mp3');
+        expect(ctx.isMobile).toBe(false);
+    });
+});
+
+describe('checkLeaf — desktop-only leaves', () => {
+    it('blocks a desktop-only leaf on mobile before its requirement', () => {
+        const r = checkLeaf({ platform: 'desktop', requires: 'none' }, { ...baseCtx, isMobile: true }, t);
+        expect(r.met).toBe(false);
+        expect(r.chipText).toBe(t.modals.commandPicker.requiresChipDesktop);
+        expect(r.reason).toBe(t.modals.commandPicker.requiresReasonDesktop);
+    });
+    it('falls through to the requirement on desktop', () => {
+        expect(checkLeaf({ platform: 'desktop', requires: 'active-note' }, baseCtx, t).chipText).toBe(t.modals.commandPicker.requiresChipNote);
+        expect(checkLeaf({ platform: 'desktop', requires: 'none' }, baseCtx, t).met).toBe(true);
+    });
+    it('leaves an all-platform leaf alone on mobile', () => {
+        expect(checkLeaf({ requires: 'none' }, { ...baseCtx, isMobile: true }, t).met).toBe(true);
+    });
+});
+
+describe('checkRequirement — unknown kind at runtime', () => {
+    it('fails closed instead of treating bad metadata as met', () => {
+        const r = checkRequirement('not-a-kind' as never, baseCtx, t);
+        expect(r.met).toBe(false);
+        expect(r.chipText).toBe(t.modals.commandPicker.requiresChipUnknown);
     });
 });

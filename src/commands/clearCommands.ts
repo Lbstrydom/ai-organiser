@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { MarkdownView, Notice } from 'obsidian';
 import AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
@@ -9,7 +10,7 @@ export function registerClearCommands(plugin: AIOrganiserPlugin) {
     // Command: Clear Tags (scope modal)
     plugin.addCommand({
         id: 'clear-tags',
-        name: plugin.t.commands.clearTags || plugin.t.commands.clearTagsForCurrentNote,
+        name: actionName(plugin.t, 'clear-tags'),
         icon: 'eraser',
         callback: () => {
             new ClearTagsScopeModal(plugin.app, plugin, (scope: ClearTagsScope) => { void (async () => {

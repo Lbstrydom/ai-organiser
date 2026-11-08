@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { Notice, Platform } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -9,7 +10,7 @@ import { desktopRequire, getFs, getPath } from '../utils/desktopRequire';
 export function registerMinutesCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'create-meeting-minutes',
-        name: plugin.t.commands.createMeetingMinutes || 'Create Meeting Minutes',
+        name: actionName(plugin.t, 'create-meeting-minutes'),
         callback: () => {
             new MinutesCreationModal(plugin.app, plugin).open();
         }
@@ -17,7 +18,7 @@ export function registerMinutesCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'export-minutes-docx',
-        name: plugin.t.commands.exportMinutesDocx || 'Export minutes to Word',
+        name: actionName(plugin.t, 'export-minutes-docx'),
         icon: 'file-output',
         checkCallback: (checking: boolean) => {
             const file = plugin.app.workspace.getActiveFile();

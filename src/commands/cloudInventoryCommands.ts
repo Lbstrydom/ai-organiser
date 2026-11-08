@@ -7,6 +7,7 @@
  * is written. The secret is stored the moment the user copies the script, because deploying Google
  * code cannot be undone by cancelling; reopening the setup reuses the same secret.
  */
+import { actionName } from '../core/actionRegistry';
 import { logger } from '../utils/logger';
 import { Notice, Setting } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
@@ -333,7 +334,7 @@ export function openCloudInventorySetup(plugin: AIOrganiserPlugin, onDone?: () =
 
 export function registerCloudInventoryCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
-    plugin.addCommand({ id: 'refresh-cloud-inventories', name: t.commands.refreshCloudInventories, icon: 'refresh-cw', callback: () => { detach(plugin, () => runRefresh(plugin)); } });
-    plugin.addCommand({ id: 'check-cloud-inventories', name: t.commands.checkCloudInventories, icon: 'list-checks', callback: () => { detach(plugin, () => runCheck(plugin)); } });
-    plugin.addCommand({ id: 'setup-cloud-inventory', name: t.commands.setupCloudInventory, icon: 'cloud', callback: () => openCloudInventorySetup(plugin) });
+    plugin.addCommand({ id: 'refresh-cloud-inventories', name: actionName(t, 'refresh-cloud-inventories'), icon: 'refresh-cw', callback: () => { detach(plugin, () => runRefresh(plugin)); } });
+    plugin.addCommand({ id: 'check-cloud-inventories', name: actionName(t, 'check-cloud-inventories'), icon: 'list-checks', callback: () => { detach(plugin, () => runCheck(plugin)); } });
+    plugin.addCommand({ id: 'setup-cloud-inventory', name: actionName(t, 'setup-cloud-inventory'), icon: 'cloud', callback: () => openCloudInventorySetup(plugin) });
 }
