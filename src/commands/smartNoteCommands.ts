@@ -3,6 +3,7 @@
  * Commands for generating and improving notes from embedded multimedia content
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Editor, MarkdownView, Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { getLanguageNameForPrompt } from '../services/languages';
@@ -38,7 +39,7 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
     // Command: Enhance note (action menu)
     plugin.addCommand({
         id: 'enhance-note',
-        name: plugin.t.commands.improveNote,
+        name: actionName(plugin.t, 'enhance-note'),
         icon: 'sparkles',
         callback: () => openEnhanceModal(plugin)
     });
@@ -54,7 +55,7 @@ export function registerSmartNoteCommands(plugin: AIOrganiserPlugin): void {
 export function registerMermaidChatCommand(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'edit-mermaid-diagram',
-        name: plugin.t.commands.editMermaidDiagram,
+        name: actionName(plugin.t, 'edit-mermaid-diagram'),
         icon: 'git-branch',
         callback: () => executeEditMermaidDiagram(plugin)
     });

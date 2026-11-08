@@ -2,6 +2,7 @@
  * Project commands: adopt a note as a project (one reviewed edit) and open a project through the shared picker.
  * Registered only while a project consumer is enabled (see `projectServiceActive`), so with none enabled nothing is added.
  */
+import { actionName } from '../core/actionRegistry';
 import { Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
@@ -16,7 +17,7 @@ export function registerProjectCommands(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
     plugin.addCommand({
         id: 'adopt-project',
-        name: t.commands.adoptProject,
+        name: actionName(t, 'adopt-project'),
         icon: 'folder-kanban',
         callback: () => {
             const service = getProjectService(plugin);
@@ -38,7 +39,7 @@ export function registerProjectCommands(plugin: AIOrganiserPlugin): void {
     });
     plugin.addCommand({
         id: 'open-project',
-        name: t.commands.openProject,
+        name: actionName(t, 'open-project'),
         icon: 'folder-open',
         callback: () => {
             const service = getProjectService(plugin);

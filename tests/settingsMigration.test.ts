@@ -330,22 +330,35 @@ describe('migrateOldSettings', () => {
             expect('pickerEssentialsCommandIds' in result).toBe(false);
         });
 
-        it('remaps expanded category ids (essentials→pinned, manage→maintain) preserving order', () => {
+        it('remaps expanded category ids (essentials→pinned, every stage and manage→all) preserving order', () => {
             const old = { pickerExpandedCategoryIds: ['essentials', 'create', 'manage'] } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.pickerExpandedCategoryIds).toEqual(['pinned', 'create', 'maintain']);
+            expect(result.pickerExpandedCategoryIds).toEqual(['pinned', 'all']);
+        });
+
+        it('is idempotent on the new section ids', () => {
+            const old = { pickerExpandedCategoryIds: ['pinned', 'all', 'setup'] } as any;
+            const once = migrateOldSettings(old)!;
+            expect(migrateOldSettings({ ...once } as any)!.pickerExpandedCategoryIds).toEqual(['pinned', 'all', 'setup']);
         });
 
         it('de-duplicates when a remap collapses two ids onto one', () => {
-            const old = { pickerExpandedCategoryIds: ['essentials', 'pinned', 'find'] } as any;
+            const old = { pickerExpandedCategoryIds: ['essentials', 'pinned', 'find', 'refine'] } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.pickerExpandedCategoryIds).toEqual(['pinned', 'find']);
+            expect(result.pickerExpandedCategoryIds).toEqual(['pinned', 'all']);
         });
 
         it('leaves unrecognised expanded ids untouched (harmless — expand nothing)', () => {
-            const old = { pickerExpandedCategoryIds: ['find', 'totally-unknown'] } as any;
+            const old = { pickerExpandedCategoryIds: ['all', 'totally-unknown'] } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.pickerExpandedCategoryIds).toEqual(['find', 'totally-unknown']);
+            expect(result.pickerExpandedCategoryIds).toEqual(['all', 'totally-unknown']);
+        });
+
+        it('keeps a valid pending resume and drops one this version cannot read', () => {
+            const good = { v: 1, kind: 'action', commandId: 'sweep-inbox', createdAt: 1 };
+            expect(migrateOldSettings({ pendingResume: good } as any)!.pendingResume).toEqual(good);
+            expect('pendingResume' in migrateOldSettings({ pendingResume: { v: 2, kind: 'action', commandId: 'x', createdAt: 1 } } as any)!).toBe(false);
+            expect('pendingResume' in migrateOldSettings({ pendingResume: { v: 1, kind: 'action', commandId: 'x', createdAt: 1, target: { kind: 'selection', path: 'a.md' } } } as any)!).toBe(false);
         });
 
         it('is a no-op when neither picker key is present', () => {

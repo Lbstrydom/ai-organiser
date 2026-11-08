@@ -1,11 +1,15 @@
 /**
- * Tests for Command Picker Modal — unified workflow-stage taxonomy.
+ * Tests for the Command Picker layout.
  *
- * Plan: docs/plans/unified-feature-taxonomy.md (audit-converged — GPT ×3 + Gemini APPROVE).
- * Categories = Pinned + the 5 workflow stages (capture/create/refine/find/maintain).
+ * Plan: docs/plans/navigation-discoverability.md (decision 4). Top level = Pinned, All actions,
+ * Setup and tools (For this context and Jobs arrive in later phases). Stages are the All actions
+ * filter and each row's chip, not top-level categories.
  */
 
-import { buildCommandCategories, type PickerCommand } from '../src/ui/modals/CommandPickerModal';
+import { buildCommandCategories, AVAILABLE_GROUP_ID, type PickerCommand } from '../src/ui/modals/CommandPickerModal';
+import { ACTIONS } from '../src/core/actionRegistry';
+import { WORKFLOW_STAGES } from '../src/core/workflowStages';
+import type { FeatureId } from '../src/core/features';
 import { en } from '../src/i18n/en';
 
 function countLeafCommands(commands: PickerCommand[]): number {
@@ -26,28 +30,95 @@ function collectLeafCommands(commands: PickerCommand[]): PickerCommand[] {
     });
 }
 
-describe('Command Picker — unified workflow-stage taxonomy', () => {
+describe('Command Picker — five-section layout', () => {
     const mockTranslations = en;
     const mockExecuteCommand = vi.fn();
 
     describe('buildCommandCategories — top-level structure', () => {
-        it('returns Pinned + the 5 workflow-stage categories in order', () => {
+        it('returns Pinned, All actions and Setup and tools, in order', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            expect(categories.map(c => c.id)).toEqual([
-                'pinned', 'capture', 'create', 'refine', 'find', 'maintain',
-            ]);
+            expect(categories.map(c => c.id)).toEqual(['pinned', 'all', 'setup']);
         });
 
-        it('category names resolve through i18n (stages share t.workflowStages.*)', () => {
+        it('section names resolve through i18n', () => {
             const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
             expect(categories.map(c => c.name)).toEqual([
                 en.modals.commandPicker.categoryPinned,
-                en.workflowStages.capture,
-                en.workflowStages.create,
-                en.workflowStages.refine,
-                en.workflowStages.find,
-                en.workflowStages.maintain,
+                en.modals.commandPicker.categoryAll,
+                en.modals.commandPicker.categorySetup,
             ]);
+        });
+
+        it('has no nested groups when every feature is on: any action is two clicks away', () => {
+            const categories = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            for (const cat of categories) for (const c of cat.commands) expect(c.subCommands, c.id).toBeUndefined();
+        });
+    });
+
+    describe('All actions and Setup and tools', () => {
+        const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+        const all = cats.find(c => c.id === 'all')!;
+        const setup = cats.find(c => c.id === 'setup')!;
+
+        it('All actions holds every daily action, Setup and tools every setup and tool action', () => {
+            expect(all.commands.map(c => c.id).sort()).toEqual(ACTIONS.filter(a => a.kind === 'daily').map(a => a.id).sort());
+            expect(setup.commands.map(c => c.id).sort()).toEqual(ACTIONS.filter(a => a.kind !== 'daily').map(a => a.id).sort());
+        });
+
+        it('All actions is ordered by stage, then registry order', () => {
+            const order = all.commands.map(c => WORKFLOW_STAGES.indexOf(c.stage!));
+            expect([...order].sort((a, b) => a - b)).toEqual(order);
+        });
+
+        it('the lost moments are each one click inside a section', () => {
+            const ids = (c: { commands: PickerCommand[] }) => c.commands.map(x => x.id);
+            expect(ids(all)).toContain('sweep-inbox');
+            expect(ids(all)).toContain('edit-ai-workspace');
+            expect(ids(setup)).toContain('open-ai-workspaces-settings');
+            expect(ids(setup)).toContain('open-process');
+            expect(ids(setup)).toContain('setup-inbox-sweep');
+        });
+
+        it('a stage name finds its actions (it is a search word on every row)', () => {
+            const sweep = all.commands.find(c => c.id === 'sweep-inbox')!;
+            expect(sweep.aliases).toContain(en.workflowStages.refine);
+        });
+    });
+
+    describe('Available to turn on', () => {
+        const off = (...features: FeatureId[]) => (f: FeatureId) => !features.includes(f);
+
+        it('lists the actions of off features in one group at the end of All actions', () => {
+            const onActivate = vi.fn();
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand, [], { isEnabled: off('inbox-sweep'), onActivate });
+            const all = cats.find(c => c.id === 'all')!;
+            const group = all.commands[all.commands.length - 1];
+            expect(group.id).toBe(AVAILABLE_GROUP_ID);
+            expect(group.subCommands!.map(c => c.id).sort()).toEqual(['setup-inbox-sweep', 'sweep-inbox']);
+            expect(group.name).toBe(`${en.modals.commandPicker.availableTitle} (2)`);
+            expect(all.commands.map(c => c.id)).not.toContain('sweep-inbox');
+            expect(cats.find(c => c.id === 'setup')!.commands.map(c => c.id)).not.toContain('setup-inbox-sweep');
+        });
+
+        it('choosing an off action opens activation and never runs the command', () => {
+            const onActivate = vi.fn();
+            const exec = vi.fn();
+            const cats = buildCommandCategories(mockTranslations, exec, [], { isEnabled: off('inbox-sweep'), onActivate });
+            const sweep = cats.find(c => c.id === 'all')!.commands.find(c => c.id === AVAILABLE_GROUP_ID)!.subCommands!.find(c => c.id === 'sweep-inbox')!;
+            expect(sweep.featureOff).toBe(true);
+            void sweep.callback();
+            expect(onActivate).toHaveBeenCalledWith('sweep-inbox');
+            expect(exec).not.toHaveBeenCalled();
+        });
+
+        it('with every feature on there is no Available group', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand, [], { isEnabled: () => true });
+            expect(cats.find(c => c.id === 'all')!.commands.map(c => c.id)).not.toContain(AVAILABLE_GROUP_ID);
+        });
+
+        it('a ready leaf is never marked off', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand, [], { isEnabled: off('inbox-sweep') });
+            for (const c of cats.find(x => x.id === 'all')!.commands) if (c.id !== AVAILABLE_GROUP_ID) expect(c.featureOff, c.id).toBeUndefined();
         });
     });
 
@@ -91,10 +162,10 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 mockTranslations, mockExecuteCommand, ['narrate-note'],
             );
             const pinned = cats.find(c => c.id === 'pinned')!;
-            const create = cats.find(c => c.id === 'create')!;
+            const all = cats.find(c => c.id === 'all')!;
             const pinnedNarrate = pinned.commands.find(c => c.id === 'narrate-note')!;
-            const createNarrate = create.commands.find(c => c.id === 'narrate-note')!;
-            expect(pinnedNarrate).toBe(createNarrate);
+            const allNarrate = all.commands.find(c => c.id === 'narrate-note')!;
+            expect(pinnedNarrate).toBe(allNarrate);
         });
 
         it('silently skips unknown IDs', () => {
@@ -106,7 +177,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
             expect(pinned.commands.map(c => c.id)).toEqual(['narrate-note', 'smart-tag']);
         });
 
-        it('finds leaves nested in sub-groups (e.g. Create → Write → smart-summarize)', () => {
+        it('finds any action by id (e.g. smart-summarize)', () => {
             const cats = buildCommandCategories(
                 mockTranslations, mockExecuteCommand, ['smart-summarize'],
             );
@@ -115,119 +186,20 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
         });
     });
 
-    describe('Capture — pulls new content in (9 rows: 8 leaves + the Newsletters group)', () => {
-        it('contains research / cloud-inventory x3 / web-reader / kindle / the Newsletters group / record / onedrive-link', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const capture = cats.find(c => c.id === 'capture')!;
-            expect(capture.commands.map(c => c.id)).toEqual([
-                'research-web', 'refresh-cloud-inventories', 'check-cloud-inventories', 'setup-cloud-inventory', 'web-reader', 'kindle-sync', 'capture-newsletter', 'record-audio', 'insert-onedrive-link',
-            ]);
-        });
-
-        it('the Newsletters group holds fetch, audio and both mark commands, all Capture leaves of the newsletter feature', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const group = cats.find(c => c.id === 'capture')!.commands.find(c => c.id === 'capture-newsletter')!;
-            expect(group.subCommands!.map(c => c.id)).toEqual(['newsletter-fetch', 'newsletter-audio', 'newsletter-mark-caught-up', 'newsletter-mark-brief-read', 'newsletter-mark-catchup-listened']);
-            for (const leaf of group.subCommands!) {
-                expect(leaf.feature).toBe('newsletter');
-                expect(leaf.stage).toBe('capture');
-            }
-        });
-    });
-
-    describe('Create — Write + Visualise sub-groups + 4 direct leaves', () => {
-        it('first-expansion: 2 sub-groups + AI workspaces + narrate / play / flashcards / tags', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const create = cats.find(c => c.id === 'create')!;
-            expect(create.commands.map(c => c.id)).toEqual([
-                'create-write', 'create-visualise',
-                'edit-ai-workspace', 'copy-ai-instructions', 'create-ai-context-pack', 'review-ai-handback',
-                'narrate-note', 'play-narration', 'export-flashcards', 'smart-tag',
-            ]);
-        });
-        it('Write sub-group contains the 6 written-output commands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const write = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'create-write')!;
-            expect(write.subCommands?.map(c => c.id)).toEqual([
-                'smart-summarize', 'create-meeting-minutes', 'transcribe-audio',
-                'smart-translate', 'export-note', 'export-minutes-docx',
-            ]);
-        });
-        it('Minutes leaf still carries the transcribe aliases (Plan F3 preserved)', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const write = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'create-write')!;
-            const minutes = write.subCommands?.find(c => c.id === 'create-meeting-minutes')!;
-            expect(minutes.aliases).toEqual(expect.arrayContaining([
-                'minutes', 'meeting', 'transcript', 'transcribe', 'audio', 'speech-to-text',
-            ]));
-        });
-        it('Visualise sub-group contains the 7 visual-output commands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const visualise = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'create-visualise')!;
-            expect(visualise.subCommands?.map(c => c.id)).toEqual([
-                'presentation-chat', 'build-presentation-from-storyline', 'edit-mermaid-diagram', 'new-sketch',
-                'build-investigation-canvas', 'build-context-canvas', 'build-cluster-canvas',
-            ]);
-        });
-    });
-
-    describe('Refine — improve, Pending sub-group, digitise, clear-tags', () => {
-        it('first-expansion has 15 rows (Open Process first, the capture inbox next to the sweep)', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const refine = cats.find(c => c.id === 'refine')!;
-            expect(refine.commands.map(c => c.id)).toEqual([
-                'open-process', 'sweep-inbox', 'setup-inbox-sweep', 'process-capture-inbox', 'review-captures', 'setup-capture-inbox', 'send-tasks-to-google', 'make-google-task', 'setup-google-tasks', 'adopt-project', 'enhance-note', 'refine-pending', 'digitise-image', 'clear-tags', 'refresh-onedrive-embed',
-            ]);
-        });
-        it('Process pending sub-group contains the 3 pending commands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const pending = cats.find(c => c.id === 'refine')!.commands.find(c => c.id === 'refine-pending')!;
-            expect(pending.subCommands?.map(c => c.id)).toEqual([
-                'integrate-pending-content', 'add-to-pending-integration', 'resolve-pending-embeds',
-            ]);
-        });
-    });
-
-    describe('Find — search verbs over existing vault content (flat)', () => {
-        it('contains chat + search (cross-listed) + related + quick-peek + agent-index x4 + connectors', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const find = cats.find(c => c.id === 'find')!;
-            expect(find.commands.map(c => c.id)).toEqual([
-                'chat-with-ai', 'semantic-search', 'find-related', 'insert-related-notes', 'quick-peek', 'open-project',
-                'copy-claude-permissions', 'write-agent-instructions', 'build-agent-index', 'check-agent-index', 'copy-agent-instructions', 'open-agent-connectors', 'export-vault-map', 'setup-agent-index',
-            ]);
-        });
-    });
-
-    describe('Maintain — hygiene + admin (local tools)', () => {
-        it('contains tag-network, collect-tags, find-embeds, Bases sub-group, notebooklm', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const maintain = cats.find(c => c.id === 'maintain')!;
-            expect(maintain.commands.map(c => c.id)).toEqual([
-                'show-tag-network', 'collect-all-tags', 'resume-offload', 'run-vault-upkeep', 'open-upkeep-review', 'setup-vault-upkeep', 'find-embeds', 'maintain-bases', 'notebooklm-export',
-            ]);
-        });
-        it('Bases sub-group contains migration + dashboard commands', () => {
-            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const bases = cats.find(c => c.id === 'maintain')!.commands.find(c => c.id === 'maintain-bases')!;
-            expect(bases.subCommands?.map(c => c.id)).toEqual([
-                'upgrade-metadata', 'upgrade-folder-metadata', 'create-bases-dashboard',
-            ]);
-        });
-    });
-
     describe('Cross-listing identity', () => {
-        it('cross-listed commands share object identity across Pinned and Find', () => {
+        it('default Pinned leaves are the same objects as their All actions rows', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const pinned = cats.find(c => c.id === 'pinned')!;
-            const find = cats.find(c => c.id === 'find')!;
-            const pinnedChat = pinned.commands.find(c => c.id === 'chat-with-ai')!;
-            const findChat = find.commands.find(c => c.id === 'chat-with-ai')!;
-            expect(pinnedChat).toBe(findChat);
+            const all = cats.find(c => c.id === 'all')!;
+            for (const id of ['chat-with-ai', 'quick-peek', 'semantic-search']) {
+                expect(pinned.commands.find(c => c.id === id), id).toBe(all.commands.find(c => c.id === id));
+            }
+        });
 
-            const pinnedPeek = pinned.commands.find(c => c.id === 'quick-peek')!;
-            const findPeek = find.commands.find(c => c.id === 'quick-peek')!;
-            expect(pinnedPeek).toBe(findPeek);
+        it('the Minutes leaf still carries the transcribe aliases (Plan F3 preserved)', () => {
+            const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
+            const minutes = cats.find(c => c.id === 'all')!.commands.find(c => c.id === 'create-meeting-minutes')!;
+            expect(minutes.aliases?.some(a => /transcri/i.test(a))).toBe(true);
         });
     });
 
@@ -248,7 +220,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
         });
         it('notebooklm-export requires "vault"', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const nbExport = cats.find(c => c.id === 'maintain')!.commands.find(c => c.id === 'notebooklm-export')!;
+            const nbExport = cats.find(c => c.id === 'all')!.commands.find(c => c.id === 'notebooklm-export')!;
             expect(nbExport.requires).toBe('vault');
         });
     });
@@ -256,32 +228,32 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
     describe('legacyHomes — backward-compat alias derivation', () => {
         it('moved commands declare legacyHomes (preserves search vocabulary)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const narrate = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'narrate-note')!;
+            const narrate = cats.find(c => c.id === 'all')!.commands.find(c => c.id === 'narrate-note')!;
             expect(narrate.legacyHomes).toContain('active-note-export');
             expect(narrate.aliases).toContain('export');
             expect(narrate.aliases).toContain('active note');
         });
         it('play-narration keeps its active-note-export legacy home', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
-            const play = cats.find(c => c.id === 'create')!.commands.find(c => c.id === 'play-narration')!;
+            const play = cats.find(c => c.id === 'all')!.commands.find(c => c.id === 'play-narration')!;
             expect(play.legacyHomes).toContain('active-note-export');
             expect(play.aliases).toContain('export');
         });
     });
 
     describe('counts', () => {
-        it('total picker rows = 79 (76 unique + 3 cross-listings)', () => {
+        it('total picker rows = 91 (88 unique + 3 Pinned cross-listings)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leafCount = cats.reduce((sum, cat) => sum + countLeafCommands(cat.commands), 0);
-            expect(leafCount).toBe(79);
+            expect(leafCount).toBe(91);
         });
-        it('unique command IDs = 76', () => {
+        it('unique command IDs = 88', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             const uniqueIds = new Set(leaves.map(l => l.id));
-            expect(uniqueIds.size).toBe(76);
+            expect(uniqueIds.size).toBe(88);
         });
-        it('alphabetised ai-organiser:* callbacks (76 unique)', () => {
+        it('alphabetised ai-organiser:* callbacks (88 unique)', () => {
             const cats = buildCommandCategories(mockTranslations, mockExecuteCommand);
             const leaves = cats.flatMap(c => collectLeafCommands(c.commands));
             mockExecuteCommand.mockClear();
@@ -308,13 +280,16 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:copy-agent-instructions',
                 'ai-organiser:copy-ai-instructions',
                 'ai-organiser:copy-claude-permissions',
+                'ai-organiser:copy-combined-google-script',
                 'ai-organiser:create-ai-context-pack',
                 'ai-organiser:create-bases-dashboard',
                 'ai-organiser:create-meeting-minutes',
                 'ai-organiser:digitise-image',
+                'ai-organiser:drop-selection-pending',
                 'ai-organiser:edit-ai-workspace',
                 'ai-organiser:edit-mermaid-diagram',
                 'ai-organiser:enhance-note',
+                'ai-organiser:ensure-note-structure',
                 'ai-organiser:export-flashcards',
                 'ai-organiser:export-minutes-docx',
                 'ai-organiser:export-note',
@@ -326,6 +301,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:integrate-pending-content',
                 'ai-organiser:kindle-sync',
                 'ai-organiser:make-google-task',
+                'ai-organiser:manage-index',
                 'ai-organiser:narrate-note',
                 'ai-organiser:new-sketch',
                 'ai-organiser:newsletter-audio',
@@ -333,18 +309,26 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:newsletter-mark-brief-read',
                 'ai-organiser:newsletter-mark-catchup-listened',
                 'ai-organiser:newsletter-mark-caught-up',
+                'ai-organiser:newsletter-regenerate-audio',
+                'ai-organiser:notebooklm-clear-selection',
                 'ai-organiser:notebooklm-export',
+                'ai-organiser:notebooklm-open-export-folder',
+                'ai-organiser:notebooklm-toggle-selection',
                 'ai-organiser:open-agent-connectors',
+                'ai-organiser:open-ai-workspaces-settings',
                 'ai-organiser:open-process',
                 'ai-organiser:open-project',
                 'ai-organiser:open-upkeep-review',
                 'ai-organiser:play-narration',
                 'ai-organiser:presentation-chat',
                 'ai-organiser:process-capture-inbox',
+                'ai-organiser:quick-add-text-pending',
+                'ai-organiser:quick-add-url-pending',
                 'ai-organiser:quick-peek',
                 'ai-organiser:record-audio',
                 'ai-organiser:refresh-cloud-inventories',
                 'ai-organiser:refresh-onedrive-embed',
+                'ai-organiser:refresh-task-status',
                 'ai-organiser:research-web',
                 'ai-organiser:resolve-pending-embeds',
                 'ai-organiser:resume-offload',
@@ -370,7 +354,7 @@ describe('Command Picker — unified workflow-stage taxonomy', () => {
                 'ai-organiser:web-reader',
                 'ai-organiser:write-agent-instructions',
             ]);
-            expect(unique.size).toBe(76);
+            expect(unique.size).toBe(88);
         });
     });
 });

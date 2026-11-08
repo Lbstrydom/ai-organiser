@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 import { MarkdownView, Menu, Notice, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
@@ -26,7 +27,7 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
     // Command: Tag (scope modal)
     plugin.addCommand({
         id: 'smart-tag',
-        name: plugin.t.commands.tag || plugin.t.commands.generateTagsForCurrentNote,
+        name: actionName(plugin.t, 'smart-tag'),
         icon: 'tag',
         callback: () => {
             new TagScopeModal(plugin.app, plugin, (scope: TagScope) => { (async () => {

@@ -4,6 +4,7 @@
  * Registers the newsletter-fetch command for fetching and triaging newsletters.
  */
 
+import { actionName } from '../core/actionRegistry';
 import { Notice } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import type { CaughtUpOutcome } from '../services/newsletter/newsletterMemoryTypes';
@@ -330,7 +331,7 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'newsletter-fetch',
-        name: t.commands.newsletterFetch,
+        name: actionName(t, 'newsletter-fetch'),
         icon: 'mail',
         callback: async () => {
             if (!isFeatureEnabled(plugin.settings, 'newsletter')) {
@@ -385,35 +386,35 @@ export function registerNewsletterCommands(plugin: AIOrganiserPlugin): void {
 
     plugin.addCommand({
         id: 'newsletter-mark-caught-up',
-        name: t.commands.newsletterMarkCaughtUp || 'Mark all newsletter stories as already known',
+        name: actionName(t, 'newsletter-mark-caught-up'),
         icon: 'check-check',
         callback: () => { void runMarkCaughtUp(plugin); },
     });
 
     plugin.addCommand({
         id: 'newsletter-mark-brief-read',
-        name: t.commands.newsletterMarkBriefRead || 'Mark newsletter brief as read',
+        name: actionName(t, 'newsletter-mark-brief-read'),
         icon: 'book-open-check',
         callback: () => { void runMarkBriefRead(plugin).catch((e) => logger.warn('Newsletter', 'Mark brief read failed', e)); },
     });
 
     plugin.addCommand({
         id: 'newsletter-audio',
-        name: t.commands.newsletterAudio || 'Newsletter audio',
+        name: actionName(t, 'newsletter-audio'),
         icon: 'headphones',
         callback: () => { void guarded(plugin, 'open the window', () => openCatchUpWindow(plugin)); },
     });
 
     plugin.addCommand({
         id: 'newsletter-mark-catchup-listened',
-        name: t.commands.newsletterMarkCatchUpListened || 'Mark this catch-up episode as listened',
+        name: actionName(t, 'newsletter-mark-catchup-listened'),
         icon: 'check-circle-2',
         callback: () => { void guarded(plugin, 'mark listened', () => runMarkCatchUpListened(plugin)); },
     });
 
     plugin.addCommand({
         id: 'newsletter-regenerate-audio',
-        name: t.commands.newsletterRegenerateAudio || 'Regenerate audio for today\'s brief',
+        name: actionName(t, 'newsletter-regenerate-audio'),
         icon: 'audio-lines',
         callback: () => { void runRegenerateAudio(plugin); },
     });

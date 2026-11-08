@@ -1,3 +1,4 @@
+import { actionName } from '../core/actionRegistry';
 /**
  * Audio narration commands.
  *
@@ -330,14 +331,14 @@ export function openAudioPlayer(plugin: AIOrganiserPlugin, file?: TFile): void {
 export function registerAudioNarrationCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: NARRATE_NOTE_CMD_ID,
-        name: plugin.t.commands.narrateNote,
+        name: actionName(plugin.t, NARRATE_NOTE_CMD_ID),
         icon: 'audio-lines',
         callback: () => { void handleNarrateActiveNote(plugin); },
     });
 
     plugin.addCommand({
         id: PLAY_NARRATION_CMD_ID,
-        name: plugin.t.commands.playNarration,
+        name: actionName(plugin.t, PLAY_NARRATION_CMD_ID),
         icon: 'play-circle',
         checkCallback: (checking: boolean) => {
             const active = plugin.app.workspace.getActiveFile();

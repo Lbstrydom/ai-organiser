@@ -1,4 +1,5 @@
 /** The Process command: opens the Process view in a tab. Registered only while a feature that feeds it is on. */
+import { actionName } from '../core/actionRegistry';
 import type AIOrganiserPlugin from '../main';
 import { PROCESS_VIEW_TYPE } from '../ui/views/ProcessView';
 import { logger } from '../utils/logger';
@@ -6,7 +7,7 @@ import { logger } from '../utils/logger';
 export function registerProcessCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'open-process',
-        name: plugin.t.commands.openProcess,
+        name: actionName(plugin.t, 'open-process'),
         icon: 'list-checks',
         callback: () => {
             const { workspace } = plugin.app;

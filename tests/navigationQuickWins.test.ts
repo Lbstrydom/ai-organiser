@@ -19,6 +19,8 @@ import { selectedMarkdownFiles, registerGenerateCommands } from '../src/commands
 
 const baseline: LeafRow[] = JSON.parse(readFileSync('tests/fixtures/navigation/picker-tree-2b29b6b.json', 'utf8'));
 const current = snapshotPickerTree(buildCommandCategories(en, () => {}));
+/** The tree as Phase 1 shipped it (captured on its branch); Phase 2's own oracle is in actionRegistry.test.ts. */
+const phase1: LeafRow[] = JSON.parse(readFileSync('tests/fixtures/navigation/picker-tree-phase1.json', 'utf8'));
 const key = (r: LeafRow): string => `${r.category}/${r.id}`;
 
 /** Every change Phase 1 makes to the tree, and nothing else. */
@@ -40,18 +42,18 @@ const REQUIRES_CHANGED: Record<string, string> = { 'play-narration': 'mp3-file' 
 describe('Phase 1 oracle: the picker tree is the 2b29b6b tree plus the declared delta', () => {
     it('adds exactly the declared leaves, with the declared owners', () => {
         const before = new Set(baseline.map(key));
-        const added = current.filter((r) => !before.has(key(r)));
+        const added = phase1.filter((r) => !before.has(key(r)));
         expect(added.map(key).sort()).toEqual(Object.keys(ADDED).sort());
         for (const row of added) expect(row).toMatchObject(ADDED[key(row)]);
     });
 
     it('removes nothing', () => {
-        const after = new Set(current.map(key));
+        const after = new Set(phase1.map(key));
         expect(baseline.filter((r) => !after.has(key(r))).map(key)).toEqual([]);
     });
 
     it('changes existing leaves only by the declared renames, requirement and platform flags', () => {
-        const now = new Map(current.map((r) => [key(r), r]));
+        const now = new Map(phase1.map((r) => [key(r), r]));
         for (const old of baseline) {
             const expected: LeafRow = {
                 ...old,
@@ -109,21 +111,22 @@ describe('new leaves follow their commands\' registration gates', () => {
 });
 
 describe('one label per action on Ctrl+P and the picker', () => {
-    // The command modules' own `name:` expressions, read from source: they must name the
-    // same i18n key the picker leaf uses, so the two surfaces cannot drift apart.
-    const SOURCES: Array<[string, string, string]> = [
-        ['src/commands/summarizeCommands.ts', 'smart-summarize', 'plugin.t.commands.summarize'],
-        ['src/commands/generateCommands.ts', 'smart-tag', 'plugin.t.commands.tag'],
-        ['src/commands/smartNoteCommands.ts', 'enhance-note', 'plugin.t.commands.improveNote'],
-        ['src/commands/semanticSearchCommands.ts', 'find-related', 'plugin.t.commands.showRelatedNotes'],
-        ['src/commands/quickPeekCommands.ts', 'quick-peek', 'plugin.t.commands.quickPeek'],
+    // Since Phase 2 every command takes its name from the action registry (actionName), and
+    // tests/actionRegistry.test.ts checks every registered name against it. Here: the five
+    // commands that used to disagree.
+    const SOURCES: Array<[string, string]> = [
+        ['src/commands/summarizeCommands.ts', 'smart-summarize'],
+        ['src/commands/generateCommands.ts', 'smart-tag'],
+        ['src/commands/smartNoteCommands.ts', 'enhance-note'],
+        ['src/commands/semanticSearchCommands.ts', 'find-related'],
+        ['src/commands/quickPeekCommands.ts', 'quick-peek'],
     ];
-    it.each(SOURCES)('%s names %s from %s', (file, id, expr) => {
+    it.each(SOURCES)('%s names %s through the registry', (file, id) => {
         const src = readFileSync(file, 'utf8');
         const at = src.indexOf(`id: '${id}'`);
         expect(at, `${id} registration`).toBeGreaterThan(-1);
         const nameLine = src.slice(at, at + 200).split('\n').find((l) => l.trim().startsWith('name:'))!;
-        expect(nameLine.trim().startsWith(`name: ${expr}`), nameLine).toBe(true);
+        expect(nameLine.trim(), nameLine).toBe(`name: actionName(plugin.t, '${id}'),`);
     });
 
     it('the picker shows the same strings', () => {

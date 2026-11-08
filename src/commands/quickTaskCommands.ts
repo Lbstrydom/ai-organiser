@@ -6,6 +6,7 @@
  *
  * Offered from the file menu, the editor menu and the command picker, only while Google Tasks export is on.
  */
+import { actionName } from '../core/actionRegistry';
 import { Menu, Notice, TFile, type Editor } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { describeError, formatGuidance } from '../core/friendlyErrors';
@@ -81,7 +82,7 @@ export function registerQuickTask(plugin: AIOrganiserPlugin): void {
     const t = plugin.t;
     plugin.addCommand({
         id: 'make-google-task',
-        name: t.commands.makeGoogleTask,
+        name: actionName(t, 'make-google-task'),
         icon: 'list-plus',
         checkCallback: (checking) => {
             const file = plugin.app.workspace.getActiveFile();

@@ -6,6 +6,7 @@
  * the multimodal pipeline when the provider supports vision.
  */
 
+import { actionName } from '../core/actionRegistry';
 import { MarkdownView, Notice, Platform, TFile } from 'obsidian';
 import type AIOrganiserPlugin from '../main';
 import { logger } from '../utils/logger';
@@ -36,7 +37,7 @@ import { CloudLLMService } from '../services/cloudService';
 export function registerFlashcardCommands(plugin: AIOrganiserPlugin): void {
     plugin.addCommand({
         id: 'export-flashcards',
-        name: plugin.t.commands.exportFlashcards || 'Export flashcards from current note',
+        name: actionName(plugin.t, 'export-flashcards'),
         icon: 'layers',
         callback: () => exportFlashcards(plugin)
     });
