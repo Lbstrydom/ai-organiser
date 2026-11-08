@@ -7,6 +7,8 @@ export interface FeatureDisableConfirmOptions {
     cancelText: string;
     onConfirm: () => void;
     onCancel: () => void;
+    /** The window that holds the switch. Settings can sit in its own window; the question must open there, not behind it. */
+    hostDocument?: Document;
 }
 
 /**
@@ -24,6 +26,8 @@ export class FeatureDisableConfirmModal extends Modal {
     }
 
     onOpen(): void {
+        const host = this.opts.hostDocument;
+        if (host && host !== this.containerEl.ownerDocument) host.body.appendChild(this.containerEl);
         const { contentEl } = this;
         contentEl.empty();
         contentEl.createEl('h3', { text: this.opts.title });

@@ -52,7 +52,8 @@ function world(): World {
         featureOn: () => true,
         collectNotes: async (aioId) => {
             w.hooks.beforeCollect?.();
-            const record = settings.aiWorkspaces[aioId];
+            // As the real reader does: a project never saved in the editor reads as an empty record.
+            const record = settings.aiWorkspaces[aioId] ?? emptyWorkspace(aioId);
             const project = notes.get('P/Pkm.md');
             if (!record || project === undefined) return err('project-not-found');
             const sources: PackNote[] = [];
@@ -107,6 +108,16 @@ describe('turning the live pack on', () => {
         expect(w.settings.aiWorkspaceLiveStatus[ID]).toMatchObject({ state: 'live' });
     });
 
+    it('turns on for a project whose workspace was never saved (no stored record)', async () => {
+        const w = world();
+        w.settings.aiWorkspaces = {};
+        const svc = new LivePackService(w.env);
+        const { res } = await turnOn(w, svc, ['P/Pkm.md']);
+        expect(res.ok && res.value.kind).toBe('written');
+        expect(fs.readFileSync(livePath(), 'utf8')).toContain('project words');
+        expect(w.settings.aiWorkspaces[ID]).toMatchObject({ anchorId: ID, contextSources: [], live: { approvedSources: ['P/Pkm.md'], generation: 1 } });
+    });
+
     it('a stale review is refused: a source edited, the policy changed, or another approval in between', async () => {
         for (const change of ['edit', 'policy', 'generation'] as const) {
             const w = world();
@@ -119,6 +130,16 @@ describe('turning the live pack on', () => {
             if (change === 'generation') await svc.confirm(review.value, preview.value);
             expect(await svc.confirm(review.value, preview.value)).toEqual({ ok: false, error: 'pack-preview-stale' });
         }
+    });
+
+    it('a project note that may not be shared says so, instead of "paused"', async () => {
+        const w = world();
+        w.shared.delete('P/Pkm.md');
+        const svc = new LivePackService(w.env);
+        const review = await svc.prepareReview(ID);
+        if (!review.ok) throw new Error(review.error);
+        const preview = await svc.previewSelection(review.value, ['P/Reading.md']);
+        expect(!preview.ok && preview.error).toBe('live-project-not-shared');
     });
 
     it('the preview reports the selected bytes, and the project note is required', async () => {

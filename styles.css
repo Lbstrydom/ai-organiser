@@ -1738,6 +1738,19 @@
     z-index: 1;
 }
 
+.ai-organiser-command-picker-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--size-4-2);
+}
+
+.ai-organiser-command-picker-heading {
+    font-weight: var(--font-semibold);
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+}
+
 .ai-organiser-command-picker-modal .prompt-input-container {
     margin-bottom: var(--size-4-2);
 }
