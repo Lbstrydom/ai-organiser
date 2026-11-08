@@ -2970,11 +2970,17 @@ export interface Translations {
             requiresChipSelection: string;
             requiresChipVault: string;
             requiresChipSemanticSearch: string;
+            requiresChipMp3: string;
+            requiresChipDesktop: string;
+            requiresChipUnknown: string;
             requiresReasonNote: string;
             requiresReasonSelection: string;
             requiresReasonVault: string;
             requiresReasonSemanticSearchDisabled: string;
             requiresReasonSemanticSearchUnindexed: string;
+            requiresReasonMp3: string;
+            requiresReasonDesktop: string;
+            requiresReasonUnknown: string;
             descriptions: {
                 mapsGroup: string;
                 buildInvestigationCanvas: string;
@@ -2991,6 +2997,11 @@ export interface Translations {
                 presentationChat: string;
                 buildFromStoryline: string;
                 quickPeek: string;
+                openProcess: string;
+                editAiWorkspace: string;
+                copyAiInstructions: string;
+                createContextPack: string;
+                reviewAiHandback: string;
                 pendingGroup: string;
                 ensureNoteStructure: string;
                 addToPending: string;
