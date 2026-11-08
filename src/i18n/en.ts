@@ -4769,6 +4769,7 @@ export const en: Translations = {
             tagNew: "new",
             notShared: "not shared: {reason}",
             selection: "{count} note[s] selected, {kb} KB",
+            leftOut: "Left out of the pack: {notes}.",
             updating: "Updating the preview",
             confirm: "Turn on and write to Drive",
             confirmAgain: "Save and write to Drive",

@@ -14,3 +14,17 @@ describe('external image labels', () => {
         expect(neutraliseByCache('![A [b]](pic.png)\n', 'a.md', [], policy).ok).toBe(false);
     });
 });
+
+describe('empty wikilinks are text, not links', () => {
+    it.each([
+        'Link to note with ![[]] with # inside',
+        'In the embed "[[]]" adding a | inside sets the size',
+        'Spaces only: [[ ]] and ![[  ]]',
+    ])('an empty cache does not block %s', (text) => {
+        const res = neutraliseByCache(text + '\n', 'a.md', [], policy);
+        expect(res.ok && res.value).toBe(text + '\n');
+    });
+    it.each(['See [[Missing note]] here', 'An embed ![[pic]] here', 'Half [[ open'])('still fails closed for an unreported link: %s', (text) => {
+        expect(neutraliseByCache(text + '\n', 'a.md', [], policy).ok).toBe(false);
+    });
+});

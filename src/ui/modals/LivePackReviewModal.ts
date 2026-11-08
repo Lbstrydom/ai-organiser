@@ -137,8 +137,13 @@ export class LivePackReviewModal extends Modal {
         const t = this.plugin.t.aiWorkspaces.live;
         const current = this.preview !== null && this.previewFor === this.revision;
         if (this.statusEl) {
-            this.statusEl.setText(current && this.preview
-                ? plural(t.selection, this.preview.ticked.length).replace('{kb}', String(Math.max(1, Math.round(this.preview.bytes / 1024))))
+            const p = current ? this.preview : null;
+            // A ticked note the build had to leave out is named with its reason, so a short pack is never a silent surprise.
+            const leftOut = p && p.skipped.length > 0
+                ? ` ${t.leftOut.replace('{notes}', p.skipped.map((s) => `${s.path} (${this.reasonText(s.reason)})`).join(', '))}`
+                : '';
+            this.statusEl.setText(p
+                ? plural(t.selection, p.ticked.length).replace('{kb}', String(Math.max(1, Math.round(p.bytes / 1024)))) + leftOut
                 : t.updating);
         }
         if (this.confirmButton) this.confirmButton.disabled = this.busy || !current;
