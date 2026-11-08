@@ -1386,6 +1386,7 @@ export interface Translations {
         openProject: string;
         editAiWorkspace: string;
         openAiWorkspacesSettings: string;
+        openWelcome: string;
         copyAiInstructions: string;
         createContextPack: string;
         reviewAiHandback: string;
@@ -2987,6 +2988,8 @@ export interface Translations {
             // Pinned favourites cross-cut; the 5 stage categories use `t.workflowStages.*`.
             categoryPinned: string;
             categoryAll: string;
+            categoryJobs: string;
+            contextFor: string;
             categorySetup: string;
             availableTitle: string;
             availableDesc: string;
@@ -3035,6 +3038,7 @@ export interface Translations {
                 openProcess: string;
                 editAiWorkspace: string;
                 openAiWorkspacesSettings: string;
+                openWelcome: string;
                 copyAiInstructions: string;
                 createContextPack: string;
                 reviewAiHandback: string;
@@ -4750,6 +4754,48 @@ export interface Translations {
         resetJournal: string;
         resetJournalConfirm: string;
         resetJournalDone: string;
+    };
+    settingsSearch: {
+        placeholder: string;
+        noMatch: string;
+    };
+    jobs: {
+        title: string;
+        'meeting-minutes': { title: string; desc: string };
+        'process-inbox': { title: string; desc: string };
+        inputHeading: string;
+        chooseAudio: string;
+        chosenAudio: string;
+        recordFirst: string;
+        recordFirstDesc: string;
+        noAudio: string;
+        checklistHeading: string;
+        optional: string;
+        rowReady: string;
+        rowOff: string;
+        rowSetup: string;
+        rowUnavailable: string;
+        turnOn: string;
+        setUp: string;
+        inboxFolders: string;
+        continue: string;
+        cancel: string;
+    };
+    welcome: {
+        title: string;
+        intro: string;
+        jobs: string;
+        jobsDesc: string;
+        setupAi: string;
+        setupAiDesc: string;
+        browse: string;
+        browseDesc: string;
+    };
+    pluginMenu: {
+        title: string;
+        mobileTitle: string;
+        more: string;
+        staleTarget: string;
     };
     activation: {
         title: string;

@@ -1,5 +1,6 @@
 import { actionName } from '../core/actionRegistry';
-import { MarkdownView, Menu, Notice, TFile } from 'obsidian';
+import { MarkdownView, Notice, TFile } from 'obsidian';
+import { addMenuProvider } from '../ui/pluginMenu';
 import type AIOrganiserPlugin from '../main';
 import { ensureNoteStructureIfEnabled } from '../utils/noteStructure';
 import { TagScopeModal, TagScope } from '../ui/modals/TagScopeModal';
@@ -16,6 +17,18 @@ function ensureStructureIfInBatch(plugin: AIOrganiserPlugin, batch: readonly TFi
     const path = activeView?.file?.path;
     if (!activeView?.editor || !path || !batch.some((f) => f.path === path)) return;
     ensureNoteStructureIfEnabled(activeView.editor, plugin.settings);
+}
+
+/** Confirm, then tag the selected notes. */
+async function tagSelected(plugin: AIOrganiserPlugin, markdownFiles: TFile[]): Promise<void> {
+    const confirmed = await plugin.showConfirmationDialog(
+        plugin.t.messages.generateTagsForSelectedConfirm.replace('{count}', String(markdownFiles.length))
+    );
+    if (!confirmed) {
+        new Notice(plugin.t.messages.operationCancelled);
+        return;
+    }
+    await plugin.analyzeAndTagFiles(markdownFiles);
 }
 
 /** The Markdown notes in a multi-selection (folders and other files are skipped). */
@@ -51,41 +64,23 @@ export function registerGenerateCommands(plugin: AIOrganiserPlugin) {
         }
     });
 
-    // Single file: Obsidian's file-menu passes (menu, file, source, leaf) — never a file list.
-    plugin.registerEvent(
-        plugin.app.workspace.on('file-menu', (menu: Menu, file) => {
-            if (!(file instanceof TFile) || file.extension !== 'md') return;
-            menu.addItem((item) => {
-                item
-                    .setTitle(plugin.t.commands.aiTagThisNote)
-                    .setIcon('tag')
-                    .onClick(() => plugin.analyzeAndTagFiles([file]));
-            });
-        })
-    );
-
-    // Several files selected: Obsidian fires files-menu with the selection.
-    plugin.registerEvent(
-        plugin.app.workspace.on('files-menu', (menu: Menu, files) => {
-            const markdownFiles = selectedMarkdownFiles(files);
-            if (markdownFiles.length === 0) return;
-            menu.addItem((item) => {
-                item
-                    .setTitle(plugin.t.commands.aiTagSelectedNotes.replace('{count}', String(markdownFiles.length)))
-                    .setIcon('tag')
-                    .onClick(async () => {
-                        const confirmed = await plugin.showConfirmationDialog(
-                            plugin.t.messages.generateTagsForSelectedConfirm.replace('{count}', String(markdownFiles.length))
-                        );
-                        if (!confirmed) {
-                            new Notice(plugin.t.messages.operationCancelled);
-                            return;
-                        }
-                        await plugin.analyzeAndTagFiles(markdownFiles);
-                    });
-            });
-        })
-    );
+    // Right-click: "Tag this note" for one note, "Tag selected (n)" for a multi-selection.
+    addMenuProvider(plugin, (target) => {
+        if (target.kind === 'file' && target.file.extension === 'md') {
+            const file = target.file;
+            return [{ id: 'smart-tag', title: plugin.t.commands.aiTagThisNote, icon: 'tag', priority: 'ranked', run: () => plugin.analyzeAndTagFiles([file]) }];
+        }
+        if (target.kind !== 'files') return [];
+        const markdownFiles = selectedMarkdownFiles(target.files);
+        if (markdownFiles.length === 0) return [];
+        return [{
+            id: 'smart-tag',
+            title: plugin.t.commands.aiTagSelectedNotes.replace('{count}', String(markdownFiles.length)),
+            icon: 'tag',
+            priority: 'cursor',
+            run: () => tagSelected(plugin, markdownFiles),
+        }];
+    });
 }
 
 async function tagCurrentNote(plugin: AIOrganiserPlugin): Promise<void> {

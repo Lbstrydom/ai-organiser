@@ -651,6 +651,8 @@ export interface AIOrganiserSettings {
     /** An action chosen from the picker whose feature was just turned on; offered once after
      *  the reload (src/services/featureActivation.ts). */
     pendingResume?: ResumeIntent;
+    /** The first-run welcome was shown (or this install predates it). */
+    welcomeSeen?: boolean;
 
     // === SECRET STORAGE ===
     // SecretStorage API integration (Obsidian 1.11+)

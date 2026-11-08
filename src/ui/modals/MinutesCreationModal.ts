@@ -208,9 +208,13 @@ export class MinutesCreationModal extends Modal {
     /** Container for the SpeakerReviewPanel — kept across renders for in-place re-render */
     private speakerReviewContainerEl: HTMLElement | null = null;
 
-    constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies) {
+    /** A recording attached by the Meeting recording to minutes job; kept for the window's life. */
+    private initialAudio: TFile | null = null;
+
+    constructor(app: App, plugin: AIOrganiserPlugin, deps?: MinutesModalDependencies, options?: { initialAudio?: TFile }) {
         super(app);
         this.plugin = plugin;
+        this.initialAudio = options?.initialAudio ?? null;
         // Support dependency injection for testing, with default implementations
         this.minutesService = deps?.minutesService ?? new MinutesService(plugin);
         this.dictionaryService = deps?.dictionaryService ?? new DictionaryService(app, getConfigFolderFullPath(plugin.settings));
@@ -339,6 +343,9 @@ export class MinutesCreationModal extends Modal {
         // / file-system deps that don't exist on mobile) so mobile users can
         // still surface + transcribe audio embeds in their notes (round 10).
         await this.detectEmbeddedAudioOnly();
+        // The job's recording joins the detected audio the window renders and transcribes from.
+        // Re-applied on every render (detection above rebuilds the list); idempotent.
+        if (this.initialAudio) this.injectVaultFileAsDetected(this.initialAudio);
 
         // Document + dictionary detection is desktop-only.
         if (!Platform.isMobile) {

@@ -87,8 +87,8 @@ describe('classification: every registered command is an action or declared hidd
     const registered = new Map<string, string>([...mobile, ...desktop].map((c) => [c.id, c.name]));
     for (const id of mainRegisteredIds()) registered.set(id, '(main.ts)');
 
-    it('main.ts registers exactly the picker command (observed from its source)', () => {
-        expect(mainRegisteredIds()).toEqual(['open-picker']);
+    it('main.ts registers exactly the picker and welcome commands (observed from its source)', () => {
+        expect(mainRegisteredIds()).toEqual(['open-picker', 'open-welcome']);
     });
 
     it('no command id is registered twice on one platform', () => {
@@ -176,7 +176,7 @@ describe('migration oracle: the Phase 1 actions plus the enumerated additions, u
         'newsletter-regenerate-audio', 'refresh-task-status', 'copy-combined-google-script',
         'ensure-note-structure', 'quick-add-text-pending', 'quick-add-url-pending', 'drop-selection-pending',
         'manage-index', 'notebooklm-toggle-selection', 'notebooklm-clear-selection', 'notebooklm-open-export-folder',
-        'open-ai-workspaces-settings', 'move-ai-status-marks',
+        'open-ai-workspaces-settings', 'open-welcome', 'move-ai-status-marks',
     ];
     const phase1Ids = new Set(phase1.filter((r) => r.category !== 'pinned').map((r) => r.id));
 

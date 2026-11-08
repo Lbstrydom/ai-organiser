@@ -92,7 +92,7 @@ export async function applyActivation(host: ActivationHost, plan: ActivationPlan
         return ok('saved');
     } catch {
         // Restore only if nothing replaced our write meanwhile (identity, not equality).
-        if (host.settings.featureFlags === written) {
+        if (host.settings.featureFlags === written && host.settings.pendingResume === intent) {
             host.settings.featureFlags = prevFlags;
             if (prevIntent) host.settings.pendingResume = prevIntent;
             else delete host.settings.pendingResume;

@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
+import { planSearch, type SearchableSection } from './settingsSearch';
 import { LLMSettingsSection } from './LLMSettingsSection';
 import { SpecialistProvidersSettingsSection } from './SpecialistProvidersSettingsSection';
 import { TaggingSettingsSection } from './TaggingSettingsSection';
@@ -51,6 +52,16 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     /** Sub-section id to scroll into view after the next display() — set
      *  by `revealSubSection()` and consumed once. */
     private pendingScrollToSubSection: string | null = null;
+
+    /** Settings search. The query survives a re-render; the open/closed choices of the user are
+     *  snapshotted on the first keystroke and restored when the query is cleared (an overlay,
+     *  never persisted). */
+    private searchQuery = '';
+    /** What is typed in the box right now (ahead of the debounce), so a redraw keeps it. */
+    private searchDraft: string | null = null;
+    private expandedBeforeSearch: Set<string> | null = null;
+    private searchTimer: number | null = null;
+    private noMatchEl: HTMLElement | null = null;
 
     /**
      * Test seam (FT-4 render-spy): records every section id passed to
@@ -117,6 +128,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
      * call before display(); the scroll happens after the DOM is built.
      */
     revealSubSection(parentId: string, subId: string): void {
+        // A deep link ends any search first, restoring the user's own open/closed state.
+        this.endSearch();
         this.expandedSections.add(parentId);
         this.expandedSections.add(subId);
         this.pendingScrollToSubSection = subId;
@@ -154,7 +167,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         description: string
     ): HTMLElement {
         const details = this.containerEl.createEl('details', {
-            cls: 'ai-organiser-settings-section'
+            cls: 'ai-organiser-settings-section',
+            attr: { 'data-section-id': id },
         });
         details.open = this.expandedSections.has(id);
         details.addEventListener('toggle', () => {
@@ -187,6 +201,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         const keepScrollTop = containerEl.scrollTop;
         containerEl.empty();
         containerEl.addClass('ai-organiser-settings');
+        this.renderSearchBox(containerEl);
 
         const t = this.plugin.t.settings;
         const d = t.sectionDescriptions;
@@ -435,6 +450,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // One-shot: cleared after consumption so a later display() doesn't
         // re-scroll. Uses scrollIntoView with {block: 'start'} so the
         // section header is visible at the top of the panel.
+        // A re-render during a search shows the same result.
+        if (this.searchQuery) this.applySearch();
         if (!this.pendingScrollToSubSection && keepScrollTop > 0) containerEl.scrollTop = keepScrollTop;
         if (this.pendingScrollToSubSection) {
             const id = this.pendingScrollToSubSection;
@@ -445,4 +462,87 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             }
         }
     }
+
+    // ── Settings search ─────────────────────────────────────────────────────────────
+
+    private renderSearchBox(containerEl: HTMLElement): void {
+        const t = this.plugin.t.settingsSearch;
+        const box = containerEl.createDiv({ cls: 'ai-organiser-settings-search' });
+        const input = box.createEl('input', {
+            type: 'search',
+            cls: 'ai-organiser-settings-search-input',
+            attr: { placeholder: t.placeholder, 'aria-label': t.placeholder },
+        });
+        input.value = this.searchDraft ?? this.searchQuery;
+        this.noMatchEl = box.createDiv({ cls: 'ai-organiser-settings-search-empty ai-organiser-hidden' });
+        input.addEventListener('input', () => {
+            this.searchDraft = input.value;
+            if (this.searchTimer !== null) window.clearTimeout(this.searchTimer);
+            this.searchTimer = window.setTimeout(() => {
+                this.searchTimer = null;
+                if (!input.isConnected) return; // the tab re-rendered: a newer box owns the query
+                this.setSearch(input.value);
+            }, 150);
+        });
+    }
+
+    /** Begin, change or end a search. */
+    private setSearch(query: string): void {
+        const q = query.trim();
+        if (!q) { this.endSearch(); return; }
+        if (!this.expandedBeforeSearch) this.expandedBeforeSearch = new Set(this.expandedSections);
+        this.searchQuery = q;
+        this.applySearch();
+    }
+
+    /** Read the current DOM, then show and open only what matches. */
+    private applySearch(): void {
+        const root = this.containerEl;
+        const top = Array.from(root.querySelectorAll<HTMLDetailsElement>(':scope > details.ai-organiser-settings-section'));
+        const textsOf = (el: Element): string[] => [
+            el.querySelector(':scope > summary')?.textContent ?? '',
+            ...Array.from(el.querySelectorAll('.setting-item-name, .setting-item-description')).map((n) => n.textContent ?? ''),
+        ];
+        const sections: SearchableSection[] = top.map((d) => ({
+            id: d.getAttribute('data-section-id') ?? '',
+            texts: textsOf(d),
+            children: Array.from(d.querySelectorAll<HTMLDetailsElement>('details.ai-organiser-settings-sub-section')).map((c) => ({
+                id: c.getAttribute('data-section-id') ?? '',
+                texts: textsOf(c),
+            })),
+        }));
+        const plan = planSearch(sections, this.searchQuery);
+        for (const d of top) {
+            const id = d.getAttribute('data-section-id') ?? '';
+            d.toggleClass('ai-organiser-settings-hidden', !plan.visible.has(id));
+            d.open = plan.open.has(id);
+            for (const c of Array.from(d.querySelectorAll<HTMLDetailsElement>('details.ai-organiser-settings-sub-section'))) {
+                c.open = plan.open.has(c.getAttribute('data-section-id') ?? '');
+            }
+        }
+        if (this.noMatchEl) {
+            this.noMatchEl.setText(plan.visible.size === 0 ? this.plugin.t.settingsSearch.noMatch.replace('{query}', this.searchQuery) : '');
+            this.noMatchEl.toggleClass('ai-organiser-hidden', plan.visible.size > 0);
+        }
+    }
+
+    /** End the search: restore exactly the open/closed state the user had before it. */
+    private endSearch(): void {
+        if (this.searchTimer !== null) { window.clearTimeout(this.searchTimer); this.searchTimer = null; }
+        this.searchDraft = null;
+        this.searchQuery = '';
+        const before = this.expandedBeforeSearch;
+        this.expandedBeforeSearch = null;
+        if (before) {
+            this.expandedSections.clear();
+            for (const id of before) this.expandedSections.add(id);
+        }
+        const root = this.containerEl;
+        for (const d of Array.from(root.querySelectorAll<HTMLDetailsElement>('details[data-section-id]'))) {
+            d.removeClass('ai-organiser-settings-hidden');
+            d.open = this.expandedSections.has(d.getAttribute('data-section-id') ?? '');
+        }
+        this.noMatchEl?.addClass('ai-organiser-hidden');
+    }
+
 }

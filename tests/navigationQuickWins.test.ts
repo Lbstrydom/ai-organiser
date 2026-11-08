@@ -16,6 +16,7 @@ import { en } from '../src/i18n/en';
 import type { FeatureId } from '../src/core/features';
 import { snapshotPickerTree, type LeafRow } from './helpers/pickerTreeSnapshot';
 import { selectedMarkdownFiles, registerGenerateCommands } from '../src/commands/generateCommands';
+import { filesTarget, menuProviders, type MenuTarget } from '../src/ui/pluginMenu';
 
 const baseline: LeafRow[] = JSON.parse(readFileSync('tests/fixtures/navigation/picker-tree-2b29b6b.json', 'utf8'));
 const current = snapshotPickerTree(buildCommandCategories(en, () => {}));
@@ -152,70 +153,51 @@ describe('Tag selected (files-menu)', () => {
         expect(picked.map((f) => f.path)).toEqual(['a.md', 'c.md']);
     });
 
-    /** A fake plugin that records the workspace handlers registerGenerateCommands installs. */
+    /** A fake plugin; registerGenerateCommands now contributes to the one menu section. */
     function harness(confirm: boolean) {
-        const handlers: Record<string, (...args: unknown[]) => unknown> = {};
         const tagged: TFile[][] = [];
         const plugin = {
             t: en,
             settings: {},
             addCommand: () => {},
             registerEvent: () => {},
-            app: { workspace: { on: (name: string, fn: (...args: unknown[]) => unknown) => { handlers[name] = fn; return {}; } } },
+            app: { workspace: { on: () => ({}) } },
             showConfirmationDialog: async () => confirm,
             analyzeAndTagFiles: async (files: TFile[]) => { tagged.push(files); },
         };
         registerGenerateCommands(plugin as never);
-        const menu = () => {
-            const items: Array<{ title: string; click: () => unknown }> = [];
-            return {
-                items,
-                addItem(cb: (item: unknown) => void) {
-                    const it = { title: '', click: (): unknown => undefined };
-                    const api = {
-                        setTitle(s: string) { it.title = s; return api; },
-                        setIcon() { return api; },
-                        onClick(fn: () => unknown) { it.click = fn; return api; },
-                    };
-                    cb(api);
-                    items.push(it);
-                    return this;
-                },
-            };
-        };
-        return { handlers, tagged, menu };
+        const contribute = (target: MenuTarget) => menuProviders(plugin).flatMap((p) => p(target));
+        return { tagged, contribute };
     }
 
     it('a multi-selection gets one item that tags exactly its Markdown notes', async () => {
         const h = harness(true);
-        const m = h.menu();
-        h.handlers['files-menu'](m, [file('a.md', 'md'), file('b.pdf', 'pdf'), file('c.md', 'md')]);
-        expect(m.items).toHaveLength(1);
-        expect(m.items[0].title).toBe(en.commands.aiTagSelectedNotes.replace('{count}', '2'));
-        await m.items[0].click();
+        const items = h.contribute({ kind: 'files', files: [file('a.md', 'md'), file('b.pdf', 'pdf'), file('c.md', 'md')] });
+        expect(items).toHaveLength(1);
+        expect(items[0].title).toBe(en.commands.aiTagSelectedNotes.replace('{count}', '2'));
+        items[0].run();
+        await new Promise((r) => setTimeout(r, 0));
         expect(h.tagged.map((batch) => batch.map((f) => f.path))).toEqual([['a.md', 'c.md']]);
     });
 
     it('cancelling the confirmation tags nothing', async () => {
         const h = harness(false);
-        const m = h.menu();
-        h.handlers['files-menu'](m, [file('a.md', 'md')]);
-        await m.items[0].click();
+        h.contribute({ kind: 'files', files: [file('a.md', 'md'), file('c.md', 'md')] })[0].run();
+        await new Promise((r) => setTimeout(r, 0));
         expect(h.tagged).toEqual([]);
     });
 
     it('a selection with no Markdown notes adds no item', () => {
-        const h = harness(true);
-        const m = h.menu();
-        h.handlers['files-menu'](m, [file('b.pdf', 'pdf')]);
-        expect(m.items).toHaveLength(0);
+        expect(harness(true).contribute({ kind: 'files', files: [file('b.pdf', 'pdf')] })).toHaveLength(0);
     });
 
-    it('a single note still gets Tag this note on file-menu', () => {
-        const h = harness(true);
-        const m = h.menu();
-        h.handlers['file-menu'](m, file('a.md', 'md'));
-        expect(m.items.map((i) => i.title)).toEqual([en.commands.aiTagThisNote]);
+    it('a single note still gets Tag this note', () => {
+        expect(harness(true).contribute({ kind: 'file', file: file('a.md', 'md') }).map((i) => i.title)).toEqual([en.commands.aiTagThisNote]);
+    });
+
+    it('the multi-selection target comes from files-menu, the event Obsidian fires for it', () => {
+        expect(filesTarget([file('a.md', 'md'), file('c.md', 'md')])?.kind).toBe('files');
+        expect(filesTarget([file('a.md', 'md')])).toBeNull();
     });
 });
 

@@ -55,6 +55,7 @@ const DECLARED_OVERRIDES: Record<string, string> = {
     'record-audio': 'capture',      // summarize (create) → pulls new audio in
     'refresh-onedrive-embed': 'refine', // onedrive-link (capture) → mutates an existing note's embeds
     'open-project': 'find',         // google-tasks-export (refine) → navigates to a project note, changes nothing
+    'open-welcome': 'find',         // provider (core) → the welcome window, a way into everything
 };
 
 describe('cross-surface taxonomy — shared vocabulary', () => {
