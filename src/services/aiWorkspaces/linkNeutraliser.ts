@@ -67,6 +67,16 @@ const MARKER = /\[\[|!\[|\]\(/g;
  * subject to the fail-closed check.
  */
 const EXTERNAL_TARGET = /^\s*<?(?:https?:\/\/|mailto:)/i;
+/**
+ * An empty wikilink (`[[]]`, `![[]]`) points at nothing, so Obsidian's cache does not report it. People write it as an example of the
+ * syntax; it is plain text, neither a link to replace nor one the cache missed. Narrow on purpose: only brackets with nothing but spaces
+ * between them qualify.
+ */
+const EMPTY_WIKILINK = /^!?\[\[\s*\]\]/;
+function isEmptyWikilink(line: string, at: number): boolean {
+    return EMPTY_WIKILINK.test(line.slice(at));
+}
+
 function isExternalMarker(line: string, at: number): boolean {
     const marker = line.slice(at, at + 2);
     if (marker === '](') return EXTERNAL_TARGET.test(line.slice(at + 2));
@@ -101,7 +111,7 @@ export function neutraliseByCache(text: string, from: string, occurrences: reado
         MARKER.lastIndex = 0;
         for (let m = MARKER.exec(lines[i]); m !== null; m = MARKER.exec(lines[i])) {
             const at = lineStart + m.index;
-            if (!sorted.some((o) => at >= o.start && at < o.end) && !isExternalMarker(lines[i], m.index)) return err('links-unverified');
+            if (!sorted.some((o) => at >= o.start && at < o.end) && !isExternalMarker(lines[i], m.index) && !isEmptyWikilink(lines[i], m.index)) return err('links-unverified');
         }
     }
     let out = text;
