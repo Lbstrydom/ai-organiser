@@ -1,4 +1,6 @@
-import { App, Modal, Notice, Setting } from 'obsidian';
+import { App, ButtonComponent, Modal, Notice, Setting } from 'obsidian';
+import { ConfirmationModal } from './ConfirmationModal';
+import { liveStatusText, openLiveReview, outcomeMessage } from './LivePackReviewModal';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
 import { MAX_CHATS, MAX_CONTEXT_SOURCES, validateChatUrl, type ChatApp, type WorkspaceRecord } from '../../services/aiWorkspaces/workspaceRecord';
@@ -76,10 +78,55 @@ export class AiWorkspaceModal extends Modal {
 
         new Setting(el).setName(t.releasedName).setDesc(t.releasedDesc).addToggle((tg) => tg.setValue(this.released).onChange((v) => { this.released = v; }));
 
+        this.drawLive(el);
+
         this.problem = el.createDiv({ cls: 'setting-item-description ai-organiser-capture-warning', attr: { role: 'status' } });
         new Setting(el)
             .addButton((b) => b.setButtonText(t.cancel).onClick(() => this.close()))
             .addButton((b) => b.setCta().setButtonText(t.save).onClick(() => { void this.save(); }));
+    }
+
+    /** The live pack: status, then the actions in order of need. Writes nothing itself; every action goes through the live pack service. */
+    private drawLive(el: HTMLElement): void {
+        const t = this.plugin.t.aiWorkspaces.live;
+        el.createEl('h4', { text: t.sectionTitle });
+        const live = getWorkspace(this.plugin, this.aioId).live;
+        const fileName = live?.fileName ?? t.sectionTitle;
+        el.createDiv({ text: t.sectionDesc.replace('{file}', fileName), cls: 'setting-item-description' });
+        const service = this.plugin.livePacks?.service;
+        if (!service) { el.createDiv({ text: t.mobileNote, cls: 'setting-item-description' }); return; }
+        el.createDiv({ text: liveStatusText(this.plugin, this.aioId), cls: 'setting-item-description ai-organiser-live-status', attr: { role: 'status' } });
+        const status = this.plugin.settings.aiWorkspaceLiveStatus[this.aioId];
+        const mine = live?.deviceId !== undefined && service.ownedProjects().includes(this.aioId);
+        const row = new Setting(el).then((r) => r.settingEl.addClass('ai-organiser-wrap-row'));
+        const run = (b: ButtonComponent, job: () => Promise<void>): void => {
+            b.setDisabled(true);
+            job().catch((e: unknown) => {
+                logger.error('AiWorkspaces', 'Live pack action failed', e);
+                new Notice(formatGuidance(describeError(this.plugin.t, 'unknown')), 9000);
+            }).finally(() => { if (this.contentEl.isConnected) this.draw(); });
+        };
+        if (!live) {
+            row.addButton((b) => b.setCta().setButtonText(t.turnOn).onClick(() => { void openLiveReview(this.plugin, this.aioId, null, () => this.draw()); }));
+            return;
+        }
+        if (mine) {
+            if (status?.state === 'needs-review' || (status?.held.length ?? 0) > 0) {
+                row.addButton((b) => b.setCta().setButtonText(t.reviewHeld).onClick(() => { void openLiveReview(this.plugin, this.aioId, null, () => this.draw()); }));
+            }
+            row.addButton((b) => b.setButtonText(t.refreshNow).onClick(() => run(b, async () => {
+                const res = await service.refresh(this.aioId, { force: true });
+                if (!res.ok) new Notice(formatGuidance(describeError(this.plugin.t, res.error)), 9000);
+                else new Notice(outcomeMessage(this.plugin, res.value), 6000);
+            })));
+        }
+        row.addButton((b) => b.setWarning().setButtonText(t.turnOff).onClick(() => {
+            new ConfirmationModal(this.app, t.turnOff, t.turnOffConfirm, () => run(b, async () => {
+                const res = await service.turnOff(this.aioId);
+                if (!res.ok) new Notice(formatGuidance(describeError(this.plugin.t, res.error)), 9000);
+                else new Notice(res.value === 'stubbed' ? t.turnedOffNotice : t.requestedNotice, 8000);
+            }), this.plugin).open();
+        }));
     }
 
     private async save(): Promise<void> {

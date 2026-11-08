@@ -124,6 +124,39 @@ const MANIFEST: Record<string, Entry> = {
 	'src/ui/modals/EmbedScanResultsModal.ts': { count: 1, cls: 'guarded', reason: 'trash goes through attachmentEligibility and assertWritable' },
 };
 
+/**
+ * Node `fs` writes, which the Obsidian-API scan above cannot see. Every file that obtains Node `fs` (desktopRequire('fs'), getFs(),
+ * the offload's NodeDeps, an fs import) is scanned for write method names, wherever they are called (fs, fs.promises, a file handle,
+ * a destructured alias), and for open() with a writing flag. Such writes never touch the vault's notes:
+ *   outside-vault  writes only to a place outside the vault (a folder the person chose, the OS temp folder, a save dialog's path).
+ *   not-executed   the matches are inside another program's source text that the file only carries as a string.
+ */
+type FsClass = 'outside-vault' | 'not-executed';
+const FS_MANIFEST: Record<string, { count: number; cls: FsClass; reason: string }> = {
+	'src/services/aiWorkspaces/liveFileWriter.ts': { count: 5, cls: 'outside-vault', reason: 'the live pack file in the person-chosen Drive for desktop folder, checked to lie outside the vault, written in place through one verified handle, only over its own marked file' },
+	'src/services/offload/localMount.ts': { count: 4, cls: 'outside-vault', reason: 'the offload copy into the Drive for desktop mount (checked not to overlap the vault), exclusive create, and removal of only its own partial copy' },
+	'src/services/audioCompressionService.ts': { count: 12, cls: 'outside-vault', reason: 'FFmpeg input and output files in the OS temp folder, removed after use' },
+	'src/commands/flashcardCommands.ts': { count: 2, cls: 'outside-vault', reason: 'flashcard CSV to the path the person chose in the save dialog, or the Downloads folder' },
+	'src/commands/minutesCommands.ts': { count: 1, cls: 'outside-vault', reason: 'Word export to the path the person chose in the save dialog' },
+	'src/services/agentConnectors/connectorServerSource.ts': { count: 4, cls: 'not-executed', reason: 'the connector server source carried as text and written out by the export; the plugin never runs these calls' },
+};
+
+const FS_SOURCE = /desktopRequire\s*(?:<[^>]*>)?\s*\(\s*['"](?:node:)?fs['"]|\bgetFs\(\)|\b(?:NodeDeps|LiveDeps)\b|import\(\s*['"](?:node:)?fs['"]\s*\)|from\s+['"](?:node:)?fs(?:\/promises)?['"]|require\(\s*['"](?:node:)?fs['"]\s*\)/;
+const NODE_FS_WRITE = /(?<![\w$])(?:writeFile|appendFile|truncate|ftruncate|rename|unlink|copyFile|createWriteStream|mkdir|rm|rmdir|write|sync|fsync)(?:Sync)?\(|(?<![\w$])open(?:Sync)?\([^)]*['"](?:[wa]x?\+?|as\+?|r\+|rs\+)['"]/g;
+
+/** Node fs write sites in a source string, or 0 when the file never obtains Node fs. Comment and import lines do not count. */
+function countFsWrites(text: string): number {
+	if (!FS_SOURCE.test(text)) return 0;
+	let n = 0;
+	for (const line of text.split(/\r?\n/)) {
+		if (isCommentOrImportLine(line)) continue;
+		n += (line.match(NODE_FS_WRITE) ?? []).length;
+	}
+	return n;
+}
+
+const isCommentOrImportLine = (line: string): boolean => /^\s*(\/\/|\*|\/\*|import\s)/.test(line);
+
 const WRITE_API = new RegExp(
 	[
 		String.raw`\b(?:vault|Vault)\.(?:modify|create|createBinary|modifyBinary|process|append|appendBinary|rename|delete|trash|createFolder|copy)\(`,
@@ -269,5 +302,48 @@ describe('protected folders: write-site classification', () => {
 		for (const [file, entry] of Object.entries(MANIFEST)) {
 			expect(entry.reason.length, file).toBeGreaterThan(10);
 		}
+	});
+});
+
+describe('Node fs write scanner (controls)', () => {
+	const withFs = (body: string) => `const fs = desktopRequire<typeof import('fs')>('fs');\n${body}`;
+	it('counts writes on fs, fs.promises, a handle and a destructured alias', () => {
+		expect(countFsWrites(withFs('await fs.promises.writeFile(p, s);'))).toBe(1);
+		expect(countFsWrites(withFs('await handle.truncate(0);\nawait handle.write(b, 0, 1, 0);'))).toBe(2);
+		expect(countFsWrites(withFs('const { writeFile } = fs.promises;\nawait writeFile(p, s);'))).toBe(1);
+		expect(countFsWrites(withFs("const h = await fs.promises.open(p, 'r+');"))).toBe(1);
+		expect(countFsWrites("import * as fs from 'node:fs';\nfs.unlinkSync(p);")).toBe(1);
+	});
+	it('counts every writing open flag and no reading one', () => {
+		for (const flag of ['w', 'wx', 'w+', 'wx+', 'a', 'ax', 'a+', 'ax+', 'as', 'as+', 'r+', 'rs+']) {
+			expect(countFsWrites(`import { open } from 'node:fs/promises';\nawait open(p, '${flag}');`), flag).toBe(1);
+		}
+		for (const flag of ['r', 'rs']) expect(countFsWrites(`import { open } from 'node:fs/promises';\nawait open(p, '${flag}');`), flag).toBe(0);
+	});
+	it('does not count reads, comments, or a file that never obtains fs', () => {
+		expect(countFsWrites(withFs("const h = await fs.promises.open(p, 'r');\nawait fs.promises.readFile(p);"))).toBe(0);
+		expect(countFsWrites(withFs('// await fs.promises.writeFile(p, s);'))).toBe(0);
+		expect(countFsWrites('stream.write(x); buffer.write(y);')).toBe(0);
+	});
+});
+
+describe('Node fs writes: outside-vault classification', () => {
+	const root = join(__dirname, '..');
+	const found = new Map<string, number>();
+	for (const file of walk(join(root, 'src'))) {
+		const n = countFsWrites(readFileSync(file, 'utf8'));
+		if (n > 0) found.set(relative(root, file).replaceAll('\\', '/'), n);
+	}
+
+	it('has no unclassified Node fs write site, and no stale or drifted entry', () => {
+		const missing = [...found.keys()].filter((f) => !(f in FS_MANIFEST));
+		expect(missing, `classify these files in FS_MANIFEST: ${missing.join(', ')}`).toEqual([]);
+		expect(Object.keys(FS_MANIFEST).filter((f) => !found.has(f))).toEqual([]);
+		const drift = Object.entries(FS_MANIFEST).filter(([f, e]) => found.get(f) !== e.count).map(([f, e]) => `${f}: manifest ${e.count}, source ${found.get(f)}`);
+		expect(drift).toEqual([]);
+	});
+
+	it('gives every entry a reason', () => {
+		for (const [file, entry] of Object.entries(FS_MANIFEST)) expect(entry.reason.length, file).toBeGreaterThan(10);
 	});
 });

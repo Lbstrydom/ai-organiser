@@ -16,6 +16,7 @@ import { HandbackReviewModal } from '../ui/modals/HandbackReviewModal';
 import { confirmInstructions, confirmPack, preparePack } from '../services/aiWorkspaces/workspaceService';
 import { AiWorkspaceModal } from '../ui/modals/AiWorkspaceModal';
 import { SharePreviewModal } from '../ui/modals/SharePreviewModal';
+import { openLiveReview, outcomeMessage } from '../ui/modals/LivePackReviewModal';
 import { ProjectPickerModal } from '../ui/components/ProjectPicker';
 import { logger } from '../utils/logger';
 
@@ -64,6 +65,21 @@ async function share(plugin: AIOrganiserPlugin, project: ProjectRef, mode: 'pack
     }).open();
 }
 
+/** Refresh now; a paused live pack opens its review instead (the person decides what may be shared). */
+async function refreshLive(plugin: AIOrganiserPlugin, project: ProjectRef): Promise<void> {
+    const service = plugin.livePacks?.service;
+    if (!service) { guidance(plugin, 'live-desktop-only'); return; }
+    try {
+        const res = await service.refresh(project.aioId, { force: true });
+        if (!res.ok) { guidance(plugin, res.error); return; }
+        if (res.value.kind === 'needs-review') { await openLiveReview(plugin, project.aioId); return; }
+        new Notice(outcomeMessage(plugin, res.value), 6000);
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Live pack refresh failed', e);
+        guidance(plugin, 'unknown');
+    }
+}
+
 /** Read a note as a hand-back and open its review. Used by the command and by the Process view. */
 export async function openHandbackReview(plugin: AIOrganiserPlugin, file: TFile): Promise<void> {
     const prepared = await prepareHandback(plugin, file);
@@ -105,6 +121,15 @@ export function registerAiWorkspaceCommands(plugin: AIOrganiserPlugin): void {
         icon: 'clipboard-copy',
         callback: () => chooseProject(plugin, (project) => { void share(plugin, project, 'copy'); }),
     });
+    // Desktop only: the live pack is written by a computer with Google Drive for desktop.
+    if (plugin.livePacks) {
+        plugin.addCommand({
+            id: 'refresh-ai-live-pack',
+            name: actionName(t, 'refresh-ai-live-pack'),
+            icon: 'refresh-cw',
+            callback: () => chooseProject(plugin, (project) => { void refreshLive(plugin, project); }),
+        });
+    }
     plugin.addCommand({
         id: 'create-ai-context-pack',
         name: actionName(t, 'create-ai-context-pack'),

@@ -10538,6 +10538,28 @@
     margin: 0 0 var(--size-4-2);
 }
 
+/* AI workspace live pack */
+.ai-organiser-live-status {
+    color: var(--text-muted);
+    margin: var(--size-4-1) 0;
+}
+
+.ai-organiser-live-review-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--size-4-1);
+    margin: var(--size-4-2) 0;
+    max-height: 50vh;
+    overflow-y: auto;
+}
+
+.ai-organiser-live-review-row label {
+    display: flex;
+    align-items: baseline;
+    gap: var(--size-4-1);
+    flex-wrap: wrap;
+}
+
 /* === Navigation: picker sections, stage chips, off features, activation === */
 .ai-organiser-picker-stage-chips {
     display: flex;
