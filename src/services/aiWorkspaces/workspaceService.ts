@@ -13,7 +13,7 @@ import { getProjectService, linkpathOf } from '../projects/projectService';
 import type { AnchorRef } from '../projects/projectIndex';
 import { logger } from '../../utils/logger';
 import { notShareableReason, sharePolicyRevision } from './aiShareScope';
-import { buildContextPack, packSha256, verifyPrepared, type PackNote, type PreparedPack } from './contextPack';
+import { buildContextPack, packSha256, verifyPrepared, type PackInput, type PackNote, type PreparedPack } from './contextPack';
 import { writePack } from './packStore';
 import type { LinkOccurrence } from './linkNeutraliser';
 import { applyWorkspaceBlock, renderWorkspaceBlock, stripWorkspaceBlock } from './workspaceBlock';
@@ -105,37 +105,73 @@ export interface PreparedWorkspacePack {
     pack: PreparedPack;
 }
 
+/** The notes a pack is made from, read now: the project note, its Area note and the context sources (missing ones listed). */
+export interface PackNotes {
+    record: WorkspaceRecord;
+    project: PackNote;
+    area: PackNote | null;
+    sources: PackNote[];
+    missing: string[];
+}
+
+/** One reader for every pack, live or not: what a pack is made from is decided here only. */
+export async function collectPackNotes(plugin: AIOrganiserPlugin, aioId: string): Promise<Result<PackNotes>> {
+    // The declared contract is a Result: a vault read that throws becomes an error, never a rejection.
+    try {
+        return await collectPackNotesUnsafe(plugin, aioId);
+    } catch (e) {
+        logger.error('AiWorkspaces', 'Could not read the notes of the pack', e);
+        return err('project-not-found');
+    }
+}
+
+async function collectPackNotesUnsafe(plugin: AIOrganiserPlugin, aioId: string): Promise<Result<PackNotes>> {
+    const service = getProjectService(plugin);
+    const anchor = service?.resolveAnchor(aioId);
+    if (!anchor?.ok) return err(anchor ? anchor.error : 'project-not-found');
+    const record = getWorkspace(plugin, aioId);
+    const project = await readNote(plugin, anchor.value.notePath);
+    if (!project) return err('project-not-found');
+    const areaPath = areaPathOf(plugin, anchor.value);
+    const area = areaPath ? await readNote(plugin, areaPath) : null;
+    const sources: PackNote[] = [];
+    const missing: string[] = [];
+    for (const path of record.contextSources) {
+        const note = await readNote(plugin, path);
+        if (note) sources.push(note); else missing.push(path);
+    }
+    return ok({ record, project, area, sources, missing });
+}
+
+/** The pack input for these notes under the current settings (callbacks read the live metadata cache). */
+export async function packInputFor(plugin: AIOrganiserPlugin, aioId: string, notes: PackNotes): Promise<PackInput> {
+    const s = plugin.settings;
+    return {
+        vaultId: plugin.app.vault.getName(),
+        aioId,
+        projectName: projectNameOf(notes.project.path),
+        project: notes.project,
+        ...(notes.area ? { area: notes.area } : {}),
+        sources: notes.sources,
+        reasonNotShareable: (path) => notShareableReason(path, s, s.aiWorkspacePackFolder),
+        resolveLink: (link, from) => plugin.app.metadataCache.getFirstLinkpathDest(link, from)?.path ?? null,
+        linksOf: (note) => linksFromCache(plugin, note.path),
+        sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder),
+        // With the live pack on, the instructions tell the AI app where the newest notes are.
+        ...(notes.record.live ? { livePackName: notes.record.live.fileName } : {}),
+    };
+}
+
+export const projectNameOf = (notePath: string): string => notePath.slice(notePath.lastIndexOf('/') + 1).replace(/\.md$/i, '');
+
 /** Everything a preview shows: built from the notes as they are right now. */
 export async function preparePack(plugin: AIOrganiserPlugin, aioId: string): Promise<Result<PreparedWorkspacePack>> {
     try {
         if (!aiWorkspacesActive(plugin)) return err('unknown');
-        const service = getProjectService(plugin);
-        const anchor = service?.resolveAnchor(aioId);
-        if (!anchor?.ok) return err(anchor ? anchor.error : 'project-not-found');
-        const s = plugin.settings;
-        const record = getWorkspace(plugin, aioId);
-        const project = await readNote(plugin, anchor.value.notePath);
-        if (!project) return err('project-not-found');
-        const areaPath = areaPathOf(plugin, anchor.value);
-        const area = areaPath ? await readNote(plugin, areaPath) : null;
-        const sources: PackNote[] = [];
-        const missing: string[] = [];
-        for (const path of record.contextSources) {
-            const note = await readNote(plugin, path);
-            if (note) sources.push(note); else missing.push(path);
-        }
-        const built = await buildContextPack({
-            vaultId: plugin.app.vault.getName(),
-            aioId,
-            projectName: project.path.slice(project.path.lastIndexOf('/') + 1).replace(/\.md$/i, ''),
-            project,
-            ...(area ? { area } : {}),
-            sources,
-            reasonNotShareable: (path) => notShareableReason(path, s, s.aiWorkspacePackFolder),
-            resolveLink: (link, from) => plugin.app.metadataCache.getFirstLinkpathDest(link, from)?.path ?? null,
-            linksOf: (note) => linksFromCache(plugin, note.path),
-            sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder),
-        });
+        const notes = await collectPackNotes(plugin, aioId);
+        if (!notes.ok) return err(notes.error);
+        const { missing } = notes.value;
+        const built = await buildContextPack(await packInputFor(plugin, aioId, notes.value));
         if (!built.ok) return err(built.error);
         const skipped = [...built.value.skipped, ...missing.map((path) => ({ path, reason: 'missing' as const }))];
         return ok({ aioId, pack: { ...built.value, skipped } });
