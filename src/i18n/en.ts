@@ -4966,7 +4966,8 @@ export const en: Translations = {
             "older-than-setup": "This note is older than the setup. Use Process now and tick the box to include existing notes.",
             "nothing-to-process": "There was nothing to read: no written words, audio or readable image.",
             "digitisation-off": "This image was not read because image reading is turned off. Turn on Smart digitisation in Features, then Try again.",
-            "attachment-missing": "An attachment this note refers to was not found. Add it, then Try again."
+            "attachment-missing": "An attachment this note refers to was not found. Add it, then Try again.",
+            handback: "This note is an AI hand-back. Open it and run Review AI hand-back instead."
         },
         skipRetry: "Try again",
         skipRetryNotice: "Looking at it again. If it can be processed it will appear in the queue; then choose Process now.",
