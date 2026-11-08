@@ -132,6 +132,16 @@ describe('turning the live pack on', () => {
         }
     });
 
+    it('a project note that may not be shared says so, instead of "paused"', async () => {
+        const w = world();
+        w.shared.delete('P/Pkm.md');
+        const svc = new LivePackService(w.env);
+        const review = await svc.prepareReview(ID);
+        if (!review.ok) throw new Error(review.error);
+        const preview = await svc.previewSelection(review.value, ['P/Reading.md']);
+        expect(!preview.ok && preview.error).toBe('live-project-not-shared');
+    });
+
     it('the preview reports the selected bytes, and the project note is required', async () => {
         const w = world();
         const svc = new LivePackService(w.env);

@@ -213,6 +213,7 @@ export const GUIDANCE_CODES = [
     'live-write-failed',
     'live-other-device',
     'live-needs-review',
+    'live-project-not-shared',
     'live-not-on',
     'live-folder-in-use',
     'live-revocation-unsaved',

@@ -238,6 +238,9 @@ export class LivePackService {
     /** The exact live output for a selection (the review calls this on every tick change). */
     async previewSelection(review: LiveReview, ticked: readonly string[]): Promise<Result<SelectionPreview>> {
         try {
+            // The project note anchors the pack: when it may not be shared there is nothing to review, and saying so beats 'paused'.
+            const project = review.snapshot.notes.find((n) => norm(n.path) === norm(review.snapshot.projectPath));
+            if (project && !project.shareable) return err('live-project-not-shared');
             if (!ticked.map(norm).includes(norm(review.snapshot.projectPath))) return err('live-needs-review');
             const c = await this.collectCandidates(review.aioId);
             if (!c.ok) return err(c.error);

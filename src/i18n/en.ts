@@ -4293,6 +4293,7 @@ export const en: Translations = {
         "live-file-not-ours": { message: "A file with the live pack name is already in that folder and was not written by this project.", nextStep: "Nothing was changed. Move or rename that file in Drive, then refresh the live pack." },
         "live-write-failed": { message: "The live pack file could not be written.", nextStep: "Check that Google Drive for desktop is running and the drive has free space, then choose Refresh live pack now." },
         "live-other-device": { message: "This live pack is written by another computer.", nextStep: "Refresh it or turn it on from that computer. You can turn it off here; that computer then replaces the file." },
+        "live-project-not-shared": { message: "This project's note is not in a folder you share with AI apps, so nothing can be written.", nextStep: "Add its folder under Settings > Integrations > AI workspaces > Folders shared with AI apps, then turn on again." },
         "live-needs-review": { message: "The live pack is paused because your sharing settings changed.", nextStep: "Open Edit AI workspace and review the notes to resume it." },
         "live-not-on": { message: "The live pack is not on for this project.", nextStep: "Open Edit AI workspace and turn it on first." },
         "live-folder-in-use": { message: "The live pack folder cannot change while a live pack uses it.", nextStep: "Turn off the live packs that write there first; each keeps writing to the folder it was turned on with." },
