@@ -4,7 +4,8 @@
  */
 
 import { App, TFile, TFolder } from 'obsidian';
-import { AIO_META, ContentType } from '../core/constants';
+import { AIO_META, ContentType, isAiProcessingMark } from '../core/constants';
+import { AIO_ROLE_KEY } from './projects/projectIndex';
 import { 
     updateAIOMetadata, 
     createSummaryHook, 
@@ -112,8 +113,13 @@ export class MigrationService {
                 }
             }
             
-            // Set status based on existing tags or processing
-            metadata[AIO_META.STATUS] = this.determineStatus(file, frontmatter);
+            // Set status based on existing tags or processing, but only over no status or the plugin's own mark: a user's
+            // status (a project's `active`, a `draft`) and any adopted project, area or container keep theirs, even when
+            // "Overwrite existing metadata" is on.
+            const existingStatus: unknown = frontmatter?.[AIO_META.STATUS];
+            const userOwnsStatus = (existingStatus !== undefined && existingStatus !== null && !isAiProcessingMark(existingStatus))
+                || (!!frontmatter && Object.hasOwn(frontmatter, AIO_ROLE_KEY));
+            if (!userOwnsStatus) metadata[AIO_META.STATUS] = this.determineStatus(file, frontmatter);
             
             // Auto-detect content type if enabled
             if (this.plugin.settings.autoDetectContentType) {

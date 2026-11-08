@@ -19,6 +19,7 @@ import {
     updateAIOMetadata,
 } from '../utils/frontmatterUtils';
 import { logger } from '../utils/logger';
+import { AIO_ROLE_KEY } from './projects/projectIndex';
 
 export interface MarkNoteProcessedOptions {
     /** Skip the pending → processed status flip (caller manages status itself). */
@@ -66,7 +67,10 @@ export async function markNoteProcessed(
     // not a status oracle). Caller-supplied `status: 'error'` must not be flipped.
     const derived: Partial<AIOMetadata> = {};
 
-    if (!options.skipStatusFlip) {
+    // An adopted project, area or container (`aio-role`) owns its `status`: the AI's mark is never written there, so a
+    // summary of a project note with no status yet does not leave it reading "processed".
+    const adopted = Object.hasOwn(plugin.app.metadataCache.getFileCache(file)?.frontmatter ?? {}, AIO_ROLE_KEY);
+    if (!options.skipStatusFlip && !adopted) {
         const current = getAIOMetadata(plugin.app, file);
         const currentStatus = current?.status;
         if (currentStatus === 'pending' || currentStatus === undefined) {

@@ -9,7 +9,7 @@
 import { Result, ok, err } from '../../core/result';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { rootOf, type ParaKind, type ParaRoot } from './paraRoots';
-import { STATUS_VALUES } from '../../core/constants';
+import { isAiProcessingMark } from '../../core/constants';
 
 export const AIO_ID_KEY = 'aio-id';
 export const AIO_ROLE_KEY = 'aio-role';
@@ -68,13 +68,8 @@ const folderOf = (path: string): string => {
     return at === -1 ? '' : p.slice(0, at);
 };
 
-/**
- * The plugin's own processing mark (`processed` / `pending` / `error`, see `STATUS_VALUES`), written to the same
- * `status` property by summarise and tag runs. It says the AI handled the note; it is not a project status.
- */
-export function isAiProcessingMark(value: unknown): boolean {
-    return typeof value === 'string' && (STATUS_VALUES as readonly string[]).includes(value.trim());
-}
+/** The plugin's own processing mark, written to the same `status` property by summarise and tag runs: not a project status. */
+export { isAiProcessingMark };
 
 /**
  * The user's `status`: a string, or the first string of a list; trimmed. The plugin's processing mark is not a project
