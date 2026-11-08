@@ -9,6 +9,7 @@ import { Result, ok, err } from '../../core/result';
 import { isInsideOrEqual, normalisePath } from '../../core/protectedPaths';
 import { logger } from '../../utils/logger';
 import { exclusionReason, policyRevisionOf, type SweepPolicy } from '../inboxSweep/sweepGuard';
+import { looksLikeHandback } from '../aiWorkspaces/handoffParser';
 import { alreadyHandled } from './captureJournal';
 import { computeFingerprint } from './enrichmentBlock';
 import { classifyByExtension, extensionOf, isKnownUnsupportedMedia, type MediaKind } from './mediaSignature';
@@ -96,6 +97,11 @@ export interface ScanDeps {
     isSwept(path: string, text: string): Promise<boolean>;
     /** The user chose "Process all existing": ignore the setup cutoff */
     includeExisting?: boolean;
+    /**
+     * AI hand-backs belong to Review AI hand-back (true only while that review exists). Omitted or false: every note is
+     * read as a capture, exactly as before.
+     */
+    skipHandbacks?(): boolean;
 }
 
 /**
@@ -162,6 +168,12 @@ async function scan(port: CaptureVaultPort, deps: ScanDeps): Promise<ScanOutcome
         for (const path of refs.resolved) referenced.add(path);
         if (exclusionReason(id, text, policy)) {
             skip(id, 'excluded');
+            continue;
+        }
+        // Accepting a hand-back as a capture would change its text, and so its hand-back id and item ids: a later review
+        // would then add its decisions and questions a second time. Its media stays claimed above.
+        if (deps.skipHandbacks?.() === true && looksLikeHandback(text)) {
+            skip(id, 'handback');
             continue;
         }
         const attachments: ScannedAttachment[] = [];

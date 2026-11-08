@@ -4634,7 +4634,7 @@ export interface Translations {
         failedHelp: Record<'stability' | 'read' | 'transcribe' | 'digitise' | 'classify' | 'write' | 'organise', string>;
         skippedTitle: string;
         skippedExcluded: string;
-        skipHelp: Record<'excluded' | 'too-large' | 'unsupported' | 'invalid-media' | 'already-swept' | 'already-captured' | 'older-than-setup' | 'nothing-to-process' | 'digitisation-off' | 'attachment-missing', string>;
+        skipHelp: Record<'excluded' | 'too-large' | 'unsupported' | 'invalid-media' | 'already-swept' | 'already-captured' | 'older-than-setup' | 'nothing-to-process' | 'digitisation-off' | 'attachment-missing' | 'handback', string>;
         skipRetry: string;
         skipRetryNotice: string;
         skipMore: string;
