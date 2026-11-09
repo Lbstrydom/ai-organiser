@@ -13,7 +13,7 @@ import {
 	type VisibleItem,
 	buildVisibleItems,
 	flattenSingleChildGroups,
-	filterSectionByStage,
+	stageFilterView,
 	stageChipFor,
 } from './commandPickerViewModel';
 import { checkLeaf, buildContext, legacyHomeAliases, type RequirementContext } from './pickerRequirements';
@@ -282,7 +282,7 @@ export class CommandPickerModal extends Modal {
 			: null;
 
 		const categories = this.stageFilter && !this.query
-			? filterSectionByStage(this.categories, 'all', this.stageFilter)
+			? stageFilterView(this.categories, 'all', this.stageFilter)
 			: this.categories;
 		this.visibleItems = buildVisibleItems(
 			categories, this.expandedGroups, fuzzyMatcher, this.expandedCategories,

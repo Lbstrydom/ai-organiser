@@ -356,6 +356,15 @@ export function filterSectionByStage(categories: CommandCategory[], sectionId: s
 	});
 }
 
+/**
+ * What the picker lists while a stage chip is pressed: only that section, filtered to the stage.
+ * The other sections (For this context, Pinned, Jobs, Setup) sit above it and do not follow the
+ * chips, so leaving them in place made a chip look as if it did nothing. Pure.
+ */
+export function stageFilterView(categories: CommandCategory[], sectionId: string, stage: WorkflowStage): CommandCategory[] {
+	return filterSectionByStage(categories, sectionId, stage).filter((cat) => cat.id === sectionId);
+}
+
 /** The stage chip a row shows: every All actions row names its own declared stage. */
 export function stageChipFor(item: Pick<VisibleItem, 'categoryId' | 'kind' | 'command'>): WorkflowStage | null {
 	if (item.categoryId !== 'all' || item.kind === 'category-header' || item.kind === 'group') return null;
