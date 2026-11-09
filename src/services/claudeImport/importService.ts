@@ -137,7 +137,7 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
     const cap = Math.max(1, Math.round(settings.maxKB)) * 1024;
     const windowMs = Math.max(0, settings.stabilitySeconds) * 1000;
 
-    const dest = checkDestination(settings.destination, env.isProtected, env.configDir);
+    const dest = checkDestination(settings.destination, env.isProtected, env.configDir ?? '');
     if (!dest.ok) return err(dest.error);
     if (settings.sourceFolder.trim() === '') return err('claude-import-no-source');
     if (env.vaultBase === null) return err('claude-import-source-invalid');

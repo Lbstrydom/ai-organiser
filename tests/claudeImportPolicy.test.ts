@@ -123,14 +123,14 @@ describe('claude import: gate and destination', () => {
     });
     it('accepts a plain vault folder and refuses climbs, the config folder and protected folders', () => {
         const none = (): boolean => false;
-        expect(checkDestination(' 0 Inbox/From Claude/ ', none)).toEqual({ ok: true, value: '0 Inbox/From Claude' });
-        expect(checkDestination('0 Inbox\\From Claude', none)).toEqual({ ok: true, value: '0 Inbox/From Claude' });
-        expect(checkDestination('../outside', none).ok).toBe(false);
-        expect(checkDestination('.obsidian/x', none).ok).toBe(false);
+        expect(checkDestination(' 0 Inbox/From Claude/ ', none, '')).toEqual({ ok: true, value: '0 Inbox/From Claude' });
+        expect(checkDestination('0 Inbox\\From Claude', none, '')).toEqual({ ok: true, value: '0 Inbox/From Claude' });
+        expect(checkDestination('../outside', none, '').ok).toBe(false);
+        expect(checkDestination('.obsidian/x', none, '').ok).toBe(false);
         expect(checkDestination('config/x', none, 'config').ok).toBe(false);
         expect(checkDestination('Config Notes/x', none, 'config').ok).toBe(true);
-        expect(checkDestination('', none).ok).toBe(false);
-        expect(checkDestination('Private/x', (p) => p.startsWith('Private'))).toEqual({ ok: false, error: 'claude-import-destination-protected' });
+        expect(checkDestination('', none, '').ok).toBe(false);
+        expect(checkDestination('Private/x', (p) => p.startsWith('Private'), '')).toEqual({ ok: false, error: 'claude-import-destination-protected' });
     });
 });
 
