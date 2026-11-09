@@ -92,12 +92,20 @@ export interface InstructionsInput {
     notesFollow?: boolean;
     /** The live pack's file name in Google Drive, when the live pack is on; absent = the instructions are exactly what they were */
     livePackName?: string;
+    /** The Drive folder the Claude importer reads (Import from Claude on); absent = the instructions are exactly what they were */
+    importFolder?: string;
 }
 
 /** Note text may not close or open the instruction sections: only those tag names are neutralised, the markdown is left as written. */
 const SECTION_TAGS = /<(\s*\/?\s*(?:role|project|area_context|handoff)\b[^>]*>)/gi;
 /** With the live pack on there is one more section a note could try to open or close. Off, the escaping is exactly what it was. */
 const SECTION_TAGS_LIVE = /<(\s*\/?\s*(?:role|live_pack|project|area_context|handoff)\b[^>]*>)/gi;
+
+/** The line that tells Claude where to save deliverables for the importer. Names are reduced to plain text before escaping. */
+function importLine(esc: (s: string) => string, projectName: string, folder: string): string {
+    const plain = (s: string): string => s.replace(/["\s]+/g, ' ').trim();
+    return `To send something back to the person's notes, save it with Google Drive as a new Markdown file in the folder "${esc(plain(folder))}", named "${esc(plain(projectName))} - YYYY-MM-DD - <short title>.md"; a session's Handoff section can be saved there as its own file. Never edit or replace a file that is already there.`;
+}
 
 export function buildWorkspaceInstructions(input: InstructionsInput): string {
     const tags = input.livePackName ? SECTION_TAGS_LIVE : SECTION_TAGS;
@@ -125,6 +133,8 @@ export function buildWorkspaceInstructions(input: InstructionsInput): string {
         'When a working session ends, finish with this section, exactly in this shape, and repeat the project ID unchanged:',
         renderHandoffContract(input.aioId),
         'Use "Suggested:" for what you propose and "Decided:" only for what the person has said they decided. Leave out a section that has nothing in it.',
+        // Import from Claude on: one line on where to save what should come back. Off, this section is exactly what it was.
+        ...(input.importFolder ? [importLine(esc, input.projectName, input.importFolder)] : []),
         '</handoff>',
     );
     return parts.join('\n');

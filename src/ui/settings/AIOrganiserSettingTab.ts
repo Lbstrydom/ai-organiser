@@ -37,6 +37,7 @@ import { CaptureInboxSettingsSection } from './CaptureInboxSettingsSection';
 import { GoogleTasksSettingsSection } from './GoogleTasksSettingsSection';
 import { ProjectsSettingsSection } from './ProjectsSettingsSection';
 import { AiWorkspacesSettingsSection } from './AiWorkspacesSettingsSection';
+import { ClaudeImportSettingsSection } from './ClaudeImportSettingsSection';
 import { integrationRowVisible, renderIntegrationStatusRow } from './IntegrationStatusRow';
 import { VaultUpkeepSettingsSection } from './VaultUpkeepSettingsSection';
 import { AgentConnectorsSettingsSection } from './AgentConnectorsSettingsSection';
@@ -429,6 +430,10 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             await this.renderIfEnabled('sub-ai-workspaces', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-ai-workspaces', this.plugin.t.aiWorkspaces.sectionTitle, 'messages-square');
                 new AiWorkspacesSettingsSection(this.plugin, sub, this).display();
+            });
+            await this.renderIfEnabled('sub-claude-import', () => {
+                const sub = this.createSubCollapsibleSection(content, 'sub-claude-import', this.plugin.t.claudeImport.sectionTitle, 'download');
+                new ClaudeImportSettingsSection(this.plugin, sub, this).display();
             });
             await this.renderIfEnabled('sub-vault-upkeep', () => {
                 const sub = this.createSubCollapsibleSection(content, 'sub-vault-upkeep', this.plugin.t.vaultUpkeep.sectionTitle, 'broom');

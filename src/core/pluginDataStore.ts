@@ -47,6 +47,8 @@ export const DATA_ONLY_KEYS = [
     'newsletter-catchup-playback',
     'capture-inbox-journal',
     'capture-inbox-journal-backup',
+    'claude-import-ledger',
+    'claude-import-ledger-backup',
 ] as const;
 
 export type DataOnlyKey = (typeof DATA_ONLY_KEYS)[number];

@@ -317,6 +317,12 @@ Repo-wide rules that bind *every* subsystem are in
 |---|---|---|
 | AI workspaces | Default-deny sharing allow-list (`aiShareFolders`), a per-project workspace record and owned block, deterministic instructions and a dated context pack; a preview bound to a snapshot (hashes + policy revision) stands before any copy or write; the plugin sends nothing. Opt-in desktop **live pack**: approved notes only, rewritten in place into one Drive for desktop file outside the vault, durable revocation to a stub | Changing what may be shared, the pack or instructions bytes, the preview binding, the live pack writer or its consent, or the `## Handoff` contract |
 
+### [Import from Claude](docs/features/claude-import.md)
+
+| Subsystem | What it is | Read it when |
+|---|---|---|
+| Claude importer | Desktop-only, default-off copy of new .md/.txt files from a Google Drive for desktop folder (an untrusted mailbox, read only) into a vault inbox folder; byte-identical copies, sha256 dedup with a write-ahead record, fail-closed admission, hand-backs routed to the existing review only for exactly one known, unprotected project; one instructions line while on | Touching the source reader, the admission rules, the write-ahead record, hand-back routing, or the instructions line (**off must stay byte-identical**) |
+
 ### [Projects, Operations and the Google Script Row](docs/features/projects.md)
 
 | Subsystem | What it is | Read it when |
