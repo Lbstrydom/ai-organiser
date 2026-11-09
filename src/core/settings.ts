@@ -469,6 +469,18 @@ export interface AIOrganiserSettings {
     aiWorkspaceLiveFolder: string;
     /** Quiet minutes after the last change before a live pack is rebuilt (1-60). */
     aiWorkspaceLiveDelayMinutes: number;
+    /** Import from Claude: the folder (absolute, inside Google Drive for desktop, outside the vault) new files are copied FROM. Read only. */
+    claudeImportSourceFolder: string;
+    /** Import from Claude: the vault folder the copies are created in (best inside an inbox folder, so the capture inbox sees them). */
+    claudeImportDestination: string;
+    /** Import from Claude: the largest file copied, in KB (16-4096). A larger file is refused, never cut. */
+    claudeImportMaxKB: number;
+    /** Import from Claude: seconds a file must stay unchanged before it is copied (5-600). */
+    claudeImportStabilitySeconds: number;
+    /** Import from Claude: minutes between automatic looks while Obsidian is open (0 = only when you ask; otherwise 2-240). */
+    claudeImportAutoMinutes: number;
+    /** Import from Claude: the computer that imports (set when the folder is chosen there). Other computers do not import. */
+    claudeImportDeviceId: string;
     /** What each live pack last did, by project id. Status only: never consulted for consent. */
     aiWorkspaceLiveStatus: Record<string, LiveStatus>;
     /** Live pack files that must be replaced by the "no longer shared" text, kept until that is done. */
@@ -1121,6 +1133,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     aiWorkspaceChatMap: {},
     aiWorkspaceLiveFolder: '',
     aiWorkspaceLiveDelayMinutes: 5,
+    claudeImportSourceFolder: '',
+    claudeImportDestination: '0 Inbox/From Claude',
+    claudeImportMaxKB: 512,
+    claudeImportStabilitySeconds: 30,
+    claudeImportAutoMinutes: 10,
+    claudeImportDeviceId: '',
     aiWorkspaceLiveStatus: {},
     aiWorkspaceLiveRevocations: [],
     aiHandbacks: {},
@@ -1765,6 +1783,16 @@ export function migrateAgentIndexAndInventorySettings(old: Record<string, unknow
         ? Math.min(60, Math.max(1, Math.round(old.aiWorkspaceLiveDelayMinutes))) : d.aiWorkspaceLiveDelayMinutes;
     old.aiWorkspaceLiveStatus = normaliseLiveStatus(old.aiWorkspaceLiveStatus, Object.keys(old.aiWorkspaces as Record<string, unknown>));
     old.aiWorkspaceChatMap = normaliseChatMap(old.aiWorkspaceChatMap);
+    // Import from Claude: text fields trimmed, numbers clamped (idempotent; an absent or invalid value takes the default).
+    const clampInt = (v: unknown, lo: number, hi: number, fallback: number): number =>
+        typeof v === 'number' && Number.isFinite(v) ? Math.min(hi, Math.max(lo, Math.round(v))) : fallback;
+    old.claudeImportSourceFolder = typeof old.claudeImportSourceFolder === 'string' ? old.claudeImportSourceFolder.trim() : d.claudeImportSourceFolder;
+    old.claudeImportDestination = typeof old.claudeImportDestination === 'string' && old.claudeImportDestination.trim() !== '' ? old.claudeImportDestination.trim() : d.claudeImportDestination;
+    old.claudeImportMaxKB = clampInt(old.claudeImportMaxKB, 16, 4096, d.claudeImportMaxKB);
+    old.claudeImportStabilitySeconds = clampInt(old.claudeImportStabilitySeconds, 5, 600, d.claudeImportStabilitySeconds);
+    old.claudeImportAutoMinutes = typeof old.claudeImportAutoMinutes === 'number' && Number.isFinite(old.claudeImportAutoMinutes) && Math.round(old.claudeImportAutoMinutes) === 0
+        ? 0 : clampInt(old.claudeImportAutoMinutes, 2, 240, d.claudeImportAutoMinutes);
+    old.claudeImportDeviceId = typeof old.claudeImportDeviceId === 'string' ? old.claudeImportDeviceId : d.claudeImportDeviceId;
     old.aiHandbacks = normaliseHandbacks(old.aiHandbacks);
 
     old.cloudInventoryScriptUrl = typeof old.cloudInventoryScriptUrl === 'string' ? old.cloudInventoryScriptUrl.trim() : '';

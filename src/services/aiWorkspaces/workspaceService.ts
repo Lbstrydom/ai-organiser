@@ -9,6 +9,7 @@ import type AIOrganiserPlugin from '../../main';
 import { Result, ok, err } from '../../core/result';
 import { isFeatureEnabled } from '../featureService';
 import { applyNoteEdit } from '../noteEdit/applyNoteEdit';
+import { importFolderForInstructions } from '../claudeImport/importGate';
 import { getProjectService, linkpathOf } from '../projects/projectService';
 import type { AnchorRef } from '../projects/projectIndex';
 import { logger } from '../../utils/logger';
@@ -159,6 +160,8 @@ export async function packInputFor(plugin: AIOrganiserPlugin, aioId: string, not
         sharePolicyRevision: await sharePolicyRevision(s, s.aiWorkspacePackFolder),
         // With the live pack on, the instructions tell the AI app where the newest notes are.
         ...(notes.record.live ? { livePackName: notes.record.live.fileName } : {}),
+        // With Import from Claude on, the instructions say where to save what should come back.
+        ...(importFolderForInstructions(s) ? { importFolder: importFolderForInstructions(s) } : {}),
     };
 }
 

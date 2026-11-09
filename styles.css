@@ -10641,3 +10641,17 @@
 .ai-organiser-job-row-missing .setting-item-description {
     color: var(--text-warning);
 }
+
+/* Import from Claude: result window and settings */
+.ai-organiser-claude-import-warning {
+    color: var(--text-warning);
+}
+.ai-organiser-claude-import-list li {
+    margin-bottom: var(--size-4-3);
+}
+.ai-organiser-claude-import-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--size-4-2);
+    margin-top: var(--size-4-1);
+}

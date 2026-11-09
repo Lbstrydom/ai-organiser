@@ -1,4 +1,5 @@
 import { createLivePackRuntime, type LivePackRuntime } from './services/aiWorkspaces/livePackRuntime';
+import { createClaudeImportRuntime, type ClaudeImportRuntime } from './services/claudeImport/importRuntime';
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
 import { FeatureActivationModal } from './ui/modals/FeatureActivationModal';
 import { consumePendingResume } from './services/featureActivation';
@@ -191,6 +192,8 @@ export default class AIOrganiserPlugin extends Plugin {
     public upkeep: UpkeepController | null = null;
     /** The AI workspace live pack (desktop only): its service, scheduler and revoke-only reconciler. */
     public livePacks: LivePackRuntime | null = null;
+    /** Import from Claude (desktop, while the feature is on); null otherwise. */
+    public claudeImport: ClaudeImportRuntime | null = null;
     private lastUpkeepKey = '';
     /** Keeps the read-only connector's scope file true to the settings (created on first use) */
     private connectorScope: ScopePublisher | null = null;
@@ -350,6 +353,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
         await saveSettingsData(this, this.settings);
         this.livePacks?.afterSave();
+        this.claudeImport?.afterSave();
         await this.initializeLLMService();
         // Turning automatic replacement on starts a fresh observation; turning it off clears the memory.
         void this.catchUpPlayback?.onSettingsChanged();
@@ -477,6 +481,10 @@ export default class AIOrganiserPlugin extends Plugin {
         } else if (id === 'ai-workspaces') {
             // Every live pack file written here becomes the "no longer shared" text; the request is saved first.
             this.livePacks?.teardown();
+        } else if (id === 'claude-import') {
+            // A running import makes no further write; the automatic look stops.
+            this.claudeImport?.teardown();
+            this.claudeImport = null;
         }
         // Other features own no active background work → reload-deferred (FT-5).
     }
@@ -1184,6 +1192,8 @@ export default class AIOrganiserPlugin extends Plugin {
         // workspaces off; refreshes run only while it is on.
         this.livePacks = createLivePackRuntime(this);
         this.app.workspace.onLayoutReady(() => this.livePacks?.start());
+        this.claudeImport = createClaudeImportRuntime(this);
+        this.app.workspace.onLayoutReady(() => this.claudeImport?.start());
         this.settingTab = new AIOrganiserSettingTab(this.app, this);
         this.addSettingTab(this.settingTab);
         registerCommands(this);
@@ -1765,6 +1775,7 @@ export default class AIOrganiserPlugin extends Plugin {
 
     public onunload(): void {
         this.livePacks?.stop();
+        this.claudeImport?.stop();
         // Invalidate any read-signal session that already qualified, so it cannot commit after unload.
         bumpReadGeneration();
         this.catchUpStatusBar?.dispose();

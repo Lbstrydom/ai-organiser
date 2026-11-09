@@ -42,6 +42,8 @@ Command **Review AI hand-back** on the open note. Gate: `ai-workspaces` AND `cap
 | Service | `handbackService.ts` | `prepareHandback` (freeze + suggest) and `applyHandback`. Next actions become rows in the **sweep review** (same lists, dates, contexts; the project already linked); a stated `(due: …)` only pre-fills the date. Sweep item identity prevents duplicates on re-processing. |
 | Review | `HandbackReviewModal.ts` | Project suggestion with the reason, one toggle per item (nothing ticked for you), deliverables listed but not filed. |
 
+Transport from claude.ai (web or phone): [Import from Claude](claude-import.md) copies new files a Claude project saves in a Google Drive folder into the inbox; a hand-back among them offers this review for exactly one known project.
+
 Not written: stamping the project id into the hand-back note's frontmatter (the journal and the mapping carry it).
 
 ### Sending a hand-back: the `vault-handback` skill

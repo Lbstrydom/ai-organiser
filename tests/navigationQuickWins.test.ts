@@ -75,10 +75,10 @@ describe('Phase 1 oracle: the picker tree is the 2b29b6b tree plus the declared 
 });
 
 describe('desktop-only leaves', () => {
-    it('are the canvas boards, the OneDrive commands, Resume offload and the live pack refresh', () => {
+    it('are the canvas boards, the OneDrive commands, Resume offload, the live pack refresh and Import from Claude', () => {
         const flagged = current.filter((r) => r.platform === 'desktop').map((r) => r.id).sort();
         expect(flagged).toEqual([...DESKTOP_ONLY_LEAVES].sort());
-        expect(flagged).toHaveLength(7);
+        expect(flagged).toHaveLength(8);
     });
 });
 

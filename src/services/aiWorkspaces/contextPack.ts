@@ -41,6 +41,8 @@ export interface PackInput {
     sharePolicyRevision: string;
     /** The live pack's Drive file name, when the live pack is on (adds one section to the instructions; absent = unchanged) */
     livePackName?: string;
+    /** The Drive folder Import from Claude reads (one line in the instructions; absent = unchanged) */
+    importFolder?: string;
 }
 
 export interface PackSource {
@@ -125,7 +127,7 @@ async function buildContextPackUnsafe(input: PackInput): Promise<Result<Prepared
 
     const projectIncluded = included.find((i) => i.note.path === input.project.path);
     const areaIncluded = input.area ? included.find((i) => i.note.path === input.area?.path) : undefined;
-    const instructionInput = { aioId: input.aioId, projectName: input.projectName, projectNote: projectIncluded?.text ?? '', areaName: input.area?.path, areaNote: areaIncluded?.text, ...(input.livePackName ? { livePackName: input.livePackName } : {}) };
+    const instructionInput = { aioId: input.aioId, projectName: input.projectName, projectNote: projectIncluded?.text ?? '', areaName: input.area?.path, areaNote: areaIncluded?.text, ...(input.livePackName ? { livePackName: input.livePackName } : {}), ...(input.importFolder ? { importFolder: input.importFolder } : {}) };
     // What "copy instructions" puts on the clipboard carries the notes' text; inside the pack the notes follow in full, so they are not repeated.
     const instructions = buildWorkspaceInstructions(instructionInput);
     const packInstructions = buildWorkspaceInstructions({ ...instructionInput, notesFollow: true });

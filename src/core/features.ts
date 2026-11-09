@@ -57,7 +57,8 @@ export type FeatureId =
     | 'google-tasks-export'
     | 'ai-workspaces'
     | 'vault-upkeep'
-    | 'agent-connectors';
+    | 'agent-connectors'
+    | 'claude-import';
 
 export interface FeatureDef {
     id: FeatureId;
@@ -166,6 +167,8 @@ export const FEATURE_REGISTRY: readonly Readonly<FeatureDef>[] = Object.freeze((
     { id: 'agent-connectors', labelKey: 'features.agent-connectors.label', descKey: 'features.agent-connectors.desc', stage: 'find', requires: ['agent-index'], defaultOn: false },
     // AI workspaces: per-project sharing allow-list, instructions and context packs for a Claude or ChatGPT project. Nothing is sent by the plugin.
     { id: 'ai-workspaces', labelKey: 'features.ai-workspaces.label', descKey: 'features.ai-workspaces.desc', stage: 'create', requires: ['agent-index'], defaultOn: false },
+    // Import from Claude: copies new Markdown and text files from a Google Drive for desktop folder into a vault inbox folder (desktop only, reads the folder, never changes it).
+    { id: 'claude-import', labelKey: 'features.claude-import.label', descKey: 'features.claude-import.desc', stage: 'capture', requires: [], defaultOn: false },
     { id: 'vault-upkeep', labelKey: 'features.vault-upkeep.label', descKey: 'features.vault-upkeep.desc', stage: 'maintain', requires: [], defaultOn: false },
     { id: 'cloud-offload', labelKey: 'features.cloud-offload.label', descKey: 'features.cloud-offload.desc', stage: 'maintain', requires: ['cloud-inventory'], defaultOn: false },
 ] as FeatureDef[]).map(freezeDef));
@@ -213,6 +216,7 @@ export const SECTION_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = Obj
     'sub-vault-upkeep': 'vault-upkeep',
     'sub-find-embeds': 'embed-scan',
     'sub-agent-connectors': 'agent-connectors',
+    'sub-claude-import': 'claude-import',
 });
 
 /**

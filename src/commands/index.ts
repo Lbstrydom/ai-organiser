@@ -37,6 +37,7 @@ import { registerCaptureInboxCommands } from './captureInboxCommands';
 import { registerProjectCommands } from './projectCommands';
 import { registerGoogleScriptCommands } from './googleScriptCommands';
 import { registerAiWorkspaceCommands } from './aiWorkspaceCommands';
+import { registerClaudeImportCommands } from './claudeImportCommands';
 import { registerProcessCommands } from './processCommands';
 import { processViewActive } from '../services/process/processGate';
 import { registerContextMenu } from '../ui/contextMenu';
@@ -92,6 +93,7 @@ export const REGISTER_BY_FEATURE: Partial<Record<FeatureId, RegisterFn[]>> = {
     'capture-inbox': [registerCaptureInboxCommands],
     'google-tasks-export': [registerGoogleTasksCommands, registerQuickTask, registerProjectCommands, registerGoogleScriptCommands],
     'ai-workspaces': [registerAiWorkspaceCommands],
+    'claude-import': [registerClaudeImportCommands],
 };
 
 /**
