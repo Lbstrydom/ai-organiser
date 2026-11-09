@@ -5268,6 +5268,7 @@ export const en: Translations = {
     },
     settingsSearch: {
         placeholder: "Search settings",
+        stageFilterLabel: "Show settings for a stage",
         noMatch: "No settings match \"{query}\".",
     },
     jobs: {

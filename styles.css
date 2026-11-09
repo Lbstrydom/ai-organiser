@@ -10655,3 +10655,9 @@
     gap: var(--size-4-2);
     margin-top: var(--size-4-1);
 }
+
+/* Settings stage chips share the picker's chip look; the settings tab has no border line under them. */
+.ai-organiser-settings-stage-chips {
+    border-bottom: none;
+    padding: 6px 0 0;
+}

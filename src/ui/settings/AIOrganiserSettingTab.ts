@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
-import { planSearch, type SearchableSection } from './settingsSearch';
+import { planSearch, planStageFilter, type SearchableSection, type StagedSection } from './settingsSearch';
+import { WORKFLOW_STAGES, type WorkflowStage } from '../../core/workflowStages';
 import { LLMSettingsSection } from './LLMSettingsSection';
 import { SpecialistProvidersSettingsSection } from './SpecialistProvidersSettingsSection';
 import { TaggingSettingsSection } from './TaggingSettingsSection';
@@ -44,6 +45,12 @@ import { AgentConnectorsSettingsSection } from './AgentConnectorsSettingsSection
 import { SECTION_FEATURE, INFRA_SECTIONS, FEATURE_BY_ID, type FeatureId } from '../../core/features';
 import { isFeatureEnabled } from '../../services/featureService';
 
+/** Sub-sections with no feature switch of their own, and the feature whose stage they share (stage chips only). */
+const SECTION_HOSTED_STAGE_FEATURE: Readonly<Partial<Record<string, FeatureId>>> = {
+    'sub-visual-search': 'visual-search',
+    'sub-pres-models': 'chat',
+};
+
 export class AIOrganiserSettingTab extends PluginSettingTab {
     private plugin: AIOrganiserPlugin;
     // Only AI provider opens by default — Features is an infrequent-access
@@ -63,6 +70,9 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
     private expandedBeforeSearch: Set<string> | null = null;
     private searchTimer: number | null = null;
     private noMatchEl: HTMLElement | null = null;
+    /** Stage chips under the search box (null = every stage). Session-only, like the picker's. */
+    private stageFilter: WorkflowStage | null = null;
+    private stageChipsEl: HTMLElement | null = null;
 
     /**
      * Test seam (FT-4 render-spy): records every section id passed to
@@ -136,6 +146,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
 
     /** Open Features, bring the feature's switch into view and put focus on it. Changes nothing. */
     private revealFeatureSwitch(id: FeatureId): void {
+        this.stageFilter = null; // a deep link must not land on a section a stage chip hides
+        this.renderStageChips();
         this.endSearch();
         const features = this.containerEl.querySelector<HTMLDetailsElement>('details[data-section-id="features"]');
         if (features) { features.open = true; this.expandedSections.add('features'); }
@@ -175,6 +187,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
      */
     revealSubSection(parentId: string, subId: string): void {
         // A deep link ends any search first, restoring the user's own open/closed state.
+        this.stageFilter = null;
+        this.renderStageChips();
         this.endSearch();
         this.expandedSections.add(parentId);
         this.expandedSections.add(subId);
@@ -502,6 +516,7 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         // section header is visible at the top of the panel.
         // A re-render during a search shows the same result.
         if (this.searchQuery) this.applySearch();
+        else this.applyStageFilter();
         if (!this.pendingScrollToSubSection && keepScrollTop > 0) containerEl.scrollTop = keepScrollTop;
         if (this.pendingScrollToSubSection) {
             const id = this.pendingScrollToSubSection;
@@ -525,6 +540,11 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         });
         input.value = this.searchDraft ?? this.searchQuery;
         this.noMatchEl = box.createDiv({ cls: 'ai-organiser-settings-search-empty ai-organiser-hidden' });
+        this.stageChipsEl = box.createDiv({
+            cls: 'ai-organiser-picker-stage-chips ai-organiser-settings-stage-chips',
+            attr: { role: 'group', 'aria-label': t.stageFilterLabel },
+        });
+        this.renderStageChips();
         input.addEventListener('input', () => {
             this.searchDraft = input.value;
             if (this.searchTimer !== null) window.clearTimeout(this.searchTimer);
@@ -536,12 +556,71 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
         });
     }
 
+    private renderStageChips(): void {
+        const el = this.stageChipsEl;
+        if (!el) return;
+        el.empty();
+        el.toggleClass('ai-organiser-hidden', !!this.searchQuery);
+        const choices: Array<{ stage: WorkflowStage | null; label: string }> = [
+            { stage: null, label: this.plugin.t.modals.commandPicker.stageFilterAll },
+            ...WORKFLOW_STAGES.map((stage) => ({ stage, label: this.plugin.t.workflowStages[stage] })),
+        ];
+        for (const choice of choices) {
+            const pressed = this.stageFilter === choice.stage;
+            const btn = el.createEl('button', {
+                cls: 'ai-organiser-picker-stage-chip' + (pressed ? ' is-active' : ''),
+                text: choice.label,
+                attr: { type: 'button', 'aria-pressed': pressed ? 'true' : 'false' },
+            });
+            btn.addEventListener('click', () => {
+                this.stageFilter = choice.stage;
+                this.renderStageChips();
+                this.applyStageFilter();
+            });
+        }
+    }
+
+    /** The workflow stage a settings section belongs to, from the feature it configures (null = none). */
+    private sectionStage(id: string): WorkflowStage | null {
+        const feature = SECTION_HOSTED_STAGE_FEATURE[id] ?? SECTION_FEATURE[id];
+        return feature ? FEATURE_BY_ID[feature].stage : null;
+    }
+
+    /** Show only the sections of the pressed stage chip; All stages shows every section as the user left it. */
+    private applyStageFilter(): void {
+        if (this.searchQuery) return;
+        const root = this.containerEl;
+        const top = Array.from(root.querySelectorAll<HTMLDetailsElement>(':scope > details.ai-organiser-settings-section'));
+        const subsOf = (d: Element) => Array.from(d.querySelectorAll<HTMLDetailsElement>('details.ai-organiser-settings-sub-section'));
+        const stage = this.stageFilter;
+        if (!stage) {
+            for (const d of [...top, ...top.flatMap(subsOf)]) {
+                d.removeClass('ai-organiser-settings-hidden');
+                d.open = this.expandedSections.has(d.getAttribute('data-section-id') ?? '');
+            }
+            return;
+        }
+        const sections: StagedSection[] = top.map((d) => ({
+            id: d.getAttribute('data-section-id') ?? '',
+            stage: this.sectionStage(d.getAttribute('data-section-id') ?? ''),
+            children: subsOf(d).map((c) => ({ id: c.getAttribute('data-section-id') ?? '', stage: this.sectionStage(c.getAttribute('data-section-id') ?? '') })),
+        }));
+        const plan = planStageFilter(sections, stage);
+        for (const d of top) {
+            const id = d.getAttribute('data-section-id') ?? '';
+            d.toggleClass('ai-organiser-settings-hidden', !plan.visible.has(id));
+            d.open = plan.open.has(id) || this.expandedSections.has(id);
+            for (const c of subsOf(d)) c.toggleClass('ai-organiser-settings-hidden', !plan.visible.has(c.getAttribute('data-section-id') ?? ''));
+        }
+    }
+
     /** Begin, change or end a search. */
     private setSearch(query: string): void {
         const q = query.trim();
         if (!q) { this.endSearch(); return; }
         if (!this.expandedBeforeSearch) this.expandedBeforeSearch = new Set(this.expandedSections);
         this.searchQuery = q;
+        this.stageChipsEl?.addClass('ai-organiser-hidden');
         this.applySearch();
     }
 
@@ -593,6 +672,8 @@ export class AIOrganiserSettingTab extends PluginSettingTab {
             d.open = this.expandedSections.has(d.getAttribute('data-section-id') ?? '');
         }
         this.noMatchEl?.addClass('ai-organiser-hidden');
+        this.stageChipsEl?.removeClass('ai-organiser-hidden');
+        this.applyStageFilter();
     }
 
 }

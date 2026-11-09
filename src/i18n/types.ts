@@ -4879,6 +4879,7 @@ export interface Translations {
     };
     settingsSearch: {
         placeholder: string;
+        stageFilterLabel: string;
         noMatch: string;
     };
     jobs: {
