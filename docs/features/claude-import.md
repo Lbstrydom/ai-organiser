@@ -90,6 +90,8 @@ section, no runtime, no data key, and the AI workspace instructions, packs and l
 
 - The content checks are a **known-pattern filter, not execution prevention**: a renderer not on the list passes. Point
   the importer only at a folder that only your own AI apps write to (the settings say so).
+- **No atomic exclusive create.** Obsidian gives plugins none: the writer checks the vault index and the disk right before `createBinary`, which itself refuses an indexed path. Only the instant between those awaits is open.
+- **A read cannot be cancelled.** One that outlives its 20 s deadline keeps its slot until it settles; the same file is never read twice at once and at most three may be outstanding. A drive that never answers leaves them waiting until Obsidian restarts.
 - One importing computer per vault; two computers that share a synced vault import on the owner only.
 - No pruning of the record (originals are never deleted, so a pruned hash would import again); about 200 bytes per import.
 - Top level of the folder only; Markdown and plain text only (no Google Docs or Office conversion).

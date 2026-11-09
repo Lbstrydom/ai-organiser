@@ -40,7 +40,9 @@ class FakeSource {
     private hangGate = new Promise<void>((r) => { this.unhang = r; });
     /** lstat errors by name (other than ENOENT) */
     lstatErrors = new Map<string, string>();
-    /** Called after a handle's first fstat: lets a test swap the file mid-read */
+    /** Called just before open: lets a test put a different file at the path between the listing and the open */
+    beforeOpen?: (name: string) => void;
+    /** Called after a handle's first fstat: lets a test change the opened file during the read */
     onOpen?: (name: string) => void;
 
     put(name: string, text: string | Uint8Array, mtimeMs = 1_000, extra: Partial<FakeFile> = {}): void {
@@ -79,21 +81,22 @@ class FakeSource {
                 const n = name(p);
                 this.opens.push(n);
                 this.openFlags.push(flags);
+                this.beforeOpen?.(n);
+                // The handle is bound to the file that is at the path NOW, as a real descriptor is.
                 const f0 = this.files.get(n);
                 if (!f0) throw new Error('ENOENT');
                 if (f0.fail) throw new Error('EIO');
                 let first = true;
                 return {
                     stat: async () => {
-                        const f = this.files.get(n);
-                        if (!f) throw new Error('gone');
+                        const f = f0;
                         // The handle points at what was opened: a symlink resolves to some other file (another identity).
                         const s = this.stats(f.symlink ? { ...f, ino: f.ino + 10_000 } : f);
                         if (first) { first = false; this.onOpen?.(n); }
                         return s;
                     },
                     read: async (buf: Uint8Array, off: number, len: number, pos: number) => {
-                        const f = this.files.get(n) as FakeFile;
+                        const f = f0;
                         if (f.hang) await this.hangGate;
                         const chunk = f.bytes.subarray(pos, pos + len);
                         buf.set(chunk, off);
@@ -261,6 +264,30 @@ describe('claude import run', () => {
         expect(third.imported.map((i) => i.name)).toEqual(['big.md']);
     });
 
+    it('stops and says so when the vault folder refuses new notes, without retrying every file', async () => {
+        src.put('a.md', 'A');
+        src.put('b.md', 'B');
+        vault.createBinary = async () => err('claude-import-copy-failed');
+        const r = await run();
+        expect(r.stoppedBy).toBe('claude-import-copy-failed');
+        expect(Object.keys(ledger.ledger.pending)).toEqual([]);
+        expect(Object.keys(ledger.ledger.imported)).toEqual([]);
+    });
+
+    it('keeps the intent when the name is taken in between, and the next run reconciles it', async () => {
+        src.put('a.md', 'A');
+        const real = vault.createBinary.bind(vault);
+        vault.createBinary = async (path: string) => { vault.files.set(path, enc('A')); return err('exists'); };
+        const r = await run();
+        expect(r.imported).toEqual([]);
+        expect(Object.keys(ledger.ledger.pending)).toHaveLength(1);
+        vault.createBinary = real;
+        clock += 60_000;
+        await run();
+        expect(Object.keys(ledger.ledger.imported)).toHaveLength(1);
+        expect(Object.keys(ledger.ledger.pending)).toHaveLength(0);
+    });
+
     it('creates nothing when the write-ahead record cannot be saved', async () => {
         src.put('a.md', 'A');
         ledger.failOnSave = [1];
@@ -319,9 +346,10 @@ describe('claude import run', () => {
 
     it('fails closed when the entry is swapped for a link or for another file during the read', async () => {
         src.put('a.md', 'AAAA');
-        src.onOpen = (n) => { const f = src.files.get(n) as FakeFile; f.ino = 999; };
+        // A different file (same size) is put at the path between the listing and the open.
+        src.beforeOpen = (n) => { const f = src.files.get(n) as FakeFile; src.files.set(n, { ...f, ino: 999 }); };
         expect((await run()).imported).toEqual([]);
-        src.onOpen = undefined;
+        src.beforeOpen = undefined;
         src.put('b.md', 'B', 1_000, { symlink: true });
         clock += 60_000;
         const r = await run();

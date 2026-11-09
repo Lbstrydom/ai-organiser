@@ -10,7 +10,7 @@
  * is reported as `stoppedBy` alongside what was already done.
  */
 import { Result, ok, err } from '../../core/result';
-import { checkMountFolder } from '../offload/localMount';
+import { checkMountFolderWithin } from '../offload/localMount';
 import type { NodeDeps } from '../offload/fingerprint';
 import { logger } from '../../utils/logger';
 import { checkDestination } from './importGate';
@@ -96,6 +96,7 @@ const MOUNT_CODES: Record<string, string> = {
     'mount-missing': 'claude-import-source-missing',
     'mount-inside-vault': 'claude-import-source-inside-vault',
     'mount-vault-unverified': 'claude-import-source-invalid',
+    'mount-slow': 'claude-import-source-missing',
 };
 
 const clone = (l: ImportLedger): ImportLedger => JSON.parse(JSON.stringify(l)) as ImportLedger;
@@ -140,7 +141,8 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
     if (!dest.ok) return err(dest.error);
     if (settings.sourceFolder.trim() === '') return err('claude-import-no-source');
     if (env.vaultBase === null) return err('claude-import-source-invalid');
-    const root = await checkMountFolder(deps, settings.sourceFolder, env.vaultBase);
+    // With a time limit: a drive that is not connected can leave realpath/stat unanswered (the late answer is ignored).
+    const root = await checkMountFolderWithin(deps, settings.sourceFolder, env.vaultBase);
     if (!root.ok) return err(MOUNT_CODES[root.error] ?? 'claude-import-source-invalid');
 
     const ledger = clone(env.ledger.get());
@@ -266,12 +268,17 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
         }
         const created = await env.notes.createBinary(target, read.bytes);
         if (!created.ok) {
+            if (created.error === 'exists') {
+                // Something is at the path now. The intent stays: the next run's recovery looks at the bytes there
+                // (these bytes = imported; others = the person decides). Nothing is guessed here.
+                wait();
+                continue;
+            }
             delete ledger.pending[sha];
             const dropped = await env.ledger.save(clone(ledger));
-            if (created.error === 'claude-import-destination-protected') { report.stoppedBy = created.error; break; }
-            if (!dropped.ok) { report.stoppedBy = dropped.error; break; }
-            wait(); // the name was taken in between, or the create failed: the next run chooses again
-            continue;
+            // Protected, or the folder refuses new files: every later file would fail the same way, so the run stops and says so.
+            report.stoppedBy = dropped.ok ? created.error : dropped.error;
+            break;
         }
         const back = await env.notes.fileBytes(target);
         const verified = back !== 'none' && back !== 'other' && hashOf(deps, back) === sha;

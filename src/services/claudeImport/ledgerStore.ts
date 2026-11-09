@@ -68,10 +68,13 @@ export class ImportLedgerStore implements LedgerPort {
     async save(next: ImportLedger): Promise<Result<void>> {
         if (!this.loaded) return err(this.corrupt !== null ? 'claude-import-ledger-corrupt' : 'claude-import-ledger-unsaved');
         try {
-            await updatePluginData(this.plugin, (data) => {
+            const written = await updatePluginData<boolean>(this.plugin, (data) => {
+                // The data file as it is NOW (inside the serialized write): one that is not an object is not overwritten.
+                if (typeof data !== 'object' || data === null || Array.isArray(data)) return { changed: false, value: false };
                 data[IMPORT_LEDGER_DATA_KEY] = next;
-                return { changed: true };
+                return { changed: true, value: true };
             });
+            if (written !== true) return err('claude-import-ledger-unsaved');
         } catch (e) {
             logger.error('ClaudeImport', 'Could not save the import record', e);
             return err('claude-import-ledger-unsaved');

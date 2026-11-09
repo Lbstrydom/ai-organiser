@@ -46,8 +46,12 @@ export class ClaudeImportSettingsSection extends BaseSettingSection {
                 .onChange(async (value) => {
                     s.claudeImportSourceFolder = value.trim();
                     // The computer where the folder is chosen is the one that imports.
-                    if (this.plugin.claudeImport && s.claudeImportSourceFolder !== '') await this.plugin.claudeImport.claim();
-                    else await this.plugin.saveSettings();
+                    if (this.plugin.claudeImport && s.claudeImportSourceFolder !== '') {
+                        const claimed = await this.plugin.claudeImport.claim();
+                        if (!claimed.ok) new Notice(formatGuidance(describeError(this.plugin.t, claimed.error)), 8000);
+                    } else {
+                        await this.plugin.saveSettings();
+                    }
                     told.setText(this.toldText());
                 }))
             .addButton((b) => b.setButtonText(t.checkFolder).onClick(async () => {
