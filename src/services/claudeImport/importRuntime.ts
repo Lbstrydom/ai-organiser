@@ -95,8 +95,13 @@ export class ClaudeImportRuntime {
         if (!this.active()) return;
         void this.ensureLoaded().then(() => {
             this.arm();
-            if (this.ownership() === 'this') void this.run('background');
+            if (this.ownership() === 'this' && this.automatic()) void this.run('background');
         });
+    }
+
+    /** Automatic looks are on (0 minutes = only when the person asks: no look at start-up, no timer, no settle re-check). */
+    private automatic(): boolean {
+        return this.active() && this.plugin.settings.claudeImportAutoMinutes > 0 && this.plugin.settings.claudeImportSourceFolder.trim() !== '';
     }
 
     private disarm(): void {
@@ -109,7 +114,7 @@ export class ClaudeImportRuntime {
     private arm(): void {
         this.disarm();
         const minutes = this.plugin.settings.claudeImportAutoMinutes;
-        if (!this.active() || minutes <= 0 || this.plugin.settings.claudeImportSourceFolder.trim() === '') return;
+        if (!this.automatic()) return;
         this.interval = window.setInterval(() => { void this.run('background'); }, minutes * 60_000);
     }
 
@@ -144,8 +149,13 @@ export class ClaudeImportRuntime {
         return next;
     }
 
-    /** Make this computer the one that imports. A save that fails puts the previous owner back. */
-    async claim(): Promise<Result<void>> {
+    /** Make this computer the one that imports, after any running step (the settings button). */
+    claim(): Promise<Result<void>> {
+        return this.exclusive(() => this.claimNow());
+    }
+
+    /** The claim itself, inside the queue. A save that fails puts the previous owner back. */
+    private async claimNow(): Promise<Result<void>> {
         const before = this.plugin.settings.claudeImportDeviceId;
         this.plugin.settings.claudeImportDeviceId = deviceId(this.plugin);
         try {
@@ -197,7 +207,7 @@ export class ClaudeImportRuntime {
         if (owner === 'other') return this.finish(err('claude-import-other-device'));
         if (owner === 'none') {
             if (trigger !== 'manual') return err('claude-import-other-device');
-            const claimed = await this.claim();
+            const claimed = await this.claimNow();
             if (!claimed.ok) return this.finish(claimed as Result<never>);
             if (this.ownership() !== 'this' || !this.active()) return this.finish(err('claude-import-other-device'));
         }
@@ -239,7 +249,7 @@ export class ClaudeImportRuntime {
 
     /** A background run speaks only when it did something or found a new problem; a settling file gets one more look. */
     private afterRun(report: ImportReport): void {
-        if (report.nextReadyAt !== null && this.active()) {
+        if (report.nextReadyAt !== null && this.automatic()) {
             if (this.settleTimer !== null) window.clearTimeout(this.settleTimer);
             const delay = Math.max(1000, report.nextReadyAt - Date.now() + 1000);
             this.settleTimer = window.setTimeout(() => { this.settleTimer = null; void this.run('background'); }, delay);

@@ -101,6 +101,9 @@ describe('claude import: ledger codec (fails closed)', () => {
         expect(decodeLedger(JSON.parse(JSON.stringify(good)))).toEqual({ status: 'ok', ledger: good });
         expect(decodeLedger([]).status).toBe('corrupt');
         expect(decodeLedger(null).status).toBe('corrupt');
+        // A file time before 1970 is negative, and valid.
+        const old = { ...emptyLedger(), seen: { 'a.md': { fid: '1:2', size: 1, mtimeMs: -1000, at: 5 } } };
+        expect(decodeLedger(old)).toEqual({ status: 'ok', ledger: old });
         expect(decodeLedger({ v: 2 }).status).toBe('corrupt');
         expect(decodeLedger({ ...emptyLedger(), imported: { nothex: good.imported[SHA] } }).status).toBe('corrupt');
         expect(decodeLedger({ ...emptyLedger(), refused: { 'a.md': { fid: '1', size: 1, mtimeMs: 1, reason: 'odd', maxKB: 1 } } }).status).toBe('corrupt');
@@ -114,6 +117,8 @@ describe('claude import: gate and destination', () => {
         expect(importFolderForInstructions(on)).toBe('Apps/AI Organiser/From Claude');
         expect(importFolderForInstructions({ featureFlags: {}, claudeImportSourceFolder: 'G:\\My Drive\\x' } as never)).toBeUndefined();
         expect(importFolderForInstructions({ featureFlags: { 'claude-import': true }, claudeImportSourceFolder: 'D:\\Sync\\From Claude' } as never)).toBeUndefined();
+        // A path that cannot be quoted exactly is not named at all (never reshaped).
+        expect(importFolderForInstructions({ featureFlags: { 'claude-import': true }, claudeImportSourceFolder: 'G:\\My Drive\\Apps\\"AI"' } as never)).toBeUndefined();
         expect(importFolderForInstructions({ featureFlags: { 'claude-import': true }, claudeImportSourceFolder: ' ' } as never)).toBeUndefined();
     });
     it('accepts a plain vault folder and refuses climbs, the config folder and protected folders', () => {

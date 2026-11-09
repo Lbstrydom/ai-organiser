@@ -10,6 +10,7 @@ import * as nodeCrypto from 'node:crypto';
 import { ok, err, type Result } from '../src/core/result';
 import { emptyLedger, type ImportLedger } from '../src/services/claudeImport/importLedger';
 import { resolveAmbiguous, runImport, type ImportEnv } from '../src/services/claudeImport/importService';
+import { outstandingReads } from '../src/services/claudeImport/sourceFolder';
 import type { ImportVaultPort } from '../src/services/claudeImport/importWriter';
 import type { LedgerPort } from '../src/services/claudeImport/ledgerStore';
 import type { NodeDeps } from '../src/services/offload/fingerprint';
@@ -34,6 +35,11 @@ class FakeSource {
     openFlags: Array<number | string> = [];
     touched = new Set<string>();
     nextIno = 100;
+    /** A hanging read waits for this; a test releases it so nothing is left running */
+    unhang: () => void = () => undefined;
+    private hangGate = new Promise<void>((r) => { this.unhang = r; });
+    /** lstat errors by name (other than ENOENT) */
+    lstatErrors = new Map<string, string>();
     /** Called after a handle's first fstat: lets a test swap the file mid-read */
     onOpen?: (name: string) => void;
 
@@ -63,6 +69,8 @@ class FakeSource {
                 return [...this.files.keys(), ...this.extraNames];
             },
             lstat: async (p: string) => {
+                const code = this.lstatErrors.get(name(p));
+                if (code) throw Object.assign(new Error(code), { code });
                 const f = this.files.get(name(p));
                 if (!f) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
                 return this.stats(f, f.symlink === true);
@@ -86,7 +94,7 @@ class FakeSource {
                     },
                     read: async (buf: Uint8Array, off: number, len: number, pos: number) => {
                         const f = this.files.get(n) as FakeFile;
-                        if (f.hang) await new Promise(() => undefined);
+                        if (f.hang) await this.hangGate;
                         const chunk = f.bytes.subarray(pos, pos + len);
                         buf.set(chunk, off);
                         return { bytesRead: chunk.length };
@@ -362,8 +370,25 @@ describe('claude import run', () => {
         expect(src.opens).toEqual(['a.md']);
         // The next run tries the other file first (least recently attempted goes first).
         clock += 60_000;
-        const next = await run('manual', { readDeadlineMs: 20, maxReads: 1 });
+        const next = await run('manual', { readDeadlineMs: 20, maxReads: 2 });
         expect(next.imported.map((i) => i.name)).toEqual(['b.md']);
+        // The stalled read is still running: the same file is not opened again while it is.
+        expect(src.opens.filter((n) => n === 'a.md')).toHaveLength(1);
+        expect(outstandingReads()).toBe(1);
+        src.unhang();
+        await vi.waitFor(() => expect(outstandingReads()).toBe(0));
+    });
+
+    it('lets a file it could not inspect wait, keeping what it knew about it', async () => {
+        src.put('a.md', 'A');
+        src.put('big.md', 'x'.repeat(600 * 1024));
+        await run();
+        src.lstatErrors.set('big.md', 'EACCES');
+        clock += 60_000;
+        const r = await run();
+        expect(r.waiting).toBe(1);
+        expect(ledger.ledger.refused['big.md']?.reason).toBe('too-large');
+        expect(ledger.ledger.seen['big.md']).toBeDefined();
     });
 
     it('refuses the whole run for an oversized folder, a missing source or a protected destination', async () => {

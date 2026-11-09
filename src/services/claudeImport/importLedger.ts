@@ -79,6 +79,8 @@ const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object
 const isStr = (v: unknown): v is string => typeof v === 'string' && v !== '';
 const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v) && v >= 0;
 const optNum = (v: unknown): boolean => v === undefined || isNum(v);
+/** A file time: any finite number (a time before 1970 is negative) */
+const isTime = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
 
 function pending(v: unknown): PendingEntry | null {
     if (!isObj(v) || !isStr(v.name) || !isStr(v.path) || !isStr(v.at)) return null;
@@ -92,7 +94,7 @@ function imported(v: unknown): ImportedEntry | null {
 }
 
 function seen(v: unknown): SeenEntry | null {
-    if (!isObj(v) || !isStr(v.fid) || !isNum(v.size) || !isNum(v.mtimeMs) || !isNum(v.at)) return null;
+    if (!isObj(v) || !isStr(v.fid) || !isNum(v.size) || !isTime(v.mtimeMs) || !isNum(v.at)) return null;
     if (v.hash !== undefined && !(typeof v.hash === 'string' && SHA.test(v.hash))) return null;
     if (!optNum(v.hashedAt) || !optNum(v.attemptedAt)) return null;
     return {
@@ -104,7 +106,7 @@ function seen(v: unknown): SeenEntry | null {
 }
 
 function refused(v: unknown): RefusedEntry | null {
-    if (!isObj(v) || !isStr(v.fid) || !isNum(v.size) || !isNum(v.mtimeMs) || !isNum(v.maxKB)) return null;
+    if (!isObj(v) || !isStr(v.fid) || !isNum(v.size) || !isTime(v.mtimeMs) || !isNum(v.maxKB)) return null;
     if (typeof v.reason !== 'string' || !(REFUSAL_REASONS as readonly string[]).includes(v.reason)) return null;
     return { fid: v.fid, size: v.size, mtimeMs: v.mtimeMs, reason: v.reason as RefusalReason, maxKB: v.maxKB };
 }

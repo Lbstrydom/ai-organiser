@@ -30,6 +30,8 @@ export interface Listing {
     unsafe: ListedFile[];
     /** Other files (not .md or .txt): counted only */
     other: number;
+    /** Names whose entry could not be inspected for a reason other than being gone: they wait */
+    unreadable: string[];
 }
 
 type BigStats = import('fs').BigIntStats;
@@ -50,15 +52,17 @@ export async function listSource(deps: NodeDeps, root: string): Promise<Result<L
         return err('claude-import-source-missing');
     }
     if (names.length > MAX_ENTRIES) return err('claude-import-folder-too-big');
-    const out: Listing = { candidates: [], unsafe: [], other: 0 };
+    const out: Listing = { candidates: [], unsafe: [], other: 0, unreadable: [] };
     for (const name of names) {
         const path = deps.path.join(root, name);
         if (!inside(deps, root, path)) continue;
         let st: BigStats;
         try {
             st = await deps.fs.promises.lstat(path, { bigint: true });
-        } catch {
-            continue; // gone since the listing: it is simply not there this run
+        } catch (e) {
+            // Gone since the listing: simply not there this run. Anything else (permission, the drive) is not "gone": it waits.
+            if ((e as NodeJS.ErrnoException).code !== 'ENOENT') out.unreadable.push(name);
+            continue;
         }
         // A link is never a candidate, whatever it points at; folders are not looked into.
         if (st.isSymbolicLink() || !st.isFile()) continue;
@@ -85,6 +89,12 @@ export type ReadOutcome =
 
 /** How long one read may take before the file is left for a later run. */
 export const READ_DEADLINE_MS = 20_000;
+/** Reads that outlived their deadline and have not settled yet (they cannot be cancelled): at most this many at once. */
+export const MAX_STALLED_READS = 3;
+/** Paths with a read still running; tracked until it settles, so the same file is never read twice at once. */
+const outstanding = new Set<string>();
+/** For tests: how many reads are still running. */
+export const outstandingReads = (): number => outstanding.size;
 
 type Handle = Awaited<ReturnType<typeof import('fs').promises.open>>;
 
@@ -133,10 +143,15 @@ async function readUnsafe(deps: NodeDeps, root: string, file: ListedFile, cap: n
 
 /** One bounded, identity-checked read with a deadline. A late answer is ignored (the read settles and closes on its own). */
 export async function readBounded(deps: NodeDeps, root: string, file: ListedFile, cap: number, deadlineMs: number = READ_DEADLINE_MS): Promise<ReadOutcome> {
+    if (outstanding.has(file.path) || outstanding.size >= MAX_STALLED_READS) return { kind: 'timeout' };
+    outstanding.add(file.path);
+    const work = readUnsafe(deps, root, file, cap).catch((): ReadOutcome => ({ kind: 'failed' }));
+    // The read keeps its slot until it really settles (its handle is closed in readUnsafe's finally), deadline or not.
+    void work.finally(() => outstanding.delete(file.path));
     let timer: number | undefined;
     const late = new Promise<ReadOutcome>((resolve) => { timer = window.setTimeout(() => resolve({ kind: 'timeout' }), deadlineMs); });
     try {
-        return await Promise.race([readUnsafe(deps, root, file, cap).catch((): ReadOutcome => ({ kind: 'failed' })), late]);
+        return await Promise.race([work, late]);
     } finally {
         if (timer !== undefined) window.clearTimeout(timer);
     }

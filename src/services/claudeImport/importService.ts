@@ -145,6 +145,7 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
 
     const ledger = clone(env.ledger.get());
     if (await recoverPending(env, ledger)) {
+        if (!env.alive()) return err('claude-import-failed');
         const saved = await env.ledger.save(clone(ledger));
         if (!saved.ok) return err(saved.error);
     }
@@ -171,6 +172,12 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
         if (readyAt !== undefined && (report.nextReadyAt === null || readyAt < report.nextReadyAt)) report.nextReadyAt = readyAt;
     };
 
+    // Entries that could not be inspected (not gone: some other error) wait, and keep what was known about them.
+    for (const name of listing.value.unreadable) {
+        if (ledger.seen[name]) seen[name] = ledger.seen[name];
+        if (ledger.refused[name]) refused[name] = ledger.refused[name];
+        wait();
+    }
     for (const file of listing.value.unsafe) {
         seen[file.name] = observe(ledger.seen[file.name], file, now);
         refuse(file, 'unsupported-name');

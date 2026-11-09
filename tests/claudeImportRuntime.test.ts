@@ -132,6 +132,20 @@ describe('claude import: runtime', () => {
         expect(plugin.settings.claudeImportDeviceId).toBe('');
         expect(runImport).not.toHaveBeenCalled();
     });
+    it('makes no automatic look at start-up when automatic looks are off', async () => {
+        runImport.mockResolvedValue({ ok: true, value: report() });
+        const { plugin } = fakePlugin(true, 'aaaaaaaa-1111');
+        plugin.settings.claudeImportAutoMinutes = 0;
+        const rt = new ClaudeImportRuntime(plugin as never, {} as never);
+        rt.start();
+        await new Promise((r) => setTimeout(r, 20));
+        expect(runImport).not.toHaveBeenCalled();
+        plugin.settings.claudeImportAutoMinutes = 10;
+        const on = new ClaudeImportRuntime(plugin as never, {} as never);
+        on.start();
+        await vi.waitFor(() => expect(runImport).toHaveBeenCalledTimes(1));
+        on.stop();
+    });
     it('refuses to run on an unreadable record', async () => {
         const { plugin, data } = fakePlugin(true, 'aaaaaaaa-1111');
         data['claude-import-ledger'] = { v: 9 };

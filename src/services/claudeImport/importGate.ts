@@ -16,7 +16,8 @@ export function claudeImportActive(settings: Pick<AIOrganiserSettings, 'featureF
 export function importFolderForInstructions(settings: Pick<AIOrganiserSettings, 'featureFlags' | 'claudeImportSourceFolder'>): string | undefined {
     if (!claudeImportActive(settings)) return undefined;
     const shown = driveDisplayPath(settings.claudeImportSourceFolder);
-    return shown === '' ? undefined : shown;
+    // The path is quoted in the instructions exactly as it is; one that cannot be quoted as it is (a quote, a line break) is not named.
+    return shown === '' || /["\r\n<>]/.test(shown) ? undefined : shown;
 }
 
 /** The vault folder for copies: a plain relative folder, not the config folder, not protected. Returns it normalised. */

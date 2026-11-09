@@ -59,6 +59,13 @@ export function createImportVaultPort(plugin: AIOrganiserPlugin): ImportVaultPor
             const allowed = assertWritable(plugin.settings, 'create', path);
             if (!allowed.ok) return err('claude-import-destination-protected');
             if (app.vault.getAbstractFileByPath(path) !== null) return err('exists');
+            // A file synced to disk but not indexed yet must not be overwritten: ask the disk too. Obsidian's createBinary also
+            // refuses a path it knows; together they leave only the instant between these awaits, never a known file.
+            try {
+                if (await app.vault.adapter.exists(path)) return err('exists');
+            } catch {
+                return err('claude-import-copy-failed');
+            }
             try {
                 await app.vault.createBinary(path, toArrayBuffer(bytes));
                 return ok(undefined);
