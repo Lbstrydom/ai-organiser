@@ -43,13 +43,12 @@ export function targetNames(sourceName: string, sha256: string): string[] {
     return [`${stem}.md`, `${stem}-${sha256.slice(0, 8)}.md`].filter(isSafeFileName);
 }
 
-/** The folder as Claude's Google Drive sees it: the part after "My Drive", else the folder's own name. */
+/** The folder as Claude's Google Drive sees it: the part after a "My Drive" segment, or '' when that cannot be told (nothing is guessed). */
 export function driveDisplayPath(localFolder: string): string {
     const parts = localFolder.trim().split(/[\\/]+/).filter((p) => p !== '');
     const at = parts.findIndex((p) => p.toLowerCase() === 'my drive');
     const rest = at >= 0 ? parts.slice(at + 1) : [];
-    if (rest.length > 0) return rest.join('/');
-    return parts.length > 0 ? parts[parts.length - 1] : '';
+    return rest.join('/');
 }
 
 // ─── Stability and scheduling ────────────────────────────────────────────────────────────────────
@@ -106,7 +105,8 @@ export type Admission = { ok: true; text: string } | { ok: false; reason: Refusa
 
 const FRONTMATTER = /^---[ \t]*\r?\n([\s\S]*?)(?:\r?\n)?^---[ \t]*(?:\r?\n|$)/m;
 const MARKER = /<!--\s*\/?\s*aio:/i;
-const FENCE = /^[ \t]{0,3}(?:`{3,}|~{3,})[ \t]*\{?([^\s`{}]*)/;
+/** A fence opener anywhere on a line, so one inside a blockquote or a list item is seen too (over-refusing is deliberate). */
+const FENCE = /(?:`{3,}|~{3,})[ \t]*\{?([^\s`{}]*)/g;
 
 function frontmatterKeys(text: string): { ok: true; keys: string[] } | { ok: false } {
     if (!/^---[ \t]*\r?\n/.test(text)) return { ok: true, keys: [] };
@@ -125,10 +125,10 @@ function frontmatterKeys(text: string): { ok: true; keys: string[] } | { ok: fal
 
 function hasActiveContent(text: string): boolean {
     if (/`\$=/.test(text) || text.includes('<%')) return true;
-    return text.split(/\r?\n/).some((line) => {
-        const m = FENCE.exec(line);
-        return m !== null && (ACTIVE_FENCE_LANGS as readonly string[]).includes(m[1].toLowerCase());
-    });
+    for (const m of text.matchAll(FENCE)) {
+        if ((ACTIVE_FENCE_LANGS as readonly string[]).includes(m[1].toLowerCase())) return true;
+    }
+    return false;
 }
 
 /** Judge the exact bytes. The decoded text is for these checks and for routing only; the bytes are what gets copied. */

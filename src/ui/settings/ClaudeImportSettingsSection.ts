@@ -67,7 +67,7 @@ export class ClaudeImportSettingsSection extends BaseSettingSection {
         const showDest = (): void => {
             if (!destNote) return;
             destNote.empty();
-            const checked = checkDestination(s.claudeImportDestination, (p) => isProtectedPath(s, p));
+            const checked = checkDestination(s.claudeImportDestination, (p) => isProtectedPath(s, p), this.plugin.app.vault.configDir);
             if (!checked.ok) { destNote.setText(formatGuidance(describeError(this.plugin.t, checked.error))); return; }
             const inInbox = s.sweepInboxFolders.map(normalisePath).filter(Boolean).some((f) => isInsideOrEqual(checked.value, f));
             if (!inInbox) destNote.setText(t.destinationNotInbox);
@@ -157,7 +157,7 @@ export class ClaudeImportSettingsSection extends BaseSettingSection {
             status.setDesc(line);
             if (st.ownership === 'other') {
                 status.descEl.createDiv({ text: t.otherDevice });
-                status.addButton((b) => b.setButtonText(t.useThisDevice).onClick(async () => { await runtime.claim(); draw(); }));
+                status.addButton((b) => b.setButtonText(t.useThisDevice).onClick(async () => { const res = await runtime.claim(); if (!res.ok) new Notice(formatGuidance(describeError(this.plugin.t, res.error)), 8000); draw(); }));
             } else {
                 status.addButton((b) => b.setButtonText(t.importNow).setCta().setDisabled(st.running).onClick(() => { void importFromClaudeNow(this.plugin); }));
             }

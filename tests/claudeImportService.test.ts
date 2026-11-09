@@ -30,6 +30,8 @@ class FakeSource {
     files = new Map<string, FakeFile>();
     extraNames: string[] = [];
     opens: string[] = [];
+    /** Every open's flags: the source must only ever be opened for reading */
+    openFlags: Array<number | string> = [];
     touched = new Set<string>();
     nextIno = 100;
     /** Called after a handle's first fstat: lets a test swap the file mid-read */
@@ -65,9 +67,10 @@ class FakeSource {
                 if (!f) throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
                 return this.stats(f, f.symlink === true);
             },
-            open: async (p: string) => {
+            open: async (p: string, flags: number | string) => {
                 const n = name(p);
                 this.opens.push(n);
+                this.openFlags.push(flags);
                 const f0 = this.files.get(n);
                 if (!f0) throw new Error('ENOENT');
                 if (f0.fail) throw new Error('EIO');
@@ -190,6 +193,9 @@ describe('claude import run', () => {
         src.put('a.md', 'A');
         await run();
         expect([...src.touched].every((m) => READ_METHODS.has(m))).toBe(true);
+        // Read-only opens only: 'r', or O_RDONLY (0 here) with no write, create, truncate or append bits.
+        expect(src.openFlags.length).toBeGreaterThan(0);
+        expect(src.openFlags.every((f) => f === 'r' || f === 0)).toBe(true);
     });
 
     it('keeps a BOM, CRLF and non-ASCII bytes exactly', async () => {
@@ -347,11 +353,17 @@ describe('claude import run', () => {
         expect(Object.keys(ledger.ledger.imported)).toHaveLength(0);
     });
 
-    it('leaves a stalled read for a later run', async () => {
+    it('leaves a stalled read for a later run and starts no other read in that run', async () => {
         src.put('a.md', 'A', 1_000, { hang: true });
+        src.put('b.md', 'B', 2_000);
         const r = await run('manual', { readDeadlineMs: 20 });
         expect(r.imported).toEqual([]);
-        expect(r.waiting).toBe(1);
+        expect(r.waiting).toBe(2);
+        expect(src.opens).toEqual(['a.md']);
+        // The next run tries the other file first (least recently attempted goes first).
+        clock += 60_000;
+        const next = await run('manual', { readDeadlineMs: 20, maxReads: 1 });
+        expect(next.imported.map((i) => i.name)).toEqual(['b.md']);
     });
 
     it('refuses the whole run for an oversized folder, a missing source or a protected destination', async () => {

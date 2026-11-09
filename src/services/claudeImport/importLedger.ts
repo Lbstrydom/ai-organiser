@@ -121,11 +121,12 @@ function map<T>(raw: unknown, entry: (v: unknown) => T | null, keyOk: (k: string
 }
 
 /**
- * Absent = a first run (empty). Anything present that is not exactly this shape is corrupt: an empty fallback would forget
+ * Absent = a first run (empty); a present null is not. Anything present that is not exactly this shape is corrupt: an empty fallback would forget
  * what was imported and copy every file in the folder again.
  */
 export function decodeLedger(raw: unknown): DecodedLedger {
-    if (raw === undefined || raw === null) return { status: 'ok', ledger: emptyLedger() };
+    if (raw === undefined) return { status: 'ok', ledger: emptyLedger() };
+    if (raw === null) return { status: 'corrupt', reason: 'the record is empty' };
     if (!isObj(raw)) return { status: 'corrupt', reason: 'not an object' };
     if (raw.v !== 1) return { status: 'corrupt', reason: 'unknown version' };
     const isSha = (k: string): boolean => SHA.test(k);

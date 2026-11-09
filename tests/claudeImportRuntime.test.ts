@@ -108,6 +108,30 @@ describe('claude import: runtime', () => {
         release();
         await q;
     });
+    it('queues a choice about an ambiguous copy behind a running run', async () => {
+        const { plugin } = fakePlugin(true, 'aaaaaaaa-1111');
+        const order: string[] = [];
+        let release!: () => void;
+        runImport.mockImplementation(() => new Promise((resolve) => { release = () => { order.push('run'); resolve({ ok: true, value: report() }); }; }));
+        const rt = new ClaudeImportRuntime(plugin as never, {} as never);
+        const p = rt.run('manual');
+        await vi.waitFor(() => expect(runImport).toHaveBeenCalledTimes(1));
+        const q = rt.resolve('a'.repeat(64), 'fresh-copy').then((r) => { order.push('resolve'); return r; });
+        await new Promise((r) => setTimeout(r, 10));
+        expect(order).toEqual([]);
+        release();
+        await Promise.all([p, q]);
+        expect(order).toEqual(['run', 'resolve']);
+    });
+    it('puts the owner back when claiming cannot be saved, and does not run', async () => {
+        runImport.mockResolvedValue({ ok: true, value: report() });
+        const { plugin } = fakePlugin(true, '');
+        plugin.saveSettings.mockRejectedValueOnce(new Error('disk full'));
+        const res = await new ClaudeImportRuntime(plugin as never, {} as never).run('manual');
+        expect(res.ok).toBe(false);
+        expect(plugin.settings.claudeImportDeviceId).toBe('');
+        expect(runImport).not.toHaveBeenCalled();
+    });
     it('refuses to run on an unreadable record', async () => {
         const { plugin, data } = fakePlugin(true, 'aaaaaaaa-1111');
         data['claude-import-ledger'] = { v: 9 };

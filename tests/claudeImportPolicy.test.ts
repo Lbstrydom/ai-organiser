@@ -25,8 +25,9 @@ describe('claude import: names', () => {
     it('derives the folder Claude sees in Drive', () => {
         expect(driveDisplayPath('G:\\My Drive\\Apps\\AI Organiser\\From Claude')).toBe('Apps/AI Organiser/From Claude');
         expect(driveDisplayPath('/Users/l/Google Drive/My Drive/Apps/From Claude/')).toBe('Apps/From Claude');
-        expect(driveDisplayPath('D:\\Sync\\From Claude')).toBe('From Claude');
-        expect(driveDisplayPath('G:\\My Drive')).toBe('My Drive');
+        // Nothing is guessed outside My Drive, or for My Drive itself.
+        expect(driveDisplayPath('D:\\Sync\\From Claude')).toBe('');
+        expect(driveDisplayPath('G:\\My Drive')).toBe('');
         expect(driveDisplayPath('')).toBe('');
     });
 });
@@ -87,7 +88,7 @@ describe('claude import: admission (copied byte for byte, or refused)', () => {
         expect(admit(enc('<!--/aio:workspace-->'))).toEqual({ ok: false, reason: 'reserved-marker' });
     });
     it('refuses code blocks and inline forms that known plugins run', () => {
-        for (const t of ['```dataviewjs\ndv.paragraph(1)\n```', '~~~ js-engine\nx\n~~~', '```{button}\nname x\n```', 'inline `$= dv.current()`', 'Templater <% tp.date.now() %>']) {
+        for (const t of ['> ```dataviewjs\n> dv.paragraph(1)\n> ```', '- item\n\n    ```dataviewjs\n    x\n    ```', '```dataviewjs\ndv.paragraph(1)\n```', '~~~ js-engine\nx\n~~~', '```{button}\nname x\n```', 'inline `$= dv.current()`', 'Templater <% tp.date.now() %>']) {
             expect(admit(enc(t))).toEqual({ ok: false, reason: 'active-content' });
         }
     });
@@ -99,6 +100,7 @@ describe('claude import: ledger codec (fails closed)', () => {
         const good = { ...emptyLedger(), imported: { [SHA]: { name: 'a.md', path: 'In/a.md', at: 'x', verified: true } } };
         expect(decodeLedger(JSON.parse(JSON.stringify(good)))).toEqual({ status: 'ok', ledger: good });
         expect(decodeLedger([]).status).toBe('corrupt');
+        expect(decodeLedger(null).status).toBe('corrupt');
         expect(decodeLedger({ v: 2 }).status).toBe('corrupt');
         expect(decodeLedger({ ...emptyLedger(), imported: { nothex: good.imported[SHA] } }).status).toBe('corrupt');
         expect(decodeLedger({ ...emptyLedger(), refused: { 'a.md': { fid: '1', size: 1, mtimeMs: 1, reason: 'odd', maxKB: 1 } } }).status).toBe('corrupt');
@@ -111,6 +113,7 @@ describe('claude import: gate and destination', () => {
         expect(claudeImportActive(on)).toBe(true);
         expect(importFolderForInstructions(on)).toBe('Apps/AI Organiser/From Claude');
         expect(importFolderForInstructions({ featureFlags: {}, claudeImportSourceFolder: 'G:\\My Drive\\x' } as never)).toBeUndefined();
+        expect(importFolderForInstructions({ featureFlags: { 'claude-import': true }, claudeImportSourceFolder: 'D:\\Sync\\From Claude' } as never)).toBeUndefined();
         expect(importFolderForInstructions({ featureFlags: { 'claude-import': true }, claudeImportSourceFolder: ' ' } as never)).toBeUndefined();
     });
     it('accepts a plain vault folder and refuses climbs, the config folder and protected folders', () => {
@@ -119,6 +122,8 @@ describe('claude import: gate and destination', () => {
         expect(checkDestination('0 Inbox\\From Claude', none)).toEqual({ ok: true, value: '0 Inbox/From Claude' });
         expect(checkDestination('../outside', none).ok).toBe(false);
         expect(checkDestination('.obsidian/x', none).ok).toBe(false);
+        expect(checkDestination('config/x', none, 'config').ok).toBe(false);
+        expect(checkDestination('Config Notes/x', none, 'config').ok).toBe(true);
         expect(checkDestination('', none).ok).toBe(false);
         expect(checkDestination('Private/x', (p) => p.startsWith('Private'))).toEqual({ ok: false, error: 'claude-import-destination-protected' });
     });

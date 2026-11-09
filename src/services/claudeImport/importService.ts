@@ -40,6 +40,8 @@ export interface ImportEnv {
     ledger: LedgerPort;
     settings: ImportSnapshot;
     isProtected: (path: string) => boolean;
+    /** The vault's configuration folder (never a destination) */
+    configDir?: string;
     /** Classify an admitted text for the hand-back review */
     route: (text: string) => HandoffRoute;
     now: () => number;
@@ -134,7 +136,7 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
     const cap = Math.max(1, Math.round(settings.maxKB)) * 1024;
     const windowMs = Math.max(0, settings.stabilitySeconds) * 1000;
 
-    const dest = checkDestination(settings.destination, env.isProtected);
+    const dest = checkDestination(settings.destination, env.isProtected, env.configDir);
     if (!dest.ok) return err(dest.error);
     if (settings.sourceFolder.trim() === '') return err('claude-import-no-source');
     if (env.vaultBase === null) return err('claude-import-source-invalid');
@@ -198,12 +200,16 @@ async function runUnsafe(env: ImportEnv, trigger: Trigger): Promise<Result<Impor
     }
 
     let folderReady = false;
+    let stalled = false;
     for (const pick of picks) {
         if (!env.alive()) { report.cancelled = true; break; }
+        // A read that did not answer may still be running: start no other this run, so stalled reads cannot pile up.
+        if (stalled) { wait(); continue; }
         const { entry, file } = pick;
         entry.attemptedAt = env.now();
         const read = await readBounded(deps, root.value, file, cap, env.readDeadlineMs);
         if (read.kind === 'too-large') { refuse(file, 'too-large'); continue; }
+        if (read.kind === 'timeout') stalled = true;
         if (read.kind !== 'read') { wait(); continue; }
         entry.hash = read.sha256;
         entry.hashedAt = env.now();

@@ -104,7 +104,9 @@ const SECTION_TAGS_LIVE = /<(\s*\/?\s*(?:role|live_pack|project|area_context|han
 /** The line that tells Claude where to save deliverables for the importer. Names are reduced to plain text before escaping. */
 function importLine(esc: (s: string) => string, projectName: string, folder: string): string {
     const plain = (s: string): string => s.replace(/["\s]+/g, ' ').trim();
-    return `To send something back to the person's notes, save it with Google Drive as a new Markdown file in the folder "${esc(plain(folder))}", named "${esc(plain(projectName))} - YYYY-MM-DD - <short title>.md"; a session's Handoff section can be saved there as its own file. Never edit or replace a file that is already there.`;
+    // The folder is an operational path: kept as written, except a quote or line break, which would end the quoted text.
+    const path = folder.replace(/["\r\n]/g, ' ');
+    return `To send something back to the person's notes, save it with Google Drive as a new Markdown file in the folder "${esc(path)}", named "${esc(plain(projectName))} - YYYY-MM-DD - <short title>.md"; a session's Handoff section can be saved there as its own file. Never edit or replace a file that is already there.`;
 }
 
 export function buildWorkspaceInstructions(input: InstructionsInput): string {

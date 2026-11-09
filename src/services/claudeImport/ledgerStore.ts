@@ -76,7 +76,7 @@ export class ImportLedgerStore implements LedgerPort {
             logger.error('ClaudeImport', 'Could not save the import record', e);
             return err('claude-import-ledger-unsaved');
         }
-        this.ledger = next;
+        this.ledger = JSON.parse(JSON.stringify(next)) as ImportLedger;
         return ok(undefined);
     }
 
@@ -84,12 +84,15 @@ export class ImportLedgerStore implements LedgerPort {
     async resetCorrupt(): Promise<Result<void>> {
         if (this.corrupt === null) return err('claude-import-ledger-unsaved');
         try {
-            await updatePluginData(this.plugin, (data) => {
+            const done = await updatePluginData<boolean>(this.plugin, (data) => {
+                // A data file that is not an object cannot be repaired here: nothing is written and the reset reports failure.
+                if (typeof data !== 'object' || data === null || Array.isArray(data)) return { changed: false, value: false };
                 const earlier = Array.isArray(data[IMPORT_LEDGER_BACKUP_DATA_KEY]) ? (data[IMPORT_LEDGER_BACKUP_DATA_KEY] as unknown[]) : [];
                 data[IMPORT_LEDGER_BACKUP_DATA_KEY] = [...earlier, { at: new Date().toISOString(), ledger: data[IMPORT_LEDGER_DATA_KEY] ?? null }].slice(-3);
                 data[IMPORT_LEDGER_DATA_KEY] = emptyLedger();
-                return { changed: true };
+                return { changed: true, value: true };
             });
+            if (done !== true) return err('claude-import-ledger-unsaved');
         } catch (e) {
             logger.error('ClaudeImport', 'Could not reset the import record', e);
             return err('claude-import-ledger-unsaved');

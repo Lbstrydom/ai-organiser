@@ -45,6 +45,8 @@ export class ClaudeImportRuntime {
     readonly store: ImportLedgerStore;
     private generation = 0;
     private inflight: Promise<Result<ImportReport>> | null = null;
+    /** Every change to the import record (a run, a choice about an ambiguous copy, a reset) runs in this one queue */
+    private queue: Promise<unknown> = Promise.resolve();
     private interval: number | null = null;
     private settleTimer: number | null = null;
     private loaded: Promise<unknown> | null = null;
@@ -132,28 +134,50 @@ export class ClaudeImportRuntime {
         this.emit();
     }
 
-    /** Make this computer the one that imports. */
-    async claim(): Promise<void> {
+    /** Run after everything already queued, whatever its outcome; never rejects past its Result. */
+    private exclusive<T>(fn: () => Promise<Result<T>>): Promise<Result<T>> {
+        const next = this.queue.then(fn, fn).catch((e: unknown): Result<T> => {
+            logger.error('ClaudeImport', 'An import step failed', e);
+            return err('claude-import-failed');
+        });
+        this.queue = next.then(() => undefined, () => undefined);
+        return next;
+    }
+
+    /** Make this computer the one that imports. A save that fails puts the previous owner back. */
+    async claim(): Promise<Result<void>> {
+        const before = this.plugin.settings.claudeImportDeviceId;
         this.plugin.settings.claudeImportDeviceId = deviceId(this.plugin);
-        await this.plugin.saveSettings();
+        try {
+            await this.plugin.saveSettings();
+            return { ok: true, value: undefined };
+        } catch (e) {
+            logger.error('ClaudeImport', 'Could not save which computer imports', e);
+            this.plugin.settings.claudeImportDeviceId = before;
+            return err('claude-import-failed');
+        }
     }
 
-    async resetRecord(): Promise<Result<void>> {
-        const res = await this.store.resetCorrupt();
-        this.emit();
-        return res;
+    resetRecord(): Promise<Result<void>> {
+        return this.exclusive(async () => {
+            const res = await this.store.resetCorrupt();
+            this.emit();
+            return res;
+        });
     }
 
-    async resolve(hash: string, choice: 'is-import' | 'fresh-copy'): Promise<Result<void>> {
-        const res = await resolveAmbiguous(this.store, hash, choice, new Date().toISOString());
-        this.emit();
-        return res;
+    resolve(hash: string, choice: 'is-import' | 'fresh-copy'): Promise<Result<void>> {
+        return this.exclusive(async () => {
+            const res = await resolveAmbiguous(this.store, hash, choice, new Date().toISOString());
+            this.emit();
+            return res;
+        });
     }
 
     /** One run. A second request while one runs gets the same run (the command) or nothing (the timer). */
     run(trigger: Trigger): Promise<Result<ImportReport>> {
         if (this.inflight) return trigger === 'manual' ? this.inflight : Promise.resolve(err('claude-import-busy-skip'));
-        const p = this.runOnce(trigger).finally(() => {
+        const p = this.exclusive(() => this.runOnce(trigger)).finally(() => {
             this.inflight = null;
             this.emit();
         });
@@ -164,13 +188,18 @@ export class ClaudeImportRuntime {
 
     private async runOnce(trigger: Trigger): Promise<Result<ImportReport>> {
         if (!this.active()) return err('claude-import-failed');
+        const started = this.generation;
         await this.ensureLoaded();
         if (!this.store.isLoaded()) return this.finish(err('claude-import-ledger-corrupt'));
+        // Something that ends runs happened while the record loaded: this one does not start.
+        if (started !== this.generation || !this.active()) return err('claude-import-failed');
         const owner = this.ownership();
         if (owner === 'other') return this.finish(err('claude-import-other-device'));
         if (owner === 'none') {
             if (trigger !== 'manual') return err('claude-import-other-device');
-            await this.claim();
+            const claimed = await this.claim();
+            if (!claimed.ok) return this.finish(claimed as Result<never>);
+            if (this.ownership() !== 'this' || !this.active()) return this.finish(err('claude-import-other-device'));
         }
         const s = this.plugin.settings;
         const snapshot: ImportSnapshot = {
@@ -188,6 +217,7 @@ export class ClaudeImportRuntime {
             ledger: this.store,
             settings: snapshot,
             isProtected: (path) => isProtectedPath(this.plugin.settings, path),
+            configDir: this.plugin.app.vault.configDir,
             route: (text) => classifyHandoff(text, {
                 reviewActive: handbackActive(this.plugin),
                 index: getProjectService(this.plugin)?.index() ?? null,
@@ -195,7 +225,8 @@ export class ClaudeImportRuntime {
                 contexts: resolveSweepContexts(this.plugin.settings),
             }),
             now: () => Date.now(),
-            alive: () => gen === this.generation && this.active(),
+            // Ownership is checked on every write too: a rebind elsewhere that syncs in stops this run.
+            alive: () => gen === this.generation && this.active() && this.ownership() === 'this',
         }, trigger);
         if (result.ok) this.afterRun(result.value);
         return this.finish(result);

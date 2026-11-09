@@ -4842,7 +4842,7 @@ export const en: Translations = {
         destinationNotInbox: "This folder is not inside an inbox folder, so the capture inbox will not see the notes here.",
         claudeToldName: "What Claude is told",
         claudeToldDesc: "AI workspace instructions ask Claude to save deliverables as new files in the Drive folder \"{folder}\".",
-        claudeToldNone: "Choose the folder first.",
+        claudeToldNone: "Claude is not told where to save yet: choose a folder inside My Drive in Google Drive for desktop.",
         autoName: "Check automatically (minutes)",
         autoDesc: "How often to look while Obsidian is open. 0 means only when you choose import from Claude now.",
         limitsHeading: "Limits",

@@ -20,12 +20,13 @@ export function importFolderForInstructions(settings: Pick<AIOrganiserSettings, 
 }
 
 /** The vault folder for copies: a plain relative folder, not the config folder, not protected. Returns it normalised. */
-export function checkDestination(raw: string, isProtected: (path: string) => boolean): Result<string> {
+export function checkDestination(raw: string, isProtected: (path: string) => boolean, configDir = '.obsidian'): Result<string> {
     const typed = raw.trim().replace(/\\/g, '/');
     // A climb is refused as typed (normalising would quietly resolve it to some other folder).
     if (typed.split('/').some((s) => s === '..')) return err('claude-import-destination-invalid');
     const folder = normalisePath(typed);
-    if (folder === '' || folder.split('/')[0].startsWith('.')) return err('claude-import-destination-invalid');
+    const top = folder.split('/')[0].toLowerCase();
+    if (folder === '' || top.startsWith('.') || top === normalisePath(configDir).split('/')[0].toLowerCase()) return err('claude-import-destination-invalid');
     if (isProtected(folder)) return err('claude-import-destination-protected');
     return ok(folder);
 }
