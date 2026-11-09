@@ -1,6 +1,51 @@
 # Project Status Log
 
 
+## 2026-11-09 — Catch-up: everything merged since 2026-10-24 (#44–#105)
+
+This catch-up entry covers everything merged since the last one, when `status.md` stopped being updated. Releases 1.1.1, 1.1.2 and 1.1.3 shipped along the way (1.1.3 on 2026-10-26). Everything below it is on `main` but not released.
+
+- **Capture and sweep:**
+  - The Process capture inbox: the Clarify step before Sweep, default off (#48, #49, #55, #56, #58, #60).
+  - The sweep review: add your own task, file the note to a PARA folder or the trash in the same review, a stray click no longer loses a review, and clipped articles are skipped (#79, #87, #88, #90, #91).
+  - The sweep remembers which items it already reported, so re-sweeping never duplicates tasks (#54).
+- **Google Tasks:**
+  - Named lists, routing and due dates (#63).
+  - A one-paste setup that creates the lists itself (#86).
+  - A Google task made from a note's menu or a selection, without AI (#89).
+  - The completion check ticks the sweep report line when a task is done in Google (#93).
+  - Settings only, with no send button (#94).
+- **Projects and AI workspaces (rollout slice 1, PRs 1–7, #62–#70):**
+  - The project foundations, the sharing allow-list, workspace blocks, context packs, the Handoff review, the Process view, the combined Google script and the connector opt-in.
+  - The AI processing mark never overwrites a user's status; an opt-in `aio-status` property (#92, #95, #96).
+  - **Live pack** (#101): a project's pack kept current in a Google Drive for desktop file that a claude.ai project reads.
+  - An empty `[[]]` no longer drops a note from the pack, and the review names any notes it leaves out (#104).
+- **Navigation:**
+  - The picker is built in five sections from one action registry; features that are off are listed and can be turned on from it (#97, #100).
+  - One right-click AI organiser section, a For this context group, guided jobs, settings search and a welcome window (#102).
+  - First-time persona fixes (#103):
+    - P0: Turn on for a workspace that was never saved.
+    - P1s: the inline live folder field, the dependency dialog in the Settings window, a turn-off link per section, and the search clears on close.
+    - P2s.
+- **Import from Claude** (#105), default off, desktop only. It copies new Markdown and text files from the Drive `From Claude` folder into `0 Inbox/From Claude` and offers the hand-back review for a known project. Tried end to end on 2026-11-09: Claude on the web and on the phone wrote a `.md` file into that Drive folder, and it synced to the PC. The importer itself is not yet tried in the real vault.
+- **Providers:**
+  - Claude: no sampling fields are sent, and a default-thinking guard for 5.x (#82).
+  - Bedrock: rebuilt on the Messages API (#83).
+  - Mermaid: the preview's syntax check uses Obsidian's own parser (#84).
+- **Other fixes:**
+  - Find embeds resolves links the way Obsidian does (#46, #52).
+  - Excalidraw: the compressed drawing data is kept out of note text sent to AI (#45).
+  - Bases dashboards use the native schema (#51).
+  - Newsletter catch-up fixes (#44, #50, #53).
+  - Presentation subheads and sources (#66).
+- **Verified:**
+  - Every PR passed CI (lint, tests, build, Obsidian submission checks), and the PRs from #101 on were persona-tested live in the vault.
+  - The PKM live pack is running: 16 notes, about 62 KB, under `G:\My Drive\Apps\AI Organiser\Live packs`.
+  - The persona gate was **not** measured: `UNKNOWN_REPO` (the store has no `ai-organiser` slug).
+  - The context-drift check was not run on this branch: the worktree has no `node_modules`.
+- Backlog 2026-11-09T15:09Z: Q1 47c/19p (+0 aged) · Q2 55c/66p (0 perm) · Q3 0 · debt 96 cloud/25 local (0 spilled) · upstream 4
+
+
 ## 2026-10-24 — Persona-test fixes (catch-up audio cleanup readiness, protected output folder, P3 batch)
 
 From the 2026-10-24 full persona test (0 P0, 1 P1, 1 P2, 5 P3). Branch `claude/persona-fixes-2026-10-24-19d0c1`; no version bump.
