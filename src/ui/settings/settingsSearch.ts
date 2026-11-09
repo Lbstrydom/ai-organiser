@@ -63,8 +63,8 @@ export interface StagePlan {
 
 /**
  * The settings stage chips: keep only the sections and sub-sections of one workflow stage. A section
- * with no stage of its own (an umbrella such as Integrations) stays when any sub-section matches, and
- * opens so they show. Sections with no stage anywhere (Features, Preferences, Advanced) leave. Pure.
+ * with no stage of its own (an umbrella such as Integrations), or of another stage, stays when any
+ * sub-section matches, and opens so they show. Sections with no stage anywhere (Features, Preferences, Advanced) leave. Pure.
  */
 export function planStageFilter(sections: readonly StagedSection[], stage: WorkflowStage): StagePlan {
     const visible = new Set<string>();
@@ -74,7 +74,8 @@ export function planStageFilter(sections: readonly StagedSection[], stage: Workf
         if (s.stage !== stage && matching.length === 0) continue;
         visible.add(s.id);
         for (const c of matching) visible.add(c.id);
-        if (s.stage === null) open.add(s.id);
+        // Shown for its sub-sections only (an umbrella, or a section of another stage): open it so they show.
+        if (s.stage !== stage) open.add(s.id);
     }
     return { visible, open };
 }

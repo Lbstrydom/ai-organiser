@@ -39,6 +39,12 @@ describe('settings stage chips', () => {
         }
     });
 
+    it('a section of another stage opens when only its sub-section matches', () => {
+        const plan = planStageFilter([{ id: 'semantic', stage: 'find', children: [{ id: 'sub-x', stage: 'maintain' }] }], 'maintain');
+        expect([...plan.visible].sort()).toEqual(['semantic', 'sub-x']);
+        expect([...plan.open]).toEqual(['semantic']);
+    });
+
     it('a stage with nothing in it shows nothing', () => {
         expect(planStageFilter(sections, 'capture').visible.size).toBe(0);
     });
