@@ -42,7 +42,7 @@ This catch-up entry covers everything merged since the last one, when `status.md
   - Every PR passed CI (lint, tests, build, Obsidian submission checks), and the PRs from #101 on were persona-tested live in the vault.
   - The PKM live pack is running: 16 notes, about 62 KB, under `G:\My Drive\Apps\AI Organiser\Live packs`.
   - The persona gate was **not** measured: `UNKNOWN_REPO` (the store has no `ai-organiser` slug).
-  - The context-drift check was not run on this branch: the worktree has no `node_modules`.
+  - The context-drift check passed (`--strict`).
 - Backlog 2026-11-09T15:09Z: Q1 47c/19p (+0 aged) · Q2 55c/66p (0 perm) · Q3 0 · debt 96 cloud/25 local (0 spilled) · upstream 4
 
 
