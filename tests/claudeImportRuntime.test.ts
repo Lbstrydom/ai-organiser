@@ -5,6 +5,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { REGISTER_BY_FEATURE } from '../src/commands/index';
 import { DEFAULT_SETTINGS, migrateOldSettings } from '../src/core/settings';
+// vi.mock is hoisted above every import, so the runtime below already sees the mocked service and Node modules.
+import { ClaudeImportRuntime, createClaudeImportRuntime } from '../src/services/claudeImport/importRuntime';
 
 vi.stubGlobal('window', globalThis);
 
@@ -18,7 +20,6 @@ vi.mock('../src/services/offload/fingerprint', async (orig) => ({
     nodeDeps: () => ({ fs: {}, path: {}, crypto: {} }),
 }));
 
-const { ClaudeImportRuntime, createClaudeImportRuntime } = await import('../src/services/claudeImport/importRuntime');
 
 function fakePlugin(on: boolean, deviceOwner = '') {
     const data: Record<string, unknown> = {};
