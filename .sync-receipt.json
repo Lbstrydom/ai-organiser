@@ -1,8 +1,111 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 216,
+  "olderSyncsDropped": 219,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-11-12T19:39:05.686Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "dda8bab613daeeaa149a77b4639c67246f10c41c",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 1,
+        "updated": 8,
+        "unchanged": 1075,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/audit/run-notices.mjs"
+      ],
+      "updated": [
+        "scripts/.claude-skills/lib/audit/control-markers.mjs",
+        "scripts/.claude-skills/lib/audit/duplication-detector.mjs",
+        "scripts/.claude-skills/lib/audit/planless-intent.mjs",
+        "scripts/.claude-skills/lib/disowned-paths.mjs",
+        "scripts/.claude-skills/lib/final-review/providers.mjs",
+        "scripts/.claude-skills/lib/prepush-audit-gate.mjs",
+        "scripts/.claude-skills/openai-audit.mjs",
+        "scripts/.claude-skills/symbol-index/extract.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-11-12T05:44:41.851Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "fd19c356dc6331343dd92b275d2a841c2e006d54",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 1,
+        "updated": 4,
+        "unchanged": 1078,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/audit/planless-intent.mjs"
+      ],
+      "updated": [
+        "scripts/.claude-skills/lib/audit/control-markers.mjs",
+        "scripts/.claude-skills/lib/prepush-audit-gate.mjs",
+        "scripts/.claude-skills/lib/vcs.mjs",
+        "scripts/.claude-skills/openai-audit.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
+    {
+      "syncedAt": "2026-11-09T20:53:42.781Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "4a6662f15ef01c611874943f25cd22290ed0920a",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 2,
+        "updated": 3,
+        "unchanged": 1077,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        "scripts/.claude-skills/lib/visual/overlap-text.mjs",
+        "scripts/.claude-skills/lib/visual/theme-flip.mjs"
+      ],
+      "updated": [
+        "scripts/.claude-skills/lib/visual/extract.mjs",
+        "scripts/.claude-skills/lib/visual/layout-physics.mjs",
+        "scripts/.claude-skills/lib/visual/unadapted-color.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-11-09T16:08:04.827Z",
       "source": {
@@ -432,95 +535,6 @@
         "scripts/.claude-skills/write-code-outcomes.mjs",
         "scripts/.claude-skills/write-ledger-entries.mjs"
       ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-24T12:59:50.484Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "d5307b08f8b5e262a8fa4c774b5557e3949cc531",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 1,
-        "updated": 6,
-        "unchanged": 970,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [
-        "scripts/.claude-skills/lib/patch-equivalence.mjs"
-      ],
-      "updated": [
-        "scripts/.claude-skills/lib/commit-trailers.mjs",
-        "scripts/.claude-skills/lib/fleet/lease-cmd.mjs",
-        "scripts/.claude-skills/lib/fleet/lease-run.mjs",
-        "scripts/.claude-skills/lib/fleet/lease-spawn.mjs",
-        "scripts/.claude-skills/lib/fleet/lease.mjs",
-        "scripts/.claude-skills/ship-commit.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-24T00:08:52.540Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "afa5bb2a106e4fceca183310fd28f6dd551a40bf",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 1,
-        "unchanged": 975,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [],
-      "updated": [
-        "scripts/.claude-skills/lib/audit/schema-precondition.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-23T23:37:35.822Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "f7015a0ccbda8af97ecf04cc757b67c398d7d0db",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 0,
-        "unchanged": 976,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [],
-      "updated": [],
       "gcDeleted": [],
       "overridesHeld": [],
       "divergedOverwritten": [],
