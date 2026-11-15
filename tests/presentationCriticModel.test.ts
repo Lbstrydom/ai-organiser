@@ -29,7 +29,7 @@ import { runStoryboardStage } from '../src/services/chat/consultantStoryboardPip
 import { GUIDANCE_CODES, describeError, formatGuidance } from '../src/core/friendlyErrors';
 import { mockNotices, clearMockNotices } from './mocks/obsidian';
 import { en } from '../src/i18n/en';
-import type { Fidelity } from '../src/services/types';
+import type { Fidelity, SummarizableLLMService } from '../src/services/types';
 import type { ConsultantStoryboard } from '../src/services/presentationIr/consultantStoryboard';
 
 function fid(p: Partial<Fidelity> & Pick<Fidelity, 'provider'>): Fidelity {
@@ -274,7 +274,8 @@ const FINDING = '[{"slideId":null,"dimension":"mece","severity":"major","message
 
 function judgeCtx(result: { success: boolean; content?: string; fidelity?: Fidelity }) {
     const summarizeText = vi.fn(async () => result);
-    return { ctx: { llmService: { summarizeText }, settings: { serviceType: 'cloud' as const, cloudServiceType: 'claude' } }, summarizeText };
+    const ctx = { llmService: { summarizeText } as unknown as SummarizableLLMService, settings: { serviceType: 'cloud' as const, cloudServiceType: 'claude' } };
+    return { ctx, summarizeText };
 }
 
 describe('buildStoryboardJudge — independence from fidelity', () => {

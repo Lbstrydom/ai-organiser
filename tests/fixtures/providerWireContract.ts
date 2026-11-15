@@ -22,7 +22,7 @@ export interface ProviderWireContract {
     /** Why a per-call model override cannot work, when `modelInBody` is false. */
     overrideBlockedBy?: 'deployment-url' | 'model-in-url';
     /** Accepted names for the output-token cap. */
-    maxTokensFields: string[];
+    maxTokensFields: readonly string[];
     /** The provider has an extended-thinking request parameter (still gated by model). */
     thinkingParam: boolean;
     /** The wire supports `stream: true` on this endpoint. */
