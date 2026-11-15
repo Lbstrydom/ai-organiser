@@ -15,6 +15,8 @@ import { normalizePath, type App, type Plugin } from 'obsidian';
 import { ok, err, type Result } from '../../../core/result';
 import type { AIOrganiserSettings } from '../../../core/settings';
 import { logger } from '../../../utils/logger';
+import type AIOrganiserPlugin from '../../../main';
+import { isCatchUpEnabled } from '../newsletterAudioMode';
 import { isStoryMemoryEnabled } from '../newsletterMemoryPolicy';
 import { markBucketsConsumed } from '../newsletterConsumption';
 import { getBucketDateStr } from '../newsletterService';
@@ -96,6 +98,18 @@ function todayOf(settings: AIOrganiserSettings, now: Date): string {
     return getBucketDateStr(now, settings.newsletterBriefCutoffHour ?? 6, settings.newsletterBriefCutoffMinute ?? 0);
 }
 
+/** Best effort: flip the Digest's catch-up link to "heard". Off (audio off / daily mode) it reads and writes nothing. */
+async function refreshDigestLink(deps: ListenDeps): Promise<void> {
+    if (!isCatchUpEnabled(deps.settings)) return;
+    try {
+        const { createDigestLinkDeps } = await import('./catchUpRuntime');
+        const { refreshDigestCatchUpLinks } = await import('./catchUpDigestLink');
+        await refreshDigestCatchUpLinks(createDigestLinkDeps(deps.plugin as unknown as AIOrganiserPlugin));
+    } catch (e) {
+        logger.warn('Newsletter', 'Catch-up digest link not updated', e);
+    }
+}
+
 /** Register that an episode was heard. Idempotent: replaying one writes nothing new. */
 export async function markEpisodeListened(deps: ListenDeps, episode: Pick<EpisodeMeta, 'id' | 'to' | 'coverage'>): Promise<Result<{ acked: boolean; buckets: number }>> {
     try {
@@ -111,6 +125,7 @@ export async function markEpisodeListened(deps: ListenDeps, episode: Pick<Episod
                 .flatMap(([date, cov]) => (cov.kind === 'revision' ? [{ date, revision: cov.rev }] : []));
             buckets = await markBucketsConsumed(deps.plugin, entries, 'catchup', today);
         }
+        await refreshDigestLink(deps);
         return ok({ acked, buckets });
     } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
@@ -158,5 +173,7 @@ export async function ackAllInWindowEpisodes(deps: ListenDeps, through?: string)
     const outputRoot = getNewsletterOutputFullPath(deps.settings);
     const { episodes } = await loadEpisodes(deps.app, outputRoot, windowDates(today, lookback)[0]);
     const covered = through ? episodes.filter((e) => e.to <= through) : episodes;
-    return ackEpisodes(deps.plugin, covered.map((e) => ({ id: e.id, to: e.to })), today, lookback);
+    const added = await ackEpisodes(deps.plugin, covered.map((e) => ({ id: e.id, to: e.to })), today, lookback);
+    await refreshDigestLink(deps);
+    return added;
 }

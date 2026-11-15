@@ -484,6 +484,22 @@ paid audio every day that may never be heard.
 - `catchUpService.ts` — the orchestration state machine and recovery protocol. Ports (LLM, TTS,
   prompt) are injected; `catchUpRuntime.ts` binds them to the plugin.
 - `catchUpListen.ts` — what "heard" means.
+- `catchUpDigestLink.ts` — **the Digest's pointer to the current episode**, so the note the person reads
+  daily leads to the one in `Catch-up/`. One owned block directly under the Digest's H1 between
+  `<!-- ai-organiser:catchup-link:start/end -->`: `🎧 **Catch-up audio:** [[<note>|Catch-up <from> to <to>]] · new|heard`.
+  - **Current** = `findLatestNarratedEpisode` (latest narrated end); a newer episode replaces the link in
+    place, an older remake never moves it back.
+  - **State follows the durable ack**, so Mark listened / playing / Mark caught up flips `new` to `heard`
+    (an audio-removed episode reads `heard`). Refreshed after the episode commit (`CatchUpPorts.afterCommit`),
+    after every ack (`catchUpListen`), and when a fetch writes a digest (`newsletterService.writeBucket`).
+  - **Insert vs update.** Today's digest, the episode's last day and a digest a fetch just wrote get the
+    block; any other digest in the window is only UPDATED when it already has one (no stale `new`).
+  - **Safety.** `applyNoteEdit` (`review: false`, same narrow exemption as the tidy), `assertWritable`
+    before each write, compare-and-commit baseline; a malformed marker pair (duplicate, unpaired, inverted)
+    refuses that digest. Best effort: a failed or protected write is logged and never fails the episode
+    (the episode note is the coverage record). Idempotent (no write when the text is unchanged).
+  - **Off is byte-identical**: audio off, `daily` mode or the newsletter feature off = no read, no write
+    (`isCatchUpEnabled` gates every entry point; pinned in `tests/catchUpDigestLink.test.ts`).
 - `catchUpCleanup.ts` — **opt-in audio cleanup** (`newsletterCatchUpAudioCleanupDays`, 0 = off and
   byte-identical: no read, no write, no listener; 1-28 days). Removes the MP3 of a HEARD episode whose
   newest covered day is older than N days and keeps the note (coverage + transcript). Invariants:

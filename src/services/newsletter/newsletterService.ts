@@ -45,7 +45,7 @@ import type { RecallSelection, CaughtUpOutcome, ReadCommitOutcome, ReadObservati
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
-import { isDailyAudioEnabled } from './newsletterAudioMode';
+import { isCatchUpEnabled, isDailyAudioEnabled } from './newsletterAudioMode';
 import { resolveNewsletterTts } from './resolveNewsletterTts';
 import { updateAIOMetadata, createSummaryHook } from '../../utils/frontmatterUtils';
 import { SourceType } from '../../core/constants';
@@ -485,8 +485,21 @@ export class NewsletterService {
             const digestContent = this.buildDigestContent(group, dateStr, dateLabel, 0);
             await vault.create(digestPath, digestContent);
         }
+        await this.linkCatchUpEpisode(dateStr);
 
         return paths;
+    }
+
+    /** Best effort: point this day's digest at the current catch-up episode. A no-op unless catch-up audio is on. */
+    private async linkCatchUpEpisode(dateStr: string): Promise<void> {
+        if (!isCatchUpEnabled(this.plugin.settings)) return;
+        try {
+            const { createDigestLinkDeps } = await import('./catchUp/catchUpRuntime');
+            const { refreshDigestCatchUpLinks } = await import('./catchUp/catchUpDigestLink');
+            await refreshDigestCatchUpLinks(createDigestLinkDeps(this.plugin), [dateStr]);
+        } catch (e) {
+            logger.warn('Newsletter', 'Catch-up digest link not updated', e);
+        }
     }
 
     private buildNoteContent(nl: ProcessedNewsletter, dateStr: string): string {
@@ -1271,7 +1284,10 @@ export class NewsletterService {
             // Insert after the H1 heading line
             const h1Match = /^# .+$/m.exec(existing);
             if (h1Match) {
-                const insertAt = (h1Match.index ?? 0) + h1Match[0].length;
+                // Keep the catch-up link block (if present) directly under the H1, above the brief.
+                const linkEnd = existing.indexOf("<!-- ai-organiser:catchup-link:end -->");
+                const h1End = (h1Match.index ?? 0) + h1Match[0].length;
+                const insertAt = linkEnd >= h1End ? linkEnd + "<!-- ai-organiser:catchup-link:end -->".length : h1End;
                 updated = existing.slice(0, insertAt) + '\n\n' + managedBlock + '\n\n' + existing.slice(insertAt).trimStart();
             } else {
                 updated = managedBlock + '\n\n' + existing;

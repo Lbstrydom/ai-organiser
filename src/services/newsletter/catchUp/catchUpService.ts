@@ -80,6 +80,8 @@ export interface CatchUpPorts {
     verifyAudio?: typeof realVerifyEpisodeAudio;
     /** Fired after any change a surface (status bar, modal) should re-read. */
     onChanged?: () => void;
+    /** Best effort, after the episode note is committed: link it from the Digest. Never fails the episode. */
+    afterCommit?: () => Promise<unknown>;
     /** Automatic replacement only: was this episode played lately on this device? Absent means unknown, which blocks. */
     recentPlay?: (episodeId: string) => Promise<RecentPlay>;
 }
@@ -554,6 +556,7 @@ async function commitEpisode(
         }, ports.settings);
         await clearOperation(ports.plugin, record.opId);
         ports.onChanged?.();
+        try { await ports.afterCommit?.(); } catch (e) { logger.warn('Newsletter', 'Catch-up digest link failed', e); }
         return ok({
             opId: record.opId,
             notePath: res.path,

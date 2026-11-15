@@ -29,6 +29,7 @@ import {
 } from './catchUpPrompts';
 import type { CatchUpPorts, TtsResolution } from './catchUpService';
 import type { TidyDeps } from './catchUpTidy';
+import { refreshDigestCatchUpLinks, type DigestLinkDeps } from './catchUpDigestLink';
 import type { CatchUpPlan } from './catchUpTypes';
 import { estimateSpokenChars } from './catchUpCoverage';
 
@@ -83,6 +84,7 @@ export function createCatchUpPorts(plugin: AIOrganiserPlugin): CatchUpPorts {
         settings,
         resolveTts: () => resolveTts(plugin),
         // Automatic replacement only; absent (tracking off) means unknown, which blocks.
+        afterCommit: () => refreshDigestCatchUpLinks(createDigestLinkDeps(plugin)),
         recentPlay: plugin.catchUpPlayback ? (episodeId) => plugin.catchUpPlayback!.recentPlay(episodeId) : undefined,
 
         async generateScript(plan: CatchUpPlan, signal?: AbortSignal): Promise<Result<string>> {
@@ -142,6 +144,24 @@ export function createDailyTidyDeps(plugin: AIOrganiserPlugin): TidyDeps {
             return applyNoteEdit(plugin, { kind: 'full-replace', filePath, baseline, nextContent }, { review: false });
         },
         removedLine: (date) => plugin.t.settings.newsletter.catchUp.audioRemovedLine.replace('{date}', date),
+    };
+}
+
+/**
+ * What the Digest link needs from the plugin. Same documented exemption from reviewed edits as the
+ * daily tidy: a deterministic mechanical edit of a plugin-generated note inside owned markers.
+ */
+export function createDigestLinkDeps(plugin: AIOrganiserPlugin): DigestLinkDeps {
+    const c = plugin.t.settings.newsletter.catchUp;
+    return {
+        app: plugin.app,
+        plugin,
+        settings: plugin.settings,
+        text: { label: c.digestLinkLabel, stateNew: c.digestLinkNew, stateHeard: c.digestLinkHeard },
+        writeNote: async (filePath, baseline, nextContent) => {
+            const { applyNoteEdit } = await import('../../noteEdit/applyNoteEdit');
+            return applyNoteEdit(plugin, { kind: 'full-replace', filePath, baseline, nextContent }, { review: false });
+        },
     };
 }
 
