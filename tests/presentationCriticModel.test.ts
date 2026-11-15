@@ -321,6 +321,21 @@ describe('buildStoryboardJudge — independence from fidelity', () => {
         expect(seen).toEqual(['unknown']);
     });
 
+    it('a throwing fidelity getter or notice hook keeps the findings (independence unknown)', async () => {
+        const f = fid({ provider: 'claude', reportedModel: 'claude-opus-4-6' });
+        const a = await buildStoryboardJudge(judgeCtx({ success: true, content: FINDING, fidelity: f }).ctx, [], {
+            getGeneratorFidelity: () => { throw new Error('boom'); },
+        })(STORYBOARD);
+        expect(a.findings).toHaveLength(1);
+        expect(a.findings[0].criticIndependence).toBe('unknown');
+        const b = await buildStoryboardJudge(judgeCtx({ success: true, content: FINDING, fidelity: f }).ctx, [], {
+            getGeneratorFidelity: () => fid({ provider: 'claude', reportedModel: 'claude-sonnet-4-6' }),
+            onIndependence: () => { throw new Error('boom'); },
+        })(STORYBOARD);
+        expect(b.findings).toHaveLength(1);
+        expect(b.findings[0].criticIndependence).toBe('different');
+    });
+
     it('a failed critic call reports nothing and degrades to an empty verdict', async () => {
         const { ctx } = judgeCtx({ success: false });
         const seen: string[] = [];

@@ -121,8 +121,19 @@ export function buildStoryboardJudge(
             if (!r.success || !r.content) return { findings: [] };
             const findings = parseCriticFindings(r.content);
             if (!options.getGeneratorFidelity && !options.onIndependence) return { findings };
-            const independence = independenceFor(options.getGeneratorFidelity?.(), r.fidelity);
-            options.onIndependence?.(independence);
+            // The identity getter and the notice hook are auxiliary: a throw in either must not
+            // discard findings the critic already produced.
+            let independence: Independence = 'unknown';
+            try {
+                independence = independenceFor(options.getGeneratorFidelity?.(), r.fidelity);
+            } catch (e) {
+                logger.warn('Presentation', `critic independence check failed: ${e instanceof Error ? e.message : String(e)}`);
+            }
+            try {
+                options.onIndependence?.(independence);
+            } catch (e) {
+                logger.warn('Presentation', `critic independence notice failed: ${e instanceof Error ? e.message : String(e)}`);
+            }
             return { findings: findings.map((f) => ({ ...f, criticIndependence: independence })) };
         } catch (e) {
             logger.warn('Presentation', `independent critic failed, using deterministic audit only: ${e instanceof Error ? e.message : String(e)}`);
