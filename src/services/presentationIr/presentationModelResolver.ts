@@ -14,6 +14,7 @@ import type { Result } from '../../core/result';
 import { ok } from '../../core/result';
 import type { AdapterType } from '../adapters';
 import type { ProviderProfile } from '../providerProfile';
+import type { Fidelity } from '../types';
 import { resolveForProvider } from '../specialistModelResolver';
 import { PROVIDER_DEFAULT_MODEL, ALL_ADAPTERS } from '../adapters/providerRegistry';
 import { parseClaudeModel, parseGeminiModel, parseOpenAIModel } from '../adapters/modelCapabilities';
@@ -79,6 +80,36 @@ export function familyOf(provider: AdapterType | 'local', model: string): Provid
     if (parseGeminiModel(model)) return 'gemini';
     if (parseOpenAIModel(model)) return 'openai';
     return 'other';
+}
+
+export type Independence = 'same' | 'different' | 'unknown';
+
+/**
+ * A call's model identity when it is CONCRETE (llm-option-fidelity D1): a model id the
+ * response reported, or one sent in this call's body (`per-call`). An alias, a
+ * service-config name or a deployment name is routing evidence only and yields null.
+ */
+function concreteIdentity(f: Fidelity | undefined): { provider: Fidelity['provider']; model: string } | null {
+    if (!f) return null;
+    if (f.reportedModel) return { provider: f.provider, model: f.reportedModel };
+    if (f.routing === 'per-call' && f.requestedModel) return { provider: f.provider, model: f.requestedModel };
+    return null;
+}
+
+/**
+ * Compare the generator's and the critic's ACTUAL model identity after the calls ran
+ * (D1/D3). `same` and `different` need two concrete identities; everything else,
+ * including a missing `fidelity`, is `unknown` — never independent. Equal routing
+ * evidence never proves `same`, and unequal routing evidence never proves `different`.
+ */
+export function independenceFor(generator: Fidelity | undefined, critic: Fidelity | undefined): Independence {
+    const g = concreteIdentity(generator);
+    const c = concreteIdentity(critic);
+    if (!g || !c) return 'unknown';
+    if (g.provider === c.provider) return g.model === c.model ? 'same' : 'different';
+    const gf = familyOf(g.provider, g.model);
+    const cf = familyOf(c.provider, c.model);
+    return gf !== 'other' && cf !== 'other' && gf !== cf ? 'different' : 'unknown';
 }
 
 /** Light competence heuristic — flag obviously weak tiers for a reasoning/critic role. */

@@ -2867,6 +2867,8 @@ export interface Translations {
             storylineWriteFailed: string;           // consultant mode: storyline note write failed
             storylineBuildFailed: string;           // consultant mode: build-from-storyline failed
             storylineReviseFailed: string;          // consultant mode: storyline revision failed
+            criticSameModel: string;                // consultant mode: notice when the critic ran on the generator's model
+            criticUnknownModel: string;             // consultant mode: notice when independence could not be confirmed
             slidePreviewEmpty: string;              // "No deck yet — generate slides to see a preview here."
             slideDiffDriftAdvisory: string;         // "Accepting will also apply changes to {n} unselected slide{s}…"
             // Phase labels (previously hardcoded in PresentationModeHandler) —

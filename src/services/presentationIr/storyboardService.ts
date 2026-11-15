@@ -20,6 +20,7 @@ import { parseStoryboardFromResponse, MAX_SLIDES } from './consultantStoryboard'
 import { buildStoryboardPrompt, buildStoryboardRepairPrompt, buildStoryboardRevisionPrompt } from './storyboardPrompts';
 import type { StorylineComment } from './storyboardPrompts';
 import { getModelOutputLimit } from '../tokenLimits';
+import type { Fidelity } from '../types';
 
 export interface GenerateStoryboardOptions {
     outputLanguage?: string;
@@ -29,6 +30,9 @@ export interface GenerateStoryboardOptions {
     onRetryStatus?: (seconds: number) => void;
     /** Model override for a SAME-provider role (Cluster B); '' / undefined = configured main model. */
     modelOverride?: string;
+    /** Called with the `fidelity` of each SUCCESSFUL generation call, so the independent critic can be
+     *  compared against what actually produced the storyboard (llm-option-fidelity D3). */
+    onFidelity?: (fidelity: Fidelity) => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 180_000;
@@ -39,6 +43,7 @@ interface StoryboardCallOpts {
     label: string;
     onRetryStatus?: (seconds: number) => void;
     modelOverride?: string;
+    onFidelity?: (fidelity: Fidelity) => void;
     /** Structured JSON task — adaptive thinking adds large latency (and competes
      *  with the JSON output) for no schema benefit; the Zod schema + repair retry
      *  are the correctness guardrails. Mirrors the audit/selective-refine calls. */
@@ -121,8 +126,11 @@ async function runStoryboardLLM(
             const prompt = badOutput == null
                 ? systemPrompt
                 : `${systemPrompt}\n\n${buildStoryboardRepairPrompt(badOutput, lastError)}`;
-            const res = await summarizeText(context, prompt, callOpts);
+            // `onFidelity` is the critic handoff, not a call option — keep it out of the LLM request.
+            const { onFidelity, ...llmOpts } = callOpts;
+            const res = await summarizeText(context, prompt, llmOpts);
             if (callOpts.signal?.aborted) return finish('aborted', err('Aborted'));
+            if (res.success && res.fidelity) onFidelity?.(res.fidelity);
 
             if (!res.success) {
                 // The LLM call itself FAILED — and `summarizeText`/`postWithRetry` has
@@ -163,6 +171,7 @@ function toCallOpts(label: string, options: GenerateStoryboardOptions): Storyboa
         disableThinking: true,
         maxTokens: storyboardMaxTokens(options.targetLength),
         ...(options.modelOverride ? { modelOverride: options.modelOverride } : {}),
+        ...(options.onFidelity ? { onFidelity: options.onFidelity } : {}),
     };
 }
 

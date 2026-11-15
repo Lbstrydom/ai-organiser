@@ -17,6 +17,9 @@ import type { ClaimCheck } from '../presentationIr/evidenceGrounding';
 import { selfCheckStoryboard, buildGroundingAuditPayload } from '../presentationIr/evidenceGrounding';
 import type { StoryboardJudge, JudgeVerdict, StructuralFinding } from './consultantAuditService';
 import { isValidFinding } from './consultantAuditService';
+import type { Fidelity } from '../types';
+import type { Independence } from '../presentationIr/presentationModelResolver';
+import { independenceFor } from '../presentationIr/presentationModelResolver';
 import { tryExtractJson } from '../../utils/responseParser';
 import { logger } from '../../utils/logger';
 
@@ -26,6 +29,11 @@ export interface CriticOptions {
     timeoutMs?: number;
     /** Same-provider critic role: switch the model via modelOverride (cross-provider uses a specialist context). */
     modelOverride?: string;
+    /** The `fidelity` of the generation call that produced the storyboard being judged. A getter, because the
+     *  judge is built before generation finishes (llm-option-fidelity D3). Absent -> independence is unknown. */
+    getGeneratorFidelity?: () => Fidelity | undefined;
+    /** Called once after a successful critic call with the recomputed independence. */
+    onIndependence?: (independence: Independence) => void;
 }
 
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -111,7 +119,11 @@ export function buildStoryboardJudge(
             });
             if (options.signal?.aborted) return { findings: [] };
             if (!r.success || !r.content) return { findings: [] };
-            return { findings: parseCriticFindings(r.content) };
+            const findings = parseCriticFindings(r.content);
+            if (!options.getGeneratorFidelity && !options.onIndependence) return { findings };
+            const independence = independenceFor(options.getGeneratorFidelity?.(), r.fidelity);
+            options.onIndependence?.(independence);
+            return { findings: findings.map((f) => ({ ...f, criticIndependence: independence })) };
         } catch (e) {
             logger.warn('Presentation', `independent critic failed, using deterministic audit only: ${e instanceof Error ? e.message : String(e)}`);
             return { findings: [] };

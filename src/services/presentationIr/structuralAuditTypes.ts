@@ -13,6 +13,8 @@ export interface StructuralFinding {
     readonly dimension: StructuralDimension;
     readonly severity: Severity;
     readonly message: string;
+    /** Set on an independent-critic finding: whether the critic ran on a model different from the generator's (llm-option-fidelity D3). */
+    readonly criticIndependence?: 'same' | 'different' | 'unknown';
 }
 
 export interface StructuralAuditResult {
