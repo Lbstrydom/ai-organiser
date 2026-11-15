@@ -33,6 +33,7 @@ export async function consumeSseResponse(opts: ConsumeSseOptions): Promise<Strea
     lifecycle.signal.addEventListener('abort', cancelReader, { once: true });
 
     const decoder = new TextDecoder();
+    let finished = false;
     let buffer = '';
     let fullContent = '';
     let reportedModel: string | undefined;
@@ -55,7 +56,7 @@ export async function consumeSseResponse(opts: ConsumeSseOptions): Promise<Strea
             while (true) {
                 const { done, value } = await reader.read();
                 lifecycle.markFirstByte();
-                if (done) break;
+                if (done) { finished = true; break; }
                 buffer += decoder.decode(value, { stream: true });
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || ''; // keep incomplete line in buffer
@@ -86,5 +87,9 @@ export async function consumeSseResponse(opts: ConsumeSseOptions): Promise<Strea
         return { success: true, content: fullContent, fidelity: fidelity() };
     } finally {
         lifecycle.signal.removeEventListener('abort', cancelReader);
+        // Every exit (success, error, a throwing onChunk, abort) releases the reader: cancel an
+        // unfinished read, then free the lock so the body cannot be held open.
+        if (!finished) cancelReader();
+        try { reader.releaseLock(); } catch { /* a pending cancel may still hold it; the body is closed either way */ }
     }
 }

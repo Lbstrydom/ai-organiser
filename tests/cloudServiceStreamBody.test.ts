@@ -34,7 +34,8 @@ async function emit(type: AdapterType, options?: Parameters<ReturnType<typeof ma
 }
 
 describe('stream body baseline (option-less)', () => {
-    it('covers every streaming adapter in the registry', () => {
+    it('has a baseline row for EVERY adapter in the registry (a missing row must fail, not be filtered out)', () => {
+        for (const t of ALL_ADAPTERS) expect(rows[t], `[${t}] missing in fixtures/stream-body-baseline.json`).toBeDefined();
         expect(STREAMING.length).toBeGreaterThan(8);
     });
 

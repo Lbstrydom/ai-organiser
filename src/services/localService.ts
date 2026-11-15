@@ -393,7 +393,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
 
         const requestBody = this.buildSummarizeBody(prompt, options);
         const body = { ...requestBody, stream: true };
-        const lifecycle = new StreamLifecycle(signal, options?.timeoutMs);
+        const lifecycle = new StreamLifecycle(signal ?? options?.signal, options?.timeoutMs);
 
         try {
             let response: Response;
@@ -410,6 +410,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
             }
 
             if (!response.ok) {
+                void response.body?.cancel().catch(() => undefined);
                 throw new Error(`HTTP ${response.status}`);
             }
 

@@ -101,3 +101,57 @@ describe('stream reportedModel channel (real service)', () => {
         expect(r.fidelity?.reportedModel).toBe('fallback-seen');
     });
 });
+
+describe('audit R1 fixes: terminal-result contract', () => {
+    it('a throw after content was delivered is a partial failure', async () => {
+        const r = await summarizeTextStream(ctx({
+            summarizeText: vi.fn(),
+            summarizeTextStream: async (_p, onChunk) => { onChunk('some'); throw new Error('reset'); },
+        }), 'p', () => undefined);
+        expect(r).toMatchObject({ success: false, partial: true });
+        expect(r.error).toMatch(/Partial stream failure/);
+    });
+
+    it('options.signal is honoured when no positional signal is passed, in the fallback too', async () => {
+        const ac = new AbortController();
+        const seen: Array<AbortSignal | undefined> = [];
+        await summarizeTextStream(ctx({
+            summarizeText: async (_p, o) => { seen.push(o?.signal); return { success: true, content: 'x' }; },
+            summarizeTextStream: async (_p, _c, s) => { seen.push(s); throw new Error('connect'); },
+        }), 'p', () => undefined, undefined, { signal: ac.signal });
+        expect(seen).toEqual([ac.signal, ac.signal]);
+    });
+
+    it('an abort after content is flagged partial', async () => {
+        const ac = new AbortController();
+        const r = await summarizeTextStream(ctx({
+            summarizeText: vi.fn(),
+            summarizeTextStream: async (_p, onChunk) => { onChunk('a'); ac.abort(); throw new DOMException('x', 'AbortError'); },
+        }), 'p', () => undefined, ac.signal);
+        expect(r).toMatchObject({ success: false, error: 'Aborted', partial: true });
+    });
+});
+
+describe('audit R1 fixes: response body ownership', () => {
+    it('a non-OK response body is cancelled (cloud)', async () => {
+        const cancel = vi.fn().mockResolvedValue(undefined);
+        stubFetch(() => ({ ok: false, status: 503, body: { cancel } } as unknown as Response));
+        const r = await makeService('groq').summarizeTextStream('p', () => undefined);
+        expect(r).toMatchObject({ success: false, error: 'HTTP 503' });
+        expect(cancel).toHaveBeenCalled();
+    });
+
+    it('a throwing onChunk still releases the reader (lock freed, body cancelled)', async () => {
+        let cancelled = false;
+        const enc = new TextEncoder();
+        const body = new ReadableStream<Uint8Array>({
+            start(c) { c.enqueue(enc.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'x' } }] })}\n`)); },
+            cancel() { cancelled = true; },
+        });
+        stubFetch(() => new Response(body, { status: 200 }));
+        const r = await makeService('groq').summarizeTextStream('p', () => { throw new Error('ui blew up'); });
+        expect(r).toMatchObject({ success: false, partial: true });
+        expect(cancelled).toBe(true);
+        expect(body.locked).toBe(false);
+    });
+});

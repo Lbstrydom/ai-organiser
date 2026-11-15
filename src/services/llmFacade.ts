@@ -70,6 +70,8 @@ export async function summarizeTextStream(
     options?: SummarizeOptions
 ): Promise<LLMCallResult> {
     const service = context.llmService;
+    // The positional signal wins; `options.signal` is honoured when there is none, so neither form is lost.
+    signal = signal ?? options?.signal;
 
     // Track whether any chunk has reached the caller. Once true, a fallback
     // to non-stream would duplicate content (audit R1 H5/H16), so we must
@@ -95,7 +97,7 @@ export async function summarizeTextStream(
         } catch (e) {
             // If aborted, propagate — do NOT fall back to a non-stream request
             if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
-                return { success: false, error: 'Aborted' };
+                return { success: false, error: 'Aborted', ...(emitted ? { partial: true } : {}) };
             }
             if (emitted) {
                 // Mid-stream failure: caller has already rendered partial
@@ -103,7 +105,7 @@ export async function summarizeTextStream(
                 // so return a partial-stream failure the caller can handle.
                 const errorMessage = e instanceof Error ? e.message : 'Unknown error';
                 logger.warn('LLM', 'Streaming failed mid-stream; no fallback to avoid duplication', e);
-                return { success: false, error: `Partial stream failure: ${errorMessage}` };
+                return { success: false, error: `Partial stream failure: ${errorMessage}`, partial: true };
             }
             // Streaming failed pre-first-chunk — safe to fall back to non-stream
             logger.warn('LLM', 'Streaming failed pre-first-chunk, falling back to non-stream:', e);

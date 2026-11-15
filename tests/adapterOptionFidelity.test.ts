@@ -123,7 +123,9 @@ async function violations(type: AdapterType, path: Path, option: 'modelOverride'
 
     if (option === 'stablePrefix') {
         const { body } = await emit(type, path, { stablePrefix: MARK });
-        if (!bodyHas(body, MARK)) fail('the stable prefix is nowhere in the emitted body');
+        // It must be in the prompt content (messages, or the system/instruction field), not merely anywhere.
+        const carrier = { messages: body.messages, system: body.system };
+        if (!bodyHas(carrier, MARK)) fail('the stable prefix is not in the message content or system field');
     }
 
     return out;

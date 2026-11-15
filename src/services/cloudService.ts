@@ -1170,7 +1170,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         const { url, headers, body } = this.buildSummarizeBody(prompt, options);
         const streamBody = { ...body, stream: true };
-        const lifecycle = new StreamLifecycle(signal, options?.timeoutMs);
+        const lifecycle = new StreamLifecycle(signal ?? options?.signal, options?.timeoutMs);
         const fidelity = (reportedModel?: string): Fidelity => this.buildFidelity(options, body, reportedModel);
 
         try {
@@ -1207,6 +1207,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                             await abortableSleep(computeAzureBackoffMs(info, attempt), lifecycle.signal);
                             continue;
                         }
+                        void response.body?.cancel().catch(() => undefined);
                         return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
                     }
                 }
@@ -1215,6 +1216,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             }
 
             if (!response.ok) {
+                void response.body?.cancel().catch(() => undefined);
                 return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
             }
 
