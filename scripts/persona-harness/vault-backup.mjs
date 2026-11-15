@@ -17,7 +17,7 @@
  */
 
 import {
-    copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync,
+    copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -152,11 +152,18 @@ export function restoreBackup(backupDir, { log = console.log } = {}) {
     }
     const meta = JSON.parse(readFileSync(join(backupDir, 'meta.json'), 'utf8'));
     // Validate the whole snapshot first, so a damaged one fails before any live file is touched.
-    for (const { sub, files } of meta.entries) {
+    const bad = (why) => new Error(`damaged vault backup (${why}) in ${backupDir}; nothing was restored`);
+    if (!Array.isArray(meta.entries)) throw bad('no entries');
+    for (const e of meta.entries) {
+        const { sub, target, files, absent = [] } = e ?? {};
+        if (typeof sub !== 'string' || typeof target !== 'string' || !Array.isArray(files) || !Array.isArray(absent)) {
+            throw bad('malformed entry');
+        }
+        for (const f of [...files, ...absent]) if (!BACKUP_FILES.includes(f)) throw bad(`unknown file ${String(f)}`);
+        if (files.some(f => absent.includes(f))) throw bad('file listed as both saved and absent');
         for (const f of files) {
-            if (!existsSync(join(backupDir, sub, f))) {
-                throw new Error(`damaged vault backup, missing ${join(sub, f)} in ${backupDir}; nothing was restored`);
-            }
+            const src = join(backupDir, sub, f);
+            if (!existsSync(src) || !statSync(src).isFile()) throw bad(`missing ${join(sub, f)}`);
         }
     }
     const restored = [];

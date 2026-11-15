@@ -104,6 +104,23 @@ describe('vault backup / restore', () => {
 		expect(readFileSync(join(target, 'main.js'), 'utf8')).toBe('changed');
 	});
 
+	it('rejects overlapping, unknown and non-file entries without touching live files', () => {
+		const dir = backupTargets([target], { backupRoot: backups, log: quiet })!;
+		writeFileSync(join(target, 'main.js'), 'changed');
+		const metaPath = join(dir, 'meta.json');
+		const meta = JSON.parse(readFileSync(metaPath, 'utf8'));
+		writeFileSync(metaPath, JSON.stringify({ entries: [{ ...meta.entries[0], absent: ['data.json'] }] }));
+		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/both saved and absent/);
+		writeFileSync(metaPath, JSON.stringify({ entries: [{ ...meta.entries[0], files: ['../x'] }] }));
+		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/unknown file/);
+		writeFileSync(metaPath, JSON.stringify(meta));
+		rmSync(join(dir, '0', 'data.json'));
+		mkdirSync(join(dir, '0', 'data.json'));
+		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/damaged vault backup/);
+		expect(readFileSync(join(target, 'main.js'), 'utf8')).toBe('changed');
+		expect(readFileSync(join(target, 'data.json'), 'utf8')).toBe('{"setting":"original"}');
+	});
+
 	it('throws on a malformed deploy.local.json instead of silently skipping the backup', () => {
 		writeFileSync(join(tmp, 'deploy.local.json'), '{ not json');
 		expect(() => resolveTargets({ repoRoot: tmp, env: {} })).toThrow(/cannot read/);
