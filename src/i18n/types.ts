@@ -2696,6 +2696,9 @@ export interface Translations {
             researchVaultPrecheckAlways: string;
             researchPerspectiveSummary: string;
             researchProviderFallback: string;
+            researchDateRangeApplied: string;
+            researchDateRangePartial: string;
+            researchDateRangeUnsupported: string;
             recencyLabel: string;
             recencyAny: string;
             recencyRecent: string;

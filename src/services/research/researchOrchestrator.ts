@@ -40,7 +40,9 @@ import type {
     ClaudeWebSearchResponse,
     ClaudeWebSearchStreamCallbacks,
     ParsedCitation,
+    SearchConstraintReport,
 } from './researchTypes';
+import { mergeConstraintReports } from './dateRangeFilter';
 import type { ClaudeWebSearchAdapter, ClaudeWebSearchOptions } from './adapters/claudeWebSearchAdapter';
 import type { ResearchSearchService } from './researchSearchService';
 import type { ResearchUsageService } from './researchUsageService';
@@ -481,6 +483,7 @@ export class ResearchOrchestrator {
         sourceMetadata: SourceMetadata[];
         searchCount: number;
         rawContent: unknown[];
+        constraintReports?: SearchConstraintReport[];
     }> {
         callbacks?.onPhaseChange?.('searching');
 
@@ -503,7 +506,7 @@ export class ResearchOrchestrator {
         }
 
         const finalized = await this.finalizeClaudeWebSearchResult(response, totalSearchCount, callbacks, { academicMode: options.academicMode });
-        return { ...finalized, rawContent: response.rawContent };
+        return { ...finalized, rawContent: response.rawContent, constraintReports: response.constraintReports };
     }
 
     /**
@@ -522,6 +525,7 @@ export class ResearchOrchestrator {
         sourceMetadata: SourceMetadata[];
         searchCount: number;
         rawContent: unknown[];
+        constraintReports?: SearchConstraintReport[];
     }> {
         callbacks.onPhaseChange?.('searching');
 
@@ -542,7 +546,7 @@ export class ResearchOrchestrator {
         }
 
         const finalized = await this.finalizeClaudeWebSearchResult(response, totalSearchCount, callbacks, { academicMode: options.academicMode });
-        return { ...finalized, rawContent: response.rawContent };
+        return { ...finalized, rawContent: response.rawContent, constraintReports: response.constraintReports };
     }
 
     // ═══ CLAUDE WEB SEARCH MULTI-TURN (Phase 3, AD-18) ═══
@@ -562,6 +566,7 @@ export class ResearchOrchestrator {
         sourceMetadata: SourceMetadata[];
         searchCount: number;
         rawContent: unknown[];
+        constraintReports?: SearchConstraintReport[];
     }> {
         callbacks?.onPhaseChange?.('searching');
 
@@ -588,7 +593,7 @@ export class ResearchOrchestrator {
         }
 
         const finalized = await this.finalizeClaudeWebSearchResult(response, totalSearchCount, callbacks, { academicMode: options.academicMode });
-        return { ...finalized, rawContent: response.rawContent };
+        return { ...finalized, rawContent: response.rawContent, constraintReports: response.constraintReports };
     }
 
     /**
@@ -605,6 +610,7 @@ export class ResearchOrchestrator {
         sourceMetadata: SourceMetadata[];
         searchCount: number;
         rawContent: unknown[];
+        constraintReports?: SearchConstraintReport[];
     }> {
         callbacks.onPhaseChange?.('searching');
 
@@ -631,7 +637,7 @@ export class ResearchOrchestrator {
         }
 
         const finalized = await this.finalizeClaudeWebSearchResult(response, totalSearchCount, callbacks, { academicMode: options.academicMode });
-        return { ...finalized, rawContent: response.rawContent };
+        return { ...finalized, rawContent: response.rawContent, constraintReports: response.constraintReports };
     }
 
     // ═══ CLAUDE WEB SEARCH SHARED HELPERS ═══
@@ -659,6 +665,9 @@ export class ResearchOrchestrator {
         }
         current.citations = [...prev.citations, ...current.citations];
         current.synthesis = prev.synthesis + current.synthesis;
+        if (prev.constraintReports || current.constraintReports) {
+            current.constraintReports = mergeConstraintReports(prev.constraintReports, current.constraintReports);
+        }
     }
 
     /** Build deduplicated source metadata from citations, enriched with academic fields from searchResults. */

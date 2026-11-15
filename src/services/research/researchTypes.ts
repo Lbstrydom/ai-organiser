@@ -21,6 +21,20 @@ export interface SearchOptions {
     academicMode?: boolean;
 }
 
+/**
+ * What a provider did with a search constraint it cannot send in the request
+ * (llm-option-fidelity D7). `applied`: every result was checked; `partial`: some results had no
+ * usable date and were kept; `unsupported`: nothing could be checked.
+ */
+export interface SearchConstraintReport {
+    constraint: 'dateRange';
+    outcome: 'applied' | 'partial' | 'unsupported';
+    /** Results kept because their date could not be read. */
+    undatedCount: number;
+    /** Results dropped for falling outside the window. */
+    filteredCount: number;
+}
+
 export interface SearchResult {
     title: string;
     url: string;
@@ -55,6 +69,8 @@ export interface SearchProvider {
     readonly type: SearchProviderType;
     search(query: string, options?: SearchOptions): Promise<SearchResult[]>;
     isConfigured(): Promise<boolean>;
+    /** Optional: constraints this provider could not send and applied (or could not apply) itself. Consumed on read. */
+    takeConstraintReports?(): SearchConstraintReport[];
 }
 
 /** Session state — JSON-serializable (AD-6) */
@@ -159,6 +175,8 @@ export interface ClaudeWebSearchResponse {
     usage: { inputTokens: number; outputTokens: number };
     paused: boolean;          // true if stop_reason === 'pause_turn'
     rawContent: unknown[];    // Full content array for pause_turn continuation
+    /** What the adapter did with constraints the API cannot take (e.g. dateRange). */
+    constraintReports?: SearchConstraintReport[];
 }
 
 export interface ParsedCitation {
