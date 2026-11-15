@@ -153,7 +153,7 @@ export function restoreBackup(backupDir, { log = console.log } = {}) {
     const meta = JSON.parse(readFileSync(join(backupDir, 'meta.json'), 'utf8'));
     // Validate the whole snapshot first, so a damaged one fails before any live file is touched.
     const bad = (why) => new Error(`damaged vault backup (${why}) in ${backupDir}; nothing was restored`);
-    if (!Array.isArray(meta.entries)) throw bad('no entries');
+    if (!Array.isArray(meta.entries) || meta.entries.length === 0) throw bad('no entries');
     for (const e of meta.entries) {
         const { sub, target, files, absent = [] } = e ?? {};
         if (typeof sub !== 'string' || typeof target !== 'string' || !Array.isArray(files) || !Array.isArray(absent)) {
@@ -161,6 +161,8 @@ export function restoreBackup(backupDir, { log = console.log } = {}) {
         }
         for (const f of [...files, ...absent]) if (!BACKUP_FILES.includes(f)) throw bad(`unknown file ${String(f)}`);
         if (files.some(f => absent.includes(f))) throw bad('file listed as both saved and absent');
+        // backupTargets always records every BACKUP_FILES name as either saved or absent.
+        for (const f of BACKUP_FILES) if (!files.includes(f) && !absent.includes(f)) throw bad(`no record for ${f}`);
         for (const f of files) {
             const src = join(backupDir, sub, f);
             if (!existsSync(src) || !statSync(src).isFile()) throw bad(`missing ${join(sub, f)}`);

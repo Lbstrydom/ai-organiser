@@ -113,6 +113,10 @@ describe('vault backup / restore', () => {
 		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/both saved and absent/);
 		writeFileSync(metaPath, JSON.stringify({ entries: [{ ...meta.entries[0], files: ['../x'] }] }));
 		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/unknown file/);
+		writeFileSync(metaPath, JSON.stringify({ entries: [{ ...meta.entries[0], files: ['main.js', 'manifest.json'], absent: ['styles.css'] }] }));
+		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/no record for data.json/);
+		writeFileSync(metaPath, JSON.stringify({ entries: [] }));
+		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/no entries/);
 		writeFileSync(metaPath, JSON.stringify(meta));
 		rmSync(join(dir, '0', 'data.json'));
 		mkdirSync(join(dir, '0', 'data.json'));
