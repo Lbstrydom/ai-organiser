@@ -90,6 +90,15 @@ describe('applyLinkBlock (pure)', () => {
         expect(again.ok && again.value).toBe(once.value);
     });
 
+    it('keeps CRLF digests CRLF on insert and on replace', () => {
+        const crlf = digest('2026-11-14').replaceAll('\n', '\r\n');
+        const once = applyLinkBlock(crlf, block, true);
+        if (!once.ok) throw new Error('x');
+        const twice = applyLinkBlock(once.value, block, true);
+        expect(twice.ok && twice.value).toBe(once.value);
+        expect(once.value.replaceAll('\r\n', '')).not.toContain('\n');
+    });
+
     it('update-only mode leaves a digest without a block alone', () => {
         const src = digest('2026-11-14');
         const out = applyLinkBlock(src, block, false);

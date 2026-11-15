@@ -99,7 +99,8 @@ export function applyLinkBlock(content: string, block: string, insert: boolean):
         const a = content.indexOf(LINK_START);
         const b = content.indexOf(LINK_END);
         if (b < a) return err('digest-link-markers-invalid');
-        return ok(content.slice(0, a) + block + content.slice(b + LINK_END.length));
+        const eolR = content.includes('\r\n') ? '\r\n' : '\n';
+        return ok(content.slice(0, a) + block.replaceAll('\n', eolR) + content.slice(b + LINK_END.length));
     }
     if (!insert) return ok(content);
     const at = insertionPoint(content);

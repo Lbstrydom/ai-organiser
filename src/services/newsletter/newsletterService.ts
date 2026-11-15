@@ -1284,7 +1284,10 @@ export class NewsletterService {
             // Insert after the H1 heading line
             const h1Match = /^# .+$/m.exec(existing);
             if (h1Match) {
-                const insertAt = (h1Match.index ?? 0) + h1Match[0].length;
+                // Keep the catch-up link block (if present) directly under the H1, above the brief.
+                const linkEnd = existing.indexOf("<!-- ai-organiser:catchup-link:end -->");
+                const h1End = (h1Match.index ?? 0) + h1Match[0].length;
+                const insertAt = linkEnd >= h1End ? linkEnd + "<!-- ai-organiser:catchup-link:end -->".length : h1End;
                 updated = existing.slice(0, insertAt) + '\n\n' + managedBlock + '\n\n' + existing.slice(insertAt).trimStart();
             } else {
                 updated = managedBlock + '\n\n' + existing;
