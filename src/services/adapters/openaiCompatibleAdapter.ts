@@ -110,6 +110,5 @@ export class OpenAICompatibleAdapter extends BaseAdapter {
     }
 
     supportsStreaming() { return true; }
-    formatStreamingRequest(prompt: string) { return this.buildOpenAIStreamingRequest(prompt); }
     parseStreamingChunk(line: string) { return BaseAdapter.parseOpenAISSEChunk(line); }
 }

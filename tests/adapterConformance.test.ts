@@ -20,6 +20,7 @@ import { createAdapter, type AdapterType } from '../src/services/adapters';
 import { BaseAdapter } from '../src/services/adapters/baseAdapter';
 import { ALL_ADAPTERS, PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL } from '../src/services/adapters/providerRegistry';
 import type { AdapterConfig, MultimodalCapability } from '../src/services/adapters/types';
+import { captureStreamRequest } from './helpers/streamHarness';
 
 const VALID_CAPABILITIES: readonly MultimodalCapability[] = ['text-only', 'image', 'document', 'image+document'];
 
@@ -110,22 +111,20 @@ describe.each(ALL_ADAPTERS)('%s adapter conformance', (type) => {
 		}
 	});
 
-	it(`[${type}][streaming-capability-matches-code-path] declared streaming support implies both gated methods exist and the request has the correct shape`, () => {
+	it(`[${type}][streaming-capability-matches-code-path] declared streaming support implies the chunk parser exists and the shared builder emits a correctly shaped stream request`, async () => {
 		if (!adapter.supportsStreaming?.()) {
 			return; // capability-gated, not universally required
 		}
-		expect(
-			typeof adapter.formatStreamingRequest,
-			`[${type}][streaming-capability-matches-code-path] expected formatStreamingRequest to be a function when supportsStreaming() is true; observed ${typeof adapter.formatStreamingRequest}`,
-		).toBe('function');
 		expect(
 			typeof adapter.parseStreamingChunk,
 			`[${type}][streaming-capability-matches-code-path] expected parseStreamingChunk to be a function when supportsStreaming() is true; observed ${typeof adapter.parseStreamingChunk}`,
 		).toBe('function');
 
 		// Primary: family-agnostic shape — true regardless of wire format.
-		const req = adapter.formatStreamingRequest!('test prompt');
-		expect(req, `[${type}][streaming-capability-matches-code-path] expected formatStreamingRequest() to return an object`).toBeTruthy();
+		// The stream request is no longer an adapter method: CloudLLMService builds it from the
+		// same body as the non-stream request (llm-option-fidelity D5), so there is one path.
+		const req = await captureStreamRequest(type, { endpoint: baseConfig(type).endpoint, modelName: baseConfig(type).modelName });
+		expect(req, `[${type}][streaming-capability-matches-code-path] expected the stream request to be captured`).toBeTruthy();
 		expect(typeof req.url, `[${type}][streaming-capability-matches-code-path] expected .url`).toBe('string');
 		expect(typeof req.headers, `[${type}][streaming-capability-matches-code-path] expected .headers`).toBe('object');
 		expect(req.body, `[${type}][streaming-capability-matches-code-path] expected .body`).toBeTruthy();

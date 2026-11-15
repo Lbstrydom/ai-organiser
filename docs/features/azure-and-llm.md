@@ -57,6 +57,29 @@ Azure specialist routing is **config-driven, not hardcoded** — any user's Foun
 ### Tests
 `tests/azureClaudeAdapter.test.ts`, `tests/azureOpenAIAdapter.test.ts`, `tests/endpointResolver.test.ts`, `tests/modelCatalog.test.ts`, `tests/requestLimiter.test.ts`, `tests/openaiEmbeddingService.test.ts`, `tests/azureMode.test.ts` (isAzureMode, no-fallback, connection-test redaction).
 
+## LLM Option Fidelity (capability table, fidelity report, stream parity)
+
+**What it is.** Per-call options (`maxTokens`, thinking flags, `modelOverride`, `timeoutMs`, `signal`, `stablePrefix`) used to be dropped silently on several paths. Now one capability table says what each provider can honour, every summarize result reports what it actually did, and the stream path reuses the non-stream request body.
+
+**Read this before** adding a provider, a per-call option, a streaming caller, or anything that compares which model answered.
+
+### Core components
+- `src/services/llm/optionCapabilities.ts` — the SSOT. `OPTION_CAPABILITIES[provider]` gives `modelOverride` routing (`per-call` | `service-config` | `deployment` | `none`), thinking (`model-gated` | `none`), `maxTokens`, `timeoutMs`. An unknown provider **fails closed** ("cannot honour"). `routeRole(provider, sameProvider)` is the critic routing matrix (`per-call` / `specialist` / `downgrade`), read by the resolver instead of provider-name branches.
+- `Fidelity` (`src/services/types.ts`) on `SummarizeResult` / `LLMCallResult` / `StreamSummarizeResult`: `requestedModel` (id sent) and `reportedModel` (id the response or stream carried) are **never merged**; `routing`; `dropped[]` (closed `DropReason` set); `adjusted[]` (closed `AdjustReason` set). It is optional: absent means *unknown*, never *independent*.
+- `CloudLLMService.buildSummarizeBody()` — the one request builder (adapter-owned `formatSummarizeRequest`, i.e. Bedrock, first). The stream path posts it plus `stream: true`. `BaseAdapter.formatStreamingRequest` and `buildOpenAIStreamingRequest` were **removed**; adapters keep only `parseStreamingChunk`.
+- `src/services/llm/streamLifecycle.ts` — one owner for the stream's controller, first-byte timer and the caller-signal listener; `disposeStreamLifecycles()` aborts live streams on plugin unload (next to `disposeAzurePacers`). `src/services/llm/streamConsumer.ts` — the shared SSE read loop (cloud and local). `src/services/llm/streamMetadata.ts` — response identity from `message_start` (`message.model`) or a chunk's `model`, kept off the content channel.
+
+### Key patterns
+- **`timeoutMs` on a stream is a time-to-first-byte deadline only.** It starts at the request and ends at the first body byte; after that only the caller's signal bounds the stream. The non-stream fallback keeps its own per-attempt `timeoutMs`.
+- **Fallback rules (facade).** Caller abort or unload never falls back. A throw or an empty stream (`code: 'STREAM_EMPTY'`) before the first chunk falls back to non-stream and returns the **fallback attempt's** fidelity. A failure after content is `{ success: false, partial: true }` with the stream attempt's fidelity.
+- **Application floors are not provider rules.** The 4096 always-thinking floor and the 64000 adaptive floor are this repo's policy; they surface as `raised-to-app-minimum`. The order is: resolve the model, apply the floor, then clamp to the model's output limit (the limit wins).
+- **Identity comparison** (critic independence): *same* / *different* only from two **concrete** identities from the same provider (a `reportedModel`, or a per-call `requestedModel`); aliases, `service-config` names and deployment names are routing evidence only. Everything else is *unknown*.
+- **Option-less stream bodies changed once, on purpose:** the stream body is now the non-stream body plus `stream: true` (Claude's hard 4096 cap is gone; OpenAI-shaped providers gain the token-cap field and `temperature`). `tests/fixtures/stream-body-baseline.json` was recorded from the code before the extraction and pins the url, headers and key set.
+- **Local** honours a concrete `modelOverride`, `signal` (including during retries), `stablePrefix` and a clamped `maxTokens` on both paths, and reports the thinking flags as dropped (`no-model-capability`). Its table row is `per-call`, which makes the local same-provider critic `per-call`; local cross-provider stays a downgrade.
+
+### Tests
+`optionCapabilities`, `cloudServiceGeminiOverride`, `cloudServiceStreamBody` (baseline pin + options honoured), `cloudServiceStreamLifecycle`, `llmFacadeStreamFidelity`, `localServiceOptions`, and the registry-driven `adapterOptionFidelity` (expectations from `tests/fixtures/providerWireContract.ts`, with positive and negative controls). Stream tests stub `window.fetch` through `tests/helpers/streamHarness.ts`.
+
 ## Azure Audio Adapters (Azure AI Speech in-region + gpt-audio private)
 
 **Status**: ✅ Implemented (June 2026) — Clusters A–D via `/cycle --autonomous`, per-cluster GPT fix-gates + consolidated Gemini gate (R1 CONCERNS → **R2 APPROVE**). Plan archived (gitignored): `docs/completed/azure-audio-adapters.md`.

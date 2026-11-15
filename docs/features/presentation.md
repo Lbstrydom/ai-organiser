@@ -131,6 +131,14 @@ Two coupled depth controls rooted in the core LLM service, plus the latent-bug f
 ### Tests
 `tests/{cloudServiceClaudeRouting,speedPillModel,modelCatalog,settingsMigration,researchOrchestrator,streamingSynthesis}.test.ts`. Plan + audit summary gitignored (`docs/plans/presentation-depth-controls*.md`); consolidated Gemini gate **APPROVE** ("exceptional… production-ready").
 
+## Critic Model Routing and Visible Downgrade (llm-option-fidelity)
+
+**What it is.** The independent critic never silently judges with the generator's model. `resolveRoleRun` (`PresentationModeHandler`) routes by the capability table (`routeRole`): `per-call` (the override rides the call: gemini, OpenAI-shaped, Claude, and local since the local provider honours the override), `specialist` (a service built with the critic model: Bedrock, and any cross-provider choice other than local), or `downgrade` (azure-openai, where one deployment is one model, and local cross-provider).
+
+**A downgrade still runs the critic, on the main model, with a visible Notice** (once per run; stable code `critic-model-unavailable` in `GUIDANCE_CODES`). The notice names the route used; the independence label comes only from the comparator over the real generator and critic `fidelity`: *same*, *different* or *unknown* (never asserted as independent). The pre-call warning stays a configuration hint. Louis chose the notice over a refusal on 2026-11-15.
+
+**Read this before** adding a provider (give it a table row), changing critic routing, or labelling findings by independence. The generator's `fidelity` is handed to the judge through `RunContext.generatorFidelity` (a getter, because the judge is built before generation finishes).
+
 ## Per-Slide Polish (Presentation)
 
 **Status**: ✅ Implemented (June 2026)

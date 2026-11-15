@@ -66,3 +66,23 @@ export function stubFetch(respond: (req: CapturedRequest) => Response | Promise<
     });
     return captured;
 }
+
+/** Drive a stream call and return the request it emitted (replaces the removed adapter.formatStreamingRequest). */
+export async function captureStreamRequest(
+    type: AdapterType,
+    config: { endpoint?: string; apiKey?: string; modelName?: string; thinkingMode?: 'standard' | 'adaptive' } = {},
+    options?: Parameters<CloudLLMService['summarizeTextStream']>[3],
+): Promise<CapturedRequest> {
+    const svc = new CloudLLMService({
+        type,
+        endpoint: config.endpoint || PROVIDER_ENDPOINT[type] || 'https://example.test/v1',
+        apiKey: config.apiKey ?? 'k',
+        modelName: config.modelName ?? (PROVIDER_DEFAULT_MODEL[type] || 'm'),
+        language: 'en',
+        ...(config.thinkingMode ? { thinkingMode: config.thinkingMode } : {}),
+    } as never, {} as App);
+    const cap = stubFetch(() => sseResponse(linesFor(type)));
+    await svc.summarizeTextStream('test prompt', () => undefined, undefined, options);
+    vi.unstubAllGlobals();
+    return cap[0];
+}
