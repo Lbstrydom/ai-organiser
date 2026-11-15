@@ -214,17 +214,17 @@ describe('LocalLLMService sends a stablePrefix instead of dropping it', () => {
 // ── Streaming path ──────────────────────────────────────────────────────────
 
 describe('summarizeTextStream does not drop a stablePrefix', () => {
-    it('hands the joined prompt to formatStreamingRequest', async () => {
+    it('carries the prefix and the prompt in the emitted stream body', async () => {
         const svc = service('claude' as AdapterType, 'claude-sonnet-5-5', 'https://api.anthropic.com/v1/messages');
-        const adapter = (svc as unknown as { adapter: { formatStreamingRequest: unknown } }).adapter;
-        const spy = vi.fn(() => ({ url: 'https://x.test', headers: {}, body: {} }));
-        adapter.formatStreamingRequest = spy;
+        const fetchSpy = vi.fn().mockRejectedValue(new Error('stop'));
         const hadWindow = Object.prototype.hasOwnProperty.call(globalThis, 'window');
         const originalWindow = (globalThis as unknown as { window?: unknown }).window;
-        (globalThis as unknown as { window: unknown }).window = { fetch: vi.fn().mockRejectedValue(new Error('stop')) };
+        (globalThis as unknown as { window: unknown }).window = { fetch: fetchSpy };
         try {
             await expect(svc.summarizeTextStream('tail', () => {}, undefined, { stablePrefix: 'HEADER' })).rejects.toThrow('stop');
-            expect(spy).toHaveBeenCalledWith('HEADER\n\ntail');
+            const sent = String((fetchSpy.mock.calls[0][1] as { body: string }).body);
+            expect(sent).toContain('HEADER');
+            expect(sent).toContain('tail');
         } finally {
             if (hadWindow) (globalThis as unknown as { window?: unknown }).window = originalWindow;
             else delete (globalThis as unknown as { window?: unknown }).window;

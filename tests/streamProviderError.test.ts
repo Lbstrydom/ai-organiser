@@ -135,7 +135,7 @@ describe.each([
     it('error as the very first event', async () => {
         respondWith(stream(`event: error\n${sse(OVERLOADED)}`));
         const result = await service().summarizeTextStream('p', () => {});
-        expect(result).toEqual({ success: false, error: `${provider} stream error (overloaded_error): Overloaded` });
+        expect(result).toMatchObject({ success: false, error: `${provider} stream error (overloaded_error): Overloaded` });
     });
 
     it('error event in the final buffer without a trailing newline', async () => {
@@ -161,6 +161,6 @@ describe.each([
     it('control: the same stream without the error event succeeds with the full text', async () => {
         respondWith(stream(delta('Partial '), delta('answer'), sse({ type: 'message_stop' })));
         const result = await service().summarizeTextStream('p', () => {});
-        expect(result).toEqual({ success: true, content: 'Partial answer' });
+        expect(result).toMatchObject({ success: true, content: 'Partial answer' });
     });
 });

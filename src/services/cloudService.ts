@@ -1,4 +1,4 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, SummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, SummarizeResult, StreamSummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
 import { getOptionCapabilities, type OptionName, type DropReason, type AdjustReason } from './llm/optionCapabilities';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
@@ -9,6 +9,8 @@ import { buildClaudeCachedPrompt } from './adapters/claudePromptCache';
 import { joinPromptParts } from './prompts/promptParts';
 import { logLlmUsage } from './llm/llmUsageLog';
 import { StreamProviderError } from './adapters/anthropicStream';
+import { StreamLifecycle } from './llm/streamLifecycle';
+import { parseStreamReportedModel } from './llm/streamMetadata';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
 import { getModelOutputLimit } from './tokenLimits';
@@ -690,15 +692,23 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return new Error('No content found in response');
     }
 
+    /**
+     * The one request builder for summarize calls (llm-option-fidelity D5). The non-stream
+     * path posts it as is; the stream path adds `stream: true`. An adapter-owned
+     * `formatSummarizeRequest` (Bedrock) takes precedence over the three provider branches.
+     */
+    private buildSummarizeBody(prompt: string, options?: SummarizeOptions): { url: string; headers: Record<string, string>; body: Record<string, unknown> } {
+        const body = this.adapter.formatSummarizeRequest
+            ? this.adapter.formatSummarizeRequest(prompt, options)
+            : this.buildSummarizeRequestBody(prompt, options);
+        return { url: this.adapter.getEndpoint(), headers: this.adapter.getHeaders(), body };
+    }
+
     private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<{ content: string; fidelity: Fidelity }> {
         const validationError = this.validateCloudConfig();
         if (validationError) throw new Error(validationError);
 
-        const requestBody = this.adapter.formatSummarizeRequest
-            ? this.adapter.formatSummarizeRequest(prompt, options)
-            : this.buildSummarizeRequestBody(prompt, options);
-
-        const endpoint = this.adapter.getEndpoint();
+        const { url: endpoint, headers: requestHeaders, body: requestBody } = this.buildSummarizeBody(prompt, options);
         const timeoutMs = options?.timeoutMs ?? this.getSummarizeTimeoutMs();
 
         logger.debug('LLM', 'Summarize request:', {
@@ -721,7 +731,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const pacerModel = typeof requestBody.model === 'string' ? requestBody.model : undefined;
         const response = await this.postWithRetry(
             endpoint,
-            this.adapter.getHeaders(),
+            requestHeaders,
             JSON.stringify(requestBody),
             timeoutMs,
             options?.signal,
@@ -1141,103 +1151,133 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * Stream LLM response via SSE using native fetch().
      * Obsidian's requestUrl doesn't support streaming — native fetch is required.
      * Feature-gated by enableResearchStreamingSynthesis (default false).
+     *
+     * llm-option-fidelity D5: the request is the SAME body the non-stream path builds
+     * (`buildSummarizeBody`) plus `stream: true`, so `maxTokens`, thinking, `modelOverride`
+     * and `stablePrefix` reach the wire (previously dropped; Claude was capped at 4096).
+     * `options.timeoutMs` is an attempt-level time-to-first-byte deadline only.
      */
     async summarizeTextStream(
         prompt: string,
         onChunk: (chunk: string) => void,
         signal?: AbortSignal,
         options?: SummarizeOptions
-    ): Promise<{ success: boolean; content?: string; error?: string }> {
+    ): Promise<StreamSummarizeResult> {
         this.noteCall(options?.label ?? 'chat');
         // Check adapter streaming support
         if (!this.adapter.supportsStreaming?.()) {
             throw new Error('Streaming not supported by this adapter');
         }
 
-        // The streaming request builders take a single prompt string, so a
-        // `stablePrefix` is joined in rather than silently dropped.
-        const { url, headers, body } = this.adapter.formatStreamingRequest!(joinPromptParts(options?.stablePrefix, prompt));
-
-        // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const doFetch = (): Promise<Response> => window.fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-            signal,
-        });
-
-        let response: Response;
-        if (!this.isAzureAdapter()) {
-            response = await doFetch(); // non-Azure: byte-identical
-        } else {
-            // Admission-ONLY lease (azure-throttle-coverage): the lease covers only
-            // the initial fetch + status read so the RPM start is counted, then it
-            // releases — the multi-minute stream body is consumed UN-leased (never
-            // ties up a concurrency slot). Initial-429 retries OUTSIDE the lease.
-            const key = this.azurePacerKey();
-            const toObj = (h: Headers): Record<string, string> => {
-                const o: Record<string, string> = {};
-                h.forEach((v, k) => { o[k] = v; });
-                return o;
-            };
-            for (let attempt = 0; ; attempt++) {
-                if (signal?.aborted) throw new Error('Aborted');
-                response = await withAzureLease(key, signal, doFetch);
-                const info = parseAzureRateLimitHeaders(toObj(response.headers));
-                logAzureRateLimitHeaders(info, 'azure-stream');
-                if (response.ok) break;
-                if (response.status === 429 && attempt < this.MAX_RETRIES - 1) {
-                    await abortableSleep(computeAzureBackoffMs(info, attempt), signal);
-                    continue;
-                }
-                return { success: false, error: `HTTP ${response.status}` };
-            }
-        }
-
-        if (!response.ok) {
-            return { success: false, error: `HTTP ${response.status}` };
-        }
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
+        const { url, headers, body } = this.buildSummarizeBody(prompt, options);
+        const streamBody = { ...body, stream: true };
+        const lifecycle = new StreamLifecycle(signal, options?.timeoutMs);
+        let reportedModel: string | undefined;
         let fullContent = '';
-        let buffer = '';
+        let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+        const cancelReader = (): void => { void reader?.cancel().catch(() => undefined); };
+        lifecycle.signal.addEventListener('abort', cancelReader, { once: true });
+        const fidelity = (): Fidelity => this.buildFidelity(options, body, reportedModel);
 
-        // A provider `error` event inside a 200 stream is a FAILED call: report it with the
-        // provider's message instead of returning the text received so far as a success.
         try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // keep incomplete line in buffer
-                for (const line of lines) {
-                    const chunk = this.adapter.parseStreamingChunk!(line);
-                    if (chunk) {
-                        fullContent += chunk;
-                        onChunk(chunk);
+            // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
+            const doFetch = (): Promise<Response> => window.fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(streamBody),
+                signal: lifecycle.signal,
+            });
+
+            let response: Response;
+            try {
+                if (!this.isAzureAdapter()) {
+                    response = await doFetch(); // non-Azure: no pacing
+                } else {
+                    // Admission-ONLY lease (azure-throttle-coverage): the lease covers only
+                    // the initial fetch + status read so the RPM start is counted, then it
+                    // releases — the multi-minute stream body is consumed UN-leased (never
+                    // ties up a concurrency slot). Initial-429 retries OUTSIDE the lease.
+                    const key = this.azurePacerKey(typeof body.model === 'string' ? body.model : undefined);
+                    const toObj = (h: Headers): Record<string, string> => {
+                        const o: Record<string, string> = {};
+                        h.forEach((v, k) => { o[k] = v; });
+                        return o;
+                    };
+                    for (let attempt = 0; ; attempt++) {
+                        if (lifecycle.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+                        response = await withAzureLease(key, lifecycle.signal, doFetch);
+                        const info = parseAzureRateLimitHeaders(toObj(response.headers));
+                        logAzureRateLimitHeaders(info, 'azure-stream');
+                        if (response.ok) break;
+                        if (response.status === 429 && attempt < this.MAX_RETRIES - 1) {
+                            await abortableSleep(computeAzureBackoffMs(info, attempt), lifecycle.signal);
+                            continue;
+                        }
+                        return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
                     }
                 }
+            } catch (e) {
+                throw lifecycle.classify(e);
             }
-            // Process any remaining buffer
-            if (buffer.trim()) {
-                const chunk = this.adapter.parseStreamingChunk!(buffer);
+
+            if (!response.ok) {
+                return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
+            }
+
+            reader = response.body!.getReader();
+            const decoder = new TextDecoder();
+            let buffer = '';
+
+            const handleLine = (line: string): void => {
+                const model = parseStreamReportedModel(line);
+                if (model) reportedModel = model;
+                const chunk = this.adapter.parseStreamingChunk!(line);
                 if (chunk) {
                     fullContent += chunk;
                     onChunk(chunk);
                 }
-            }
-        } catch (e) {
-            if (e instanceof StreamProviderError) {
-                void reader.cancel().catch(() => undefined);
-                logger.warn('LLM', e.message);
-                return { success: false, error: e.message };
-            }
-            throw e;
-        }
+            };
 
-        return { success: true, content: fullContent };
+            // A provider `error` event inside a 200 stream is a FAILED call: report it with the
+            // provider's message instead of returning the text received so far as a success.
+            try {
+                while (true) {
+                    const { done, value } = await reader.read();
+                    lifecycle.markFirstByte();
+                    if (done) break;
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // keep incomplete line in buffer
+                    for (const line of lines) handleLine(line);
+                }
+                // Process any remaining buffer
+                if (buffer.trim()) handleLine(buffer);
+            } catch (e) {
+                if (e instanceof StreamProviderError) {
+                    cancelReader();
+                    logger.warn('LLM', e.message);
+                    return { success: false, error: e.message, fidelity: fidelity(), ...(fullContent ? { partial: true } : {}) };
+                }
+                const mapped = lifecycle.classify(e);
+                // Caller abort, unload, or a pre-first-chunk failure: the facade decides (no
+                // fallback on abort; fallback before the first chunk).
+                if (!fullContent || (mapped instanceof DOMException && mapped.name === 'AbortError')) throw mapped;
+                const message = e instanceof Error ? e.message : 'Unknown error';
+                logger.warn('LLM', 'Streaming failed mid-stream; no fallback to avoid duplication', e);
+                return { success: false, error: `Partial stream failure: ${message}`, partial: true, fidelity: fidelity() };
+            }
+
+            // The reader was cancelled by an abort: not a clean end of stream.
+            if (lifecycle.signal.aborted) throw lifecycle.classify(new DOMException('Aborted', 'AbortError'));
+
+            if (!fullContent) {
+                return { success: false, error: 'The model returned an empty stream', code: 'STREAM_EMPTY', fidelity: fidelity() };
+            }
+            return { success: true, content: fullContent, fidelity: fidelity() };
+        } finally {
+            lifecycle.signal.removeEventListener('abort', cancelReader);
+            lifecycle.dispose();
+        }
     }
 
 }

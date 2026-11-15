@@ -83,6 +83,7 @@ import { VisualRetrievalService } from './services/visualEmbedding/visualRetriev
 import { selectVisualBackend, shouldAutoEnableVisualSearch } from './services/visualEmbedding/visualBackendResolver';
 import type { VisualPageTask } from './services/visualEmbedding/types';
 import { setAzurePacerPolicy, setDeploymentRpm, disposeAzurePacers } from './services/azure/azureRequestPacer';
+import { disposeStreamLifecycles } from './services/llm/streamLifecycle';
 import { resolveAzureTriageRoute } from './services/azure/azureTriageRouting';
 import { SourcePackService } from './services/notebooklm/sourcePackService';
 import { DEFAULT_PDF_CONFIG } from './services/notebooklm/types';
@@ -1802,6 +1803,8 @@ export default class AIOrganiserPlugin extends Plugin {
         this.teardownVisualLane(/*purge*/ false);
         // Azure rate-limit pacers are module-scoped — clear on unload.
         disposeAzurePacers();
+        // In-flight LLM streams hold a controller + timers; abort them on unload.
+        disposeStreamLifecycles();
         void this.llmService?.dispose();
         void this.disposeAzureTriageService();
         void this.embeddingService?.dispose();

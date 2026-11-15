@@ -179,6 +179,16 @@ export interface SummarizeResult {
     fidelity?: Fidelity;
 }
 
+/**
+ * The result of a streaming summarize call (llm-option-fidelity D5). `fidelity` is that of the
+ * request attempt that produced the content. `partial` marks a failure after content was already
+ * delivered to the caller (no fallback is possible then). `code` is a stable machine code.
+ */
+export interface StreamSummarizeResult extends SummarizeResult {
+    partial?: boolean;
+    code?: 'STREAM_EMPTY';
+}
+
 export interface SummarizableLLMService extends LLMService {
     summarizeText(prompt: string, options?: SummarizeOptions): Promise<SummarizeResult>;
 
@@ -190,7 +200,7 @@ export interface SummarizableLLMService extends LLMService {
         onChunk: (chunk: string) => void,
         signal?: AbortSignal,
         options?: SummarizeOptions
-    ): Promise<SummarizeResult>;
+    ): Promise<StreamSummarizeResult>;
 }
 
 export interface MultimodalLLMService extends SummarizableLLMService {

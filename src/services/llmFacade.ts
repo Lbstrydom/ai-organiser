@@ -2,7 +2,7 @@ import { MultimodalLLMService, SummarizableLLMService, SummarizeOptions, Fidelit
 import { ContentPart } from './adapters/types';
 import { logger } from '../utils/logger';
 
-export type LLMCallResult = { success: boolean; content?: string; error?: string; fidelity?: Fidelity };
+export type LLMCallResult = { success: boolean; content?: string; error?: string; fidelity?: Fidelity; partial?: boolean };
 
 export type ServiceTypeInfo = {
     mode: 'cloud' | 'local';
@@ -84,7 +84,14 @@ export async function summarizeTextStream(
     // Check if streaming is supported at runtime
     if ('summarizeTextStream' in service && typeof service.summarizeTextStream === 'function') {
         try {
-            return await service.summarizeTextStream(prompt, wrappedOnChunk, signal, options);
+            const streamed = await service.summarizeTextStream(prompt, wrappedOnChunk, signal, options);
+            // An empty stream (no chunk, no error) is a pre-first-chunk failure: eligible for the
+            // same non-stream fallback as a throw before the first chunk (llm-option-fidelity D5).
+            if (!streamed.success && streamed.code === 'STREAM_EMPTY' && !emitted && !signal?.aborted) {
+                logger.warn('LLM', 'Stream returned no content, falling back to non-stream');
+            } else {
+                return streamed;
+            }
         } catch (e) {
             // If aborted, propagate — do NOT fall back to a non-stream request
             if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {

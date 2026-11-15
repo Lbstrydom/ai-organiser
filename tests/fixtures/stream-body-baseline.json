@@ -1,0 +1,573 @@
+{
+  "openai": {
+    "streams": true,
+    "endpoint": "https://api.openai.com/v1/chat/completions",
+    "stream": {
+      "url": "https://api.openai.com/v1/chat/completions",
+      "headers": {
+        "Authorization": "Bearer k",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "model": "gpt-5.2",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "gpt-5.2",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "max_completion_tokens": 16384
+    }
+  },
+  "gemini": {
+    "streams": true,
+    "endpoint": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    "stream": {
+      "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+      "headers": {
+        "Authorization": "Bearer k",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "model": "gemini-pro-latest",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "gemini-pro-latest",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "max_tokens": 8192
+    }
+  },
+  "deepseek": {
+    "streams": true,
+    "endpoint": "https://api.deepseek.com/chat/completions",
+    "stream": {
+      "url": "https://api.deepseek.com/chat/completions",
+      "headers": {
+        "Authorization": "Bearer k",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "model": "deepseek-v3.2",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "deepseek-v3.2",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 8192
+    }
+  },
+  "aliyun": {
+    "streams": true,
+    "endpoint": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+    "stream": {
+      "url": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "qwen-max",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "qwen-max",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "claude": {
+    "streams": true,
+    "endpoint": "https://api.anthropic.com/v1/messages",
+    "stream": {
+      "url": "https://api.anthropic.com/v1/messages",
+      "headers": {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": "k",
+        "anthropic-dangerous-direct-browser-access": "true"
+      },
+      "body": {
+        "model": "claude-sonnet-4-6",
+        "max_tokens": 4096,
+        "system": "Complete the task in the user message and follow its output format exactly.",
+        "messages": [
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "claude-sonnet-4-6",
+      "max_tokens": 8192,
+      "system": "Complete the task in the user message and follow its output format exactly.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ]
+    }
+  },
+  "groq": {
+    "streams": true,
+    "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+    "stream": {
+      "url": "https://api.groq.com/openai/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 8192
+    }
+  },
+  "vertex": {
+    "streams": false,
+    "endpoint": "https://us-central1-aiplatform.googleapis.com/v1/projects/{project}/locations/{location}/endpoints/{endpoint}:predict",
+    "stream": null,
+    "nonStream": {
+      "model": "latest-pro",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "openrouter": {
+    "streams": true,
+    "endpoint": "https://openrouter.ai/api/v1/chat/completions",
+    "stream": {
+      "url": "https://openrouter.ai/api/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k",
+        "HTTP-Referer": "https://github.com/obsidian-ai-organiser",
+        "X-Title": "Obsidian AI Organiser"
+      },
+      "body": {
+        "model": "openai/gpt-5.2",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "openai/gpt-5.2",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 8192
+    }
+  },
+  "bedrock": {
+    "streams": false,
+    "endpoint": "https://bedrock-runtime.us-east-1.amazonaws.com/model/global.anthropic.claude-sonnet-4-6/invoke",
+    "stream": null,
+    "nonStream": {
+      "anthropic_version": "bedrock-2023-05-31",
+      "max_tokens": 8192,
+      "system": "Complete the task in the user message and follow its output format exactly.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ]
+    }
+  },
+  "requesty": {
+    "streams": true,
+    "endpoint": "https://api.requesty.ai/v1/chat/completions",
+    "stream": {
+      "url": "https://api.requesty.ai/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "gpt-5.2",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "gpt-5.2",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "max_completion_tokens": 16384
+    }
+  },
+  "cohere": {
+    "streams": false,
+    "endpoint": "https://api.cohere.com/v2/chat",
+    "stream": null,
+    "nonStream": {
+      "model": "command-r7-plus-04-2025",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "grok": {
+    "streams": true,
+    "endpoint": "https://api.x.ai/v1/chat/completions",
+    "stream": {
+      "url": "https://api.x.ai/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "grok-4",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "grok-4",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "mistral": {
+    "streams": true,
+    "endpoint": "https://api.mistral.ai/v1/chat/completions",
+    "stream": {
+      "url": "https://api.mistral.ai/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "mistral-large-3",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "mistral-large-3",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "openai-compatible": {
+    "streams": true,
+    "endpoint": "http://your-api-endpoint/v1/chat/completions",
+    "stream": {
+      "url": "http://your-api-endpoint/v1/chat/completions",
+      "headers": {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "your-model",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "your-model",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "temperature": 0.3,
+      "max_tokens": 4096
+    }
+  },
+  "azure-claude": {
+    "streams": true,
+    "endpoint": "https://example.test/v1",
+    "stream": {
+      "url": "https://example.test/v1",
+      "headers": {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "Authorization": "Bearer k"
+      },
+      "body": {
+        "model": "claude-sonnet-5-5",
+        "max_tokens": 4096,
+        "system": "Complete the task in the user message and follow its output format exactly.",
+        "messages": [
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true,
+        "output_config": {
+          "effort": "low"
+        }
+      }
+    },
+    "nonStream": {
+      "model": "claude-sonnet-5-5",
+      "max_tokens": 8192,
+      "system": "Complete the task in the user message and follow its output format exactly.",
+      "messages": [
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "output_config": {
+        "effort": "low"
+      }
+    }
+  },
+  "azure-openai": {
+    "streams": true,
+    "endpoint": "https://example.test/v1",
+    "stream": {
+      "url": "https://example.test/v1",
+      "headers": {
+        "api-key": "k",
+        "Content-Type": "application/json"
+      },
+      "body": {
+        "model": "gpt-5.5",
+        "messages": [
+          {
+            "role": "system",
+            "content": "Complete the task in the user message and follow its output format exactly."
+          },
+          {
+            "role": "user",
+            "content": "PROMPT"
+          }
+        ],
+        "stream": true
+      }
+    },
+    "nonStream": {
+      "model": "gpt-5.5",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Complete the task in the user message and follow its output format exactly."
+        },
+        {
+          "role": "user",
+          "content": "PROMPT"
+        }
+      ],
+      "max_completion_tokens": 16384
+    }
+  }
+}
