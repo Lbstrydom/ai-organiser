@@ -2871,6 +2871,10 @@ export interface Translations {
             storylineBuildFailed: string;           // consultant mode: build-from-storyline failed
             storylineReviseFailed: string;          // consultant mode: storyline revision failed
             criticSameModel: string;                // consultant mode: notice when the critic ran on the generator's model
+            criticReasonUnavailable: string;       // consultant mode: why the chosen critic could not be used (unknown provider or no key)
+            criticReasonDeployment: string;        // consultant mode: why (provider picks its model by deployment)
+            criticReasonNoSwitch: string;          // consultant mode: why (provider cannot switch models per call)
+            criticRanOn: string;                   // consultant mode: the route actually used; {model} and {provider}
             criticUnknownModel: string;             // consultant mode: notice when independence could not be confirmed
             slidePreviewEmpty: string;              // "No deck yet — generate slides to see a preview here."
             slideDiffDriftAdvisory: string;         // "Accepting will also apply changes to {n} unselected slide{s}…"

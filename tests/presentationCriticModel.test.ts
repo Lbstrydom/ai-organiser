@@ -213,13 +213,16 @@ describe('resolveRoleRun — critic routing matrix', () => {
 
 // ── notice precedence ────────────────────────────────────────────────────────
 
-type Announce = (r: unknown, downgrade: { reason: string; ranOn: 'main' } | undefined, independence: string) => void;
-const announce = (h: PresentationModeHandler, r: unknown, d: { reason: string; ranOn: 'main' } | undefined, i: string) =>
+type Dg = { reason: string; ranOn: 'main'; provider: string; model: string };
+type Announce = (r: unknown, downgrade: Dg | undefined, independence: string) => void;
+const announce = (h: PresentationModeHandler, r: unknown, d: Dg | undefined, i: string) =>
     (h as unknown as { announceCritic: Announce }).announceCritic(r, d, i);
 
 describe('critic notice — one per run, with precedence', () => {
-    const downgrade = { reason: 'deployment-routed', ranOn: 'main' as const };
-    const guidanceText = formatGuidance(en.guidance['critic-model-unavailable']);
+    const downgrade = { reason: 'deployment-routed', ranOn: 'main' as const, provider: 'azure-openai', model: 'gpt-main' };
+    const u = en.modals.unifiedChat;
+    // The notice names why the critic did not run as chosen and the route it actually used.
+    const guidanceText = [formatGuidance(en.guidance['critic-model-unavailable']), u.criticReasonDeployment, u.criticRanOn.replace('{model}', 'gpt-main').replace('{provider}', 'azure-openai')].join(' ');
     beforeEach(() => clearMockNotices());
 
     it('no downgrade and different: no notice', () => {
@@ -393,5 +396,43 @@ describe('generator fidelity reaches the judge (integration)', () => {
         const res = await runStoryboardStage(ctx, 'brief', [], { onFidelity: (f) => { handed = f; } });
         expect(res.ok).toBe(false);
         expect(handed).toBe(good);
+    });
+});
+
+// ── audit fix: an unreachable critic provider is visible, never silent ───────
+
+describe('critic provider could not be used (no key / unknown provider)', () => {
+    beforeEach(() => { forcedRole = undefined; clearMockNotices(); });
+    const fellBack = (provider: string) => ({ provider, resolvedModel: 'main-model', modelOverride: '', crossProvider: false, family: 'other', fellBackToMain: true });
+
+    it('is a downgrade onto main that records the route actually used', async () => {
+        forcedRole = fellBack('claude');
+        mockProfile = { provider: 'claude', model: 'claude-main' };
+        const r = makeRun('claude');
+        const run = await resolveRoleRun(new PresentationModeHandler(), r, 'structural_critic');
+        expect(run.context).toBe(r.llmCtx);
+        expect(run.modelOverride).toBe('');
+        expect(run.downgrade).toEqual({ reason: 'provider-unavailable', ranOn: 'main', provider: 'claude', model: 'claude-main' });
+    });
+
+    it('the visible notice names the route used and the reason, not only the independence outcome', async () => {
+        forcedRole = fellBack('claude');
+        mockProfile = { provider: 'claude', model: 'claude-main' };
+        const h = new PresentationModeHandler();
+        const r = makeRun('claude');
+        const run = await resolveRoleRun(h, r, 'structural_critic');
+        announce(h, r, run.downgrade as never, 'same');
+        const u = en.modals.unifiedChat;
+        expect(mockNotices).toHaveLength(1);
+        expect(mockNotices[0]).toContain(u.criticReasonUnavailable);
+        expect(mockNotices[0]).toContain('claude-main (claude)');
+        expect(mockNotices[0]).toContain(u.criticSameModel);
+    });
+
+    it('the generator role is not downgraded when its provider falls back', async () => {
+        forcedRole = fellBack('claude');
+        mockProfile = { provider: 'claude', model: 'claude-main' };
+        const run = await resolveRoleRun(new PresentationModeHandler(), makeRun('claude'), 'storyboard_generator');
+        expect(run.downgrade).toBeUndefined();
     });
 });

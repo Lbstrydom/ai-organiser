@@ -108,7 +108,7 @@ interface RunContext {
 interface RoleRun {
     context: LLMFacadeContext;
     modelOverride: string;
-    downgrade?: { reason: DowngradeReason; ranOn: 'main' };
+    downgrade?: { reason: DowngradeReason; ranOn: 'main'; provider: string; model: string };
 }
 
 export class PresentationModeHandler implements ChatModeHandler {
@@ -717,11 +717,15 @@ export class PresentationModeHandler implements ChatModeHandler {
         const resolved = resolvePresentationRole(role, { profile, roles: s.presentationModelRoles, hasKey });
         if (!resolved.ok) return { context: r.llmCtx, modelOverride: '' };
         const resolvedRole = resolved.value;
+        // A critic whose chosen provider could not be used ran on main: say so, never a silent swap (D3).
+        if (settingForRole(role) === 'independentCritic' && resolvedRole.fellBackToMain) {
+            return { context: r.llmCtx, modelOverride: '', downgrade: { reason: 'provider-unavailable', ranOn: 'main', provider: profile.provider, model: profile.model } };
+        }
         if (resolvedRole.warning) logger.warn('Presentation', `${role} role: ${resolvedRole.warning}`);
         // A critic with a chosen model is routed by the capability table (llm-option-fidelity D3);
         // the generator and an unchosen ("Main") critic keep the legacy path below.
         if (settingForRole(role) === 'independentCritic' && (resolvedRole.modelOverride || resolvedRole.crossProvider)) {
-            return this.routeCritic(r, resolvedRole);
+            return this.routeCritic(r, resolvedRole, profile);
         }
         if (!resolvedRole.crossProvider) return { context: r.llmCtx, modelOverride: resolvedRole.modelOverride };
         if (resolvedRole.provider === 'local') return { context: r.llmCtx, modelOverride: '' };
@@ -738,10 +742,10 @@ export class PresentationModeHandler implements ChatModeHandler {
      * carries the model in its own config, or an explicit downgrade onto main. Never a
      * silent swap (llm-option-fidelity D3). The decision is read from the capability table.
      */
-    private routeCritic(r: RunContext, resolvedRole: ResolvedRole): RoleRun {
+    private routeCritic(r: RunContext, resolvedRole: ResolvedRole, profile: { provider: string; model: string }): RoleRun {
         const s = r.ctx.fullPlugin.settings;
         const downgrade = (reason: DowngradeReason): RoleRun => ({
-            context: r.llmCtx, modelOverride: '', downgrade: { reason, ranOn: 'main' },
+            context: r.llmCtx, modelOverride: '', downgrade: { reason, ranOn: 'main', provider: profile.provider, model: profile.model },
         });
         const decision = routeRole(resolvedRole.provider, !resolvedRole.crossProvider);
         if (decision.route === 'downgrade') return downgrade(decision.reason);
@@ -764,7 +768,13 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (r.criticNoticeShown) return;
         const t = r.ctx.plugin.t;
         const parts: string[] = [];
-        if (downgrade) parts.push(formatGuidance(describeError(t, 'critic-model-unavailable')));
+        if (downgrade) {
+            const why = downgrade.reason === 'deployment-routed' ? t.modals.unifiedChat.criticReasonDeployment
+                : downgrade.reason === 'provider-unavailable' ? t.modals.unifiedChat.criticReasonUnavailable
+                : t.modals.unifiedChat.criticReasonNoSwitch;
+            const ranOn = t.modals.unifiedChat.criticRanOn.replace('{model}', downgrade.model).replace('{provider}', downgrade.provider);
+            parts.push(formatGuidance(describeError(t, 'critic-model-unavailable')), why, ranOn);
+        }
         if (independence === 'same') parts.push(t.modals.unifiedChat.criticSameModel);
         else if (independence === 'unknown') parts.push(t.modals.unifiedChat.criticUnknownModel);
         if (parts.length === 0) return;

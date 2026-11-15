@@ -85,7 +85,7 @@ export function canHonourModelOverride(provider: string | null | undefined): boo
     return modelOverrideRouting(provider) === 'per-call';
 }
 
-export type DowngradeReason = 'deployment-routed' | 'override-unsupported';
+export type DowngradeReason = 'deployment-routed' | 'override-unsupported' | 'provider-unavailable';
 
 export type RoleRoute =
     | { route: 'per-call' }

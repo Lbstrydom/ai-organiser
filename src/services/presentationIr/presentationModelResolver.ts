@@ -53,6 +53,8 @@ export interface ResolvedRole {
     family: ProviderFamily;
     /** Non-fatal advisory (missing key → Main, shared family, weak tier). */
     warning?: string;
+    /** True when the CHOSEN provider could not be used (unknown id, no key) and this is the main provider instead. */
+    fellBackToMain?: boolean;
 }
 
 /** Map a logical role to its backing user setting (M8: generator-voice vs critic). */
@@ -129,7 +131,7 @@ function isWeakTier(provider: AdapterType | 'local', model: string): boolean {
     return false;
 }
 
-function mainResolution(profile: ProviderProfile, warning?: string): ResolvedRole {
+function mainResolution(profile: ProviderProfile, warning?: string, fellBackToMain = false): ResolvedRole {
     return {
         provider: profile.provider,
         resolvedModel: profile.model,
@@ -137,6 +139,7 @@ function mainResolution(profile: ProviderProfile, warning?: string): ResolvedRol
         crossProvider: false,
         family: familyOf(profile.provider, profile.model),
         ...(warning ? { warning } : {}),
+        ...(fellBackToMain ? { fellBackToMain: true } : {}),
     };
 }
 
@@ -154,12 +157,12 @@ export function resolvePresentationRole(role: PresentationRole, ctx: RoleResolve
     // Validate the persisted provider string before casting (audit H4/M6) — an
     // unknown/corrupt value falls back to Main instead of resolving garbage.
     if (!(ALL_ADAPTERS as readonly string[]).includes(chosen)) {
-        return ok(mainResolution(ctx.profile, `Unknown provider "${chosen}" for this role — using the main provider instead.`));
+        return ok(mainResolution(ctx.profile, `Unknown provider "${chosen}" for this role — using the main provider instead.`, true));
     }
     const provider = chosen as AdapterType;
     const isMain = provider === ctx.profile.provider;
     if (!isMain && !ctx.hasKey(provider)) {
-        return ok(mainResolution(ctx.profile, `No API key for ${provider} — using the main provider instead.`));
+        return ok(mainResolution(ctx.profile, `No API key for ${provider} — using the main provider instead.`, true));
     }
 
     const resolvedModel = resolveForProvider(provider, '') || PROVIDER_DEFAULT_MODEL[provider] || '';
