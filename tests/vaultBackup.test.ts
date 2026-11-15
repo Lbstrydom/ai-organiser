@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
 	backupTargets, restoreBackup, latestBackup, resolveTargets, stamp, BACKUP_FILES,
 } from '../scripts/persona-harness/vault-backup.mjs';
@@ -40,6 +40,28 @@ describe('vault backup / restore', () => {
 		expect(readFileSync(join(dir, '0', 'data.json'), 'utf8')).toBe('{"setting":"original"}');
 		expect(existsSync(join(dir, '0', 'styles.css'))).toBe(false);
 		expect(BACKUP_FILES).toContain('data.json');
+	});
+
+	it('never reuses a backup folder, even within the same millisecond', () => {
+		const now = new Date('2026-03-03T03:03:03.003Z');
+		const a = backupTargets([target], { backupRoot: backups, now, log: quiet });
+		const b = backupTargets([target], { backupRoot: backups, now, log: quiet });
+		expect(a).not.toBe(b);
+		expect(existsSync(join(a!, 'meta.json'))).toBe(true);
+		expect(existsSync(join(b!, 'meta.json'))).toBe(true);
+	});
+
+	it('restore removes a file the run created that was absent at backup time', () => {
+		const dir = backupTargets([target], { backupRoot: backups, log: quiet })!;
+		writeFileSync(join(target, 'styles.css'), 'created-by-run');
+		restoreBackup(dir, { log: quiet });
+		expect(existsSync(join(target, 'styles.css'))).toBe(false);
+	});
+
+	it('stores absolute target paths', () => {
+		const dir = backupTargets([target], { backupRoot: backups, log: quiet })!;
+		const meta = JSON.parse(readFileSync(join(dir, 'meta.json'), 'utf8'));
+		expect(meta.entries[0].target).toBe(resolve(target));
 	});
 
 	it('skips a target that does not exist', () => {

@@ -17,7 +17,7 @@
  */
 
 import {
-    copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync,
+    copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync,
 } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { dirname, join, resolve } from 'node:path';
@@ -32,7 +32,9 @@ function targetsFromFile(file) {
     try {
         const parsed = JSON.parse(readFileSync(file, 'utf8'));
         if (Array.isArray(parsed?.targets)) return parsed.targets.map(s => String(s).trim()).filter(Boolean);
-    } catch { /* absent or unreadable */ }
+    } catch (err) {
+        if (existsSync(file)) console.warn(`[vault-backup] ignoring unreadable ${file}: ${err.message}`);
+    }
     return null;
 }
 
@@ -63,7 +65,7 @@ export function resolveTargets({ repoRoot = resolve(HERE, '..', '..'), env = pro
 
 /** Filesystem-safe UTC timestamp, e.g. 2026-11-15T18-55-11Z. */
 export function stamp(now = new Date()) {
-    return now.toISOString().replace(/\.\d+Z$/, 'Z').replace(/:/g, '-');
+    return now.toISOString().replace(/:/g, '-').replace('.', '-');
 }
 
 /**
@@ -76,9 +78,12 @@ export function backupTargets(targets, { backupRoot = BACKUP_ROOT, now = new Dat
         log('[vault-backup] no deploy target configured (deploy.local.json / AIORG_DEPLOY_TARGETS) - nothing to back up.');
         return null;
     }
-    const dir = join(backupRoot, stamp(now));
+    // A unique folder per backup: never reuse or overwrite an earlier snapshot.
+    let dir = join(backupRoot, stamp(now));
+    for (let n = 1; existsSync(dir); n++) dir = join(backupRoot, `${stamp(now)}-${n}`);
     const entries = [];
-    targets.forEach((target) => {
+    targets.forEach((rawTarget) => {
+        const target = resolve(rawTarget); // absolute, so restore never depends on the cwd
         if (!existsSync(target)) {
             log(`[vault-backup] target not found, skipped: ${target}`);
             return;
@@ -87,13 +92,14 @@ export function backupTargets(targets, { backupRoot = BACKUP_ROOT, now = new Dat
         const dest = join(dir, sub);
         mkdirSync(dest, { recursive: true });
         const files = [];
+        const absent = [];
         for (const f of BACKUP_FILES) {
             const src = join(target, f);
-            if (!existsSync(src)) continue;
+            if (!existsSync(src)) { absent.push(f); continue; }
             copyFileSync(src, join(dest, f));
             files.push(f);
         }
-        entries.push({ sub, target, files });
+        entries.push({ sub, target, files, absent });
     });
     if (entries.length === 0) return null;
     writeFileSync(join(dir, 'meta.json'), JSON.stringify({ createdAt: now.toISOString(), entries }, null, 2));
@@ -117,9 +123,11 @@ export function restoreBackup(backupDir, { log = console.log } = {}) {
     }
     const meta = JSON.parse(readFileSync(join(backupDir, 'meta.json'), 'utf8'));
     const restored = [];
-    for (const { sub, target, files } of meta.entries) {
+    for (const { sub, target, files, absent = [] } of meta.entries) {
         mkdirSync(target, { recursive: true });
         for (const f of files) copyFileSync(join(backupDir, sub, f), join(target, f));
+        // A file that did not exist at backup time and was created by the run goes away again.
+        for (const f of absent) rmSync(join(target, f), { force: true });
         log(`[vault-backup] restored ${files.length} file(s) -> ${target}`);
         restored.push(target);
     }
@@ -134,8 +142,9 @@ let backedUpThisProcess = false;
  */
 export function ensureVaultBackup(opts = {}) {
     if (backedUpThisProcess || process.env.AIORG_SKIP_VAULT_BACKUP === '1') return null;
+    const dir = backupTargets(resolveTargets(), opts); // a throw leaves the flag unset, so a retry backs up
     backedUpThisProcess = true;
-    return backupTargets(resolveTargets(), opts);
+    return dir;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

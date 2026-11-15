@@ -14,7 +14,7 @@ export function decideDeploy(gitDir, commonDir, env = {}) {
 	if (!gitDir || !commonDir) {
 		return { deploy: false, reason: "git state could not be read (fail closed)" };
 	}
-	const norm = (p) => path.resolve(p).replace(/[\\/]+$/, "").toLowerCase();
+	const norm = (p) => path.resolve(p.replace(/\\/g, "/")).replace(/[\\/]+$/, "").toLowerCase();
 	if (norm(gitDir) === norm(commonDir)) return { deploy: true, reason: "main checkout" };
 	if (env.AIORG_DEPLOY_FROM_WORKTREE === "1") {
 		return { deploy: true, reason: "linked worktree, AIORG_DEPLOY_FROM_WORKTREE=1" };
