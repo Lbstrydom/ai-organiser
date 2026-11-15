@@ -66,6 +66,11 @@ describe('routeRole (D3 routing matrix)', () => {
         expect(routeRole(provider, same).route).toBe(expected);
     });
 
+    it('fails closed for a missing or unrecognised provider on another provider', () => {
+        expect(routeRole(undefined, false)).toEqual({ route: 'downgrade', reason: 'override-unsupported' });
+        expect(routeRole('not-a-provider', false)).toEqual({ route: 'downgrade', reason: 'override-unsupported' });
+    });
+
     it('gives a stable downgrade reason', () => {
         expect(routeRole('azure-openai', true)).toEqual({ route: 'downgrade', reason: 'deployment-routed' });
         expect(routeRole('local', true)).toEqual({ route: 'downgrade', reason: 'override-unsupported' });

@@ -3,7 +3,8 @@
  * (llm-option-fidelity D4), and every summarize result reports `fidelity` (D1).
  */
 import { describe, it, expect } from 'vitest';
-import { CloudLLMService } from '../src/services/cloudService';
+import { CloudLLMService, computeAvailableModelIds } from '../src/services/cloudService';
+import { resolveLatestModel } from '../src/services/adapters/modelCapabilities';
 import { AdapterType } from '../src/services/adapters';
 import { SummarizeOptions } from '../src/services/types';
 import { getModelOutputLimit } from '../src/services/tokenLimits';
@@ -39,9 +40,10 @@ describe('Gemini summarize — modelOverride', () => {
 
     it('resolves a latest-* override to a concrete id', () => {
         const body = buildBody(makeGemini(), { modelOverride: 'latest-flash' });
-        expect(typeof body.model).toBe('string');
-        expect((body.model as string).startsWith('latest-')).toBe(false);
-        expect(body.model).not.toBe('gemini-2.5-pro');
+        const expected = resolveLatestModel('gemini', 'latest-flash', computeAvailableModelIds('gemini'));
+        expect(expected).toBeTruthy();
+        expect(expected).toMatch(/flash/);
+        expect(body.model).toBe(expected);
     });
 
     it('an unresolvable sentinel falls back to the service model', () => {

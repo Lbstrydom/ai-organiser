@@ -89,10 +89,17 @@ export type Independence = 'same' | 'different' | 'unknown';
  * response reported, or one sent in this call's body (`per-call`). An alias, a
  * service-config name or a deployment name is routing evidence only and yields null.
  */
+/** A `latest-*` sentinel or a provider `*-latest` alias names whatever model is current, not a fixed one. */
+function isAliasId(model: string): boolean {
+    return /(^|[-_.:/])latest($|[-_.:/])/i.test(model);
+}
+
 function concreteIdentity(f: Fidelity | undefined): { provider: Fidelity['provider']; model: string } | null {
     if (!f) return null;
     if (f.reportedModel) return { provider: f.provider, model: f.reportedModel };
-    if (f.routing === 'per-call' && f.requestedModel) return { provider: f.provider, model: f.requestedModel };
+    if (f.routing === 'per-call' && f.requestedModel && !isAliasId(f.requestedModel)) {
+        return { provider: f.provider, model: f.requestedModel };
+    }
     return null;
 }
 

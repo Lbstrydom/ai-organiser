@@ -72,6 +72,10 @@ export function getOptionCapabilities(provider: string | null | undefined): Opti
     return OPTION_CAPABILITIES[provider as CapabilityProvider];
 }
 
+function getKnownProvider(provider: string | null | undefined): boolean {
+    return !!provider && Object.prototype.hasOwnProperty.call(OPTION_CAPABILITIES, provider);
+}
+
 export function modelOverrideRouting(provider: string | null | undefined): ModelOverrideRouting {
     return getOptionCapabilities(provider).modelOverride;
 }
@@ -97,7 +101,9 @@ export type RoleRoute =
  */
 export function routeRole(provider: string | null | undefined, sameProvider: boolean): RoleRoute {
     if (!sameProvider) {
-        return provider === 'local'
+        // Fail closed: a missing or unrecognised provider cannot be built a specialist service.
+        return provider === 'local' || !getKnownProvider(provider)
+            
             ? { route: 'downgrade', reason: 'override-unsupported' }
             : { route: 'specialist' };
     }

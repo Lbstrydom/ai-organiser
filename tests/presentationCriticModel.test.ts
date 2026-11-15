@@ -51,6 +51,13 @@ describe('independenceFor', () => {
         expect(independenceFor(a, b)).toBe('same');
     });
 
+    it('unknown: a per-call requested provider alias is not a concrete identity', () => {
+        const a = fid({ provider: 'gemini', routing: 'per-call', requestedModel: 'gemini-pro-latest' });
+        const b = fid({ provider: 'gemini', routing: 'per-call', requestedModel: 'gemini-2.5-pro' });
+        expect(independenceFor(a, b)).toBe('unknown');
+        expect(independenceFor(b, a)).toBe('unknown');
+    });
+
     it('different: unequal concrete models from the same provider', () => {
         const a = fid({ provider: 'claude', reportedModel: 'claude-sonnet-4-6' });
         const b = fid({ provider: 'claude', reportedModel: 'claude-opus-4-6' });
