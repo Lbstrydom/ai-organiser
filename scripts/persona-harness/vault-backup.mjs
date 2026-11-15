@@ -27,15 +27,24 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 export const BACKUP_ROOT = join(HERE, 'sessions', 'backups');
 export const BACKUP_FILES = ['main.js', 'manifest.json', 'styles.css', 'data.json'];
 
-/** Read targets from a deploy.local.json path, or null when absent or unusable. */
+/**
+ * Read targets from a deploy.local.json path. Null only when the file is absent; a file
+ * that exists but is unreadable, malformed or has a bad shape THROWS, so a broken safety
+ * configuration stops the run instead of silently skipping the backup.
+ */
 function targetsFromFile(file) {
+    if (!existsSync(file)) return null;
+    let parsed;
     try {
-        const parsed = JSON.parse(readFileSync(file, 'utf8'));
-        if (Array.isArray(parsed?.targets)) return parsed.targets.map(s => String(s).trim()).filter(Boolean);
+        parsed = JSON.parse(readFileSync(file, 'utf8'));
     } catch (err) {
-        if (existsSync(file)) console.warn(`[vault-backup] ignoring unreadable ${file}: ${err.message}`);
+        throw new Error(`[vault-backup] cannot read ${file}: ${err.message}`);
     }
-    return null;
+    if (parsed?.targets === undefined) return null; // present but no targets key: same as no config
+    if (!Array.isArray(parsed.targets) || parsed.targets.some(t => typeof t !== 'string')) {
+        throw new Error(`[vault-backup] ${file}: "targets" must be an array of strings`);
+    }
+    return parsed.targets.map(s => s.trim()).filter(Boolean);
 }
 
 /** The main checkout's root (linked worktrees do not carry the gitignored deploy.local.json). */
@@ -79,8 +88,17 @@ export function backupTargets(targets, { backupRoot = BACKUP_ROOT, now = new Dat
         return null;
     }
     // A unique folder per backup: never reuse or overwrite an earlier snapshot.
+    mkdirSync(backupRoot, { recursive: true });
     let dir = join(backupRoot, stamp(now));
-    for (let n = 1; existsSync(dir); n++) dir = join(backupRoot, `${stamp(now)}-${n}`);
+    for (let n = 1; ; n++) {
+        try {
+            mkdirSync(dir); // exclusive: throws EEXIST if another backup already took this name
+            break;
+        } catch (err) {
+            if (err?.code !== 'EEXIST') throw err;
+            dir = join(backupRoot, `${stamp(now)}-${n}`);
+        }
+    }
     const entries = [];
     targets.forEach((rawTarget) => {
         const target = resolve(rawTarget); // absolute, so restore never depends on the cwd
@@ -107,12 +125,23 @@ export function backupTargets(targets, { backupRoot = BACKUP_ROOT, now = new Dat
     return dir;
 }
 
-/** Newest backup dir under `backupRoot`, or null. Stamps sort chronologically. */
+/** Order backup folder names: stamp (fixed-width, lexical) then numeric collision suffix. */
+export function compareBackupNames(a, b) {
+    const parse = (n) => {
+        const m = /^(.*?)(?:-(\d+))?$/.exec(n);
+        return { base: m[1], n: m[2] ? Number(m[2]) : 0 };
+    };
+    const x = parse(a), y = parse(b);
+    if (x.base !== y.base) return x.base < y.base ? -1 : 1;
+    return x.n - y.n;
+}
+
+/** Newest backup dir under `backupRoot`, or null. */
 export function latestBackup(backupRoot = BACKUP_ROOT) {
     if (!existsSync(backupRoot)) return null;
     const names = readdirSync(backupRoot)
         .filter(n => existsSync(join(backupRoot, n, 'meta.json')))
-        .sort();
+        .sort(compareBackupNames);
     return names.length ? join(backupRoot, names[names.length - 1]) : null;
 }
 
@@ -122,6 +151,14 @@ export function restoreBackup(backupDir, { log = console.log } = {}) {
         throw new Error(`not a vault backup (no meta.json): ${backupDir}`);
     }
     const meta = JSON.parse(readFileSync(join(backupDir, 'meta.json'), 'utf8'));
+    // Validate the whole snapshot first, so a damaged one fails before any live file is touched.
+    for (const { sub, files } of meta.entries) {
+        for (const f of files) {
+            if (!existsSync(join(backupDir, sub, f))) {
+                throw new Error(`damaged vault backup, missing ${join(sub, f)} in ${backupDir}; nothing was restored`);
+            }
+        }
+    }
     const restored = [];
     for (const { sub, target, files, absent = [] } of meta.entries) {
         mkdirSync(target, { recursive: true });
@@ -156,7 +193,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
         if (!dir) { console.error('[vault-backup] no backup found.'); process.exit(1); }
         restoreBackup(dir);
     } else if (cmd === 'list') {
-        if (existsSync(BACKUP_ROOT)) readdirSync(BACKUP_ROOT).sort().forEach(n => console.log(join(BACKUP_ROOT, n)));
+        if (existsSync(BACKUP_ROOT)) readdirSync(BACKUP_ROOT).sort(compareBackupNames).forEach(n => console.log(join(BACKUP_ROOT, n)));
     } else {
         console.error('usage: vault-backup.mjs backup | restore [backup-dir] | list');
         process.exit(1);

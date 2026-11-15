@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
-	backupTargets, restoreBackup, latestBackup, resolveTargets, stamp, BACKUP_FILES,
+	backupTargets, restoreBackup, latestBackup, resolveTargets, stamp, BACKUP_FILES, compareBackupNames,
 } from '../scripts/persona-harness/vault-backup.mjs';
 
 const quiet = () => {};
@@ -85,6 +85,30 @@ describe('vault backup / restore', () => {
 		expect(latestBackup(backups)).toBe(newer);
 		expect(latestBackup(join(tmp, 'none'))).toBeNull();
 		expect(() => restoreBackup(tmp, { log: quiet })).toThrow(/not a vault backup/);
+	});
+
+	it('orders collision suffixes numerically, so -10 is newer than -9', () => {
+		const names = ['2026-01-01T00-00-00-000Z-10', '2026-01-01T00-00-00-000Z-9', '2026-01-01T00-00-00-000Z', '2025-12-31T00-00-00-000Z-3'];
+		expect([...names].sort(compareBackupNames).pop()).toBe('2026-01-01T00-00-00-000Z-10');
+		const now = new Date('2026-04-04T04:04:04.004Z');
+		let last = '';
+		for (let i = 0; i < 12; i++) last = backupTargets([target], { backupRoot: backups, now, log: quiet })!;
+		expect(latestBackup(backups)).toBe(last);
+	});
+
+	it('refuses a damaged snapshot before touching any live file', () => {
+		const dir = backupTargets([target], { backupRoot: backups, log: quiet })!;
+		writeFileSync(join(target, 'main.js'), 'changed');
+		rmSync(join(dir, '0', 'data.json'));
+		expect(() => restoreBackup(dir, { log: quiet })).toThrow(/damaged vault backup/);
+		expect(readFileSync(join(target, 'main.js'), 'utf8')).toBe('changed');
+	});
+
+	it('throws on a malformed deploy.local.json instead of silently skipping the backup', () => {
+		writeFileSync(join(tmp, 'deploy.local.json'), '{ not json');
+		expect(() => resolveTargets({ repoRoot: tmp, env: {} })).toThrow(/cannot read/);
+		writeFileSync(join(tmp, 'deploy.local.json'), '{"targets": "x"}');
+		expect(() => resolveTargets({ repoRoot: tmp, env: {} })).toThrow(/array of strings/);
 	});
 
 	it('resolves targets from the env when no deploy.local.json exists', () => {

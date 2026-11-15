@@ -7,6 +7,7 @@ export function backupTargets(
 	targets: string[],
 	opts?: { backupRoot?: string; now?: Date; log?: Log },
 ): string | null;
+export function compareBackupNames(a: string, b: string): number;
 export function latestBackup(backupRoot?: string): string | null;
 export function restoreBackup(backupDir: string, opts?: { log?: Log }): string[];
 export function ensureVaultBackup(opts?: { backupRoot?: string; now?: Date; log?: Log }): string | null;
