@@ -514,7 +514,7 @@ See `docs/usertest.md` for manual testing checklist.
 
 ## Deployment Verification
 
-**Local dev auto-deploy**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder(s) listed in the gitignored `deploy.local.json` (or `AIORG_DEPLOY_TARGETS`, `;`-separated) after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path). The manual steps below remain a fallback / for other machines. **Users are not served from this step** — they get releases from the community store (see Version Management → Releasing).
+**Local dev auto-deploy**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder(s) listed in the gitignored `deploy.local.json` (or `AIORG_DEPLOY_TARGETS`, `;`-separated) after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path). The manual steps below remain a fallback / for other machines. **Auto-deploy is skipped in a linked git worktree (fail closed if git cannot be read; set `AIORG_DEPLOY_FROM_WORKTREE=1` for a deliberate test deploy; `scripts/deployGuard.mjs`). **Users are not served from this step** — they get releases from the community store (see Version Management → Releasing).
 
 **Always verify deployment after building.** Stale builds in the Obsidian vault cause confusion when changes appear not to work.
 
