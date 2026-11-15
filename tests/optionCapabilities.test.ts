@@ -22,7 +22,7 @@ describe('optionCapabilities table', () => {
     it('records the scattered rules in one place', () => {
         expect(modelOverrideRouting('azure-openai')).toBe('deployment');
         expect(modelOverrideRouting('bedrock')).toBe('service-config');
-        expect(modelOverrideRouting('local')).toBe('none');
+        expect(modelOverrideRouting('local')).toBe('per-call'); // flipped by llm-option-fidelity Phase 5
         for (const p of ['claude', 'azure-claude', 'gemini', 'openai', 'openrouter', 'groq'] as const) {
             expect(modelOverrideRouting(p), p).toBe('per-call');
         }
@@ -44,7 +44,7 @@ describe('optionCapabilities table', () => {
         expect(canHonourModelOverride('gemini')).toBe(true);
         expect(canHonourModelOverride('bedrock')).toBe(false);
         expect(canHonourModelOverride('azure-openai')).toBe(false);
-        expect(canHonourModelOverride('local')).toBe(false);
+        expect(canHonourModelOverride('local')).toBe(true);
     });
 });
 
@@ -56,7 +56,7 @@ describe('routeRole (D3 routing matrix)', () => {
         ['claude', 'same', true, 'per-call'],
         ['bedrock', 'same', true, 'specialist'],
         ['azure-openai', 'same', true, 'downgrade'],
-        ['local', 'same', true, 'downgrade'],
+        ['local', 'same', true, 'per-call'],
         ['local', 'cross', false, 'downgrade'],
         ['gemini', 'cross', false, 'specialist'],
         ['bedrock', 'cross', false, 'specialist'],
@@ -73,7 +73,6 @@ describe('routeRole (D3 routing matrix)', () => {
 
     it('gives a stable downgrade reason', () => {
         expect(routeRole('azure-openai', true)).toEqual({ route: 'downgrade', reason: 'deployment-routed' });
-        expect(routeRole('local', true)).toEqual({ route: 'downgrade', reason: 'override-unsupported' });
         expect(routeRole('local', false)).toEqual({ route: 'downgrade', reason: 'override-unsupported' });
     });
 });

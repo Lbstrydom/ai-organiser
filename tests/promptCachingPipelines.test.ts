@@ -178,6 +178,9 @@ describe('generateTags transport', () => {
 // ── Local provider drop fix ─────────────────────────────────────────────────
 
 describe('LocalLLMService sends a stablePrefix instead of dropping it', () => {
+    // the service's timeout helper uses window.setTimeout; the node test env has no window
+    beforeEach(() => { vi.stubGlobal('window', { setTimeout: globalThis.setTimeout.bind(globalThis), clearTimeout: globalThis.clearTimeout.bind(globalThis) }); });
+    afterEach(() => { vi.unstubAllGlobals(); });
     const local = (): LocalLLMService => new LocalLLMService({
         type: 'ollama', endpoint: 'http://localhost:11434', modelName: 'llama3', language: 'en',
     } as never, app);

@@ -25,7 +25,7 @@ const live = new Set<StreamLifecycle>();
 
 export class StreamLifecycle {
     private readonly controller = new AbortController();
-    private timer: ReturnType<typeof setTimeout> | undefined;
+    private timer: number | undefined;
     private onCallerAbort: (() => void) | undefined;
     private firstByteSeen = false;
     private disposedFlag = false;
@@ -43,7 +43,7 @@ export class StreamLifecycle {
             }
         }
         if (firstByteMs && firstByteMs > 0 && !this.controller.signal.aborted) {
-            this.timer = setTimeout(() => {
+            this.timer = window.setTimeout(() => {
                 this.timer = undefined;
                 if (this.firstByteSeen || this.disposedFlag) return;
                 this.timedOutFlag = true;
@@ -98,7 +98,7 @@ export class StreamLifecycle {
 
     private clearTimer(): void {
         if (this.timer !== undefined) {
-            clearTimeout(this.timer);
+            window.clearTimeout(this.timer);
             this.timer = undefined;
         }
     }

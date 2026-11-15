@@ -63,8 +63,9 @@ export const OPTION_CAPABILITIES: Readonly<Record<CapabilityProvider, OptionCapa
     'azure-claude': CLAUDE_LIKE,
     // The deployment-routed URL ignores body.model, so a per-call override cannot work.
     'azure-openai': { ...PER_CALL, modelOverride: 'deployment' },
-    // The local service ignores modelOverride and the thinking flags today (Cluster B flips the first).
-    local: { modelOverride: 'none', thinking: 'none', maxTokens: true, timeoutMs: true },
+    // Local honours a concrete modelOverride (Ollama and LM Studio take any model name in the body);
+    // it has no thinking mode (the flags are reported as dropped).
+    local: { modelOverride: 'per-call', thinking: 'none', maxTokens: true, timeoutMs: true },
 };
 
 export function getOptionCapabilities(provider: string | null | undefined): OptionCapability {

@@ -2,17 +2,21 @@
  * Stream request lifecycle (llm-option-fidelity D5): abort before headers, after headers
  * and mid-stream; the first-byte deadline; disposal; nothing left behind; empty stream.
  */
-import { describe, it, expect, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { makeService, stubFetch, sseResponse, openAiLines, claudeLines } from './helpers/streamHarness';
 import { activeStreamLifecycleCount, disposeStreamLifecycles, StreamLifecycle, StreamFirstByteTimeoutError } from '../src/services/llm/streamLifecycle';
 import { summarizeTextStream as facadeStream } from '../src/services/llmFacade';
 import { CloudLLMService } from '../src/services/cloudService';
 
+// window.* timers delegate lazily so fake timers apply; the node test env has no window.
+const lazyTimers = { setTimeout: (...a: Parameters<typeof setTimeout>) => globalThis.setTimeout(...a), clearTimeout: (id: Parameters<typeof clearTimeout>[0]) => globalThis.clearTimeout(id) };
+beforeEach(() => { vi.stubGlobal('window', lazyTimers); });
 afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
 
 /** A fetch that never answers until its signal aborts, like a real hung connection. */
 function hangingFetch(): void {
     vi.stubGlobal('window', {
+        ...lazyTimers,
         fetch: vi.fn((_u: string, init: { signal: AbortSignal }) => new Promise((_res, rej) => {
             init.signal.addEventListener('abort', () => rej(new DOMException('Aborted', 'AbortError')), { once: true });
         })),
@@ -182,14 +186,14 @@ describe('facade fallback with the lifecycle', () => {
         expect(r.fidelity?.reportedModel).toBe('fallback-model');
     });
 
-    it('a caller abort racing the first-byte deadline sends no fallback request', async () => {
+    it('a caller abort while the first-byte deadline is pending sends no fallback request', async () => {
         hangingFetch();
         const svc = makeService('groq');
         const fallback = vi.fn();
         (svc as unknown as { pacedRequestUrl: unknown }).pacedRequestUrl = fallback;
         const ac = new AbortController();
-        const p = facadeStream(ctx(svc), 'p', () => undefined, ac.signal, { timeoutMs: 30 });
-        await new Promise(r => setTimeout(r, 29));
+        const p = facadeStream(ctx(svc), 'p', () => undefined, ac.signal, { timeoutMs: 5000 });
+        await new Promise(r => setTimeout(r, 10));
         ac.abort();
         const r = await p;
         expect(r).toMatchObject({ success: false, error: 'Aborted' });

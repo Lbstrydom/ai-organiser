@@ -56,6 +56,8 @@ export function linesFor(type: AdapterType, text = 'hello'): string[] {
 export function stubFetch(respond: (req: CapturedRequest) => Response | Promise<Response>): CapturedRequest[] {
     const captured: CapturedRequest[] = [];
     vi.stubGlobal('window', {
+        setTimeout: globalThis.setTimeout.bind(globalThis),
+        clearTimeout: globalThis.clearTimeout.bind(globalThis),
         fetch: vi.fn(async (url: string, init: { headers: Record<string, string>; body: string; signal?: AbortSignal }) => {
             const req: CapturedRequest = { url, headers: init.headers, body: JSON.parse(init.body), signal: init.signal };
             captured.push(req);
