@@ -675,7 +675,8 @@ export class PresentationModeHandler implements ChatModeHandler {
                 const visual = await this.resolveRoleRun(r, 'visual_critic');
                 scanCtx = visual.context;
                 scanModel = visual.modelOverride;
-                if (visual.downgrade) this.announceCritic(r, visual.downgrade, 'different');
+                // A downgraded visual critic ran on main, so its independence is not established (audit R6 M1).
+                if (visual.downgrade) this.announceCritic(r, visual.downgrade, 'unknown');
             }
             void this.runBackgroundQualityScan(scanCtx, r.abort.signal, scanModel);
 
