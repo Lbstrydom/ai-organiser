@@ -29,8 +29,12 @@ npm run dev
 # Production build (source type-check + tests + bundle)
 npm run build
 
-# Quick production build (source type-check + bundle, skips test types)
+# Quick production build (source type-check + bundle, skips test types; NOT a push gate)
 npm run build:quick
+
+# Type-check source AND tests (tsconfig.json). `build`, `test:all` and `precommit` run it;
+# run `npm run build` (or `npm run typecheck`) before pushing, never `build:quick` alone.
+npm run typecheck
 
 # Release PRs only, on the owner's go (see Version Management -> Releasing):
 # npm version <x.y.z> --no-git-tag-version bumps package.json, manifest.json, versions.json
