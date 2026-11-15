@@ -102,6 +102,11 @@ describe('applyLinkBlock (pure)', () => {
         }
     });
 
+    it('a shorter fence marker does not close a longer fence', () => {
+        const out = applyLinkBlock(['````', '```', '# inside', '````', '# Real', ''].join('\n'), block, true);
+        expect(out.ok && out.value.indexOf(LINK_START)).toBeGreaterThan(out.ok ? out.value.indexOf('# Real') : 0);
+    });
+
     it('ignores an H1-looking line inside a code fence and handles a missing H1', () => {
         const out = applyLinkBlock('---\na: 1\n---\n```\n# not a title\n```\ntext\n', block, true);
         expect(out.ok && out.value.startsWith('---\na: 1\n---\n')).toBe(true);
@@ -169,6 +174,24 @@ describe('refreshDigestCatchUpLinks', () => {
         expect(writes).toEqual([]);
         expect(vault.app.vault.read).not.toHaveBeenCalled();
         expect(vault.text(digestPath('2026-11-14'))).toBe(before);
+    });
+
+    it('one failing digest does not stop the others, and the writer gets the pre-write text as baseline', async () => {
+        addEpisode('20261113-100000-aaaa', '2026-11-10', '2026-11-12');
+        vault.set(digestPath('2026-11-12'), digest('2026-11-12'));
+        vault.set(digestPath('2026-11-14'), digest('2026-11-14'));
+        const baselines: Record<string, string> = {};
+        const written = await refreshDigestCatchUpLinks(deps({
+            writeNote: async (path, baseline, next) => {
+                baselines[path] = baseline;
+                if (path === digestPath('2026-11-12')) throw new Error('boom');
+                vault.set(path, next);
+                return ok(undefined);
+            },
+        }));
+        expect(written).toBe(1);
+        expect(baselines[digestPath('2026-11-14')]).toBe(digest('2026-11-14'));
+        expect(vault.text(digestPath('2026-11-14'))).toContain(LINK_START);
     });
 
     it('does nothing when there is no episode', async () => {

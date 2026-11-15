@@ -70,13 +70,17 @@ function frontmatterEnd(content: string): number {
 function insertionPoint(content: string): number {
     const from = frontmatterEnd(content);
     let offset = from;
-    let fence: string | null = null;
+    let fence: { char: string; length: number } | null = null;
     for (const raw of content.slice(from).split('\n')) {
         const lineEnd = offset + raw.length + 1;
-        const fenceOpen = /^[ \t]*(`{3,}|~{3,})/.exec(raw);
-        if (fence === null && fenceOpen) fence = fenceOpen[1][0];
-        else if (fence !== null && new RegExp(`^[ \\t]*\\${fence}{3,}[ \\t\\r]*$`).test(raw)) fence = null;
-        else if (fence === null && /^# \S/.test(raw)) return Math.min(lineEnd, content.length);
+        if (fence === null) {
+            const open = /^[ \t]*(`{3,}|~{3,})/.exec(raw);
+            if (open) { fence = { char: open[1][0], length: open[1].length }; offset = lineEnd; continue; }
+            if (/^# \S/.test(raw)) return Math.min(lineEnd, content.length);
+        } else {
+            const close = /^[ \t]*(`{3,}|~{3,})[ \t\r]*$/.exec(raw);
+            if (close && close[1][0] === fence.char && close[1].length >= fence.length) fence = null;
+        }
         offset = lineEnd;
     }
     return from;
@@ -130,16 +134,21 @@ export async function refreshDigestCatchUpLinks(deps: DigestLinkDeps, insertDate
 
         let written = 0;
         for (const date of dates) {
-            const file = app.vault.getAbstractFileByPath(normalizePath(getDigestPath(outputRoot, date)));
-            if (!(file instanceof TFile)) continue;
-            if (!assertWritable(settings, 'modify', file.path).ok) continue;
-            const current = await app.vault.read(file);
-            const next = applyLinkBlock(current, block, inserting.has(date));
-            if (!next.ok) { logger.warn('Newsletter', `Digest ${file.path} has malformed catch-up link markers; left untouched`); continue; }
-            if (next.value === current) continue;
-            const res = await deps.writeNote(file.path, current, next.value);
-            if (res.ok) written++;
-            else logger.warn('Newsletter', `Could not link the catch-up episode from ${file.path}`, res.error);
+            // Per-digest isolation: one unreadable or failing digest never stops the others.
+            try {
+                const file = app.vault.getAbstractFileByPath(normalizePath(getDigestPath(outputRoot, date)));
+                if (!(file instanceof TFile)) continue;
+                if (!assertWritable(settings, 'modify', file.path).ok) continue;
+                const current = await app.vault.read(file);
+                const next = applyLinkBlock(current, block, inserting.has(date));
+                if (!next.ok) { logger.warn('Newsletter', `Digest ${file.path} has malformed catch-up link markers; left untouched`); continue; }
+                if (next.value === current) continue;
+                const res = await deps.writeNote(file.path, current, next.value);
+                if (res.ok) written++;
+                else logger.warn('Newsletter', `Could not link the catch-up episode from ${file.path}`, res.error);
+            } catch (e) {
+                logger.warn('Newsletter', `Catch-up digest link skipped for ${date}`, e);
+            }
         }
         return written;
     } catch (e) {
