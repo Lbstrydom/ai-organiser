@@ -670,12 +670,14 @@ export class PresentationModeHandler implements ChatModeHandler {
             // through the INDEPENDENT visual critic (a different model family) so the
             // layout review is independent of the generator; direct decks use main.
             let scanCtx = r.llmCtx;
+            let scanModel = '';
             if (this.creationConfig.planMode === 'storyline') {
                 const visual = await this.resolveRoleRun(r, 'visual_critic');
                 scanCtx = visual.context;
+                scanModel = visual.modelOverride;
                 if (visual.downgrade) this.announceCritic(r, visual.downgrade, 'different');
             }
-            void this.runBackgroundQualityScan(scanCtx, r.abort.signal);
+            void this.runBackgroundQualityScan(scanCtx, r.abort.signal, scanModel);
 
             const title = extractDeckTitle(built.value);
             const count = countSlides(built.value);
@@ -2416,11 +2418,11 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.canvas.setReliability(tier);
     }
 
-    private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal): Promise<void> {
+    private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal, modelOverride = ''): Promise<void> {
         if (!this.deck.html) return;
         const slideCount = countSlides(this.deck.html);
 
-        const fastResult = await runFastScan(ctx, this.deck.html, slideCount, signal);
+        const fastResult = await runFastScan(ctx, this.deck.html, slideCount, signal, modelOverride);
         if (signal.aborted || !fastResult.ok) return;
 
         // Merge with existing deterministic findings

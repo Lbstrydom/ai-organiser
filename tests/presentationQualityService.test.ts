@@ -171,6 +171,16 @@ describe('runFastScan', () => {
         }
     });
 
+    it('passes a critic modelOverride to the call, and omits it when none is given', async () => {
+        mockLLMResponse([]);
+        await runFastScan(mockContext, '<html></html>', 5, undefined, 'gpt-critic');
+        expect(vi.mocked(summarizeText).mock.calls[0][2]).toMatchObject({ modelOverride: 'gpt-critic' });
+        vi.mocked(summarizeText).mockClear();
+        mockLLMResponse([]);
+        await runFastScan(mockContext, '<html></html>', 5);
+        expect(vi.mocked(summarizeText).mock.calls[0][2]).not.toHaveProperty('modelOverride');
+    });
+
     it('returns err on malformed JSON (H3/M9 fail-closed fix)', async () => {
         vi.mocked(summarizeText).mockResolvedValue({
             success: true,
