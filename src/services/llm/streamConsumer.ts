@@ -31,6 +31,8 @@ export async function consumeSseResponse(opts: ConsumeSseOptions): Promise<Strea
     const reader = response.body!.getReader();
     const cancelReader = (): void => { void reader.cancel().catch(() => undefined); };
     lifecycle.signal.addEventListener('abort', cancelReader, { once: true });
+    // Abort events are not replayed: a lifecycle already aborted on entry must cancel now.
+    if (lifecycle.signal.aborted) cancelReader();
 
     const decoder = new TextDecoder();
     let finished = false;

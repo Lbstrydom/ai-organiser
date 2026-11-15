@@ -155,3 +155,21 @@ describe('audit R1 fixes: response body ownership', () => {
         expect(body.locked).toBe(false);
     });
 });
+
+describe('audit R2 fix: a consumer entered after cancellation', () => {
+    it('an already-aborted lifecycle cancels the body and throws AbortError', async () => {
+        const { consumeSseResponse } = await import('../src/services/llm/streamConsumer');
+        const { StreamLifecycle } = await import('../src/services/llm/streamLifecycle');
+        let cancelled = false;
+        const body = new ReadableStream<Uint8Array>({ start() { /* never produces */ }, cancel() { cancelled = true; } });
+        const ac = new AbortController();
+        ac.abort();
+        const lc = new StreamLifecycle(ac.signal);
+        await expect(consumeSseResponse({
+            response: new Response(body), lifecycle: lc, parseChunk: () => null, onChunk: () => undefined,
+            fidelity: () => ({ requestedModel: 'm', routing: 'service-config', provider: 'local', dropped: [], adjusted: [] }),
+        })).rejects.toMatchObject({ name: 'AbortError' });
+        expect(cancelled).toBe(true);
+        lc.dispose();
+    });
+});
