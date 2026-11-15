@@ -204,20 +204,6 @@ export class AzureClaudeAdapter extends BaseAdapter {
 
     supportsStreaming() { return true; }
 
-    formatStreamingRequest(prompt: string) {
-        const body: Record<string, unknown> = {
-            model: this.config.modelName,
-            max_tokens: 4096,
-            system: 'Complete the task in the user message and follow its output format exactly.',
-            messages: [{ role: 'user', content: prompt }],
-            stream: true,
-        };
-        return {
-            url: this.getEndpoint(),
-            headers: this.getHeaders(),
-            body: this.applyThinkingParams(body),
-        };
-    }
 
     /**
      * Claude SSE uses event types: content_block_delta with text_delta.

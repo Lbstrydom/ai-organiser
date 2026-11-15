@@ -1,4 +1,5 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, GenerateTagsOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, SummarizeResult, StreamSummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
+import { getOptionCapabilities, type OptionName, type DropReason, type AdjustReason } from './llm/optionCapabilities';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
@@ -7,7 +8,8 @@ import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLate
 import { buildClaudeCachedPrompt } from './adapters/claudePromptCache';
 import { joinPromptParts } from './prompts/promptParts';
 import { logLlmUsage } from './llm/llmUsageLog';
-import { StreamProviderError } from './adapters/anthropicStream';
+import { StreamLifecycle } from './llm/streamLifecycle';
+import { consumeSseResponse } from './llm/streamConsumer';
 import { PROVIDER_MODELS } from './adapters/modelRegistry';
 import { getCachedModels } from './adapters/dynamicModelService';
 import { getModelOutputLimit } from './tokenLimits';
@@ -629,11 +631,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @param prompt - The prompt containing the content and instructions
      * @returns Promise resolving to summarization result
      */
-    async summarizeText(prompt: string, options?: SummarizeOptions): Promise<{ success: boolean; content?: string; error?: string }> {
+    async summarizeText(prompt: string, options?: SummarizeOptions): Promise<SummarizeResult> {
         this.noteCall(options?.label ?? 'chat');
         try {
-            const content = await this.sendSummarizeRequest(prompt, options);
-            return { success: true, content };
+            const { content, fidelity } = await this.sendSummarizeRequest(prompt, options);
+            return { success: true, content, fidelity };
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             return { success: false, error: errorMessage };
@@ -646,7 +648,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @returns Promise resolving to the response content
      */
     /** Parse the raw text from a successful summarize response, throwing on empty/malformed content. */
-    private parseSummarizeResponseText(responseText: string, label: string): string {
+    private parseSummarizeResponseText(responseText: string, label: string): { content: string; reportedModel?: string } {
         const data = JSON.parse(responseText);
         this.logResponseUsage(label, data);
         logger.debug('LLM', 'Summarize response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data);
@@ -654,7 +656,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const content = this.adapter.parseResponseContent(data);
         logger.debug('LLM', 'Parsed content length:', content?.length ?? 0);
         logger.debug('LLM', 'Parsed content preview:', content?.substring(0, 300));
-        if (content) return content;
+        if (content) {
+            // llm-option-fidelity D1: the id the response carries, kept apart from the id requested.
+            const reported = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>).model : undefined;
+            return { content, ...(typeof reported === 'string' && reported.trim() ? { reportedModel: reported } : {}) };
+        }
         // No content — classify why and throw a useful error. (Phase 1B F9)
         const stopReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
         if (stopReason) logger.debug('LLM', 'Stop reason:', stopReason);
@@ -685,15 +691,23 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return new Error('No content found in response');
     }
 
-    private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<string> {
+    /**
+     * The one request builder for summarize calls (llm-option-fidelity D5). The non-stream
+     * path posts it as is; the stream path adds `stream: true`. An adapter-owned
+     * `formatSummarizeRequest` (Bedrock) takes precedence over the three provider branches.
+     */
+    private buildSummarizeBody(prompt: string, options?: SummarizeOptions): { url: string; headers: Record<string, string>; body: Record<string, unknown> } {
+        const body = this.adapter.formatSummarizeRequest
+            ? this.adapter.formatSummarizeRequest(prompt, options)
+            : this.buildSummarizeRequestBody(prompt, options);
+        return { url: this.adapter.getEndpoint(), headers: this.adapter.getHeaders(), body };
+    }
+
+    private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<{ content: string; fidelity: Fidelity }> {
         const validationError = this.validateCloudConfig();
         if (validationError) throw new Error(validationError);
 
-        const requestBody = this.adapter.formatSummarizeRequest
-            ? this.adapter.formatSummarizeRequest(prompt, options)
-            : this.buildSummarizeRequestBody(prompt, options);
-
-        const endpoint = this.adapter.getEndpoint();
+        const { url: endpoint, headers: requestHeaders, body: requestBody } = this.buildSummarizeBody(prompt, options);
         const timeoutMs = options?.timeoutMs ?? this.getSummarizeTimeoutMs();
 
         logger.debug('LLM', 'Summarize request:', {
@@ -716,7 +730,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const pacerModel = typeof requestBody.model === 'string' ? requestBody.model : undefined;
         const response = await this.postWithRetry(
             endpoint,
-            this.adapter.getHeaders(),
+            requestHeaders,
             JSON.stringify(requestBody),
             timeoutMs,
             options?.signal,
@@ -738,11 +752,77 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         const responseText = response.text;
         try {
-            return this.parseSummarizeResponseText(responseText, options?.label ?? 'chat');
+            const parsed = this.parseSummarizeResponseText(responseText, options?.label ?? 'chat');
+            return { content: parsed.content, fidelity: this.buildFidelity(options, requestBody, parsed.reportedModel) };
         } catch (error) {
             if (error instanceof Error) throw error;
             throw new Error(`Failed to parse response: ${responseText.substring(0, 100)}...`);
         }
+    }
+
+    /**
+     * Report what a summarize call actually did with its per-call options
+     * (llm-option-fidelity D1). Derived from the options, the capability table
+     * and the body that was sent, so it states what reached the wire, never what
+     * the caller hoped for. `requestedModel` and `reportedModel` stay separate.
+     */
+    private buildFidelity(options: SummarizeOptions | undefined, body: Record<string, unknown>, reportedModel?: string): Fidelity {
+        const caps = getOptionCapabilities(this.adapterType);
+        const serviceModel = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim())
+            || PROVIDER_DEFAULT_MODEL[this.adapterType] || '';
+        const requestedModel = typeof body.model === 'string' && body.model ? body.model : serviceModel;
+        const dropped: Array<{ option: OptionName; reason: DropReason }> = [];
+        const adjusted: Array<{ option: OptionName; requested: unknown; effective: unknown; reason: AdjustReason }> = [];
+
+        let routing: Fidelity['routing'] = caps.modelOverride === 'deployment' ? 'deployment' : 'service-config';
+        const requestedOverride = options?.modelOverride?.trim();
+        if (requestedOverride) {
+            if (caps.modelOverride === 'per-call') {
+                const resolved = resolveModelOverride(this.adapterType, requestedOverride, computeAvailableModelIds(this.adapterType));
+                if (!resolved) {
+                    dropped.push({ option: 'modelOverride', reason: 'unresolved-sentinel' });
+                } else {
+                    routing = 'per-call';
+                    if (resolved !== requestedOverride) {
+                        adjusted.push({ option: 'modelOverride', requested: requestedOverride, effective: resolved, reason: 'sentinel-resolved' });
+                    }
+                }
+            } else {
+                dropped.push({
+                    option: 'modelOverride',
+                    reason: caps.modelOverride === 'deployment' ? 'deployment-routed' : 'unsupported-by-provider',
+                });
+            }
+        }
+
+        if (options?.enableThinking) {
+            if (options.disableThinking) {
+                adjusted.push({ option: 'enableThinking', requested: true, effective: false, reason: 'overruled-by-disable-thinking' });
+            } else if (caps.thinking === 'none') {
+                dropped.push({ option: 'enableThinking', reason: 'unsupported-by-provider' });
+            } else if (!body.thinking) {
+                dropped.push({ option: 'enableThinking', reason: 'no-model-capability' });
+            }
+        }
+
+        if (options?.maxTokens) {
+            const sent = body.max_tokens ?? body.max_completion_tokens;
+            if (typeof sent === 'number' && sent !== options.maxTokens) {
+                adjusted.push({
+                    option: 'maxTokens', requested: options.maxTokens, effective: sent,
+                    reason: sent < options.maxTokens ? 'clamped-to-model-limit' : 'raised-to-app-minimum',
+                });
+            }
+        }
+
+        return {
+            requestedModel,
+            ...(reportedModel ? { reportedModel } : {}),
+            routing,
+            provider: this.adapterType,
+            dropped,
+            adjusted,
+        };
     }
 
     /**
@@ -774,7 +854,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // HTTP 400. Caught by persona round 10 multi-provider quality matrix
             // (tag worked because it routes through adapter.formatRequest which
             // is already OpenAI-format; summarize has its own path).
-            const modelName = this.adapter['config']?.modelName?.trim()
+            // llm-option-fidelity D4: honour a per-call modelOverride (resolved like the
+            // OpenAI and Claude branches) and clamp the cap to the resolved model's limit.
+            const overrideModel = resolveModelOverride('gemini', options?.modelOverride, computeAvailableModelIds('gemini'));
+            const modelName = overrideModel
+                || this.adapter['config']?.modelName?.trim()
                 || PROVIDER_DEFAULT_MODEL.gemini;
             return {
                 model: modelName,
@@ -782,7 +866,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                     { role: 'system', content: summarizeSystemPrompt },
                     { role: 'user', content: effectivePrompt }
                 ],
-                max_tokens: options?.maxTokens || 8192
+                max_tokens: Math.min(options?.maxTokens || 8192, getModelOutputLimit('gemini', modelName))
             };
         } else {
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
@@ -1066,103 +1150,86 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * Stream LLM response via SSE using native fetch().
      * Obsidian's requestUrl doesn't support streaming — native fetch is required.
      * Feature-gated by enableResearchStreamingSynthesis (default false).
+     *
+     * llm-option-fidelity D5: the request is the SAME body the non-stream path builds
+     * (`buildSummarizeBody`) plus `stream: true`, so `maxTokens`, thinking, `modelOverride`
+     * and `stablePrefix` reach the wire (previously dropped; Claude was capped at 4096).
+     * `options.timeoutMs` is an attempt-level time-to-first-byte deadline only.
      */
     async summarizeTextStream(
         prompt: string,
         onChunk: (chunk: string) => void,
         signal?: AbortSignal,
         options?: SummarizeOptions
-    ): Promise<{ success: boolean; content?: string; error?: string }> {
+    ): Promise<StreamSummarizeResult> {
         this.noteCall(options?.label ?? 'chat');
         // Check adapter streaming support
         if (!this.adapter.supportsStreaming?.()) {
             throw new Error('Streaming not supported by this adapter');
         }
 
-        // The streaming request builders take a single prompt string, so a
-        // `stablePrefix` is joined in rather than silently dropped.
-        const { url, headers, body } = this.adapter.formatStreamingRequest!(joinPromptParts(options?.stablePrefix, prompt));
+        const { url, headers, body } = this.buildSummarizeBody(prompt, options);
+        const streamBody = { ...body, stream: true };
+        const lifecycle = new StreamLifecycle(signal ?? options?.signal, options?.timeoutMs);
+        const fidelity = (reportedModel?: string): Fidelity => this.buildFidelity(options, body, reportedModel);
 
-        // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const doFetch = (): Promise<Response> => window.fetch(url, {
-            method: 'POST',
-            headers,
-            body: JSON.stringify(body),
-            signal,
-        });
-
-        let response: Response;
-        if (!this.isAzureAdapter()) {
-            response = await doFetch(); // non-Azure: byte-identical
-        } else {
-            // Admission-ONLY lease (azure-throttle-coverage): the lease covers only
-            // the initial fetch + status read so the RPM start is counted, then it
-            // releases — the multi-minute stream body is consumed UN-leased (never
-            // ties up a concurrency slot). Initial-429 retries OUTSIDE the lease.
-            const key = this.azurePacerKey();
-            const toObj = (h: Headers): Record<string, string> => {
-                const o: Record<string, string> = {};
-                h.forEach((v, k) => { o[k] = v; });
-                return o;
-            };
-            for (let attempt = 0; ; attempt++) {
-                if (signal?.aborted) throw new Error('Aborted');
-                response = await withAzureLease(key, signal, doFetch);
-                const info = parseAzureRateLimitHeaders(toObj(response.headers));
-                logAzureRateLimitHeaders(info, 'azure-stream');
-                if (response.ok) break;
-                if (response.status === 429 && attempt < this.MAX_RETRIES - 1) {
-                    await abortableSleep(computeAzureBackoffMs(info, attempt), signal);
-                    continue;
-                }
-                return { success: false, error: `HTTP ${response.status}` };
-            }
-        }
-
-        if (!response.ok) {
-            return { success: false, error: `HTTP ${response.status}` };
-        }
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let fullContent = '';
-        let buffer = '';
-
-        // A provider `error` event inside a 200 stream is a FAILED call: report it with the
-        // provider's message instead of returning the text received so far as a success.
         try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // keep incomplete line in buffer
-                for (const line of lines) {
-                    const chunk = this.adapter.parseStreamingChunk!(line);
-                    if (chunk) {
-                        fullContent += chunk;
-                        onChunk(chunk);
+            // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
+            const doFetch = (): Promise<Response> => window.fetch(url, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify(streamBody),
+                signal: lifecycle.signal,
+            });
+
+            let response: Response;
+            try {
+                if (!this.isAzureAdapter()) {
+                    response = await doFetch(); // non-Azure: no pacing
+                } else {
+                    // Admission-ONLY lease (azure-throttle-coverage): the lease covers only
+                    // the initial fetch + status read so the RPM start is counted, then it
+                    // releases — the multi-minute stream body is consumed UN-leased (never
+                    // ties up a concurrency slot). Initial-429 retries OUTSIDE the lease.
+                    const key = this.azurePacerKey(typeof body.model === 'string' ? body.model : undefined);
+                    const toObj = (h: Headers): Record<string, string> => {
+                        const o: Record<string, string> = {};
+                        h.forEach((v, k) => { o[k] = v; });
+                        return o;
+                    };
+                    for (let attempt = 0; ; attempt++) {
+                        if (lifecycle.signal.aborted) throw new DOMException('Aborted', 'AbortError');
+                        response = await withAzureLease(key, lifecycle.signal, doFetch);
+                        const info = parseAzureRateLimitHeaders(toObj(response.headers));
+                        logAzureRateLimitHeaders(info, 'azure-stream');
+                        if (response.ok) break;
+                        if (response.status === 429 && attempt < this.MAX_RETRIES - 1) {
+                            await abortableSleep(computeAzureBackoffMs(info, attempt), lifecycle.signal);
+                            continue;
+                        }
+                        void response.body?.cancel().catch(() => undefined);
+                        return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
                     }
                 }
+            } catch (e) {
+                throw lifecycle.classify(e);
             }
-            // Process any remaining buffer
-            if (buffer.trim()) {
-                const chunk = this.adapter.parseStreamingChunk!(buffer);
-                if (chunk) {
-                    fullContent += chunk;
-                    onChunk(chunk);
-                }
-            }
-        } catch (e) {
-            if (e instanceof StreamProviderError) {
-                void reader.cancel().catch(() => undefined);
-                logger.warn('LLM', e.message);
-                return { success: false, error: e.message };
-            }
-            throw e;
-        }
 
-        return { success: true, content: fullContent };
+            if (!response.ok) {
+                void response.body?.cancel().catch(() => undefined);
+                return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
+            }
+
+            return await consumeSseResponse({
+                response,
+                lifecycle,
+                parseChunk: (line) => this.adapter.parseStreamingChunk!(line),
+                onChunk,
+                fidelity,
+            });
+        } finally {
+            lifecycle.dispose();
+        }
     }
 
 }

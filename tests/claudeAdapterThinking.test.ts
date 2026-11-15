@@ -7,6 +7,7 @@ import { ClaudeAdapter, supportsAdaptiveThinking } from '../src/services/adapter
 import { CloudLLMService } from '../src/services/cloudService';
 import { AdapterType } from '../src/services/adapters';
 import { App } from 'obsidian';
+import { captureStreamRequest } from './helpers/streamHarness';
 
 const mockApp = {} as App;
 
@@ -163,34 +164,30 @@ describe('ClaudeAdapter - Multimodal with Thinking', () => {
 });
 
 // ============================================================================
-// ADAPTER — formatStreamingRequest WITH THINKING
+// STREAM REQUEST (shared summarize body builder) WITH THINKING
 // ============================================================================
 
 describe('ClaudeAdapter - Streaming with Thinking', () => {
-    it('should add thinking params to streaming request', () => {
-        const adapter = new ClaudeAdapter({
+    it('should add thinking params to streaming request', async () => {
+        const req = await captureStreamRequest('claude', {
             endpoint: 'https://api.anthropic.com/v1/messages',
             apiKey: 'test-key',
             modelName: 'claude-opus-4-6',
             thinkingMode: 'adaptive',
         });
 
-        const req = adapter.formatStreamingRequest!('test prompt');
-
         expect(req.body).toHaveProperty('thinking', { type: 'adaptive' });
         expect((req.body as any).max_tokens).toBeGreaterThanOrEqual(64000);
         expect((req.body as any).stream).toBe(true);
     });
 
-    it('should NOT add thinking to streaming when mode is standard', () => {
-        const adapter = new ClaudeAdapter({
+    it('should NOT add thinking to streaming when mode is standard', async () => {
+        const req = await captureStreamRequest('claude', {
             endpoint: 'https://api.anthropic.com/v1/messages',
             apiKey: 'test-key',
             modelName: 'claude-opus-4-6',
             thinkingMode: 'standard',
         });
-
-        const req = adapter.formatStreamingRequest!('test prompt');
 
         expect((req.body as any).thinking).toBeUndefined();
     });

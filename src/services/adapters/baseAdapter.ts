@@ -193,29 +193,12 @@ export abstract class BaseAdapter extends BaseLLMService {
     /** Whether this adapter supports SSE streaming. Default: false. */
     supportsStreaming?(): boolean;
 
-    /** Build the streaming request (endpoint URL, headers, body). */
-    formatStreamingRequest?(prompt: string): { url: string; headers: Record<string, string>; body: object };
-
     /** Parse a single SSE line into a content chunk. Returns null for non-content lines. */
     parseStreamingChunk?(line: string): string | null;
 
-    // ── Shared OpenAI-compatible streaming helpers ──
-
-    /** Build an OpenAI-compatible streaming request using this adapter's endpoint/headers/model. */
-    protected buildOpenAIStreamingRequest(prompt: string): { url: string; headers: Record<string, string>; body: object } {
-        return {
-            url: this.getEndpoint(),
-            headers: this.getHeaders(),
-            body: {
-                model: this.config.modelName,
-                messages: [
-                    { role: 'system', content: 'Complete the task in the user message and follow its output format exactly.' },
-                    { role: 'user', content: prompt },
-                ],
-                stream: true,
-            },
-        };
-    }
+    // ── Shared OpenAI-compatible streaming helper ──
+    // The stream REQUEST is built by CloudLLMService.buildSummarizeBody (plus `stream: true`),
+    // so there is one request-building path and per-call options cannot be dropped on it.
 
     /** Parse an OpenAI-compatible SSE line into a content delta. */
     static parseOpenAISSEChunk(line: string): string | null {

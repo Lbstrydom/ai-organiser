@@ -1,10 +1,16 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService, SummarizeOptions, GenerateTagsOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, SummarizableLLMService, SummarizeOptions, SummarizeResult, StreamSummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
+import type { OptionName, DropReason, AdjustReason } from './llm/optionCapabilities';
+import { StreamLifecycle } from './llm/streamLifecycle';
+import { consumeSseResponse } from './llm/streamConsumer';
+import { isClaudeModelId } from './adapters/modelCapabilities';
+import { abortableRequestUrl } from '../utils/abortableRequestUrl';
+import { abortableSleep } from '../utils/abortableSleep';
 import { joinPromptParts } from './prompts/promptParts';
 import { SYSTEM_PROMPT } from '../utils/constants';
 import { BaseLLMService } from './baseService';
 import { TaggingMode } from './prompts/types';
 import { getProviderLimits } from './tokenLimits';
-import { App, requestUrl } from 'obsidian';
+import { App } from 'obsidian';
 import { extractAuthFromUrl } from './localModelFetcher';
 
 export class LocalLLMService extends BaseLLMService implements SummarizableLLMService {
@@ -59,7 +65,7 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         return null;
     }
 
-    private async makeRequest(options: RequestInit, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
+    private async makeRequest(options: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<import('obsidian').RequestUrlResponse> {
         try {
             // Merge the stored authentication headers with the request headers
             const mergedHeaders = {
@@ -68,18 +74,20 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
             };
 
             const response = await this.requestWithTimeout(
-                requestUrl({
+                abortableRequestUrl({
                     url: this.endpoint,
                     method: options.method as string || 'POST',
                     headers: mergedHeaders,
                     body: options.body as string,
                     throw: false
-                }),
+                }, { signal }),
                 timeoutMs
             );
             return response;
 
         } catch (error) {
+            // A caller abort is not a timeout: let it through untouched.
+            if (signal?.aborted) throw error;
             if (error instanceof Error) {
                 if (error.name === 'AbortError') {
                     throw new Error('Request timed out. Please check if your local LLM service is running and responsive.');
@@ -89,12 +97,13 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         }
     }
 
-    private async makeRequestWithRetry(options: RequestInit, timeoutMs: number): Promise<import('obsidian').RequestUrlResponse> {
+    private async makeRequestWithRetry(options: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<import('obsidian').RequestUrlResponse> {
         let lastError: Error | null = null;
 
         for (let i = 0; i < this.MAX_RETRIES; i++) {
             try {
-                const response = await this.makeRequest(options, timeoutMs);
+                if (signal?.aborted) throw new DOMException('cancelled', 'AbortError');
+                const response = await this.makeRequest(options, timeoutMs, signal);
 
                 // For local service, we might want to retry on any error
                 // as it could be starting up or processing another request
@@ -109,10 +118,12 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
                     `HTTP error ${response.status}: ${errorText || ''}`
                 );
             } catch (error) {
+                // A caller abort ends the call: never retry it.
+                if (signal?.aborted) throw error;
                 lastError = error instanceof Error ? error : new Error('Unknown error');
             }
 
-            await new Promise(resolve => window.setTimeout(resolve, this.RETRY_DELAY * (i + 1)));
+            await abortableSleep(this.RETRY_DELAY * (i + 1), signal);
         }
 
         throw lastError || new Error('Max retries exceeded');
@@ -260,35 +271,83 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
     }
 
     /**
+     * The one request body for summarize calls, shared by the non-stream and stream paths
+     * (llm-option-fidelity D6). Honours a concrete `modelOverride` (Ollama and LM Studio accept
+     * any model name in the body), `stablePrefix`, and a `maxTokens` clamped to the local ceiling.
+     * An unresolved `latest-*` sentinel is never sent. Local has no thinking mode, so the flags
+     * are reported as dropped, not sent.
+     */
+    private buildSummarizeBody(prompt: string, options?: SummarizeOptions): Record<string, unknown> {
+        const override = options?.modelOverride?.trim();
+        const model = override && !override.startsWith('latest-') ? override : this.modelName;
+        return {
+            model,
+            messages: [
+                {
+                    role: 'system',
+                    content: 'Complete the task in the user message and follow its output format exactly.'
+                },
+                {
+                    role: 'user',
+                    // `stablePrefix` is the instruction head callers split off for Claude's
+                    // prompt cache; the local API has none, so it must be sent in full.
+                    content: joinPromptParts(options?.stablePrefix, prompt)
+                }
+            ],
+            ...(isClaudeModelId(model) ? {} : { temperature: 0.3 }),
+            // Clamp to the local output ceiling so a large-storyboard request can't
+            // exceed a small local model's context and 400 (Gemini G1). Local caps
+            // the storyboard at ~3 slides anyway, which fits this budget.
+            ...(options?.maxTokens ? { max_tokens: Math.min(options.maxTokens, getProviderLimits('local').maxOutputTokens) } : {})
+        };
+    }
+
+    /** Report what a local call did with its per-call options (D1/D6), from the body that was sent. */
+    private buildFidelity(options: SummarizeOptions | undefined, body: Record<string, unknown>, reportedModel?: string): Fidelity {
+        const dropped: Array<{ option: OptionName; reason: DropReason }> = [];
+        const adjusted: Array<{ option: OptionName; requested: unknown; effective: unknown; reason: AdjustReason }> = [];
+        let routing: Fidelity['routing'] = 'service-config';
+
+        const override = options?.modelOverride?.trim();
+        if (override) {
+            if (override.startsWith('latest-')) dropped.push({ option: 'modelOverride', reason: 'unresolved-sentinel' });
+            else routing = 'per-call';
+        }
+
+        if (options?.enableThinking) {
+            if (options.disableThinking) {
+                adjusted.push({ option: 'enableThinking', requested: true, effective: false, reason: 'overruled-by-disable-thinking' });
+            } else {
+                dropped.push({ option: 'enableThinking', reason: 'no-model-capability' });
+            }
+        }
+
+        if (options?.maxTokens && typeof body.max_tokens === 'number' && body.max_tokens !== options.maxTokens) {
+            adjusted.push({ option: 'maxTokens', requested: options.maxTokens, effective: body.max_tokens, reason: 'clamped-to-model-limit' });
+        }
+
+        return {
+            requestedModel: typeof body.model === 'string' ? body.model : this.modelName,
+            ...(reportedModel ? { reportedModel } : {}),
+            routing,
+            provider: 'local',
+            dropped,
+            adjusted,
+        };
+    }
+
+    /**
      * Summarize text content
      * @param prompt - The prompt containing the content and instructions
      * @returns Promise resolving to summarization result
      */
-    async summarizeText(prompt: string, options?: SummarizeOptions): Promise<{ success: boolean; content?: string; error?: string }> {
+    async summarizeText(prompt: string, options?: SummarizeOptions): Promise<SummarizeResult> {
         try {
+            const body = this.buildSummarizeBody(prompt, options);
             const response = await this.makeRequestWithRetry({
                 method: 'POST',
-                body: JSON.stringify({
-                    model: this.modelName,
-                    messages: [
-                        {
-                            role: 'system',
-                            content: 'Complete the task in the user message and follow its output format exactly.'
-                        },
-                        {
-                            role: 'user',
-                            // `stablePrefix` is the instruction head callers split off for Claude's
-                            // prompt cache; the local API has none, so it must be sent in full.
-                            content: joinPromptParts(options?.stablePrefix, prompt)
-                        }
-                    ],
-                    ...this.samplingFields(),
-                    // Clamp to the local output ceiling so a large-storyboard request can't
-                    // exceed a small local model's context and 400 (Gemini G1). Local caps
-                    // the storyboard at ~3 slides anyway, which fits this budget.
-                    ...(options?.maxTokens ? { max_tokens: Math.min(options.maxTokens, getProviderLimits('local').maxOutputTokens) } : {})
-                })
-            }, options?.timeoutMs ?? this.getSummarizeTimeoutMs());
+                body: JSON.stringify(body)
+            }, options?.timeoutMs ?? this.getSummarizeTimeoutMs(), options?.signal);
 
             if (response.status < 200 || response.status >= 300) {
                 const errorText = response.text;
@@ -301,7 +360,8 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
             }
 
             const content = data.choices[0]?.message?.content || '';
-            return { success: true, content };
+            const reported = typeof data.model === 'string' && data.model.trim() ? data.model : undefined;
+            return { success: true, content, fidelity: this.buildFidelity(options, body, reported) };
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             return { success: false, error: errorMessage };
@@ -319,60 +379,50 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
 
     /**
      * Stream LLM response via OpenAI-compatible SSE.
-     * Ollama and LM Studio both support this format.
+     * Ollama and LM Studio both support this format. Honours the same options as
+     * `summarizeText`; `options.timeoutMs` is a time-to-first-byte deadline only (D5).
      */
     async summarizeTextStream(
         prompt: string,
         onChunk: (chunk: string) => void,
-        signal?: AbortSignal
-    ): Promise<{ success: boolean; content?: string; error?: string }> {
+        signal?: AbortSignal,
+        options?: SummarizeOptions
+    ): Promise<StreamSummarizeResult> {
         const baseEndpoint = this.endpoint.replace(/\/v1\/chat\/completions\/?$/, '');
         const url = `${baseEndpoint}/v1/chat/completions`;
 
-        const body = {
-            model: this.modelName,
-            messages: [
-                { role: 'system', content: 'Complete the task in the user message and follow its output format exactly.' },
-                { role: 'user', content: prompt },
-            ],
-            ...this.samplingFields(),
-            stream: true,
-        };
+        const requestBody = this.buildSummarizeBody(prompt, options);
+        const body = { ...requestBody, stream: true };
+        const lifecycle = new StreamLifecycle(signal ?? options?.signal, options?.timeoutMs);
 
-        // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
-        const response = await window.fetch(url, {
-            method: 'POST',
-            headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-            signal,
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
-        }
-
-        const reader = response.body!.getReader();
-        const decoder = new TextDecoder();
-        let fullContent = '';
-        let buffer = '';
-
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // keep incomplete line in buffer
-            for (const line of lines) {
-                const chunk = this.parseSSELine(line);
-                if (chunk) { fullContent += chunk; onChunk(chunk); }
+        try {
+            let response: Response;
+            try {
+                // SSE streaming requires native fetch(); requestUrl doesn't support ReadableStream
+                response = await window.fetch(url, {
+                    method: 'POST',
+                    headers: { ...this.authHeaders, 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                    signal: lifecycle.signal,
+                });
+            } catch (e) {
+                throw lifecycle.classify(e);
             }
-        }
-        // Process any remaining buffer (partial line from last read)
-        if (buffer.trim()) {
-            const chunk = this.parseSSELine(buffer);
-            if (chunk) { fullContent += chunk; onChunk(chunk); }
-        }
 
-        return { success: true, content: fullContent };
+            if (!response.ok) {
+                void response.body?.cancel().catch(() => undefined);
+                throw new Error(`HTTP ${response.status}`);
+            }
+
+            return await consumeSseResponse({
+                response,
+                lifecycle,
+                parseChunk: (line) => this.parseSSELine(line),
+                onChunk,
+                fidelity: (reportedModel) => this.buildFidelity(options, requestBody, reportedModel),
+            });
+        } finally {
+            lifecycle.dispose();
+        }
     }
 }

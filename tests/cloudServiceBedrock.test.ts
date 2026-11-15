@@ -26,7 +26,7 @@ describe('CloudLLMService on Bedrock — what goes on the wire', () => {
     it('summarize posts the Messages body to the InvokeModel URL with the caller options applied', async () => {
         mockRequestUrl.mockResolvedValue(ok);
         const r = await bedrock('adaptive').summarizeText('summarise this', { maxTokens: 3000, disableThinking: true });
-        expect(r).toEqual({ success: true, content: 'done' });
+        expect(r).toMatchObject({ success: true, content: 'done' });
         const req = mockRequestUrl.mock.calls[0][0] as { url: string; headers: Record<string, string>; body: string };
         expect(req.url).toBe('https://bedrock-runtime.us-west-2.amazonaws.com/model/global.anthropic.claude-sonnet-4-6/invoke');
         expect(req.headers.Authorization).toBe('Bearer k');
@@ -36,6 +36,18 @@ describe('CloudLLMService on Bedrock — what goes on the wire', () => {
             max_tokens: 3000,
             system: 'Complete the task in the user message and follow its output format exactly.',
             messages: [{ role: 'user', content: 'summarise this' }],
+        });
+    });
+
+    it('a per-call modelOverride is dropped and reported (the model is in the URL)', async () => {
+        mockRequestUrl.mockResolvedValue(ok);
+        const r = await bedrock().summarizeText('x', { modelOverride: 'global.anthropic.claude-opus-4-6' });
+        expect(String((mockRequestUrl.mock.calls[0][0] as { url: string }).url)).toContain('claude-sonnet-4-6');
+        expect(r.fidelity).toMatchObject({
+            requestedModel: 'global.anthropic.claude-sonnet-4-6',
+            routing: 'service-config',
+            provider: 'bedrock',
+            dropped: [{ option: 'modelOverride', reason: 'unsupported-by-provider' }],
         });
     });
 

@@ -11,7 +11,8 @@ import { getClaudeWebSearchKey } from '../apiKeyHelpers';
 import { isAzureMode } from '../azure/endpointResolver';
 import { capabilityChoice } from '../azure/resolveAzureCapability';
 import { logger } from '../../utils/logger';
-import type { SearchProvider, SearchProviderType, SearchResult, SearchOptions } from './researchTypes';
+import type { SearchProvider, SearchProviderType, SearchResult, SearchOptions, SearchConstraintReport } from './researchTypes';
+import { mergeConstraintReports } from './dateRangeFilter';
 import { TavilyAdapter } from './adapters/tavilyAdapter';
 import { BrightDataSerpAdapter } from './adapters/brightdataSerpAdapter';
 import { ClaudeWebSearchAdapter } from './adapters/claudeWebSearchAdapter';
@@ -76,6 +77,7 @@ export class ResearchSearchService {
      */
     async search(queries: string[], options?: SearchOptions): Promise<SearchResult[]> {
         this.lastFallbackUsed = null;
+        this.constraintReports = [];
 
         // Run the primary provider. A THROW (bad credentials, provider outage)
         // must trigger the fallback path too — not only an empty result set.
@@ -104,6 +106,15 @@ export class ResearchSearchService {
 
         this.lastFallbackUsed = fallback.type;
         return this.searchWithProvider(fallback.provider, queries, options);
+    }
+
+    private constraintReports: SearchConstraintReport[] = [];
+
+    /** Constraint reports from the last search, aggregated across providers and queries. Consumed (reset) on read. */
+    takeConstraintReports(): SearchConstraintReport[] {
+        const reports = this.constraintReports;
+        this.constraintReports = [];
+        return reports;
     }
 
     /** Exposed so the handler can show a notice. Consumed (reset) on read. */
@@ -180,6 +191,8 @@ export class ResearchSearchService {
             }
         };
         const allResults = await Promise.all(scopedQueries.map(searchWithRetry));
+        // llm-option-fidelity D7: constraints a provider applied (or could not apply) itself.
+        this.constraintReports = mergeConstraintReports(this.constraintReports, provider.takeConstraintReports?.());
 
         // If every query failed, throw the first error so the user sees it
         if (allResults.every(r => r.length === 0) && errors.length > 0) {

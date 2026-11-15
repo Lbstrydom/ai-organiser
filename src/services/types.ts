@@ -1,5 +1,7 @@
 import { TaggingMode } from './prompts/types';
 import { ContentPart } from './adapters/types';
+import type { AdapterType } from './adapters';
+import type { OptionName, DropReason, AdjustReason } from './llm/optionCapabilities';
 
 export const MAX_CONCURRENT_REQUESTS = 3;
 
@@ -153,8 +155,42 @@ export interface SummarizeOptions {
     onRetryStatus?: (seconds: number) => void;
 }
 
+/**
+ * What a call actually did with the per-call options (llm-option-fidelity D1).
+ * `requestedModel` (the id the request was sent with) and `reportedModel` (the id
+ * the response body carried, when it carried one) are never merged: an alias, an
+ * Azure deployment name and a response version are not comparable strings.
+ */
+export interface Fidelity {
+    requestedModel: string;
+    reportedModel?: string;
+    /** How the model was chosen: in this call's body, by the service config, or by the deployment URL. */
+    routing: 'per-call' | 'service-config' | 'deployment';
+    provider: AdapterType | 'local';
+    dropped: Array<{ option: OptionName; reason: DropReason }>;
+    adjusted: Array<{ option: OptionName; requested: unknown; effective: unknown; reason: AdjustReason }>;
+}
+
+/** The result of a summarize call. `fidelity` is optional: a service that does not report leaves it out. */
+export interface SummarizeResult {
+    success: boolean;
+    content?: string;
+    error?: string;
+    fidelity?: Fidelity;
+}
+
+/**
+ * The result of a streaming summarize call (llm-option-fidelity D5). `fidelity` is that of the
+ * request attempt that produced the content. `partial` marks a failure after content was already
+ * delivered to the caller (no fallback is possible then). `code` is a stable machine code.
+ */
+export interface StreamSummarizeResult extends SummarizeResult {
+    partial?: boolean;
+    code?: 'STREAM_EMPTY';
+}
+
 export interface SummarizableLLMService extends LLMService {
-    summarizeText(prompt: string, options?: SummarizeOptions): Promise<{ success: boolean; content?: string; error?: string }>;
+    summarizeText(prompt: string, options?: SummarizeOptions): Promise<SummarizeResult>;
 
     /** Optional streaming synthesis. Implementations that don't support streaming
      *  should NOT implement this method — the facade handles fallback.
@@ -164,7 +200,7 @@ export interface SummarizableLLMService extends LLMService {
         onChunk: (chunk: string) => void,
         signal?: AbortSignal,
         options?: SummarizeOptions
-    ): Promise<{ success: boolean; content?: string; error?: string }>;
+    ): Promise<StreamSummarizeResult>;
 }
 
 export interface MultimodalLLMService extends SummarizableLLMService {

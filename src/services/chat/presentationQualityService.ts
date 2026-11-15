@@ -48,9 +48,10 @@ export async function runFastScan(
     context: LLMFacadeContext,
     html: string,
     slideCount: number,
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    modelOverride?: string
 ): Promise<Result<QualityScanResult>> {
-    return runScan(context, html, slideCount, 'fast', signal);
+    return runScan(context, html, slideCount, 'fast', signal, modelOverride);
 }
 
 /** Run deep spatial analysis using the main model. */
@@ -165,7 +166,8 @@ async function runScan(
     html: string,
     slideCount: number,
     pass: 'fast' | 'deep',
-    signal?: AbortSignal
+    signal?: AbortSignal,
+    modelOverride?: string
 ): Promise<Result<QualityScanResult>> {
     if (signal?.aborted) return err('Aborted');
 
@@ -192,6 +194,7 @@ async function runScan(
             // the full budget to the JSON output. No-op for non-Claude models
             // or when the user didn't have thinking enabled.
             disableThinking: true,
+            ...(modelOverride ? { modelOverride } : {}),
         });
 
         if (signal?.aborted) return err('Aborted');

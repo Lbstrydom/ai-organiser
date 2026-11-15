@@ -14,6 +14,7 @@ import type { Result } from '../../core/result';
 import { ok } from '../../core/result';
 import type { AdapterType } from '../adapters';
 import type { ProviderProfile } from '../providerProfile';
+import type { Fidelity } from '../types';
 import { resolveForProvider } from '../specialistModelResolver';
 import { PROVIDER_DEFAULT_MODEL, ALL_ADAPTERS } from '../adapters/providerRegistry';
 import { parseClaudeModel, parseGeminiModel, parseOpenAIModel } from '../adapters/modelCapabilities';
@@ -52,6 +53,8 @@ export interface ResolvedRole {
     family: ProviderFamily;
     /** Non-fatal advisory (missing key → Main, shared family, weak tier). */
     warning?: string;
+    /** True when the CHOSEN provider could not be used (unknown id, no key) and this is the main provider instead. */
+    fellBackToMain?: boolean;
 }
 
 /** Map a logical role to its backing user setting (M8: generator-voice vs critic). */
@@ -81,6 +84,43 @@ export function familyOf(provider: AdapterType | 'local', model: string): Provid
     return 'other';
 }
 
+export type Independence = 'same' | 'different' | 'unknown';
+
+/**
+ * A call's model identity when it is CONCRETE (llm-option-fidelity D1): a model id the
+ * response reported, or one sent in this call's body (`per-call`). An alias, a
+ * service-config name or a deployment name is routing evidence only and yields null.
+ */
+/** A `latest-*` sentinel or a provider `*-latest` alias names whatever model is current, not a fixed one. */
+function isAliasId(model: string): boolean {
+    return /(^|[-_.:/])latest($|[-_.:/])/i.test(model);
+}
+
+function concreteIdentity(f: Fidelity | undefined): { provider: Fidelity['provider']; model: string } | null {
+    if (!f) return null;
+    if (f.reportedModel) return { provider: f.provider, model: f.reportedModel };
+    if (f.routing === 'per-call' && f.requestedModel && !isAliasId(f.requestedModel)) {
+        return { provider: f.provider, model: f.requestedModel };
+    }
+    return null;
+}
+
+/**
+ * Compare the generator's and the critic's ACTUAL model identity after the calls ran
+ * (D1/D3). `same` and `different` need two concrete identities; everything else,
+ * including a missing `fidelity`, is `unknown` — never independent. Equal routing
+ * evidence never proves `same`, and unequal routing evidence never proves `different`.
+ */
+export function independenceFor(generator: Fidelity | undefined, critic: Fidelity | undefined): Independence {
+    const g = concreteIdentity(generator);
+    const c = concreteIdentity(critic);
+    if (!g || !c) return 'unknown';
+    if (g.provider === c.provider) return g.model === c.model ? 'same' : 'different';
+    const gf = familyOf(g.provider, g.model);
+    const cf = familyOf(c.provider, c.model);
+    return gf !== 'other' && cf !== 'other' && gf !== cf ? 'different' : 'unknown';
+}
+
 /** Light competence heuristic — flag obviously weak tiers for a reasoning/critic role. */
 function isWeakTier(provider: AdapterType | 'local', model: string): boolean {
     if (provider === 'claude' || provider === 'azure-claude') return parseClaudeModel(model)?.tier === 'haiku';
@@ -91,7 +131,7 @@ function isWeakTier(provider: AdapterType | 'local', model: string): boolean {
     return false;
 }
 
-function mainResolution(profile: ProviderProfile, warning?: string): ResolvedRole {
+function mainResolution(profile: ProviderProfile, warning?: string, fellBackToMain = false): ResolvedRole {
     return {
         provider: profile.provider,
         resolvedModel: profile.model,
@@ -99,6 +139,7 @@ function mainResolution(profile: ProviderProfile, warning?: string): ResolvedRol
         crossProvider: false,
         family: familyOf(profile.provider, profile.model),
         ...(warning ? { warning } : {}),
+        ...(fellBackToMain ? { fellBackToMain: true } : {}),
     };
 }
 
@@ -116,12 +157,12 @@ export function resolvePresentationRole(role: PresentationRole, ctx: RoleResolve
     // Validate the persisted provider string before casting (audit H4/M6) — an
     // unknown/corrupt value falls back to Main instead of resolving garbage.
     if (!(ALL_ADAPTERS as readonly string[]).includes(chosen)) {
-        return ok(mainResolution(ctx.profile, `Unknown provider "${chosen}" for this role — using the main provider instead.`));
+        return ok(mainResolution(ctx.profile, `Unknown provider "${chosen}" for this role — using the main provider instead.`, true));
     }
     const provider = chosen as AdapterType;
     const isMain = provider === ctx.profile.provider;
     if (!isMain && !ctx.hasKey(provider)) {
-        return ok(mainResolution(ctx.profile, `No API key for ${provider} — using the main provider instead.`));
+        return ok(mainResolution(ctx.profile, `No API key for ${provider} — using the main provider instead.`, true));
     }
 
     const resolvedModel = resolveForProvider(provider, '') || PROVIDER_DEFAULT_MODEL[provider] || '';

@@ -243,6 +243,8 @@ export const GUIDANCE_CODES = [
     // Feature activation from the picker
     'activation-reload-unsupported',
     'activation-reenable-failed',
+    // Critic model routing
+    'critic-model-unavailable',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

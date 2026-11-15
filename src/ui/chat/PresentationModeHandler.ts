@@ -38,7 +38,10 @@ import { buildEvidenceCatalog } from '../../services/presentationIr/evidenceCata
 import { runStoryboardStage, buildDeckFromStoryboard, buildDeckFromStoryline, reviseStoryboard, looksLikeBuildCommand } from '../../services/chat/consultantStoryboardPipeline';
 import { maxStoryboardSlides } from '../../services/presentationIr/storyboardService';
 import { classifyStorylineNote } from '../../services/chat/storylineNote';
-import { resolvePresentationRole, type PresentationRole } from '../../services/presentationIr/presentationModelResolver';
+import { resolvePresentationRole, settingForRole, type PresentationRole, type ResolvedRole, type Independence } from '../../services/presentationIr/presentationModelResolver';
+import { routeRole, type DowngradeReason } from '../../services/llm/optionCapabilities';
+import { describeError, formatGuidance } from '../../core/friendlyErrors';
+import type { Fidelity } from '../../services/types';
 import { buildStoryboardJudge } from '../../services/chat/consultantCriticService';
 import type { StoryboardJudge } from '../../services/chat/consultantAuditService';
 import { resolveProviderProfile } from '../../services/providerProfile';
@@ -95,6 +98,17 @@ interface RunContext {
     history: string;
     originalQuery: string;
     noteContent: string | undefined;
+    /** `fidelity` of the last successful storyboard generation call; the independent critic is compared against it (llm-option-fidelity D3). */
+    generatorFidelity?: Fidelity;
+    /** True once this run has shown its single critic notice. */
+    criticNoticeShown?: boolean;
+}
+
+/** Where a role runs. `downgrade` is set when a chosen critic model could not be reached and the role ran on main. */
+interface RoleRun {
+    context: LLMFacadeContext;
+    modelOverride: string;
+    downgrade?: { reason: DowngradeReason; ranOn: 'main'; provider: string; model: string };
 }
 
 export class PresentationModeHandler implements ChatModeHandler {
@@ -655,10 +669,16 @@ export class PresentationModeHandler implements ChatModeHandler {
             // Storyline (consultant) decks (Cluster D): route the visual quality scan
             // through the INDEPENDENT visual critic (a different model family) so the
             // layout review is independent of the generator; direct decks use main.
-            const scanCtx = this.creationConfig.planMode === 'storyline'
-                ? (await this.resolveRoleRun(r, 'visual_critic')).context
-                : r.llmCtx;
-            void this.runBackgroundQualityScan(scanCtx, r.abort.signal);
+            let scanCtx = r.llmCtx;
+            let scanModel = '';
+            if (this.creationConfig.planMode === 'storyline') {
+                const visual = await this.resolveRoleRun(r, 'visual_critic');
+                scanCtx = visual.context;
+                scanModel = visual.modelOverride;
+                // A downgraded visual critic ran on main, so its independence is not established (audit R6 M1).
+                if (visual.downgrade) this.announceCritic(r, visual.downgrade, 'unknown');
+            }
+            void this.runBackgroundQualityScan(scanCtx, r.abort.signal, scanModel);
 
             const title = extractDeckTitle(built.value);
             const count = countSlides(built.value);
@@ -690,7 +710,7 @@ export class PresentationModeHandler implements ChatModeHandler {
      * choice builds a specialist `CloudLLMService`. Any gap (no key / local / missing
      * endpoint) degrades gracefully to Main. Never throws.
      */
-    private async resolveRoleRun(r: RunContext, role: PresentationRole): Promise<{ context: LLMFacadeContext; modelOverride: string }> {
+    private async resolveRoleRun(r: RunContext, role: PresentationRole): Promise<RoleRun> {
         const plugin = r.ctx.fullPlugin;
         const s = plugin.settings;
         const hasKey = (p: AdapterType) => !!(s.providerSettings?.[p]?.apiKey || (s.cloudServiceType === p && s.cloudApiKey));
@@ -698,7 +718,16 @@ export class PresentationModeHandler implements ChatModeHandler {
         const resolved = resolvePresentationRole(role, { profile, roles: s.presentationModelRoles, hasKey });
         if (!resolved.ok) return { context: r.llmCtx, modelOverride: '' };
         const resolvedRole = resolved.value;
+        // A critic whose chosen provider could not be used ran on main: say so, never a silent swap (D3).
+        if (settingForRole(role) === 'independentCritic' && resolvedRole.fellBackToMain) {
+            return { context: r.llmCtx, modelOverride: '', downgrade: { reason: 'provider-unavailable', ranOn: 'main', provider: profile.provider, model: profile.model } };
+        }
         if (resolvedRole.warning) logger.warn('Presentation', `${role} role: ${resolvedRole.warning}`);
+        // A critic with a chosen model is routed by the capability table (llm-option-fidelity D3);
+        // the generator and an unchosen ("Main") critic keep the legacy path below.
+        if (settingForRole(role) === 'independentCritic' && (resolvedRole.modelOverride || resolvedRole.crossProvider)) {
+            return this.routeCritic(r, resolvedRole, profile);
+        }
         if (!resolvedRole.crossProvider) return { context: r.llmCtx, modelOverride: resolvedRole.modelOverride };
         if (resolvedRole.provider === 'local') return { context: r.llmCtx, modelOverride: '' };
         const apiKey = s.providerSettings?.[resolvedRole.provider]?.apiKey || (s.cloudServiceType === resolvedRole.provider ? s.cloudApiKey : '') || '';
@@ -710,12 +739,57 @@ export class PresentationModeHandler implements ChatModeHandler {
     }
 
     /**
+     * Route a critic whose model was chosen: per-call override, a specialist service that
+     * carries the model in its own config, or an explicit downgrade onto main. Never a
+     * silent swap (llm-option-fidelity D3). The decision is read from the capability table.
+     */
+    private routeCritic(r: RunContext, resolvedRole: ResolvedRole, profile: { provider: string; model: string }): RoleRun {
+        const s = r.ctx.fullPlugin.settings;
+        const downgrade = (reason: DowngradeReason): RoleRun => ({
+            context: r.llmCtx, modelOverride: '', downgrade: { reason, ranOn: 'main', provider: profile.provider, model: profile.model },
+        });
+        const decision = routeRole(resolvedRole.provider, !resolvedRole.crossProvider);
+        if (decision.route === 'downgrade') return downgrade(decision.reason);
+        if (decision.route === 'per-call') return { context: r.llmCtx, modelOverride: resolvedRole.modelOverride };
+        const provider = resolvedRole.provider as AdapterType;
+        const apiKey = s.providerSettings?.[provider]?.apiKey || (s.cloudServiceType === provider ? s.cloudApiKey : '') || '';
+        if (!apiKey) return downgrade('override-unsupported');
+        const endpoint = (!resolvedRole.crossProvider && s.cloudEndpoint) || PROVIDER_ENDPOINT[provider] || '';
+        const service = new CloudLLMService({ type: provider, apiKey, modelName: resolvedRole.resolvedModel, endpoint }, r.ctx.app);
+        if (s.debugMode) service.setDebugMode(true);
+        return { context: { llmService: service, settings: s }, modelOverride: '' };
+    }
+
+    /**
+     * The single critic notice for a run: the downgrade text when the critic's model could not
+     * be reached, followed by the independence outcome when that is `same` or `unknown`. A
+     * `different` outcome adds nothing. Shown at most once per run.
+     */
+    private announceCritic(r: RunContext, downgrade: RoleRun['downgrade'], independence: Independence): void {
+        if (r.criticNoticeShown) return;
+        const t = r.ctx.plugin.t;
+        const parts: string[] = [];
+        if (downgrade) {
+            const why = downgrade.reason === 'deployment-routed' ? t.modals.unifiedChat.criticReasonDeployment
+                : downgrade.reason === 'provider-unavailable' ? t.modals.unifiedChat.criticReasonUnavailable
+                : t.modals.unifiedChat.criticReasonNoSwitch;
+            const ranOn = t.modals.unifiedChat.criticRanOn.replace('{model}', downgrade.model).replace('{provider}', downgrade.provider);
+            parts.push(formatGuidance(describeError(t, 'critic-model-unavailable')), why, ranOn);
+        }
+        if (independence === 'same') parts.push(t.modals.unifiedChat.criticSameModel);
+        else if (independence === 'unknown') parts.push(t.modals.unifiedChat.criticUnknownModel);
+        if (parts.length === 0) return;
+        r.criticNoticeShown = true;
+        new Notice(parts.join(' '), 10000);
+    }
+
+    /**
      * Cluster B (D5): the storyboard GENERATOR's effective model. An explicit
      * `storyboard_generator` role override wins; otherwise the Speed pill upgrades
      * the MAIN provider (Deep=Opus, Fast=main) — but only when the generator runs on
      * the main context (a cross-provider role keeps its own model). Never the critic.
      */
-    private resolveStoryboardModel(r: RunContext, gen: { context: LLMFacadeContext; modelOverride: string }): string {
+    private resolveStoryboardModel(r: RunContext, gen: RoleRun): string {
         const s = r.ctx.fullPlugin.settings;
         return resolveStoryboardModelOverride({
             roleOverride: gen.modelOverride,
@@ -738,6 +812,8 @@ export class PresentationModeHandler implements ChatModeHandler {
             signal: r.abort.signal,
             outputLanguage: r.ctx.fullPlugin.settings.summaryLanguage,
             ...(critic.modelOverride ? { modelOverride: critic.modelOverride } : {}),
+            getGeneratorFidelity: () => r.generatorFidelity,
+            onIndependence: (independence) => this.announceCritic(r, critic.downgrade, independence),
         });
     }
 
@@ -776,6 +852,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             signal: r.abort.signal,
             deckName: r.originalQuery,
             modelOverride: this.resolveStoryboardModel(r, gen),
+            onFidelity: (f) => { r.generatorFidelity = f; },
             judge,
             onRetryStatus: (seconds) => this.run.setThinking(
                 r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
@@ -838,6 +915,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             deckName: pending.deckName,
             signal: r.abort.signal,
             modelOverride: this.resolveStoryboardModel(r, gen),
+            onFidelity: (f) => { r.generatorFidelity = f; },
             judge,
             onRetryStatus: (seconds) => this.run.setThinking(
                 r.ctx.plugin.t.llmGateway.statusRateLimited.replace('{seconds}', String(seconds)),
@@ -2351,11 +2429,11 @@ export class PresentationModeHandler implements ChatModeHandler {
         this.canvas.setReliability(tier);
     }
 
-    private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal): Promise<void> {
+    private async runBackgroundQualityScan(ctx: LLMFacadeContext, signal: AbortSignal, modelOverride = ''): Promise<void> {
         if (!this.deck.html) return;
         const slideCount = countSlides(this.deck.html);
 
-        const fastResult = await runFastScan(ctx, this.deck.html, slideCount, signal);
+        const fastResult = await runFastScan(ctx, this.deck.html, slideCount, signal, modelOverride);
         if (signal.aborted || !fastResult.ok) return;
 
         // Merge with existing deterministic findings

@@ -131,6 +131,14 @@ Two coupled depth controls rooted in the core LLM service, plus the latent-bug f
 ### Tests
 `tests/{cloudServiceClaudeRouting,speedPillModel,modelCatalog,settingsMigration,researchOrchestrator,streamingSynthesis}.test.ts`. Plan + audit summary gitignored (`docs/plans/presentation-depth-controls*.md`); consolidated Gemini gate **APPROVE** ("exceptional… production-ready").
 
+## Critic Model Routing and Visible Downgrade (llm-option-fidelity)
+
+**What it is.** The independent critic never silently judges with the generator's model. `resolveRoleRun` (`PresentationModeHandler`) routes by the capability table (`routeRole`): `per-call` (the override rides the call: gemini, OpenAI-shaped, Claude, and local since the local provider honours the override), `specialist` (a service built with the critic model: Bedrock, and any cross-provider choice other than local), or `downgrade` (azure-openai, where one deployment is one model, and local cross-provider).
+
+**A downgrade still runs the critic, on the main model, with a visible Notice** (once per run; stable code `critic-model-unavailable` in `GUIDANCE_CODES`). The notice names the route used; the independence label comes only from the comparator over the real generator and critic `fidelity`: *same*, *different* or *unknown* (never asserted as independent). The pre-call warning stays a configuration hint. Louis chose the notice over a refusal on 2026-11-15.
+
+**Read this before** adding a provider (give it a table row), changing critic routing, or labelling findings by independence. The generator's `fidelity` is handed to the judge through `RunContext.generatorFidelity` (a getter, because the judge is built before generation finishes).
+
 ## Per-Slide Polish (Presentation)
 
 **Status**: ✅ Implemented (June 2026)
@@ -273,3 +281,5 @@ By default a brand font is only **named** in CSS, so the preview/PDF render it o
 - `ExportTheme` gains optional `fontStack?` (HTML, always-populated) + `fontFaceCss?` (the `@font-face` block, brand-with-fonts only); PPTX ignores both → byte-identical.
 - Injection seam: the resolved `@font-face` rides the existing `brandCss` head argument in `presentationHtmlService.buildHtmlFromDeckIr` (injected **after** sanitize → DOMPurify can't strip it) and is authorized by **`font-src data:`** added to `presentationSanitizer.CSP_META` (data:-only; no `script-src` change → scripts still blocked). Real-Chromium proof: `tests/e2e/presentationSanitizerCsp.spec.ts` (data: font allowed, https: blocked, scripts blocked).
 - Tests: `themeSafe.test.ts`, `brandAssets.test.ts`, `brandExportTheme.test.ts`, `brandRenderContext.test.ts`, `presentationSanitizer.test.ts`, `tests/e2e/presentationSanitizerCsp.spec.ts`. **Plan**: [docs/completed/brand-font-embedding.md](../completed/brand-font-embedding.md) (GPT R1-R3 + Gemini gate; caught 5 would-ship bugs incl. fontStack-naming-only-fallback, sanitize/serialize quoting conflict, off-brand stack comma-stripping).
+
+**Critic model routing (llm-option-fidelity D3).** `resolveRoleRun` routes a *chosen* critic through `routeRole` (`src/services/llm/optionCapabilities.ts`): `per-call` (override rides the call), `specialist` (Bedrock same-provider, or any cross-provider: a service built with the critic model), or `downgrade` (azure-openai, local: the critic runs on main). A downgrade is never silent: `announceCritic` shows ONE `Notice` per run (`critic-model-unavailable` guidance, then the independence outcome when `same`/`unknown`). Independence is recomputed AFTER the call by `independenceFor` over the generator's and critic's `fidelity` (concrete identities only; missing fidelity = `unknown`, never independent); the generator's fidelity arrives through `GenerateStoryboardOptions.onFidelity` -> `RunContext.generatorFidelity` -> the judge's `getGeneratorFidelity`. The generator role keeps its legacy routing.

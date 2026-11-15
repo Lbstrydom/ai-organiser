@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { captureStreamRequest } from './helpers/streamHarness';
 import { AzureClaudeAdapter } from '../src/services/adapters/azureClaudeAdapter';
 import { AdapterConfig } from '../src/services/adapters/types';
 
@@ -161,9 +162,8 @@ describe('AzureClaudeAdapter', () => {
 			expect(adapter.supportsStreaming!()).toBe(true);
 		});
 
-		it('formatStreamingRequest includes stream:true and Azure auth headers', () => {
-			const adapter = new AzureClaudeAdapter(makeConfig());
-			const req = adapter.formatStreamingRequest!('Test prompt');
+		it('the stream request (shared body builder) includes stream:true and Azure auth headers', async () => {
+			const req = await captureStreamRequest('azure-claude', makeConfig() as never);
 			expect((req.body as any).stream).toBe(true);
 			expect(req.headers['Authorization']).toBe('Bearer test-azure-key');
 			expect(req.headers['anthropic-version']).toBe('2023-06-01');

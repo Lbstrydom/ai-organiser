@@ -297,3 +297,117 @@ describe('Opus 5.5 always-thinking request shape', () => {
         expect(resolveModelOverride('claude', 'latest-opus', computeAvailableModelIds('claude'))).toBe('claude-opus-5-5');
     });
 });
+
+// ── fidelity report (llm-option-fidelity D1) ─────────────────────────────────
+
+function stubOk(svc: CloudLLMService, body: Record<string, unknown>) {
+    (svc as unknown as { pacedRequestUrl: unknown }).pacedRequestUrl = async () => ({
+        status: 200, text: JSON.stringify(body), headers: {},
+    });
+}
+const claudeOk = (extra: Record<string, unknown> = {}) => ({ content: [{ type: 'text', text: 'ok' }], stop_reason: 'end_turn', ...extra });
+
+describe('summarizeText — fidelity', () => {
+    it('claude override: per-call, requested vs reported model kept apart', async () => {
+        const svc = makeClaude('claude-sonnet-4-6', 'standard');
+        stubOk(svc, claudeOk({ model: 'claude-opus-4-6-20260101' }));
+        const r = await svc.summarizeText('hi', { modelOverride: 'claude-opus-4-6' });
+        expect(r.fidelity).toEqual({
+            requestedModel: 'claude-opus-4-6',
+            reportedModel: 'claude-opus-4-6-20260101',
+            routing: 'per-call',
+            provider: 'claude',
+            dropped: [],
+            adjusted: [],
+        });
+    });
+
+    it('no override: service-config routing, no reportedModel when the body has none', async () => {
+        const svc = makeClaude('claude-sonnet-4-6', 'standard');
+        stubOk(svc, claudeOk());
+        const r = await svc.summarizeText('hi');
+        expect(r.success).toBe(true);
+        expect(r.content).toBe('ok');
+        expect(r.fidelity?.routing).toBe('service-config');
+        expect(r.fidelity?.requestedModel).toBe('claude-sonnet-4-6');
+        expect(r.fidelity).not.toHaveProperty('reportedModel');
+    });
+
+    it('azure-openai: the override drop is reported as deployment-routed', async () => {
+        const svc = makeAzureOpenAI('gpt-5.5');
+        stubOk(svc, { model: 'gpt-5.5-2026', choices: [{ message: { content: 'ok' } }] });
+        const r = await svc.summarizeText('hi', { modelOverride: 'gpt-5.4-nano' });
+        expect(r.fidelity?.dropped).toContainEqual({ option: 'modelOverride', reason: 'deployment-routed' });
+        expect(r.fidelity?.routing).toBe('deployment');
+        expect(r.fidelity?.requestedModel).toBe('gpt-5.5');
+    });
+
+    it('unresolved sentinel on azure-claude is reported, service model used', async () => {
+        const svc = makeAzureClaude('claude-sonnet-4-6', 'standard');
+        stubOk(svc, claudeOk());
+        const r = await svc.summarizeText('hi', { modelOverride: 'latest-opus' });
+        expect(r.fidelity?.dropped).toContainEqual({ option: 'modelOverride', reason: 'unresolved-sentinel' });
+        expect(r.fidelity?.requestedModel).toBe('claude-sonnet-4-6');
+    });
+
+    it('a resolved sentinel is an adjustment', async () => {
+        const svc = makeClaude('claude-sonnet-4-6', 'standard');
+        stubOk(svc, claudeOk());
+        const r = await svc.summarizeText('hi', { modelOverride: 'latest-opus' });
+        const adj = r.fidelity?.adjusted.find(a => a.option === 'modelOverride');
+        expect(adj).toMatchObject({ requested: 'latest-opus', reason: 'sentinel-resolved' });
+        expect(r.fidelity?.requestedModel).toBe(adj?.effective);
+    });
+
+    it('enableThinking overruled by disableThinking is an adjustment, not a drop', async () => {
+        const svc = makeClaude('claude-sonnet-4-6', 'adaptive');
+        stubOk(svc, claudeOk());
+        const r = await svc.summarizeText('hi', { enableThinking: true, disableThinking: true });
+        expect(r.fidelity?.adjusted).toContainEqual({
+            option: 'enableThinking', requested: true, effective: false, reason: 'overruled-by-disable-thinking',
+        });
+        expect(r.fidelity?.dropped.find(d => d.option === 'enableThinking')).toBeUndefined();
+    });
+
+    it('enableThinking on a model without adaptive thinking is dropped for no-model-capability', async () => {
+        const svc = makeClaude('claude-haiku-4-5', 'standard');
+        stubOk(svc, claudeOk());
+        const r = await svc.summarizeText('hi', { enableThinking: true });
+        expect(r.fidelity?.dropped).toContainEqual({ option: 'enableThinking', reason: 'no-model-capability' });
+    });
+
+    it('a clamp and an app-minimum raise are both reported', async () => {
+        const clamp = makeClaude('claude-sonnet-4-6', 'standard');
+        stubOk(clamp, claudeOk());
+        const c = await clamp.summarizeText('hi', { maxTokens: 1_000_000 });
+        const adj = c.fidelity?.adjusted.find(a => a.option === 'maxTokens');
+        expect(adj).toMatchObject({ requested: 1_000_000, reason: 'clamped-to-model-limit' });
+        expect(adj?.effective as number).toBeLessThan(1_000_000);
+
+        const floor = makeClaude('claude-opus-5-5', 'standard');
+        stubOk(floor, claudeOk());
+        const f = await floor.summarizeText('hi', { maxTokens: 1024 });
+        expect(f.fidelity?.adjusted).toContainEqual({
+            option: 'maxTokens', requested: 1024, effective: 4096, reason: 'raised-to-app-minimum',
+        });
+    });
+
+    it('a failed call returns the error and no fidelity', async () => {
+        const svc = makeClaude('claude-sonnet-4-6', 'standard');
+        (svc as unknown as { pacedRequestUrl: unknown }).pacedRequestUrl = async () => ({ status: 400, text: '{"error":{"message":"bad"}}', headers: {} });
+        const r = await svc.summarizeText('hi');
+        expect(r.success).toBe(false);
+        expect(r.error).toBe('bad');
+        expect(r).not.toHaveProperty('fidelity');
+    });
+
+    it('byte-identical: the request body with no override keeps its shape', () => {
+        const svc = makeClaude('claude-sonnet-4-6', 'standard');
+        expect(buildBody(svc, 'hi')).toEqual({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 8192,
+            system: expect.anything(),
+            messages: [{ role: 'user', content: expect.anything() }],
+        });
+    });
+});

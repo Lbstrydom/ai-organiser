@@ -51,6 +51,7 @@ vi.mock('@mozilla/readability', () => ({
     Readability: vi.fn(),
 }));
 
+import { captureStreamRequest } from './helpers/streamHarness';
 import { BaseAdapter } from '../src/services/adapters/baseAdapter';
 import { OpenAIAdapter } from '../src/services/adapters/openaiAdapter';
 import { ClaudeAdapter } from '../src/services/adapters/claudeAdapter';
@@ -263,27 +264,26 @@ describe('P2-8: Search retry logic', () => {
 
 describe('Adapter streaming support', () => {
     const openaiCompatibleAdapters = [
-        ['OpenAI', OpenAIAdapter],
-        ['Groq', GroqAdapter],
-        ['DeepSeek', DeepseekAdapter],
-        ['Mistral', MistralAdapter],
-        ['Grok', GrokAdapter],
-        ['OpenRouter', OpenRouterAdapter],
-        ['Requesty', RequestyAdapter],
-        ['Aliyun', AliyunAdapter],
-        ['OpenAI-Compatible', OpenAICompatibleAdapter],
-        ['Gemini', GeminiAdapter],
+        ['OpenAI', OpenAIAdapter, 'openai'],
+        ['Groq', GroqAdapter, 'groq'],
+        ['DeepSeek', DeepseekAdapter, 'deepseek'],
+        ['Mistral', MistralAdapter, 'mistral'],
+        ['Grok', GrokAdapter, 'grok'],
+        ['OpenRouter', OpenRouterAdapter, 'openrouter'],
+        ['Requesty', RequestyAdapter, 'requesty'],
+        ['Aliyun', AliyunAdapter, 'aliyun'],
+        ['OpenAI-Compatible', OpenAICompatibleAdapter, 'openai-compatible'],
+        ['Gemini', GeminiAdapter, 'gemini'],
     ] as const;
 
-    describe.each(openaiCompatibleAdapters)('%s adapter', (_name, AdapterClass) => {
+    describe.each(openaiCompatibleAdapters)('%s adapter', (_name, AdapterClass, adapterType) => {
         it('supports streaming', () => {
             const adapter = new (AdapterClass as any)(adapterConfig());
             expect(adapter.supportsStreaming()).toBe(true);
         });
 
-        it('formatStreamingRequest returns url, headers, and body with stream:true', () => {
-            const adapter = new (AdapterClass as any)(adapterConfig());
-            const req = adapter.formatStreamingRequest('test prompt');
+        it('the stream request (shared body builder) returns url, headers, and body with stream:true', async () => {
+            const req = await captureStreamRequest(adapterType, adapterConfig() as never);
             expect(req).toHaveProperty('url');
             expect(req).toHaveProperty('headers');
             expect(req).toHaveProperty('body');
@@ -316,9 +316,8 @@ describe('Adapter streaming support', () => {
             expect(adapter.supportsStreaming()).toBe(true);
         });
 
-        it('formatStreamingRequest includes stream:true and anthropic headers', () => {
-            const adapter = new ClaudeAdapter(adapterConfig());
-            const req = adapter.formatStreamingRequest('test prompt');
+        it('the stream request (shared body builder) includes stream:true and anthropic headers', async () => {
+            const req = await captureStreamRequest('claude', adapterConfig() as never);
             expect((req.body as any).stream).toBe(true);
             expect(req.headers).toHaveProperty('x-api-key');
             expect(req.headers).toHaveProperty('anthropic-version');

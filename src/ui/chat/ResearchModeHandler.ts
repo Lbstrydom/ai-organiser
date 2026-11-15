@@ -19,7 +19,7 @@ import { SourceQualityService } from '../../services/research/sourceQualityServi
 import { ZoteroBridgeService } from '../../services/research/zoteroBridgeService';
 import type {
     ResearchPhase, SearchResult, SiteScope, SearchProviderType,
-    SourceMetadata, PerspectiveQuery,
+    SourceMetadata, PerspectiveQuery, SearchConstraintReport,
 } from '../../services/research/researchTypes';
 import { PERSPECTIVE_PRESETS } from '../../services/prompts/researchPrompts';
 import { ensurePrivacyConsent } from '../../services/privacyNotice';
@@ -410,7 +410,9 @@ export class ResearchModeHandler implements ChatModeHandler {
             const summary = (t.foundResults || 'Found {count} results. I\'ve pre-selected the top {preselected} most relevant. Review the sources above and click **Read Selected** when ready.')
                 .replace('{count}', String(this.searchResults.length))
                 .replace('{preselected}', String(preSelectedUrls.length));
-            return { prompt: '', directResponse: summary + perspectiveNote, systemNotice: fallbackNotice };
+            const constraintNote = this.describeConstraintReports(this.searchService.takeConstraintReports(), t);
+            const systemNotice = [fallbackNotice, constraintNote].filter(Boolean).join('\n') || undefined;
+            return { prompt: '', directResponse: summary + perspectiveNote, systemNotice };
         } catch (error) {
             this.setPhase(this.searchResults.length > 0 ? 'reviewing' : 'idle');
             this.rerenderContextPanel();
@@ -537,7 +539,8 @@ export class ResearchModeHandler implements ChatModeHandler {
                             this.updateConversationHistory(query, result.rawContent);
                             const searchNote = (t.claudeSearchCount || 'Claude performed {count} searches')
                                 .replace('{count}', String(result.searchCount));
-                            return { finalContent: `${result.synthesis}\n\n*${searchNote}*` };
+                            const constraintNote = this.describeConstraintReports(result.constraintReports, t);
+                            return { finalContent: `${result.synthesis}\n\n*${searchNote}*${constraintNote ? `\n\n*${constraintNote}*` : ''}` };
                         } catch (error) {
                             this.setPhase('idle');
                             this.currentSearchQuery = null;
@@ -585,12 +588,22 @@ export class ResearchModeHandler implements ChatModeHandler {
             const searchNote = (t.claudeSearchCount || 'Claude performed {count} searches')
                 .replace('{count}', String(result.searchCount));
 
-            return { prompt: '', directResponse: `${result.synthesis}\n\n*${searchNote}*` };
+            const constraintNote = this.describeConstraintReports(result.constraintReports, t);
+            return { prompt: '', directResponse: `${result.synthesis}\n\n*${searchNote}*${constraintNote ? `\n\n*${constraintNote}*` : ''}` };
         } catch (error) {
             this.setPhase('idle');
             this.rerenderContextPanel();
             return { prompt: '', directResponse: `Search failed: ${(error as Error).message}` };
         }
+    }
+
+    /** One user-visible line for a search constraint the provider applied itself or could not apply (D7). */
+    private describeConstraintReports(reports: SearchConstraintReport[] | undefined, t: Record<string, string>): string {
+        const report = reports?.find(r => r.constraint === 'dateRange');
+        if (!report) return '';
+        if (report.outcome === 'unsupported') return t.researchDateRangeUnsupported;
+        if (report.outcome === 'partial') return t.researchDateRangePartial.replace('{count}', String(report.undatedCount));
+        return t.researchDateRangeApplied;
     }
 
     /** Append user question and assistant rawContent to conversation history for multi-turn. */

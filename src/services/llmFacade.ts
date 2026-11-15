@@ -1,8 +1,8 @@
-import { MultimodalLLMService, SummarizableLLMService, SummarizeOptions } from './types';
+import { MultimodalLLMService, SummarizableLLMService, SummarizeOptions, Fidelity } from './types';
 import { ContentPart } from './adapters/types';
 import { logger } from '../utils/logger';
 
-export type LLMCallResult = { success: boolean; content?: string; error?: string };
+export type LLMCallResult = { success: boolean; content?: string; error?: string; fidelity?: Fidelity; partial?: boolean };
 
 export type ServiceTypeInfo = {
     mode: 'cloud' | 'local';
@@ -70,6 +70,8 @@ export async function summarizeTextStream(
     options?: SummarizeOptions
 ): Promise<LLMCallResult> {
     const service = context.llmService;
+    // The positional signal wins; `options.signal` is honoured when there is none, so neither form is lost.
+    signal = signal ?? options?.signal;
 
     // Track whether any chunk has reached the caller. Once true, a fallback
     // to non-stream would duplicate content (audit R1 H5/H16), so we must
@@ -84,11 +86,18 @@ export async function summarizeTextStream(
     // Check if streaming is supported at runtime
     if ('summarizeTextStream' in service && typeof service.summarizeTextStream === 'function') {
         try {
-            return await service.summarizeTextStream(prompt, wrappedOnChunk, signal, options);
+            const streamed = await service.summarizeTextStream(prompt, wrappedOnChunk, signal, options);
+            // An empty stream (no chunk, no error) is a pre-first-chunk failure: eligible for the
+            // same non-stream fallback as a throw before the first chunk (llm-option-fidelity D5).
+            if (!streamed.success && streamed.code === 'STREAM_EMPTY' && !emitted && !signal?.aborted) {
+                logger.warn('LLM', 'Stream returned no content, falling back to non-stream');
+            } else {
+                return streamed;
+            }
         } catch (e) {
             // If aborted, propagate — do NOT fall back to a non-stream request
             if (signal?.aborted || (e instanceof DOMException && e.name === 'AbortError')) {
-                return { success: false, error: 'Aborted' };
+                return { success: false, error: 'Aborted', ...(emitted ? { partial: true } : {}) };
             }
             if (emitted) {
                 // Mid-stream failure: caller has already rendered partial
@@ -96,7 +105,7 @@ export async function summarizeTextStream(
                 // so return a partial-stream failure the caller can handle.
                 const errorMessage = e instanceof Error ? e.message : 'Unknown error';
                 logger.warn('LLM', 'Streaming failed mid-stream; no fallback to avoid duplication', e);
-                return { success: false, error: `Partial stream failure: ${errorMessage}` };
+                return { success: false, error: `Partial stream failure: ${errorMessage}`, partial: true };
             }
             // Streaming failed pre-first-chunk — safe to fall back to non-stream
             logger.warn('LLM', 'Streaming failed pre-first-chunk, falling back to non-stream:', e);
