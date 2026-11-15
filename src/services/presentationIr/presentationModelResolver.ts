@@ -98,7 +98,10 @@ function isAliasId(model: string): boolean {
 
 function concreteIdentity(f: Fidelity | undefined): { provider: Fidelity['provider']; model: string } | null {
     if (!f) return null;
-    if (f.reportedModel) return { provider: f.provider, model: f.reportedModel };
+    if (f.reportedModel) {
+        // A provider can echo back an alias; an alias is routing evidence, not an identity.
+        return isAliasId(f.reportedModel) ? null : { provider: f.provider, model: f.reportedModel };
+    }
     if (f.routing === 'per-call' && f.requestedModel && !isAliasId(f.requestedModel)) {
         return { provider: f.provider, model: f.requestedModel };
     }

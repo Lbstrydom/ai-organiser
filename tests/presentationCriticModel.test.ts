@@ -58,6 +58,16 @@ describe('independenceFor', () => {
         expect(independenceFor(b, a)).toBe('unknown');
     });
 
+    it('unknown: an alias reported back is not a concrete identity', () => {
+        const a = fid({ provider: 'claude', reportedModel: 'claude-sonnet-latest' });
+        const b = fid({ provider: 'claude', reportedModel: 'claude-sonnet-latest' });
+        expect(independenceFor(a, b)).toBe('unknown');
+        const c = fid({ provider: 'claude', reportedModel: 'claude-opus-4-6' });
+        expect(independenceFor(a, c)).toBe('unknown');
+        const d = fid({ provider: 'claude', reportedModel: 'latest-sonnet' });
+        expect(independenceFor(d, c)).toBe('unknown');
+    });
+
     it('different: unequal concrete models from the same provider', () => {
         const a = fid({ provider: 'claude', reportedModel: 'claude-sonnet-4-6' });
         const b = fid({ provider: 'claude', reportedModel: 'claude-opus-4-6' });
