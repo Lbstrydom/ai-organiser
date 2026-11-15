@@ -342,7 +342,7 @@ describe('parseSummarizeResponseText — Claude response shapes', () => {
     }, mockApp);
 
     const parse = (service: CloudLLMService, payload: object): string =>
-        (service as any).parseSummarizeResponseText(JSON.stringify(payload));
+        (service as any).parseSummarizeResponseText(JSON.stringify(payload), "chat").content;
 
     it('parses a normal Claude response (content array with text block)', () => {
         const service = buildClaudeService();

@@ -1,8 +1,8 @@
-import { MultimodalLLMService, SummarizableLLMService, SummarizeOptions } from './types';
+import { MultimodalLLMService, SummarizableLLMService, SummarizeOptions, Fidelity } from './types';
 import { ContentPart } from './adapters/types';
 import { logger } from '../utils/logger';
 
-export type LLMCallResult = { success: boolean; content?: string; error?: string };
+export type LLMCallResult = { success: boolean; content?: string; error?: string; fidelity?: Fidelity };
 
 export type ServiceTypeInfo = {
     mode: 'cloud' | 'local';

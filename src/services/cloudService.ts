@@ -1,4 +1,5 @@
-import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, GenerateTagsOptions, LanguageCode } from './types';
+import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, SummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
+import { getOptionCapabilities, type OptionName, type DropReason, type AdjustReason } from './llm/optionCapabilities';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
@@ -629,11 +630,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @param prompt - The prompt containing the content and instructions
      * @returns Promise resolving to summarization result
      */
-    async summarizeText(prompt: string, options?: SummarizeOptions): Promise<{ success: boolean; content?: string; error?: string }> {
+    async summarizeText(prompt: string, options?: SummarizeOptions): Promise<SummarizeResult> {
         this.noteCall(options?.label ?? 'chat');
         try {
-            const content = await this.sendSummarizeRequest(prompt, options);
-            return { success: true, content };
+            const { content, fidelity } = await this.sendSummarizeRequest(prompt, options);
+            return { success: true, content, fidelity };
         } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             return { success: false, error: errorMessage };
@@ -646,7 +647,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
      * @returns Promise resolving to the response content
      */
     /** Parse the raw text from a successful summarize response, throwing on empty/malformed content. */
-    private parseSummarizeResponseText(responseText: string, label: string): string {
+    private parseSummarizeResponseText(responseText: string, label: string): { content: string; reportedModel?: string } {
         const data = JSON.parse(responseText);
         this.logResponseUsage(label, data);
         logger.debug('LLM', 'Summarize response keys:', data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data) : typeof data);
@@ -654,7 +655,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         const content = this.adapter.parseResponseContent(data);
         logger.debug('LLM', 'Parsed content length:', content?.length ?? 0);
         logger.debug('LLM', 'Parsed content preview:', content?.substring(0, 300));
-        if (content) return content;
+        if (content) {
+            // llm-option-fidelity D1: the id the response carries, kept apart from the id requested.
+            const reported = data && typeof data === 'object' && !Array.isArray(data) ? (data as Record<string, unknown>).model : undefined;
+            return { content, ...(typeof reported === 'string' && reported.trim() ? { reportedModel: reported } : {}) };
+        }
         // No content — classify why and throw a useful error. (Phase 1B F9)
         const stopReason = data.stop_reason ?? data.choices?.[0]?.finish_reason;
         if (stopReason) logger.debug('LLM', 'Stop reason:', stopReason);
@@ -685,7 +690,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return new Error('No content found in response');
     }
 
-    private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<string> {
+    private async sendSummarizeRequest(prompt: string, options?: SummarizeOptions): Promise<{ content: string; fidelity: Fidelity }> {
         const validationError = this.validateCloudConfig();
         if (validationError) throw new Error(validationError);
 
@@ -738,11 +743,77 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
 
         const responseText = response.text;
         try {
-            return this.parseSummarizeResponseText(responseText, options?.label ?? 'chat');
+            const parsed = this.parseSummarizeResponseText(responseText, options?.label ?? 'chat');
+            return { content: parsed.content, fidelity: this.buildFidelity(options, requestBody, parsed.reportedModel) };
         } catch (error) {
             if (error instanceof Error) throw error;
             throw new Error(`Failed to parse response: ${responseText.substring(0, 100)}...`);
         }
+    }
+
+    /**
+     * Report what a summarize call actually did with its per-call options
+     * (llm-option-fidelity D1). Derived from the options, the capability table
+     * and the body that was sent, so it states what reached the wire, never what
+     * the caller hoped for. `requestedModel` and `reportedModel` stay separate.
+     */
+    private buildFidelity(options: SummarizeOptions | undefined, body: Record<string, unknown>, reportedModel?: string): Fidelity {
+        const caps = getOptionCapabilities(this.adapterType);
+        const serviceModel = (this.adapter['config']?.modelName && this.adapter['config'].modelName.trim())
+            || PROVIDER_DEFAULT_MODEL[this.adapterType] || '';
+        const requestedModel = typeof body.model === 'string' && body.model ? body.model : serviceModel;
+        const dropped: Array<{ option: OptionName; reason: DropReason }> = [];
+        const adjusted: Array<{ option: OptionName; requested: unknown; effective: unknown; reason: AdjustReason }> = [];
+
+        let routing: Fidelity['routing'] = caps.modelOverride === 'deployment' ? 'deployment' : 'service-config';
+        const requestedOverride = options?.modelOverride?.trim();
+        if (requestedOverride) {
+            if (caps.modelOverride === 'per-call') {
+                const resolved = resolveModelOverride(this.adapterType, requestedOverride, computeAvailableModelIds(this.adapterType));
+                if (!resolved) {
+                    dropped.push({ option: 'modelOverride', reason: 'unresolved-sentinel' });
+                } else {
+                    routing = 'per-call';
+                    if (resolved !== requestedOverride) {
+                        adjusted.push({ option: 'modelOverride', requested: requestedOverride, effective: resolved, reason: 'sentinel-resolved' });
+                    }
+                }
+            } else {
+                dropped.push({
+                    option: 'modelOverride',
+                    reason: caps.modelOverride === 'deployment' ? 'deployment-routed' : 'unsupported-by-provider',
+                });
+            }
+        }
+
+        if (options?.enableThinking) {
+            if (options.disableThinking) {
+                adjusted.push({ option: 'enableThinking', requested: true, effective: false, reason: 'overruled-by-disable-thinking' });
+            } else if (caps.thinking === 'none') {
+                dropped.push({ option: 'enableThinking', reason: 'unsupported-by-provider' });
+            } else if (!body.thinking) {
+                dropped.push({ option: 'enableThinking', reason: 'no-model-capability' });
+            }
+        }
+
+        if (options?.maxTokens) {
+            const sent = body.max_tokens ?? body.max_completion_tokens;
+            if (typeof sent === 'number' && sent !== options.maxTokens) {
+                adjusted.push({
+                    option: 'maxTokens', requested: options.maxTokens, effective: sent,
+                    reason: sent < options.maxTokens ? 'clamped-to-model-limit' : 'raised-to-app-minimum',
+                });
+            }
+        }
+
+        return {
+            requestedModel,
+            ...(reportedModel ? { reportedModel } : {}),
+            routing,
+            provider: this.adapterType,
+            dropped,
+            adjusted,
+        };
     }
 
     /**
@@ -774,7 +845,11 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // HTTP 400. Caught by persona round 10 multi-provider quality matrix
             // (tag worked because it routes through adapter.formatRequest which
             // is already OpenAI-format; summarize has its own path).
-            const modelName = this.adapter['config']?.modelName?.trim()
+            // llm-option-fidelity D4: honour a per-call modelOverride (resolved like the
+            // OpenAI and Claude branches) and clamp the cap to the resolved model's limit.
+            const overrideModel = resolveModelOverride('gemini', options?.modelOverride, computeAvailableModelIds('gemini'));
+            const modelName = overrideModel
+                || this.adapter['config']?.modelName?.trim()
                 || PROVIDER_DEFAULT_MODEL.gemini;
             return {
                 model: modelName,
@@ -782,7 +857,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                     { role: 'system', content: summarizeSystemPrompt },
                     { role: 'user', content: effectivePrompt }
                 ],
-                max_tokens: options?.maxTokens || 8192
+                max_tokens: Math.min(options?.maxTokens || 8192, getModelOutputLimit('gemini', modelName))
             };
         } else {
             // OpenAI-compatible format (default for openai, groq, deepseek, openrouter, etc.)
