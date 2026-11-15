@@ -954,6 +954,9 @@ export interface Translations {
                 cleanupNoticeOne: string;      // exactly one episode
                 lookbackClampNote: string;     // "{n}" days actually kept
                 audioRemovedLine: string;      // "{date}"
+                digestLinkLabel: string;
+                digestLinkNew: string;
+                digestLinkHeard: string;
                 dailyPreviewNote: string;      // shown above the disabled catch-up controls in Daily mode
             };
         };

@@ -45,7 +45,7 @@ import type { RecallSelection, CaughtUpOutcome, ReadCommitOutcome, ReadObservati
 import { summarizeText, pluginContext } from '../llmFacade';
 import { ensureFolderExists, sanitizeFileName } from '../../utils/minutesUtils';
 import { getNewsletterOutputFullPath } from '../../core/settings';
-import { isDailyAudioEnabled } from './newsletterAudioMode';
+import { isCatchUpEnabled, isDailyAudioEnabled } from './newsletterAudioMode';
 import { resolveNewsletterTts } from './resolveNewsletterTts';
 import { updateAIOMetadata, createSummaryHook } from '../../utils/frontmatterUtils';
 import { SourceType } from '../../core/constants';
@@ -485,8 +485,21 @@ export class NewsletterService {
             const digestContent = this.buildDigestContent(group, dateStr, dateLabel, 0);
             await vault.create(digestPath, digestContent);
         }
+        await this.linkCatchUpEpisode(dateStr);
 
         return paths;
+    }
+
+    /** Best effort: point this day's digest at the current catch-up episode. A no-op unless catch-up audio is on. */
+    private async linkCatchUpEpisode(dateStr: string): Promise<void> {
+        if (!isCatchUpEnabled(this.plugin.settings)) return;
+        try {
+            const { createDigestLinkDeps } = await import('./catchUp/catchUpRuntime');
+            const { refreshDigestCatchUpLinks } = await import('./catchUp/catchUpDigestLink');
+            await refreshDigestCatchUpLinks(createDigestLinkDeps(this.plugin), [dateStr]);
+        } catch (e) {
+            logger.warn('Newsletter', 'Catch-up digest link not updated', e);
+        }
     }
 
     private buildNoteContent(nl: ProcessedNewsletter, dateStr: string): string {
