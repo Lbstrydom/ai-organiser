@@ -29,8 +29,12 @@ npm run dev
 # Production build (source type-check + tests + bundle)
 npm run build
 
-# Quick production build (source type-check + bundle, skips test types)
+# Quick production build (source type-check + bundle, skips test types; NOT a push gate)
 npm run build:quick
+
+# Type-check source AND tests (tsconfig.json). `build`, `test:all` and `precommit` run it;
+# run `npm run build` (or `npm run typecheck`) before pushing, never `build:quick` alone.
+npm run typecheck
 
 # Release PRs only, on the owner's go (see Version Management -> Releasing):
 # npm version <x.y.z> --no-git-tag-version bumps package.json, manifest.json, versions.json
@@ -514,7 +518,7 @@ See `docs/usertest.md` for manual testing checklist.
 
 ## Deployment Verification
 
-**Local dev auto-deploy**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder(s) listed in the gitignored `deploy.local.json` (or `AIORG_DEPLOY_TARGETS`, `;`-separated) after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path). The manual steps below remain a fallback / for other machines. **Users are not served from this step** — they get releases from the community store (see Version Management → Releasing).
+**Local dev auto-deploy**: `esbuild.config.mjs` copies `main.js`/`manifest.json`/`styles.css` to the vault plugin folder(s) listed in the gitignored `deploy.local.json` (or `AIORG_DEPLOY_TARGETS`, `;`-separated) after every build (`npm run dev`/`build:quick`/`build`). Each target is parent-guarded (skipped silently on machines/CI without that path). The manual steps below remain a fallback / for other machines. **Auto-deploy is skipped in a linked git worktree (fail closed if git cannot be read; set `AIORG_DEPLOY_FROM_WORKTREE=1` for a deliberate test deploy; `scripts/deployGuard.mjs`). **Users are not served from this step** — they get releases from the community store (see Version Management → Releasing).
 
 **Always verify deployment after building.** Stale builds in the Obsidian vault cause confusion when changes appear not to work.
 

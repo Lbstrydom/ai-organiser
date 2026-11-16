@@ -7,6 +7,7 @@ import fs from "fs";
 import { SCRIPT_CREATE_RE, ONREADYSTATECHANGE_WINDOW } from "./scripts/setImmediatePolyfillSignature.mjs";
 import { JSPDF_FILES, neutraliseJspdfPdfObjectLoader } from "./scripts/jspdfPdfObjectNeutraliser.mjs";
 import { loadArtifacts, runAllChecks } from "./scripts/verify-build.mjs";
+import { shouldDeploy } from "./scripts/deployGuard.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -212,6 +213,12 @@ const DEPLOY_TARGETS = loadDeployTargets();
 const DEPLOY_ARTIFACTS = ["main.js", "manifest.json", "styles.css"];
 
 function deployArtifacts() {
+  // A linked git worktree never deploys (fail closed); AIORG_DEPLOY_FROM_WORKTREE=1 opts in.
+  const guard = shouldDeploy(__dirname);
+  if (!guard.deploy) {
+    if (DEPLOY_TARGETS.length > 0) console.log(`Deploy skipped: ${guard.reason}.`);
+    return;
+  }
   for (const target of DEPLOY_TARGETS) {
     // Only deploy where the parent already exists — avoids creating stray
     // folders on machines that don't have this vault layout.

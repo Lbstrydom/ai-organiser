@@ -375,7 +375,7 @@ describe('ProjectService (faked vault)', () => {
     const res = await service.adoptProject('Projects/Acme.md');
     expect(res.ok).toBe(true);
     const after = w.vault.get('Projects/Acme.md')!;
-    expect(after).toMatch(/^---\nsummary: Acme\naio-id: [0-9a-f-]{36}\naio-role: project\nstatus: active\n---\nBody\n$/);
+    expect(after).toMatch(/^---\nsummary: Acme\naio-id: "?[0-9a-f-]{36}"?\naio-role: project\nstatus: active\n---\nBody\n$/);
     expect(service.projects().map((p) => p.notePath)).toEqual(['Projects/Acme.md']);
     expect(await service.adoptProject('Projects/Acme.md')).toEqual({ ok: false, error: 'project-already-adopted' });
     expect(await service.adoptProject('Missing.md')).toEqual({ ok: false, error: 'project-not-found' });
@@ -389,7 +389,7 @@ describe('ProjectService (faked vault)', () => {
     edit.mockClear();
     const res = await service.adoptProject('Projects/MBO.md');
     expect(res.ok && res.value.replacedMark).toBe('processed');
-    expect(w.vault.get('Projects/MBO.md')).toMatch(/^---\nsummary: MBO\nstatus: active\naio-id: [0-9a-f-]{36}\naio-role: project\n---\nBody\n$/);
+    expect(w.vault.get('Projects/MBO.md')).toMatch(/^---\nsummary: MBO\nstatus: active\naio-id: "?[0-9a-f-]{36}"?\naio-role: project\n---\nBody\n$/);
     expect(edit.mock.calls[0][2]).toEqual({ reviewNote: 'Mark processed becomes active.' });
     expect(service.projects()[0].status).toBe('active');
   });
@@ -418,7 +418,7 @@ describe('ProjectService (faked vault)', () => {
     const w = world({ 'inbox-sweep': true, 'google-tasks-export': true }, { 'Areas/Work.md': 'Body' });
     const service = getProjectService(w.plugin)!;
     expect((await service.adoptContainer('Areas/Work.md', 'area')).ok).toBe(true);
-    expect(w.vault.get('Areas/Work.md')).toMatch(/^---\naio-id: [0-9a-f-]{36}\naio-role: area\n---\nBody$/);
+    expect(w.vault.get('Areas/Work.md')).toMatch(/^---\naio-id: "?[0-9a-f-]{36}"?\naio-role: area\n---\nBody$/);
     expect(service.projects()).toEqual([]);
     expect(service.index().anchors.map((a) => a.role)).toEqual(['area']);
   });

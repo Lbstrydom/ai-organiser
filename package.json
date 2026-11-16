@@ -5,7 +5,8 @@
   "main": "main.js",
   "scripts": {
     "dev": "node esbuild.config.mjs",
-    "build": "npx tsc -p tsconfig.build.json -noEmit && vitest run && node esbuild.config.mjs production && node scripts/automated-tests.js",
+    "build": "npm run typecheck && vitest run && node esbuild.config.mjs production && node scripts/automated-tests.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "build:quick": "npx tsc -p tsconfig.build.json -noEmit && node esbuild.config.mjs production",
     "verify:build": "node scripts/verify-build.mjs",
     "test": "vitest run",
@@ -13,7 +14,7 @@
     "test:coverage": "vitest run --coverage",
     "test:auto": "node scripts/automated-tests.js",
     "test:e2e": "playwright test",
-    "test:all": "npx tsc -p tsconfig.build.json -noEmit && vitest run && node scripts/automated-tests.js",
+    "test:all": "npm run typecheck && vitest run && node scripts/automated-tests.js",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
     "precommit": "npm run lint && npm run test:all",

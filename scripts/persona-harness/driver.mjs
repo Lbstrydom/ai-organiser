@@ -14,6 +14,7 @@ import { chromium } from '@playwright/test';
 import { spawn, execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import net from 'node:net';
+import { ensureVaultBackup } from './vault-backup.mjs';
 
 export const DEFAULT_OBSIDIAN_EXE = 'C:\\Program Files\\Obsidian\\Obsidian.exe';
 export const DEFAULT_CDP_PORT = 9222;
@@ -61,6 +62,8 @@ export function waitForPort(port, host = '127.0.0.1', timeoutMs = 30_000) {
  * Obsidian first so we can relaunch with the debug flag.
  */
 export async function launchOrAttach(opts = {}) {
+    // Before anything deploys or changes settings: back up the deployed plugin (once per process).
+    ensureVaultBackup();
     const exe = opts.exe || process.env.OBSIDIAN_EXE || DEFAULT_OBSIDIAN_EXE;
     const port = opts.port || Number(process.env.CDP_PORT) || DEFAULT_CDP_PORT;
     const portReadyMs = opts.portReadyMs || 30_000;
