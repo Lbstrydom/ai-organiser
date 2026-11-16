@@ -1,8 +1,44 @@
 {
   "version": 2,
   "_note": "Written by the claude-engineering-skills sync. Committed on purpose: it is the only in-repo record that a sync ran and what it touched (scripts/.sync-manifest.json is gitignored). recentSyncs is append-only, newest first: entry 0 is the latest sync, and older entries may be runs from other sessions that are not committed yet. Declare deliberate divergence in .sync-overrides.json; do not hand-edit this file.",
-  "olderSyncsDropped": 220,
+  "olderSyncsDropped": 221,
   "recentSyncs": [
+    {
+      "syncedAt": "2026-11-16T17:19:41.739Z",
+      "source": {
+        "repo": "Lbstrydom/claude-engineering-skills",
+        "branch": "main",
+        "commitSha": "c38fb2f6782b8b199c2503838f271fc39929f4a7",
+        "sourceDirty": false
+      },
+      "counts": {
+        "created": 2,
+        "updated": 6,
+        "unchanged": 1099,
+        "gcDeleted": 0,
+        "overridesHeld": 0,
+        "divergedOverwritten": 0,
+        "divergenceRefused": 0,
+        "legacyRetired": 0
+      },
+      "created": [
+        ".audit-loop/migrations/20261030130000_duplicate_min_lines_floor.sql",
+        "scripts/.claude-skills/lib/symbol-index/duplicate-floor.mjs"
+      ],
+      "updated": [
+        ".audit-loop/expected-schema.json",
+        "scripts/.claude-skills/lib/db/rpc.mjs",
+        "scripts/.claude-skills/lib/store/arch/neighbourhood.mjs",
+        "scripts/.claude-skills/symbol-index/drift.mjs",
+        "scripts/.claude-skills/symbol-index/duplicates.mjs",
+        "scripts/.claude-skills/symbol-index/render-mermaid.mjs"
+      ],
+      "gcDeleted": [],
+      "overridesHeld": [],
+      "divergedOverwritten": [],
+      "divergenceRefused": [],
+      "legacyRetired": []
+    },
     {
       "syncedAt": "2026-11-16T14:59:48.408Z",
       "source": {
@@ -561,36 +597,6 @@
         "scripts/.claude-skills/lib/final-review/providers.mjs",
         "scripts/.claude-skills/lib/final-review/shadow.mjs",
         "scripts/.claude-skills/lib/final-review/transport.mjs"
-      ],
-      "gcDeleted": [],
-      "overridesHeld": [],
-      "divergedOverwritten": [],
-      "divergenceRefused": [],
-      "legacyRetired": []
-    },
-    {
-      "syncedAt": "2026-10-25T13:59:54.157Z",
-      "source": {
-        "repo": "Lbstrydom/claude-engineering-skills",
-        "branch": "main",
-        "commitSha": "22243b91253eab96e77ea50b9af1f5fa7b916426",
-        "sourceDirty": false
-      },
-      "counts": {
-        "created": 0,
-        "updated": 3,
-        "unchanged": 983,
-        "gcDeleted": 0,
-        "overridesHeld": 0,
-        "divergedOverwritten": 0,
-        "divergenceRefused": 0,
-        "legacyRetired": 0
-      },
-      "created": [],
-      "updated": [
-        "scripts/.claude-skills/lib/db/query.mjs",
-        "scripts/.claude-skills/lib/model-pricing-table.mjs",
-        "scripts/.claude-skills/lib/store/fleet-events.mjs"
       ],
       "gcDeleted": [],
       "overridesHeld": [],

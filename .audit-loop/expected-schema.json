@@ -10934,7 +10934,7 @@
     },
     {
       "function_name": "drift_score",
-      "args": "p_repo_id uuid, p_refresh_id uuid, p_sim_dup numeric, p_sim_name numeric",
+      "args": "p_repo_id uuid, p_refresh_id uuid, p_sim_dup numeric, p_sim_name numeric, p_min_lines integer",
       "return_type": "jsonb",
       "security_definer": true,
       "config": "search_path=pg_catalog, public"
@@ -11900,7 +11900,7 @@
     },
     {
       "function_name": "top_duplicate_clusters",
-      "args": "p_repo_id uuid, p_refresh_id uuid, p_limit integer",
+      "args": "p_repo_id uuid, p_refresh_id uuid, p_limit integer, p_min_lines integer",
       "return_type": "TABLE(signature_hash text, kind text, file_count integer, symbol_names text[], file_paths text[], example_purpose text)",
       "security_definer": true,
       "config": "search_path=pg_catalog, public"
