@@ -1,0 +1,36 @@
+{
+  "_description": "Store views whose result depends on now(). Derived from the cumulative migrations by the upstream generator (https://github.com/Lbstrydom/claude-engineering-skills/blob/main/scripts/lib/store/windowed-views.mjs — a module the sync does not ship, so it is named by its upstream URL, which resolves from either repo) and gated by `node scripts/.claude-skills/check-windowed-views.mjs`; this file is the DECLARATION side. (That command is named by PATH, not as an npm alias: the sync never merges npm scripts into a consumer's package.json, and it rewrites this path to the consumer's own tooling layout — so the one sentence is true in both repos.) A windowed view's count is a snapshot of a rotating cohort, so two reads at different times are not a trend — `window` says what rotates, `comparable` says what a caller may compare instead. Measured 2026-11-13: the 2026-10-11 and 2026-11-13 unremediated_acceptances windows shared 0 rows while 110 of the 116 rows reported in the first were still open (docs/plans/standing-queue-burndown.md §7).",
+  "views": {
+    "unlocked_fixes": {
+      "window": "rows only: unlocked_fixes_all WHERE is_recent, i.e. audit_runs.created_at > now() - 14 days",
+      "comparable": "byMode.code + agedOutByMode.code, which aging cannot reduce; or name the cohort explicitly with a fixed date range against unlocked_fixes_all",
+      "queues": [
+        "q1"
+      ]
+    },
+    "unlocked_fixes_all": {
+      "window": "columns only: is_recent carries the 14-day test; rows are NOT filtered, so a count over this view is stable and a count over is_recent is not",
+      "comparable": "the unfiltered count, or a fixed `fixed_at` range"
+    },
+    "unremediated_acceptances": {
+      "window": "rows only: unremediated_acceptances_all WHERE is_mature AND is_recent, i.e. a 7–30 day band on audit_runs.created_at — rows leave it by aging out at BOTH ends",
+      "comparable": "byMode.code + agedOutByMode.code; or the open-disposition count over unremediated_acceptances_all with a fixed accepted_at range",
+      "queues": [
+        "q2"
+      ]
+    },
+    "unremediated_acceptances_all": {
+      "window": "columns only: days_open, is_mature and is_recent are clock-derived; rows are NOT filtered",
+      "comparable": "the unfiltered count filtered on is_open_disposition alone"
+    },
+    "persona_density_per_repo": {
+      "window": "column only: density_30d counts persona_test_sessions from the last 30 days; the row set (one per repo) is stable",
+      "comparable": "a count over persona_test_sessions with a fixed created_at range"
+    },
+    "persona_dashboard": {
+      "window": "column only: days_since_last_test is measured from now(); the row set (one per persona) is stable",
+      "comparable": "last_tested_at itself, which is an instant and does not drift"
+    }
+  },
+  "exemptions": {}
+}
