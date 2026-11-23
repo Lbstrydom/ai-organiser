@@ -66,7 +66,78 @@ jobs:
     defaults:
       run:
         shell: 'C:\PROGRA~1\Git\bin\bash.exe -eo pipefail {0}'
+    # SHARED HOST LOCK (2026-11-23). This box also runs storyline's self-hosted
+    # runner, and the two collided on 2026-11-23 (this job held the host while a
+    # storyline job hit its 60-minute budget). The first and last steps take and
+    # release C:\ProgramData\actions-host-lock\host.lock; their text is identical
+    # to storyline's and must stay identical. The lock wait counts against
+    # timeout-minutes above, so it is set below it: a normal run takes ~15 min,
+    # and 12 + 15 fits in 30. Longer storyline runs make this job fail loudly
+    # ("did NOT run unlocked"), never run concurrently.
+    env:
+      HOST_LOCK_WAIT_MINUTES: '12'
     steps:
+      # ── FIRST step of the job, before anything heavy ─────────────────────────────────────────
+      - name: Take the shared host lock
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $lock = 'C:\ProgramData\actions-host-lock\host.lock'
+          if (-not (Test-Path -LiteralPath $lock)) {
+            throw "FAIL: $lock is missing. It must be pre-created with Modify for both runner accounts. This step will NOT create it: a file created by one account is unwritable by the other, which breaks the lock silently in the only case it matters."
+          }
+          $w = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+          while ($w -and $w.Name -ne 'Runner.Worker.exe') {
+            $w = Get-CimInstance Win32_Process -Filter "ProcessId=$($w.ParentProcessId)"
+          }
+          if (-not $w) { throw 'FAIL: no Runner.Worker ancestor -- cannot record a holder that outlives this step.' }
+          $mine = [pscustomobject]@{
+            repo    = $env:GITHUB_REPOSITORY
+            runId   = $env:GITHUB_RUN_ID
+            attempt = $env:GITHUB_RUN_ATTEMPT
+            pid     = $w.ProcessId
+            started = $w.CreationDate.ToUniversalTime().ToString('o')
+          }
+          "HOST_LOCK_RUN_ID=$($mine.runId)"     | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "HOST_LOCK_ATTEMPT=$($mine.attempt)"  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          $waitMin  = if ($env:HOST_LOCK_WAIT_MINUTES) { [int]$env:HOST_LOCK_WAIT_MINUTES } else { 75 }
+          $deadline = (Get-Date).AddMinutes($waitMin)
+          $held     = $null
+          while ($true) {
+            try {
+              $fs = [System.IO.File]::Open($lock, 'Open', 'ReadWrite', 'None')
+              try {
+                $sr   = New-Object System.IO.StreamReader($fs)
+                $text = $sr.ReadToEnd().Trim()
+                $free = $true
+                if ($text -and $text -ne 'free') {
+                  $h = $null
+                  try { $h = $text | ConvertFrom-Json } catch { }
+                  if (-not $h) {
+                    # Unparseable content is NOT treated as free: that would turn a corrupt lock
+                    # into no lock. Fail loudly and let a human look.
+                    throw "FAIL: $lock holds unparseable content; refusing to assume it is free. Content: $text"
+                  }
+                  $alive = Get-CimInstance Win32_Process -Filter "ProcessId=$($h.pid)" -ErrorAction SilentlyContinue
+                  $same  = $alive -and ($alive.CreationDate.ToUniversalTime().ToString('o') -eq $h.started)
+                  if ($same) { $free = $false; $held = $h }
+                  else { Write-Host "host-lock: taking over a stale record (repo=$($h.repo) run=$($h.runId) pid=$($h.pid) started=$($h.started)) -- that process is gone." }
+                }
+                if ($free) {
+                  $fs.SetLength(0)
+                  $sw = New-Object System.IO.StreamWriter($fs)
+                  $sw.Write(($mine | ConvertTo-Json -Compress)); $sw.Flush()
+                  Write-Host "host-lock: acquired by $($mine.repo) run $($mine.runId) attempt $($mine.attempt) (worker pid $($mine.pid))."
+                  break
+                }
+              } finally { $fs.Dispose() }
+            } catch [System.IO.IOException] { }   # another job holds the handle for its own CAS; retry
+            if ((Get-Date) -ge $deadline) {
+              throw "FAIL: host lock not acquired within $waitMin min. Holder: repo=$($held.repo) run=$($held.runId) attempt=$($held.attempt) pid=$($held.pid) started=$($held.started). This job did NOT run unlocked."
+            }
+            Start-Sleep -Seconds 10
+          }
+
       - name: Checkout
         uses: actions/checkout@v7
 
@@ -196,3 +267,34 @@ jobs:
         run: |
           echo "::error::drift script failed with exit code 2 (infra error, not a drift signal)"
           exit 1
+
+      # ── LAST step of the job ─────────────────────────────────────────────────────────────────
+      - name: Release the shared host lock
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $lock = 'C:\ProgramData\actions-host-lock\host.lock'
+          if (-not (Test-Path -LiteralPath $lock)) { Write-Host 'host-lock: file missing at release; nothing to do.'; exit 0 }
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $fs = [System.IO.File]::Open($lock, 'Open', 'ReadWrite', 'None')
+              try {
+                $sr = New-Object System.IO.StreamReader($fs)
+                $t  = $sr.ReadToEnd().Trim()
+                $h  = $null
+                if ($t -and $t -ne 'free') { try { $h = $t | ConvertFrom-Json } catch { } }
+                # Release ONLY our own record: after a stale takeover the lock belongs to someone
+                # else, and freeing it would hand the host to a third job mid-run.
+                if ($h -and "$($h.runId)" -eq "$env:HOST_LOCK_RUN_ID" -and "$($h.attempt)" -eq "$env:HOST_LOCK_ATTEMPT") {
+                  $fs.SetLength(0)
+                  $sw = New-Object System.IO.StreamWriter($fs); $sw.Write('free'); $sw.Flush()
+                  Write-Host 'host-lock: released.'
+                } else {
+                  Write-Host "host-lock: not ours any more (content: $t) -- left untouched."
+                }
+              } finally { $fs.Dispose() }
+              exit 0
+            } catch [System.IO.IOException] { Start-Sleep -Seconds 2 }
+          }
+          Write-Host '::warning::host-lock: could not open the lock to release it; the next job will take it over as stale.'
