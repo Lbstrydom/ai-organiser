@@ -53,7 +53,7 @@ jobs:
     # problem needed a runner that's actually on that network.
     # `ai-organiser-runner` is registered against this repo for this job.
     runs-on: self-hosted
-    timeout-minutes: 30
+    timeout-minutes: 90  # TEMP control-only; revert to 30 (or Louis's choice) before un-drafting
     # Every `run:` step below is POSIX (bash `if [ ]`, $GITHUB_OUTPUT appends,
     # heredocs). Actions defaults `run:` to PowerShell on Windows, where none
     # of that parses — confirmed 2026-09-13: `test -f` failed with "The term
@@ -75,7 +75,7 @@ jobs:
     # and 12 + 15 fits in 30. Longer storyline runs make this job fail loudly
     # ("did NOT run unlocked"), never run concurrently.
     env:
-      HOST_LOCK_WAIT_MINUTES: '12'
+      HOST_LOCK_WAIT_MINUTES: '75'  # TEMP control-only; revert to 12 before un-drafting
     steps:
       # ── FIRST step of the job, before anything heavy ─────────────────────────────────────────
       - name: Take the shared host lock
