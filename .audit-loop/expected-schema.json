@@ -4807,6 +4807,60 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 23
+        },
+        {
+          "column_name": "logical_call_id",
+          "data_type": "uuid",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 24
+        },
+        {
+          "column_name": "attempt_no",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 25
+        },
+        {
+          "column_name": "attempt_outcome",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 26
+        },
+        {
+          "column_name": "capture_schema_version",
+          "data_type": "integer",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 27
+        },
+        {
+          "column_name": "audited_tree",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 28
+        },
+        {
+          "column_name": "diff_base_sha",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 29
         }
       ]
     },
@@ -13200,6 +13254,12 @@
       "constraint_name": "llm_call_log_summary_pkey",
       "constraint_type": "PRIMARY KEY",
       "definition": "PRIMARY KEY (audit_run_id, producer, process_nonce)"
+    },
+    {
+      "table_name": "llm_call_provenance",
+      "constraint_name": "llm_call_provenance_attempt_outcome_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((attempt_outcome IS NULL) OR (attempt_outcome = ANY (ARRAY['success'::text, 'schema-reject'::text, 'partial'::text, 'timeout'::text, 'cancel'::text, 'refusal'::text, 'error'::text, 'missing-payload'::text]))))"
     },
     {
       "table_name": "llm_call_provenance",
