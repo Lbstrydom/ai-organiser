@@ -137,15 +137,27 @@ jobs:
                 if ($text -and $text -ne 'free') {
                   $h = $null
                   try { $h = $text | ConvertFrom-Json } catch { }
-                  if (-not $h -or -not $h.startedTicks) {
-                    # Unparseable content -- or a record without the field the staleness check needs
-                    # -- is NOT treated as free: that would turn a corrupt lock into no lock. Fail
-                    # loudly and let a human look.
-                    throw "FAIL: $lock holds unparseable content; refusing to assume it is free. Content: $text"
+                  if (-not $h -or -not $h.pid) {
+                    # Genuinely unparseable content is NOT treated as free -- that would turn a
+                    # corrupt lock into no lock -- and the message names the recovery, because a
+                    # fail-closed lock stops every job on every repo sharing this host until a human
+                    # acts. Recovery: write the five characters `free` into the file.
+                    throw "FAIL: $lock holds content this gate cannot read, and it refuses to assume the host is free. Every self-hosted job on this machine will fail here until it is cleared. RECOVERY: write `free` into $lock (no newline). Content was: $text"
                   }
                   $alive = Get-CimInstance Win32_Process -Filter "ProcessId=$($h.pid)" -ErrorAction SilentlyContinue
-                  # Integer comparison on both sides: no formatting, no culture, no [DateTime] coercion.
-                  $same  = $alive -and ([long]$alive.CreationDate.ToUniversalTime().Ticks -eq [long]$h.startedTicks)
+                  if ($h.startedTicks) {
+                    # Integer comparison on both sides: no formatting, no culture, no [DateTime] coercion.
+                    $same = $alive -and ([long]$alive.CreationDate.ToUniversalTime().Ticks -eq [long]$h.startedTicks)
+                  } else {
+                    # A record that parses and names a pid but predates `startedTicks` is a KNOWN
+                    # transitional shape, not corruption -- this gate wrote it itself. Falling back to
+                    # the pid-liveness check keeps the lock doing its actual job (a live holder still
+                    # blocks); it is weaker only against pid reuse, which is a narrow window. Failing
+                    # closed here instead would wedge both repos' CI over a record we wrote, which
+                    # protects against nothing.
+                    Write-Host "::warning::host-lock: holder record has no startedTicks (written before 2026-11-23); falling back to a pid-only liveness check, which does not guard against pid reuse."
+                    $same = [bool]$alive
+                  }
                   if ($same) { $free = $false; $held = $h }
                   else { Write-Host "host-lock: taking over a stale record (repo=$($h.repo) run=$($h.runId) pid=$($h.pid) started=$($h.started)) -- that process is gone." }
                 }
