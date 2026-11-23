@@ -1,4 +1,7 @@
 name: architectural-drift
+# A run that is a requeue says so in the Actions list. A title is fixed before the job runs, so a
+# run that defers cannot rename itself; it says DEFERRED on its summary page instead.
+run-name: "architectural-drift${{ (inputs.attempt && inputs.attempt != '1') && format(' (requeued, attempt {0} of 3)', inputs.attempt) || '' }}"
 
 # Weekly architectural drift sweep + retention prune.
 #
@@ -216,12 +219,14 @@ jobs:
           $who = if ($h -and $h.runId) { "$($h.repo) run $($h.runId) since $($h.started)" } else { 'a holder that released it as the wait ended' }
           if ($n -ge $max) {
             Write-Host "::error::host lock held by $who on attempt $n of $max. Drift did NOT run; giving up."
+            if ($env:GITHUB_STEP_SUMMARY) { "## DEFERRED, then gave up: drift did NOT run`n`nHost lock held by $who on attempt $n of $max." | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
             exit 1
           }
           $next = $n + 1
           gh workflow run architectural-drift.yml --repo $env:GITHUB_REPOSITORY --ref $env:GITHUB_REF_NAME -f "attempt=$next" -f "lock_wait_minutes=$env:LOCK_WAIT"
           if ($LASTEXITCODE -ne 0) { Write-Host '::error::requeue dispatch failed; drift did NOT run.'; exit 1 }
           Write-Host "::notice::deferred: host lock held by $who; requeued as attempt $next"
+          if ($env:GITHUB_STEP_SUMMARY) { "## DEFERRED: drift did NOT run in this run`n`nHost lock held by $who. Requeued as attempt $next of $max. A green conclusion here means deferred, not checked." | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
 
       - name: Checkout
         if: steps.lock.outcome == 'success'

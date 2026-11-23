@@ -4,6 +4,10 @@
  * This box runs ai-organiser's and storyline's runners side by side. The lock steps keep
  * their jobs from running at the same time; if a later edit drops or weakens one, the host
  * still looks protected while nothing holds it. These assertions fail on that edit instead.
+ *
+ * Auditing a run: the acquire step is continue-on-error, so the jobs API and the step list show
+ * its CONCLUSION as success even when it threw. Its OUTCOME is the real result, and that is what
+ * the gates read. A deferred run concludes green with a DEFERRED summary; it checked nothing.
  */
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
