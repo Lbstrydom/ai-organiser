@@ -1,0 +1,285 @@
+{
+  "_description": "Tracked capture columns for the own-model telemetry null-rate gate (the own-model telemetry PR 3 plan, source repo only). expectFill is a HAND-SET floor for rows created at or after `since`; where is a key of the closed APPLICABILITY enum in the coverage core module; baselineRate (optional) is the committed reference for drift. Static check: the own-model:coverage:gate script. Live check: the own-model:coverage script, or node scripts/.claude-skills/own-model-coverage.mjs check --live (exit 0 ok, 1 drift/below-floor, 3 unmeasured). Bump `since` to the date the writer reached main when a floor reads low only because older rows predate it.",
+  "coverageFromMigration": "20261028120000",
+  "windowDays": 30,
+  "entries": [
+    {
+      "table": "learning_decisions",
+      "column": "tool_sha",
+      "since": "2026-10-29",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "learning_decisions",
+      "column": "policy_version",
+      "since": "2026-10-29",
+      "expectFill": 0.8,
+      "tolerance": 0.1
+    },
+    {
+      "table": "learning_decisions",
+      "column": "schema_version",
+      "since": "2026-10-29",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "learning_decisions",
+      "column": "selection_rule",
+      "since": "2026-10-29",
+      "where": "pass_selection",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "learning_decisions",
+      "column": "selection_probability",
+      "since": "2026-10-29",
+      "where": "pass_selection",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "learning_decisions",
+      "column": "randomised",
+      "since": "2026-10-29",
+      "where": "pass_selection",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "learning_decisions",
+      "column": "options_not_chosen",
+      "since": "2026-10-29",
+      "where": "pass_selection",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "learning_decisions",
+      "column": "eligible_population",
+      "since": "2026-10-29",
+      "where": "pass_selection",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "learning_decisions",
+      "column": "input_snapshot",
+      "since": "2026-10-29",
+      "where": "pass_selection",
+      "expectFill": 0.4,
+      "tolerance": 0.15
+    },
+    {
+      "table": "audit_runs",
+      "column": "tool_sha",
+      "since": "2026-10-29",
+      "where": "code_run",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "audit_runs",
+      "column": "policy_version",
+      "since": "2026-10-29",
+      "where": "code_run",
+      "expectFill": 0.8,
+      "tolerance": 0.1
+    },
+    {
+      "table": "audit_runs",
+      "column": "audited_sha",
+      "since": "2026-10-26",
+      "where": "code_run",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "audit_runs",
+      "column": "diff_capture_status",
+      "since": "2026-10-26",
+      "where": "code_run",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "finding_adjudication_events",
+      "column": "adjudicator_kind",
+      "since": "2026-10-26",
+      "where": "non_campaign_event",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "model_resolved",
+      "since": "2026-10-29",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "route",
+      "since": "2026-10-29",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "input_tokens",
+      "since": "2026-10-29",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "latency_ms",
+      "since": "2026-10-29",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "prompt_hash",
+      "since": "2026-10-29",
+      "where": "audit_producer",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "audit_runs",
+      "column": "audit_session_id",
+      "since": "2026-10-29",
+      "where": "code_run",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "audit_runs",
+      "column": "capture_epoch",
+      "since": "2026-10-29",
+      "where": "code_run",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "audit_findings",
+      "column": "source_model",
+      "since": "2026-10-29",
+      "where": "model_finding",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "audit_pass_stats",
+      "column": "source_model",
+      "since": "2026-10-29",
+      "where": "model_pass",
+      "expectFill": 0.9,
+      "tolerance": 0.05
+    },
+    {
+      "table": "finding_adjudication_events",
+      "column": "ruling_rationale",
+      "since": "2026-10-29",
+      "where": "non_campaign_event",
+      "expectFill": 0.6,
+      "tolerance": 0.1
+    },
+    {
+      "table": "finding_adjudication_events",
+      "column": "adjudicator_model",
+      "since": "2026-10-29",
+      "where": "reviewer_event",
+      "expectFill": 0.95,
+      "tolerance": 0.05
+    },
+    {
+      "table": "finding_equivalence",
+      "column": "canonical_finding_id",
+      "since": "2026-10-29",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "logical_call_id",
+      "since": "2026-11-23",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "attempt_no",
+      "since": "2026-11-23",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "attempt_outcome",
+      "since": "2026-11-23",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "capture_schema_version",
+      "since": "2026-11-23",
+      "expectFill": 0.99,
+      "tolerance": 0.02
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "audited_tree",
+      "since": "2026-11-24",
+      "expectFill": 0.9,
+      "tolerance": 0.1
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "diff_base_sha",
+      "since": "2026-11-24",
+      "where": "audit_producer",
+      "expectFill": 0.6,
+      "tolerance": 0.2
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "cost_usd",
+      "since": "2026-11-23",
+      "where": "audit_producer",
+      "expectFill": 0.85,
+      "tolerance": 0.1
+    }
+  ],
+  "exempt": [
+    {
+      "table": "audit_runs",
+      "column": "audit_round",
+      "reason": "NULL by design on unified runs (one row spans every round), plan A/B arm runs and bake-off arm runs; a null rate says nothing about capture quality. audit_session_id is the covered linkage column"
+    },
+    {
+      "table": "finding_adjudication_events",
+      "column": "adjudicator_model",
+      "reason": "unknowable on pipeline rows: the model is the HOST agent doing triage, which the script cannot observe, and AUDIT_AUTHOR_TIER_HINT is an observation-only tier. Covered only for reviewer rows (where reviewer_event)"
+    },
+    {
+      "table": "finding_adjudication_events",
+      "column": "ingested_at",
+      "reason": "added nullable only so the backfill can run; the same migration sets it NOT NULL DEFAULT now(), so it can never be null"
+    },
+    {
+      "table": "audit_repos",
+      "column": "training_eligibility_approved_by",
+      "reason": "set only when a repo's flag is changed; most repos stay undecided, so a null rate says nothing about capture quality"
+    },
+    {
+      "table": "audit_repos",
+      "column": "training_eligibility_set_at",
+      "reason": "set only when a repo's flag is changed (see approved_by)"
+    }
+  ]
+}

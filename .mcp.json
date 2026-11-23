@@ -1,0 +1,23 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@playwright/mcp@0.0.84",
+        "--headless"
+      ],
+      "env": {}
+    },
+    "mermaid": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "mcp-mermaid@0.4.1"
+      ],
+      "env": {}
+    }
+  }
+}
