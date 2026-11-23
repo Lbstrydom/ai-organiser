@@ -33,10 +33,22 @@ on:
     # Staggered off the source repo's Mondays 09:30 UTC sweep.
     - cron: '50 9 * * 1'
   workflow_dispatch:
+    inputs:
+      attempt:
+        description: 'Requeue attempt (1-3). Set by the requeue step; leave at 1 for a manual run.'
+        required: false
+        default: '1'
+        type: string
+      lock_wait_minutes:
+        description: 'Minutes to wait for the shared host lock (default 12, which fits the 30-minute job timeout).'
+        required: false
+        default: '12'
+        type: string
 
 permissions:
   contents: read
   issues: write
+  actions: write   # the host-lock requeue dispatches a fresh run of this workflow
 
 concurrency:
   group: architectural-drift
@@ -53,7 +65,7 @@ jobs:
     # problem needed a runner that's actually on that network.
     # `ai-organiser-runner` is registered against this repo for this job.
     runs-on: self-hosted
-    timeout-minutes: 90  # TEMP control-only; revert to 30 (or Louis's choice) before un-drafting
+    timeout-minutes: 30
     # Every `run:` step below is POSIX (bash `if [ ]`, $GITHUB_OUTPUT appends,
     # heredocs). Actions defaults `run:` to PowerShell on Windows, where none
     # of that parses — confirmed 2026-09-13: `test -f` failed with "The term
@@ -72,13 +84,17 @@ jobs:
     # release C:\ProgramData\actions-host-lock\host.lock; their text is identical
     # to storyline's and must stay identical. The lock wait counts against
     # timeout-minutes above, so it is set below it: a normal run takes ~15 min,
-    # and 12 + 15 fits in 30. Longer storyline runs make this job fail loudly
-    # ("did NOT run unlocked"), never run concurrently.
+    # and 12 + 15 fits in 30. A busy lock does not fail the run: the acquire
+    # step is continue-on-error, every work step is gated on it succeeding, and
+    # the requeue step dispatches attempt N+1 (max 3). Attempt 3 still blocked
+    # fails red and names the holder, so a skipped sweep is never silent.
     env:
-      HOST_LOCK_WAIT_MINUTES: '75'  # TEMP control-only; revert to 12 before un-drafting
+      HOST_LOCK_WAIT_MINUTES: ${{ inputs.lock_wait_minutes || '12' }}
     steps:
       # ── FIRST step of the job, before anything heavy ─────────────────────────────────────────
       - name: Take the shared host lock
+        id: lock
+        continue-on-error: true
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
@@ -138,28 +154,68 @@ jobs:
             Start-Sleep -Seconds 10
           }
 
+      # Not part of the shared snippet: ai-organiser's response to a busy lock.
+      - name: Requeue if the host lock was busy
+        if: steps.lock.outcome == 'failure'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATTEMPT: ${{ inputs.attempt || '1' }}
+          LOCK_WAIT: ${{ inputs.lock_wait_minutes || '12' }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $max  = 3
+          $n    = [int]$env:ATTEMPT
+          $lock = 'C:\ProgramData\actions-host-lock\host.lock'
+          $h = $null
+          for ($i = 0; $i -lt 10 -and -not $h; $i++) {
+            try {
+              $t = (Get-Content -LiteralPath $lock -Raw).Trim()
+              if ($t -and $t -ne 'free') { $h = $t | ConvertFrom-Json }
+              break
+            } catch [System.IO.IOException] { Start-Sleep -Seconds 2 } catch { break }
+          }
+          if (-not $h -or -not $h.runId) {
+            Write-Host '::error::The host-lock step failed for a reason other than a busy lock (see its log). Drift did NOT run and was not requeued.'
+            exit 1
+          }
+          $who = "$($h.repo) run $($h.runId) since $($h.started)"
+          if ($n -ge $max) {
+            Write-Host "::error::host lock held by $who on attempt $n of $max. Drift did NOT run; giving up."
+            exit 1
+          }
+          $next = $n + 1
+          gh workflow run architectural-drift.yml --repo $env:GITHUB_REPOSITORY --ref $env:GITHUB_REF_NAME -f "attempt=$next" -f "lock_wait_minutes=$env:LOCK_WAIT"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::requeue dispatch failed; drift did NOT run.'; exit 1 }
+          Write-Host "::notice::deferred: host lock held by $who; requeued as attempt $next"
+
       - name: Checkout
+        if: steps.lock.outcome == 'success'
         uses: actions/checkout@v7
 
       - name: Setup Node.js
+        if: steps.lock.outcome == 'success'
         uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.lock.outcome == 'success'
         run: npm ci --ignore-scripts
 
       # Without this, `npm run arch:drift` is MODULE_NOT_FOUND, Node exits 1,
       # and the exit-code map below reads 1 as "drift triggered" — filing a
       # bogus sticky issue off a missing file. Upstream is public; no token.
       - name: Checkout upstream tooling
+        if: steps.lock.outcome == 'success'
         uses: actions/checkout@v7
         with:
           repository: Lbstrydom/claude-engineering-skills
           path: .upstream-skills
 
       - name: Hydrate scripts/.claude-skills
+        if: steps.lock.outcome == 'success'
         run: |
           mkdir -p scripts/.claude-skills
           cp -R .upstream-skills/scripts/. scripts/.claude-skills/
@@ -174,6 +230,7 @@ jobs:
       # every real step and the run reports success — a green certifying only
       # that the runner booted. Fail closed instead. Never echoes the value.
       - name: Preflight AUDIT_DB_URL
+        if: steps.lock.outcome == 'success'
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
         run: |
@@ -184,6 +241,7 @@ jobs:
           echo "AUDIT_DB_URL present (value not echoed)."
 
       - name: Refresh architectural memory (full)
+        if: steps.lock.outcome == 'success'
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
           AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
@@ -192,6 +250,7 @@ jobs:
         run: npm run arch:refresh:full || true
 
       - name: Run drift sweep
+        if: steps.lock.outcome == 'success'
         id: drift
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
@@ -207,6 +266,7 @@ jobs:
           else echo "status=error" >> "$GITHUB_OUTPUT"; fi
 
       - name: Run retention prune
+        if: steps.lock.outcome == 'success'
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
           AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
