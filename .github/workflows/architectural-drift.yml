@@ -107,12 +107,20 @@ jobs:
             $w = Get-CimInstance Win32_Process -Filter "ProcessId=$($w.ParentProcessId)"
           }
           if (-not $w) { throw 'FAIL: no Runner.Worker ancestor -- cannot record a holder that outlives this step.' }
+          # `startedTicks` is the field the staleness check compares, and it is a STRING on purpose.
+          # Under `shell: pwsh` (PowerShell 7) ConvertFrom-Json deserialises an ISO-8601 value into a
+          # [DateTime], so comparing it against a formatted string is ALWAYS false and every live
+          # holder reads as stale -- the lock then excludes nobody. (Windows PowerShell 5.1 returns a
+          # String and the same code works, which is how a harness run under 5.1 passed it.) Ticks
+          # as a string survive any serialiser unchanged and are compared as [long] on both sides.
+          # `started` is kept for the log line only, never for a decision.
           $mine = [pscustomobject]@{
-            repo    = $env:GITHUB_REPOSITORY
-            runId   = $env:GITHUB_RUN_ID
-            attempt = $env:GITHUB_RUN_ATTEMPT
-            pid     = $w.ProcessId
-            started = $w.CreationDate.ToUniversalTime().ToString('o')
+            repo        = $env:GITHUB_REPOSITORY
+            runId       = $env:GITHUB_RUN_ID
+            attempt     = $env:GITHUB_RUN_ATTEMPT
+            pid         = $w.ProcessId
+            started     = $w.CreationDate.ToUniversalTime().ToString('o')
+            startedTicks = "$($w.CreationDate.ToUniversalTime().Ticks)"
           }
           "HOST_LOCK_RUN_ID=$($mine.runId)"     | Out-File $env:GITHUB_ENV -Append -Encoding utf8
           "HOST_LOCK_ATTEMPT=$($mine.attempt)"  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
@@ -129,13 +137,15 @@ jobs:
                 if ($text -and $text -ne 'free') {
                   $h = $null
                   try { $h = $text | ConvertFrom-Json } catch { }
-                  if (-not $h) {
-                    # Unparseable content is NOT treated as free: that would turn a corrupt lock
-                    # into no lock. Fail loudly and let a human look.
+                  if (-not $h -or -not $h.startedTicks) {
+                    # Unparseable content -- or a record without the field the staleness check needs
+                    # -- is NOT treated as free: that would turn a corrupt lock into no lock. Fail
+                    # loudly and let a human look.
                     throw "FAIL: $lock holds unparseable content; refusing to assume it is free. Content: $text"
                   }
                   $alive = Get-CimInstance Win32_Process -Filter "ProcessId=$($h.pid)" -ErrorAction SilentlyContinue
-                  $same  = $alive -and ($alive.CreationDate.ToUniversalTime().ToString('o') -eq $h.started)
+                  # Integer comparison on both sides: no formatting, no culture, no [DateTime] coercion.
+                  $same  = $alive -and ([long]$alive.CreationDate.ToUniversalTime().Ticks -eq [long]$h.startedTicks)
                   if ($same) { $free = $false; $held = $h }
                   else { Write-Host "host-lock: taking over a stale record (repo=$($h.repo) run=$($h.runId) pid=$($h.pid) started=$($h.started)) -- that process is gone." }
                 }

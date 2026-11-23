@@ -26,7 +26,7 @@ const RELEASE = 'Release the shared host lock';
 
 // sha256 of the two run bodies, identical to storyline's copy. Changing either body means
 // changing it in BOTH repos; update these only together with storyline's.
-const ACQUIRE_SHA = '8be5b186df66c58887442d0c808fe7d0135113bdd9f6233dd5bd11c95701cb8c';
+const ACQUIRE_SHA = '4c5b680bc0eb594616f1025f4095cf697ae30376ea9d78a4aedb15a77f973f14';
 const RELEASE_SHA = '5b07f140821ace0da8158e5c949122d8d351d64fcbae5321c7fa41744fe5278a';
 
 const sha = (s: string | undefined) => createHash('sha256').update(s ?? '').digest('hex');
