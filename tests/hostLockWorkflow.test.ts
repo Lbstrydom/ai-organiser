@@ -7,6 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { load } from 'js-yaml';
@@ -18,6 +19,7 @@ interface Step {
     run?: string;
     uses?: string;
     'continue-on-error'?: boolean;
+    env?: Record<string, string>;
 }
 
 const ACQUIRE = 'Take the shared host lock';
@@ -26,7 +28,7 @@ const RELEASE = 'Release the shared host lock';
 
 // sha256 of the two run bodies, identical to storyline's copy. Changing either body means
 // changing it in BOTH repos; update these only together with storyline's.
-const ACQUIRE_SHA = 'ad4e5a3461cd612b7d003aedc98705d11a93bd43217186e7c7f2018d925a2cd1';
+const ACQUIRE_SHA = '56f3d4f957e3acf43b84d10d478ed6856018c08f5cea54c9172b87357fc2c388';
 const RELEASE_SHA = '5b07f140821ace0da8158e5c949122d8d351d64fcbae5321c7fa41744fe5278a';
 
 const sha = (s: string | undefined) => createHash('sha256').update(s ?? '').digest('hex');
@@ -91,5 +93,42 @@ describe('architectural-drift host lock', () => {
         const { job } = loadDrift();
         expect(job['timeout-minutes']).toBe(30);
         expect(job.env?.HOST_LOCK_WAIT_MINUTES).toBe("${{ inputs.lock_wait_minutes || '12' }}");
+    });
+
+    it('requeues only on the busy flag the acquire step sets', () => {
+        const { steps } = loadDrift();
+        const rq = steps[1];
+        expect(rq.env?.LOCK_RESULT).toBe('${{ steps.lock.outputs.HOST_LOCK_RESULT }}');
+        const run = rq.run ?? '';
+        // The busy check must come before anything that could dispatch a new run.
+        const busyCheck = run.indexOf("if ($env:LOCK_RESULT -ne 'busy')");
+        expect(busyCheck).toBeGreaterThan(-1);
+        expect(busyCheck).toBeLessThan(run.indexOf('gh workflow run'));
+    });
+});
+
+// Runs the requeue step's own text. Both paths exit before any dispatch, so no network.
+const hasPwsh = spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0']).status === 0;
+describe.skipIf(!hasPwsh)('requeue step behaviour (pwsh)', () => {
+    const runRequeue = (env: Record<string, string>) => {
+        const body = loadDrift().steps[1].run ?? '';
+        return spawnSync('pwsh', ['-NoProfile', '-NonInteractive', '-Command', body], {
+            encoding: 'utf8',
+            env: { ...process.env, ATTEMPT: '1', LOCK_WAIT: '12', LOCK_RESULT: '', GH_TOKEN: '', ...env },
+        });
+    };
+
+    it('a broken lock (no busy flag) fails red and is NOT requeued', () => {
+        const r = runRequeue({ LOCK_RESULT: '' });
+        expect(r.status).toBe(1);
+        expect(r.stdout).toContain('other than a busy lock');
+        expect(r.stdout).not.toContain('requeued as attempt');
+    });
+
+    it('a busy lock on the last attempt fails red and gives up', () => {
+        const r = runRequeue({ LOCK_RESULT: 'busy', ATTEMPT: '3' });
+        expect(r.status).toBe(1);
+        expect(r.stdout).toContain('attempt 3 of 3');
+        expect(r.stdout).not.toContain('requeued as attempt');
     });
 });

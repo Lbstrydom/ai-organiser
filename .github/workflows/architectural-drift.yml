@@ -171,6 +171,14 @@ jobs:
               } finally { $fs.Dispose() }
             } catch [System.IO.IOException] { }   # another job holds the handle for its own CAS; retry
             if ((Get-Date) -ge $deadline) {
+              # `busy` is written ONLY here, on the timeout path, and never for the hard failures
+              # above (missing file, unreadable record, no Runner.Worker ancestor). A consumer that
+              # requeues on a busy host must be able to tell "someone else is working" from "this
+              # lock is broken", and re-reading the file afterwards cannot: by then the holder may
+              # have released (the file reads `free`, so a busy timeout looks like a hard failure),
+              # and a hard failure while someone else legitimately holds it looks busy. Only the step
+              # that did the waiting knows which happened.
+              if ($env:GITHUB_OUTPUT) { "HOST_LOCK_RESULT=busy" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8 }
               throw "FAIL: host lock not acquired within $waitMin min. Holder: repo=$($held.repo) run=$($held.runId) attempt=$($held.attempt) pid=$($held.pid) started=$($held.started). This job did NOT run unlocked."
             }
             Start-Sleep -Seconds 10
@@ -184,10 +192,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ATTEMPT: ${{ inputs.attempt || '1' }}
           LOCK_WAIT: ${{ inputs.lock_wait_minutes || '12' }}
+          # Set by the shared acquire step on its wait-timeout path ONLY. A missing lock file,
+          # an unreadable record or a missing Runner.Worker leaves it empty.
+          LOCK_RESULT: ${{ steps.lock.outputs.HOST_LOCK_RESULT }}
         run: |
           $ErrorActionPreference = 'Stop'
           $max  = 3
           $n    = [int]$env:ATTEMPT
+          if ($env:LOCK_RESULT -ne 'busy') {
+            Write-Host '::error::The host-lock step failed for a reason other than a busy lock (see its log for the cause and recovery). Drift did NOT run and was not requeued.'
+            exit 1
+          }
+          # The step output says WHAT happened; the file says WHO held it. Only the second is read here.
           $lock = 'C:\ProgramData\actions-host-lock\host.lock'
           $h = $null
           for ($i = 0; $i -lt 10 -and -not $h; $i++) {
@@ -197,11 +213,7 @@ jobs:
               break
             } catch [System.IO.IOException] { Start-Sleep -Seconds 2 } catch { break }
           }
-          if (-not $h -or -not $h.runId) {
-            Write-Host '::error::The host-lock step failed for a reason other than a busy lock (see its log). Drift did NOT run and was not requeued.'
-            exit 1
-          }
-          $who = "$($h.repo) run $($h.runId) since $($h.started)"
+          $who = if ($h -and $h.runId) { "$($h.repo) run $($h.runId) since $($h.started)" } else { 'a holder that released it as the wait ended' }
           if ($n -ge $max) {
             Write-Host "::error::host lock held by $who on attempt $n of $max. Drift did NOT run; giving up."
             exit 1
