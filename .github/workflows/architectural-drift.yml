@@ -1,4 +1,7 @@
 name: architectural-drift
+# A run that is a requeue says so in the Actions list. A title is fixed before the job runs, so a
+# run that defers cannot rename itself; it says DEFERRED on its summary page instead.
+run-name: "architectural-drift${{ (inputs.attempt && inputs.attempt != '1') && format(' (requeued, attempt {0} of 3)', inputs.attempt) || '' }}"
 
 # Weekly architectural drift sweep + retention prune.
 #
@@ -33,10 +36,22 @@ on:
     # Staggered off the source repo's Mondays 09:30 UTC sweep.
     - cron: '50 9 * * 1'
   workflow_dispatch:
+    inputs:
+      attempt:
+        description: 'Requeue attempt (1-3). Set by the requeue step; leave at 1 for a manual run.'
+        required: false
+        default: '1'
+        type: string
+      lock_wait_minutes:
+        description: 'Minutes to wait for the shared host lock (default 12, which fits the 30-minute job timeout).'
+        required: false
+        default: '12'
+        type: string
 
 permissions:
   contents: read
   issues: write
+  actions: write   # the host-lock requeue dispatches a fresh run of this workflow
 
 concurrency:
   group: architectural-drift
@@ -66,29 +81,180 @@ jobs:
     defaults:
       run:
         shell: 'C:\PROGRA~1\Git\bin\bash.exe -eo pipefail {0}'
+    # SHARED HOST LOCK (2026-11-23). This box also runs storyline's self-hosted
+    # runner, and the two collided on 2026-11-23 (this job held the host while a
+    # storyline job hit its 60-minute budget). The first and last steps take and
+    # release C:\ProgramData\actions-host-lock\host.lock; their text is identical
+    # to storyline's and must stay identical. The lock wait counts against
+    # timeout-minutes above, so it is set below it: a normal run takes ~15 min,
+    # and 12 + 15 fits in 30. A busy lock does not fail the run: the acquire
+    # step is continue-on-error, every work step is gated on it succeeding, and
+    # the requeue step dispatches attempt N+1 (max 3). Attempt 3 still blocked
+    # fails red and names the holder, so a skipped sweep is never silent.
+    env:
+      HOST_LOCK_WAIT_MINUTES: ${{ inputs.lock_wait_minutes || '12' }}
     steps:
+      # ── FIRST step of the job, before anything heavy ─────────────────────────────────────────
+      - name: Take the shared host lock
+        id: lock
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $lock = 'C:\ProgramData\actions-host-lock\host.lock'
+          if (-not (Test-Path -LiteralPath $lock)) {
+            throw "FAIL: $lock is missing. It must be pre-created with Modify for both runner accounts. This step will NOT create it: a file created by one account is unwritable by the other, which breaks the lock silently in the only case it matters."
+          }
+          $w = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
+          while ($w -and $w.Name -ne 'Runner.Worker.exe') {
+            $w = Get-CimInstance Win32_Process -Filter "ProcessId=$($w.ParentProcessId)"
+          }
+          if (-not $w) { throw 'FAIL: no Runner.Worker ancestor -- cannot record a holder that outlives this step.' }
+          # `startedTicks` is the field the staleness check compares, and it is a STRING on purpose.
+          # Under `shell: pwsh` (PowerShell 7) ConvertFrom-Json deserialises an ISO-8601 value into a
+          # [DateTime], so comparing it against a formatted string is ALWAYS false and every live
+          # holder reads as stale -- the lock then excludes nobody. (Windows PowerShell 5.1 returns a
+          # String and the same code works, which is how a harness run under 5.1 passed it.) Ticks
+          # as a string survive any serialiser unchanged and are compared as [long] on both sides.
+          # `started` is kept for the log line only, never for a decision.
+          $mine = [pscustomobject]@{
+            repo        = $env:GITHUB_REPOSITORY
+            runId       = $env:GITHUB_RUN_ID
+            attempt     = $env:GITHUB_RUN_ATTEMPT
+            pid         = $w.ProcessId
+            started     = $w.CreationDate.ToUniversalTime().ToString('o')
+            startedTicks = "$($w.CreationDate.ToUniversalTime().Ticks)"
+          }
+          "HOST_LOCK_RUN_ID=$($mine.runId)"     | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          "HOST_LOCK_ATTEMPT=$($mine.attempt)"  | Out-File $env:GITHUB_ENV -Append -Encoding utf8
+          $waitMin  = if ($env:HOST_LOCK_WAIT_MINUTES) { [int]$env:HOST_LOCK_WAIT_MINUTES } else { 75 }
+          $deadline = (Get-Date).AddMinutes($waitMin)
+          $held     = $null
+          while ($true) {
+            try {
+              $fs = [System.IO.File]::Open($lock, 'Open', 'ReadWrite', 'None')
+              try {
+                $sr   = New-Object System.IO.StreamReader($fs)
+                $text = $sr.ReadToEnd().Trim()
+                $free = $true
+                if ($text -and $text -ne 'free') {
+                  $h = $null
+                  try { $h = $text | ConvertFrom-Json } catch { }
+                  if (-not $h -or -not $h.pid) {
+                    # Genuinely unparseable content is NOT treated as free -- that would turn a
+                    # corrupt lock into no lock -- and the message names the recovery, because a
+                    # fail-closed lock stops every job on every repo sharing this host until a human
+                    # acts. Recovery: write the five characters `free` into the file.
+                    throw "FAIL: $lock holds content this gate cannot read, and it refuses to assume the host is free. Every self-hosted job on this machine will fail here until it is cleared. RECOVERY: write `free` into $lock (no newline). Content was: $text"
+                  }
+                  $alive = Get-CimInstance Win32_Process -Filter "ProcessId=$($h.pid)" -ErrorAction SilentlyContinue
+                  if ($h.startedTicks) {
+                    # Integer comparison on both sides: no formatting, no culture, no [DateTime] coercion.
+                    $same = $alive -and ([long]$alive.CreationDate.ToUniversalTime().Ticks -eq [long]$h.startedTicks)
+                  } else {
+                    # A record that parses and names a pid but predates `startedTicks` is a KNOWN
+                    # transitional shape, not corruption -- this gate wrote it itself. Falling back to
+                    # the pid-liveness check keeps the lock doing its actual job (a live holder still
+                    # blocks); it is weaker only against pid reuse, which is a narrow window. Failing
+                    # closed here instead would wedge both repos' CI over a record we wrote, which
+                    # protects against nothing.
+                    Write-Host "::warning::host-lock: holder record has no startedTicks (written before 2026-11-23); falling back to a pid-only liveness check, which does not guard against pid reuse."
+                    $same = [bool]$alive
+                  }
+                  if ($same) { $free = $false; $held = $h }
+                  else { Write-Host "host-lock: taking over a stale record (repo=$($h.repo) run=$($h.runId) pid=$($h.pid) started=$($h.started)) -- that process is gone." }
+                }
+                if ($free) {
+                  $fs.SetLength(0)
+                  $sw = New-Object System.IO.StreamWriter($fs)
+                  $sw.Write(($mine | ConvertTo-Json -Compress)); $sw.Flush()
+                  Write-Host "host-lock: acquired by $($mine.repo) run $($mine.runId) attempt $($mine.attempt) (worker pid $($mine.pid))."
+                  break
+                }
+              } finally { $fs.Dispose() }
+            } catch [System.IO.IOException] { }   # another job holds the handle for its own CAS; retry
+            if ((Get-Date) -ge $deadline) {
+              # `busy` is written ONLY here, on the timeout path, and never for the hard failures
+              # above (missing file, unreadable record, no Runner.Worker ancestor). A consumer that
+              # requeues on a busy host must be able to tell "someone else is working" from "this
+              # lock is broken", and re-reading the file afterwards cannot: by then the holder may
+              # have released (the file reads `free`, so a busy timeout looks like a hard failure),
+              # and a hard failure while someone else legitimately holds it looks busy. Only the step
+              # that did the waiting knows which happened.
+              if ($env:GITHUB_OUTPUT) { "HOST_LOCK_RESULT=busy" | Out-File $env:GITHUB_OUTPUT -Append -Encoding utf8 }
+              throw "FAIL: host lock not acquired within $waitMin min. Holder: repo=$($held.repo) run=$($held.runId) attempt=$($held.attempt) pid=$($held.pid) started=$($held.started). This job did NOT run unlocked."
+            }
+            Start-Sleep -Seconds 10
+          }
+
+      # Not part of the shared snippet: ai-organiser's response to a busy lock.
+      - name: Requeue if the host lock was busy
+        if: steps.lock.outcome == 'failure'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ATTEMPT: ${{ inputs.attempt || '1' }}
+          LOCK_WAIT: ${{ inputs.lock_wait_minutes || '12' }}
+          # Set by the shared acquire step on its wait-timeout path ONLY. A missing lock file,
+          # an unreadable record or a missing Runner.Worker leaves it empty.
+          LOCK_RESULT: ${{ steps.lock.outputs.HOST_LOCK_RESULT }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $max  = 3
+          $n    = [int]$env:ATTEMPT
+          if ($env:LOCK_RESULT -ne 'busy') {
+            Write-Host '::error::The host-lock step failed for a reason other than a busy lock (see its log for the cause and recovery). Drift did NOT run and was not requeued.'
+            exit 1
+          }
+          # The step output says WHAT happened; the file says WHO held it. Only the second is read here.
+          $lock = 'C:\ProgramData\actions-host-lock\host.lock'
+          $h = $null
+          for ($i = 0; $i -lt 10 -and -not $h; $i++) {
+            try {
+              $t = (Get-Content -LiteralPath $lock -Raw).Trim()
+              if ($t -and $t -ne 'free') { $h = $t | ConvertFrom-Json }
+              break
+            } catch [System.IO.IOException] { Start-Sleep -Seconds 2 } catch { break }
+          }
+          $who = if ($h -and $h.runId) { "$($h.repo) run $($h.runId) since $($h.started)" } else { 'a holder that released it as the wait ended' }
+          if ($n -ge $max) {
+            Write-Host "::error::host lock held by $who on attempt $n of $max. Drift did NOT run; giving up."
+            if ($env:GITHUB_STEP_SUMMARY) { "## DEFERRED, then gave up: drift did NOT run`n`nHost lock held by $who on attempt $n of $max." | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+            exit 1
+          }
+          $next = $n + 1
+          gh workflow run architectural-drift.yml --repo $env:GITHUB_REPOSITORY --ref $env:GITHUB_REF_NAME -f "attempt=$next" -f "lock_wait_minutes=$env:LOCK_WAIT"
+          if ($LASTEXITCODE -ne 0) { Write-Host '::error::requeue dispatch failed; drift did NOT run.'; exit 1 }
+          Write-Host "::notice::deferred: host lock held by $who; requeued as attempt $next"
+          if ($env:GITHUB_STEP_SUMMARY) { "## DEFERRED: drift did NOT run in this run`n`nHost lock held by $who. Requeued as attempt $next of $max. A green conclusion here means deferred, not checked." | Out-File $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8 }
+
       - name: Checkout
+        if: steps.lock.outcome == 'success'
         uses: actions/checkout@v7
 
       - name: Setup Node.js
+        if: steps.lock.outcome == 'success'
         uses: actions/setup-node@v6
         with:
           node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
+        if: steps.lock.outcome == 'success'
         run: npm ci --ignore-scripts
 
       # Without this, `npm run arch:drift` is MODULE_NOT_FOUND, Node exits 1,
       # and the exit-code map below reads 1 as "drift triggered" — filing a
       # bogus sticky issue off a missing file. Upstream is public; no token.
       - name: Checkout upstream tooling
+        if: steps.lock.outcome == 'success'
         uses: actions/checkout@v7
         with:
           repository: Lbstrydom/claude-engineering-skills
           path: .upstream-skills
 
       - name: Hydrate scripts/.claude-skills
+        if: steps.lock.outcome == 'success'
         run: |
           mkdir -p scripts/.claude-skills
           cp -R .upstream-skills/scripts/. scripts/.claude-skills/
@@ -103,6 +269,7 @@ jobs:
       # every real step and the run reports success — a green certifying only
       # that the runner booted. Fail closed instead. Never echoes the value.
       - name: Preflight AUDIT_DB_URL
+        if: steps.lock.outcome == 'success'
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
         run: |
@@ -113,6 +280,7 @@ jobs:
           echo "AUDIT_DB_URL present (value not echoed)."
 
       - name: Refresh architectural memory (full)
+        if: steps.lock.outcome == 'success'
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
           AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
@@ -121,6 +289,7 @@ jobs:
         run: npm run arch:refresh:full || true
 
       - name: Run drift sweep
+        if: steps.lock.outcome == 'success'
         id: drift
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
@@ -136,6 +305,7 @@ jobs:
           else echo "status=error" >> "$GITHUB_OUTPUT"; fi
 
       - name: Run retention prune
+        if: steps.lock.outcome == 'success'
         env:
           AUDIT_DB_URL: ${{ secrets.AUDIT_DB_URL }}
           AUDIT_DB_SSL_MODE: ${{ secrets.AUDIT_DB_SSL_MODE }}
@@ -196,3 +366,34 @@ jobs:
         run: |
           echo "::error::drift script failed with exit code 2 (infra error, not a drift signal)"
           exit 1
+
+      # ── LAST step of the job ─────────────────────────────────────────────────────────────────
+      - name: Release the shared host lock
+        if: always()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $lock = 'C:\ProgramData\actions-host-lock\host.lock'
+          if (-not (Test-Path -LiteralPath $lock)) { Write-Host 'host-lock: file missing at release; nothing to do.'; exit 0 }
+          for ($i = 0; $i -lt 30; $i++) {
+            try {
+              $fs = [System.IO.File]::Open($lock, 'Open', 'ReadWrite', 'None')
+              try {
+                $sr = New-Object System.IO.StreamReader($fs)
+                $t  = $sr.ReadToEnd().Trim()
+                $h  = $null
+                if ($t -and $t -ne 'free') { try { $h = $t | ConvertFrom-Json } catch { } }
+                # Release ONLY our own record: after a stale takeover the lock belongs to someone
+                # else, and freeing it would hand the host to a third job mid-run.
+                if ($h -and "$($h.runId)" -eq "$env:HOST_LOCK_RUN_ID" -and "$($h.attempt)" -eq "$env:HOST_LOCK_ATTEMPT") {
+                  $fs.SetLength(0)
+                  $sw = New-Object System.IO.StreamWriter($fs); $sw.Write('free'); $sw.Flush()
+                  Write-Host 'host-lock: released.'
+                } else {
+                  Write-Host "host-lock: not ours any more (content: $t) -- left untouched."
+                }
+              } finally { $fs.Dispose() }
+              exit 0
+            } catch [System.IO.IOException] { Start-Sleep -Seconds 2 }
+          }
+          Write-Host '::warning::host-lock: could not open the lock to release it; the next job will take it over as stale.'
