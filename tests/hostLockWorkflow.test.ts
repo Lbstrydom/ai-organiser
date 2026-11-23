@@ -108,6 +108,10 @@ describe('architectural-drift host lock', () => {
 });
 
 // Runs the requeue step's own text. Both paths exit before any dispatch, so no network.
+// Scoped to the REQUEUE step on purpose. Do not extend it to the acquire step: its staleness
+// check is Get-CimInstance Win32_Process, which does not exist on CI's ubuntu runner, so an
+// acquire test here would skip or fail for the wrong reason and still read as coverage. The
+// acquire is exercised by the shared snippet's own pwsh-7 harness on the Windows host.
 const hasPwsh = spawnSync('pwsh', ['-NoProfile', '-Command', 'exit 0']).status === 0;
 describe.skipIf(!hasPwsh)('requeue step behaviour (pwsh)', () => {
     const runRequeue = (env: Record<string, string>) => {
