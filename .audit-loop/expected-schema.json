@@ -2098,6 +2098,24 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 69
+        },
+        {
+          "column_name": "linkage_state",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 70
+        },
+        {
+          "column_name": "linkage_reason",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 71
         }
       ]
     },
@@ -4861,6 +4879,15 @@
           "is_identity": "NO",
           "identity_generation": null,
           "ordinal_position": 29
+        },
+        {
+          "column_name": "pricing_version",
+          "data_type": "text",
+          "is_nullable": "YES",
+          "column_default": null,
+          "is_identity": "NO",
+          "identity_generation": null,
+          "ordinal_position": 30
         }
       ]
     },
@@ -10861,6 +10888,13 @@
       "config": null
     },
     {
+      "function_name": "audit_runs_derive_linkage",
+      "args": "",
+      "return_type": "trigger",
+      "security_definer": false,
+      "config": "search_path=public"
+    },
+    {
       "function_name": "avg",
       "args": "halfvec",
       "return_type": "halfvec",
@@ -12233,7 +12267,7 @@
     },
     {
       "view_name": "audit_effectiveness",
-      "definition": " SELECT r.id AS repo_id,\n    r.name AS repo_name,\n    count(*) FILTER (WHERE (c.correlation_type = 'confirmed_hit'::text)) AS confirmed_hits,\n    count(*) FILTER (WHERE (c.correlation_type = 'audit_missed'::text)) AS audit_misses,\n    count(*) FILTER (WHERE (c.correlation_type = 'audit_false_positive'::text)) AS audit_false_positives,\n    count(*) FILTER (WHERE (c.correlation_type = 'severity_understated'::text)) AS severity_understated,\n    count(*) FILTER (WHERE (c.correlation_type = 'severity_overstated'::text)) AS severity_overstated,\n    round((NULLIF((count(*) FILTER (WHERE (c.correlation_type = 'confirmed_hit'::text)))::numeric, (0)::numeric) / NULLIF((count(*) FILTER (WHERE (c.correlation_type = ANY (ARRAY['confirmed_hit'::text, 'audit_false_positive'::text]))))::numeric, (0)::numeric)), 3) AS user_visible_precision,\n    round((NULLIF((count(*) FILTER (WHERE (c.correlation_type = 'confirmed_hit'::text)))::numeric, (0)::numeric) / NULLIF((count(*) FILTER (WHERE (c.correlation_type = ANY (ARRAY['confirmed_hit'::text, 'audit_missed'::text]))))::numeric, (0)::numeric)), 3) AS user_visible_recall\n   FROM ((audit_repos r\n     LEFT JOIN persona_test_sessions s ON ((s.repo_name = r.name)))\n     LEFT JOIN persona_audit_correlations c ON ((c.persona_session_id = s.id)))\n  GROUP BY r.id, r.name;"
+      "definition": " SELECT r.id AS repo_id,\n    r.name AS repo_name,\n    count(*) FILTER (WHERE (c.correlation_type = 'confirmed_hit'::text)) AS confirmed_hits,\n    count(*) FILTER (WHERE (c.correlation_type = 'audit_missed'::text)) AS audit_misses,\n    count(*) FILTER (WHERE (c.correlation_type = 'audit_false_positive'::text)) AS audit_false_positives,\n    count(*) FILTER (WHERE (c.correlation_type = 'severity_understated'::text)) AS severity_understated,\n    count(*) FILTER (WHERE (c.correlation_type = 'severity_overstated'::text)) AS severity_overstated,\n    round((NULLIF((count(*) FILTER (WHERE (c.correlation_type = 'confirmed_hit'::text)))::numeric, (0)::numeric) / NULLIF((count(*) FILTER (WHERE (c.correlation_type = ANY (ARRAY['confirmed_hit'::text, 'audit_false_positive'::text]))))::numeric, (0)::numeric)), 3) AS user_visible_precision,\n    round((NULLIF((count(*) FILTER (WHERE (c.correlation_type = 'confirmed_hit'::text)))::numeric, (0)::numeric) / NULLIF((count(*) FILTER (WHERE (c.correlation_type = ANY (ARRAY['confirmed_hit'::text, 'audit_missed'::text]))))::numeric, (0)::numeric)), 3) AS user_visible_recall\n   FROM ((audit_repos r\n     LEFT JOIN persona_test_sessions s ON (((s.repo_id = r.id) OR ((s.repo_id IS NULL) AND (s.repo_name = r.name)))))\n     LEFT JOIN persona_audit_correlations c ON ((c.persona_session_id = s.id)))\n  GROUP BY r.id, r.name;"
     },
     {
       "view_name": "debt_summary",
@@ -12281,7 +12315,7 @@
     },
     {
       "view_name": "persona_density_per_repo",
-      "definition": " SELECT r.id AS repo_id,\n    r.name AS repo_name,\n    (COALESCE(count(pts.id) FILTER (WHERE (pts.created_at > (now() - '30 days'::interval))), (0)::bigint))::integer AS density_30d\n   FROM (audit_repos r\n     LEFT JOIN persona_test_sessions pts ON ((pts.repo_name = r.name)))\n  GROUP BY r.id, r.name;"
+      "definition": " SELECT r.id AS repo_id,\n    r.name AS repo_name,\n    (COALESCE(count(pts.id) FILTER (WHERE (pts.created_at > (now() - '30 days'::interval))), (0)::bigint))::integer AS density_30d\n   FROM (audit_repos r\n     LEFT JOIN persona_test_sessions pts ON (((pts.repo_id = r.id) OR ((pts.repo_id IS NULL) AND (pts.repo_name = r.name)))))\n  GROUP BY r.id, r.name;"
     },
     {
       "view_name": "plan_satisfaction",
@@ -12618,6 +12652,18 @@
       "constraint_name": "audit_runs_gemini_verdict_check",
       "constraint_type": "CHECK",
       "definition": "CHECK ((gemini_verdict = ANY (ARRAY['APPROVE'::text, 'CONCERNS'::text, 'CONCERNS_REMAINING'::text, 'REJECT'::text])))"
+    },
+    {
+      "table_name": "audit_runs",
+      "constraint_name": "audit_runs_linkage_pair_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((linkage_state IS NULL) OR ((linkage_state = 'linked'::text) AND (audit_session_id IS NOT NULL) AND (linkage_reason IS NULL)) OR ((linkage_state = 'standalone'::text) AND (audit_session_id IS NULL) AND COALESCE((linkage_reason = ANY (ARRAY['manual-single-shot'::text, 'canary'::text, 'model-eval'::text])), false)) OR ((linkage_state = 'unlinked'::text) AND (audit_session_id IS NULL) AND (linkage_reason IS NOT NULL))))"
+    },
+    {
+      "table_name": "audit_runs",
+      "constraint_name": "audit_runs_linkage_state_chk",
+      "constraint_type": "CHECK",
+      "definition": "CHECK (((linkage_state IS NULL) OR (linkage_state = ANY (ARRAY['linked'::text, 'unlinked'::text, 'standalone'::text]))))"
     },
     {
       "table_name": "audit_runs",
@@ -15620,6 +15666,13 @@
     }
   ],
   "triggers": [
+    {
+      "table_name": "audit_runs",
+      "trigger_name": "trg_audit_runs_derive_linkage",
+      "action_timing": "BEFORE",
+      "events": "INSERT,UPDATE",
+      "action_statement": "EXECUTE FUNCTION audit_runs_derive_linkage()"
+    },
     {
       "table_name": "campaign_events",
       "trigger_name": "campaign_events_no_update",

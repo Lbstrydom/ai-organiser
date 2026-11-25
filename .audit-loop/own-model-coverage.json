@@ -14,8 +14,10 @@
       "table": "learning_decisions",
       "column": "policy_version",
       "since": "2026-10-29",
+      "where": "policy_repo",
       "expectFill": 0.8,
-      "tolerance": 0.1
+      "tolerance": 0.1,
+      "note": "policy_version hashes AGENTS.md, so a repo without one is NULL by design; the applicability keeps only repos that have recorded it at least once (field report 5, 2026-11-23). Floor unchanged. Blind spot: a repo that never filled it once is excluded, not measured"
     },
     {
       "table": "learning_decisions",
@@ -84,9 +86,10 @@
       "table": "audit_runs",
       "column": "policy_version",
       "since": "2026-10-29",
-      "where": "code_run",
+      "where": "code_run_policy_repo",
       "expectFill": 0.8,
-      "tolerance": 0.1
+      "tolerance": 0.1,
+      "note": "policy_version hashes AGENTS.md, so a repo without one is NULL by design; the applicability keeps only repos that have recorded it at least once (field report 5, 2026-11-23). Floor unchanged. Blind spot: a repo that never filled it once is excluded, not measured"
     },
     {
       "table": "audit_runs",
@@ -155,6 +158,14 @@
       "where": "code_run",
       "expectFill": 0.9,
       "tolerance": 0.05
+    },
+    {
+      "table": "audit_runs",
+      "column": "linkage_state",
+      "since": "2026-11-23",
+      "where": "code_run",
+      "expectFill": 0.99,
+      "tolerance": 0.02
     },
     {
       "table": "audit_runs",
@@ -253,9 +264,33 @@
       "where": "audit_producer",
       "expectFill": 0.85,
       "tolerance": 0.1
+    },
+    {
+      "table": "llm_call_provenance",
+      "column": "pricing_version",
+      "since": "2026-11-25",
+      "where": "audit_producer",
+      "expectFill": 0.85,
+      "tolerance": 0.1,
+      "note": "filled exactly when cost_usd is (same writer, same row), so it carries cost_usd's floor; since is the day after the column was added"
     }
   ],
   "exempt": [
+    {
+      "table": "audit_runs",
+      "column": "accepted_count",
+      "reason": "NOT NULL DEFAULT 0, so a null rate is meaningless, and the value is a LATER aggregate: recordRunStart inserts 0 and refreshRunAdjudicationCounts (run-aggregates.mjs, called from write-code-outcomes after triage) recomputes it from audit_findings.adjudication_outcome. Zero on an un-triaged round is correct. The source of truth for rulings is audit_findings.adjudication_outcome + finding_adjudication_events, never these two columns; training joins those, and audit_runs.labeled marks a run whose counts were refreshed"
+    },
+    {
+      "table": "audit_runs",
+      "column": "dismissed_count",
+      "reason": "see accepted_count: a post-triage aggregate over audit_findings.adjudication_outcome, 0 until the round is adjudicated; the source of truth is audit_findings / finding_adjudication_events"
+    },
+    {
+      "table": "audit_runs",
+      "column": "linkage_reason",
+      "reason": "NULL by design on a linked run; set only for unlinked (undeclared) and standalone (declared reason). linkage_state is the covered column"
+    },
     {
       "table": "audit_runs",
       "column": "audit_round",
