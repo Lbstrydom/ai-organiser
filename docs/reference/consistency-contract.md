@@ -629,10 +629,10 @@ write the ledger" condition).
 ## Candidate emission — RETIRED 2026-08-11, and what replaced it
 
 The runner used to write each unexpected P0/P1 contradiction into
-`regression_specs` as a `persona-consistency-candidate`, and `/ship` Step 5.6
+`regression_specs` as a `persona-consistency-candidate`, and `/ship-checked` Step 5.6
 promoted approved ones into generated Playwright specs. **The whole path is
 removed** — both consistency `source_kind` values, the four evidence columns,
-the promoter, the spec renderer and the `/ship` step (migration
+the promoter, the spec renderer and the `/ship-checked` step (migration
 `20260811150000`).
 
 Two facts sit behind that, and they are independent:
