@@ -1,19 +1,20 @@
 // Preflight for the local architectural-drift task (scripts/local/arch-drift-local.ps1).
 //
-// The task deliberately runs WITHOUT the main checkout's .env (the caller points
-// DOTENV_CONFIG_PATH at an empty file), so the Azure work profile defined there stays
-// off for this process tree and the refresh summarises and embeds through the public
-// routes. Everything else that reads that .env (interactive audits, the plugin's own
-// tests) is untouched. The plugin's Azure setup in Obsidian is separate and unaffected.
+// The task runs on whatever profile the owner's tooling resolves: the Azure work
+// profile when it is configured, the public routes otherwise. It does not pick a
+// profile itself; it only refuses to start a refresh that would publish an index
+// with no summaries or no vectors.
 //
 // Every answer comes from the tooling's own oracles, never a raw env check:
-//   - azureConfig.active                     (config.mjs: the Azure profile gate)
-//   - isClaudeAvailableFor('sdk')            (anthropic-client.mjs: the summariser's route)
-//   - resolveProviderAvailability('gemini')  (provider-availability.mjs: the embedder's route)
+//   - summariserAvailability()               (summary-route.mjs: the summariser's route,
+//                                             Azure GPT / Foundry Claude / public Claude)
+//   - azureConfig.active                     (config.mjs: on Azure, embeddings go to the
+//                                             profile's embedding deployment)
+//   - resolveProviderAvailability('gemini')  (provider-availability.mjs: the public embedder)
 //   - dbConfig.url presence                  (config.mjs: the cloud store)
 //
-// Prints one JSON line of booleans and reasons. Never prints a key, a DSN or a host.
-// Exit 0 when the run may proceed; 1 with `problems` naming what to add.
+// Prints one JSON line of booleans, route names and reasons. Never prints a key, a DSN
+// or a host. Exit 0 when the run may proceed; 1 with `problems` naming what is missing.
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -21,23 +22,26 @@ const tooling = path.resolve('scripts/.claude-skills/lib');
 const load = (f) => import(pathToFileURL(path.join(tooling, f)).href);
 
 const { azureConfig, dbConfig } = await load('config.mjs');
-const { isClaudeAvailableFor } = await load('anthropic-client.mjs');
+const { summariserAvailability } = await load('summary-route.mjs');
 const { resolveProviderAvailability } = await load('provider-availability.mjs');
 
-const gemini = resolveProviderAvailability('gemini');
+const summariser = summariserAvailability();
+const embedder = azureConfig.active
+  ? { available: true, route: 'azure', reason: null }
+  : resolveProviderAvailability('gemini');
+
 const result = {
-  azureProfileActive: azureConfig.active,
+  profile: azureConfig.active ? 'azure' : 'public',
   cloudStore: Boolean(dbConfig.url),
-  claudePublic: !azureConfig.active && isClaudeAvailableFor('sdk'),
-  geminiPublic: gemini.available && gemini.route === 'public',
+  summariser: summariser.available,
+  summaryRoute: summariser.route,
+  embedder: Boolean(embedder.available),
+  embedRoute: embedder.route,
   problems: [],
 };
-if (result.azureProfileActive) {
-  result.problems.push('the Azure work profile is active in the task process; the task must not load the main checkout .env');
-}
 if (!result.cloudStore) result.problems.push('AUDIT_DB_URL is not set in ~/.audit-loop.env');
-if (!result.claudePublic) result.problems.push('no public Claude route: add ANTHROPIC_API_KEY to ~/.audit-loop.env');
-if (!result.geminiPublic) result.problems.push(`no public Gemini route: add GEMINI_API_KEY to ~/.audit-loop.env${gemini.reason ? ` (${gemini.reason})` : ''}`);
+if (!result.summariser) result.problems.push(`no summariser route: ${summariser.reason}`);
+if (!result.embedder) result.problems.push(`no embedding route: ${embedder.reason || 'add GEMINI_API_KEY to ~/.audit-loop.env'}`);
 
 console.log(JSON.stringify(result));
 process.exit(result.problems.length ? 1 : 0);

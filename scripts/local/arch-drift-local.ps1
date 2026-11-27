@@ -11,20 +11,17 @@
   detached, to origin/main every run. It must never run in the main checkout, which is usually on
   some session's feature branch, and drift is measured against main.
 
-  Credentials are never handled here. The task reads ONLY the per-user ~/.audit-loop.env, through
-  the audit-loop tooling's own loader: it points DOTENV_CONFIG_PATH at an empty file, so the main
-  checkout's .env, and the Azure work profile it defines, are not loaded into this process tree.
-  The refresh therefore summarises through public Anthropic (ANTHROPIC_API_KEY) and embeds through
-  public Gemini (GEMINI_API_KEY), as the old GitHub job intended. Nothing outside the task changes:
-  interactive tooling still reads the main .env, and the plugin's own Azure setup lives in
-  Obsidian. Nothing prints a DSN or a key.
+  Credentials are never handled here. The task runs on whatever profile the owner's audit-loop
+  tooling resolves, through its own loader (the main checkout's .env, then ~/.audit-loop.env): the
+  Azure work profile when it is configured (summaries on its GPT deployment, embeddings on its
+  embedding deployment), the public routes otherwise. Nothing prints a DSN or a key.
 
   Steps, in the same order as the old workflow:
     1. fetch + detach the worktree at origin/main; npm ci when package-lock.json changed; hydrate
     2. preflight (scripts/local/arch-drift-preflight.mjs, the tooling's own route oracles): the cloud
-       store, a public Claude route and a public Gemini route must all resolve and the Azure
-       profile must be off, or the run fails before the refresh. A refresh with no provider
-       publishes an index with no summaries; that is a failure, never a pass.
+       store, a summariser route and an embedding route must all resolve, or the run fails before
+       the refresh. A refresh with no provider publishes an index with no summaries; that is a
+       failure, never a pass.
     3. arch:refresh:full (best effort, as before)
     4. arch:drift -> exit 0 green, 1 triggered, anything else is an infra error
     5. arch:prune (best effort, as before)
@@ -54,14 +51,6 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $stamp  = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $Log    = Join-Path $LogDir "run-$stamp.log"
 $Report = Join-Path $LogDir "report-$stamp.md"
-
-# Env scoping, for this process and its children only. An empty dotenv file stops the loader from
-# resolving the main checkout's .env (and the Azure work profile in it); ~/.audit-loop.env still
-# loads. CLAUDE_BACKEND is pinned so the summariser uses the route the preflight checked.
-$EmptyEnv = Join-Path $LogDir 'empty.env'
-if (-not (Test-Path -LiteralPath $EmptyEnv)) { New-Item -ItemType File -Path $EmptyEnv | Out-Null }
-$env:DOTENV_CONFIG_PATH = $EmptyEnv
-$env:CLAUDE_BACKEND = 'sdk'
 
 function Write-Log([string]$msg) {
     $line = "[{0}] {1}" -f (Get-Date).ToUniversalTime().ToString('o'), $msg
