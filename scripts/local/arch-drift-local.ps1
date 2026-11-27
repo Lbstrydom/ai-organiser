@@ -11,13 +11,20 @@
   detached, to origin/main every run. It must never run in the main checkout, which is usually on
   some session's feature branch, and drift is measured against main.
 
-  Credentials are never handled here. The audit-loop tooling's own loader reads the main checkout's
-  .env and the per-user ~/.audit-loop.env; this script only checks, through `cross-skill whoami`,
-  that the cloud store resolved. Nothing prints a DSN or a key.
+  Credentials are never handled here. The task reads ONLY the per-user ~/.audit-loop.env, through
+  the audit-loop tooling's own loader: it points DOTENV_CONFIG_PATH at an empty file, so the main
+  checkout's .env, and the Azure work profile it defines, are not loaded into this process tree.
+  The refresh therefore summarises through public Anthropic (ANTHROPIC_API_KEY) and embeds through
+  public Gemini (GEMINI_API_KEY), as the old GitHub job intended. Nothing outside the task changes:
+  interactive tooling still reads the main .env, and the plugin's own Azure setup lives in
+  Obsidian. Nothing prints a DSN or a key.
 
   Steps, in the same order as the old workflow:
     1. fetch + detach the worktree at origin/main; npm ci when package-lock.json changed; hydrate
-    2. preflight: the cloud store must resolve, or the run fails (never a green that checked nothing)
+    2. preflight (scripts/local/arch-drift-preflight.mjs, the tooling's own route oracles): the cloud
+       store, a public Claude route and a public Gemini route must all resolve and the Azure
+       profile must be off, or the run fails before the refresh. A refresh with no provider
+       publishes an index with no summaries; that is a failure, never a pass.
     3. arch:refresh:full (best effort, as before)
     4. arch:drift -> exit 0 green, 1 triggered, anything else is an infra error
     5. arch:prune (best effort, as before)
@@ -47,6 +54,14 @@ New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
 $stamp  = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
 $Log    = Join-Path $LogDir "run-$stamp.log"
 $Report = Join-Path $LogDir "report-$stamp.md"
+
+# Env scoping, for this process and its children only. An empty dotenv file stops the loader from
+# resolving the main checkout's .env (and the Azure work profile in it); ~/.audit-loop.env still
+# loads. CLAUDE_BACKEND is pinned so the summariser uses the route the preflight checked.
+$EmptyEnv = Join-Path $LogDir 'empty.env'
+if (-not (Test-Path -LiteralPath $EmptyEnv)) { New-Item -ItemType File -Path $EmptyEnv | Out-Null }
+$env:DOTENV_CONFIG_PATH = $EmptyEnv
+$env:CLAUDE_BACKEND = 'sdk'
 
 function Write-Log([string]$msg) {
     $line = "[{0}] {1}" -f (Get-Date).ToUniversalTime().ToString('o'), $msg
@@ -135,12 +150,21 @@ try {
         if (-not (Test-Path -LiteralPath (Join-Path 'scripts/.claude-skills' $f))) { throw "hydrated tooling lacks $f" }
     }
 
-    # Preflight. whoami goes through the tooling's own config loader; it prints no secret.
+    # Preflight through the tooling's own route oracles. Prints booleans only.
+    $pre = node scripts/local/arch-drift-preflight.mjs 2>>$Log
+    $preExit = $LASTEXITCODE
+    $preLine = "$($pre | Select-Object -Last 1)"
+    Write-Log "preflight: $preLine"
+    if ($preExit -ne 0) {
+        $why = try { (($preLine | ConvertFrom-Json).problems) -join '; ' } catch { $preLine }
+        throw "preflight failed: $why"
+    }
+    # The cloud store must also be reachable, not merely configured.
     $who = node scripts/.claude-skills/cross-skill.mjs whoami 2>>$Log
     $cloud = $false
     try { $cloud = [bool](($who | Select-Object -Last 1 | ConvertFrom-Json).cloud) } catch { }
     if (-not $cloud) { throw 'cloud store did not resolve (AUDIT_DB_URL unset or unreachable). Refusing to report a pass having checked nothing.' }
-    Write-Log 'preflight: cloud store resolved (value not shown)'
+    Write-Log 'preflight: cloud store reachable (value not shown)'
 
     [void](Invoke-Step 'arch:refresh:full' 'npm' @('run', 'arch:refresh:full'))
     $driftExit = Invoke-Step 'arch:drift' 'npm' @('run', 'arch:drift', '--', '--out', $Report)
