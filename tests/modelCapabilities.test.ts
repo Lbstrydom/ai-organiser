@@ -16,6 +16,8 @@ import {
     claudeSupportsDynamicWebSearch,
     parseOpenAIModel,
     openaiIsReasoningModel,
+    openaiUsesReasoningParams,
+    claudeThinksByDefault,
     parseGeminiModel,
     geminiSupportsThinking,
     pickNewestClaude,
@@ -349,5 +351,31 @@ describe('claudeThinkingAlwaysOn / claudeAlwaysThinkingParams', () => {
         for (const id of ['claude-opus-4-7', 'claude-sonnet-4-6', 'claude-haiku-4-5-20251001', 'gpt-5.5', undefined]) {
             expect(claudeAlwaysThinkingParams(id, 1024), String(id)).toEqual({});
         }
+    });
+});
+
+describe('openaiUsesReasoningParams', () => {
+    it.each([
+        'gpt-5', 'gpt-5.3-chat', 'gpt-5.4-nano', 'gpt-6-luna', 'gpt-6.1-sol', 'gpt-6.2-astra',
+        'gpt-6_eu', 'gpt-7', 'gpt-10.2-sol', 'o1-mini', 'o3', 'o4-mini',
+    ])('is true for %s', (id) => {
+        expect(openaiUsesReasoningParams(id)).toBe(true);
+    });
+
+    it.each([
+        'gpt-4o', 'gpt-4.1', 'gpt-35-turbo', 'gpt-oss-120b', 'openai/gpt-5.2',
+        'claude-sonnet-5-5', 'my-deployment', '',
+    ])('is false for "%s"', (id) => {
+        expect(openaiUsesReasoningParams(id)).toBe(false);
+    });
+});
+
+describe('claudeThinksByDefault — tiers the parser does not know', () => {
+    it.each(['claude-fable-5-2', 'claude-mythos-5-1', 'claude-newtier-6'])('is true for %s', (id) => {
+        expect(claudeThinksByDefault(id)).toBe(true);
+    });
+
+    it.each(['claude-mythos-preview', 'claude-3-5-haiku-20241022', 'claude-newtier-4-8', 'gpt-6'])('is false for %s', (id) => {
+        expect(claudeThinksByDefault(id)).toBe(false);
     });
 });

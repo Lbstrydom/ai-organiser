@@ -367,7 +367,10 @@ a silent failure gets shipped.
 **Models and providers**
 - **Never hardcode a model version.** Use `latest-*` sentinels or the provider's own
   `*-latest` alias, resolved against the live catalog. Azure is the stated exception and
-  says so explicitly: deployments lag, so its adapters pin concrete defaults.
+  says so explicitly: deployments lag, so its adapters pin concrete defaults
+  (`src/core/azureDefaults.ts`, the only place).
+- **Never test a model's name at a call site.** Family and version rules live in
+  `modelCapabilities.ts`, written as "this generation and later".
 - **`useMainKeyFallback: false` for every specialist provider** with no main-LLM
   equivalent (Deepgram, Cohere visual, the narration enhancers). Without it the resolver
   silently hands out the user's main LLM key and the call 401s somewhere confusing.

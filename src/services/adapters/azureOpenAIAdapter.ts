@@ -1,5 +1,7 @@
+import { AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
 import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
+import { openaiUsesReasoningParams } from './modelCapabilities';
 
 /**
  * Azure OpenAI adapter.
@@ -24,7 +26,7 @@ export class AzureOpenAIAdapter extends BaseAdapter {
         super({
             ...config,
             endpoint: config.endpoint || '',
-            modelName: config.modelName || 'gpt-5.5'
+            modelName: config.modelName || AZURE_DEFAULT_GPT_MODEL
         });
         this.provider = {
             name: 'azure-openai',
@@ -72,13 +74,7 @@ export class AzureOpenAIAdapter extends BaseAdapter {
         }).filter((item): item is Record<string, unknown> => item !== null);
 
         // Consistent token handling with text path — reasoning models need max_completion_tokens
-        const modelName = this.config.modelName || '';
-        const isReasoningModel =
-            modelName.startsWith('gpt-5') ||
-            modelName.startsWith('o1') ||
-            modelName.startsWith('o3');
-
-        const tokenParam = isReasoningModel
+        const tokenParam = openaiUsesReasoningParams(this.config.modelName)
             ? { max_completion_tokens: options?.maxTokens || 16384 }
             : { max_tokens: options?.maxTokens };
 

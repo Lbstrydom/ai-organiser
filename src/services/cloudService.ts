@@ -1,3 +1,4 @@
+import { openaiUsesMaxCompletionTokens, openaiUsesReasoningParams } from './adapters/modelCapabilities';
 import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, SummarizeResult, StreamSummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
 import { getOptionCapabilities, type OptionName, type DropReason, type AdjustReason } from './llm/optionCapabilities';
 import { BaseLLMService } from './baseService';
@@ -889,23 +890,15 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             // Detect OpenAI-family model capabilities by model name, not adapter type.
             // This ensures correct behavior when reasoning models are used via OpenRouter,
             // Groq, DeepSeek, or other OpenAI-compatible providers.
-            const isNewerOpenAIModel =
-                modelName.startsWith('gpt-4o') ||
-                modelName.startsWith('gpt-5') ||
-                modelName.startsWith('o1') ||
-                modelName.startsWith('o3');
+            const usesReasoningParams = openaiUsesReasoningParams(modelName);
 
-            // Reasoning models (o1, o3, gpt-5, and any model ending in '-reasoning')
-            // do not accept `temperature`. They also use max_completion_tokens for BOTH
-            // internal reasoning tokens AND visible output.
-            const isReasoningModel =
-                modelName.startsWith('gpt-5') ||
-                modelName.startsWith('o1') ||
-                modelName.startsWith('o3') ||
-                modelName.endsWith('-reasoning');
+            // Reasoning models (GPT-5 and later, the o-series, and any model ending in
+            // '-reasoning') do not accept `temperature`. They also use
+            // max_completion_tokens for BOTH internal reasoning tokens AND visible output.
+            const isReasoningModel = usesReasoningParams || modelName.endsWith('-reasoning');
 
             const defaultTokens = isReasoningModel ? 16384 : 8192;
-            // Reasoning models (gpt-5/o-series) use max_completion_tokens for reasoning +
+            // Reasoning models (GPT-5+/o-series) use max_completion_tokens for reasoning +
             // output and legitimately exceed the output ceiling — leave them unclamped.
             // NON-reasoning models (gpt-4o = 16384) MUST be clamped to the model output
             // limit, else a large-storyboard request (e.g. 52k) hard-400s (Gemini G1).
@@ -926,7 +919,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 baseRequest.temperature = 0.3;
             }
 
-            if (isNewerOpenAIModel) {
+            if (openaiUsesMaxCompletionTokens(modelName)) {
                 baseRequest.max_completion_tokens = tokenBudget;
             } else {
                 baseRequest.max_tokens = tokenBudget;

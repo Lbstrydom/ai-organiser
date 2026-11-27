@@ -15,6 +15,7 @@
  * (memory: feedback-always-use-latest-model-sentinels).
  */
 
+import { parseClaudeModel } from '../adapters/modelCapabilities';
 import type { App, RequestUrlParam } from 'obsidian';
 import { abortableRequestUrl } from '../../utils/abortableRequestUrl';
 import { logger } from '../../utils/logger';
@@ -255,9 +256,9 @@ async function resolveLatestHaiku(apiKey: string, signal?: AbortSignal): Promise
         .map((m) => m.id ?? '')
         .filter((id) => id !== '' && /haiku/i.test(id));
     const parse = (id: string): { major: number; minor: number } | null => {
-        let m = /^claude-haiku-(\d+)-(\d+)/.exec(id);
-        if (m) return { major: +m[1], minor: +m[2] };
-        m = /^claude-(\d+)-(\d+)-haiku/.exec(id);
+        const current = parseClaudeModel(id);
+        if (current) return current;
+        let m = /^claude-(\d+)-(\d+)-haiku/.exec(id);
         if (m) return { major: +m[1], minor: +m[2] };
         m = /^claude-(\d+)-haiku/.exec(id);
         if (m) return { major: +m[1], minor: 0 };

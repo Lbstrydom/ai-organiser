@@ -83,7 +83,7 @@ describe('CloudService Fallback Models', () => {
     });
 
     it('reasoning models omit temperature and use 16384 max_completion_tokens', () => {
-        const reasoningModels = ['gpt-5.2', 'gpt-5', 'o1-preview', 'o1-mini', 'o3-mini'];
+        const reasoningModels = ['gpt-5.2', 'gpt-5', 'gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna', 'o1-preview', 'o1-mini', 'o3-mini', 'o4-mini'];
         reasoningModels.forEach(modelName => {
             const service = new CloudLLMService({
                 type: 'openai' as AdapterType,

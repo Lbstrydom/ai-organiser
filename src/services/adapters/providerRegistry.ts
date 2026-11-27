@@ -1,3 +1,4 @@
+import { AZURE_DEFAULT_CLAUDE_MODEL, AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
 import type { AdapterType } from './index';
 import * as endpoints from './cloudEndpoints.json';
 
@@ -72,8 +73,8 @@ export const PROVIDER_DEFAULT_MODEL: Record<AdapterType, string> = {
   'openai-compatible': 'your-model',
   // Azure: concrete catalog ids only — `latest-*` sentinels never reach the
   // Azure path (plan AD-5). Endpoints are resolved from vault-local settings.
-  'azure-claude': 'claude-sonnet-5-5',
-  'azure-openai': 'gpt-5.5',
+  'azure-claude': AZURE_DEFAULT_CLAUDE_MODEL,
+  'azure-openai': AZURE_DEFAULT_GPT_MODEL,
 };
 
 // Default endpoints per provider

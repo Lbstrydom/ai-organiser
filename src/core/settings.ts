@@ -1,3 +1,4 @@
+import { AZURE_DEFAULT_CLAUDE_HEAVY_MODEL, AZURE_DEFAULT_CLAUDE_MODEL, AZURE_DEFAULT_GPT_MODEL } from './azureDefaults';
 import { LanguageCode } from '../services/types';
 import { AdapterType } from '../services/adapters';
 import { SupportedLanguage, DEFAULT_LANGUAGE } from '../i18n';
@@ -1276,7 +1277,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureAIEndpoint: '',
     azureOpenAIEndpoint: '',
     azureWhisperDeployment: 'whisper',
-    azureGPTModel: 'gpt-5.5',
+    azureGPTModel: AZURE_DEFAULT_GPT_MODEL,
     azureRoutingMode: 'model-based',
     azureDeployments: {},
     azureClaudeViaOpenAIGateway: false,
@@ -1293,12 +1294,12 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureSpeechRpmSeedV1: false,
     azureDeploymentRpmSeedV2: false,
     taskModels: {
-        tagging: 'claude-sonnet-5-5',
-        summarization: 'claude-sonnet-5-5',
-        audit: 'claude-opus-5-5',
-        research: 'claude-opus-5-5',
-        chat: 'claude-sonnet-5-5',
-        mermaid: 'claude-sonnet-5-5',
+        tagging: AZURE_DEFAULT_CLAUDE_MODEL,
+        summarization: AZURE_DEFAULT_CLAUDE_MODEL,
+        audit: AZURE_DEFAULT_CLAUDE_HEAVY_MODEL,
+        research: AZURE_DEFAULT_CLAUDE_HEAVY_MODEL,
+        chat: AZURE_DEFAULT_CLAUDE_MODEL,
+        mermaid: AZURE_DEFAULT_CLAUDE_MODEL,
         embeddings: 'text-embedding-3-large',
         transcription: 'whisper',
     },
@@ -2346,7 +2347,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
         s.cloudServiceType = 'azure-claude';
         s.cloudEndpoint = '';
         const tm = s.taskModels as { chat?: string } | undefined;
-        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || 'claude-sonnet-5-5';
+        s.cloudModel = (tm && typeof tm.chat === 'string' && tm.chat) || AZURE_DEFAULT_CLAUDE_MODEL;
     }
     if (typeof s.preAzureFirstProvider !== 'string') s.preAzureFirstProvider = DEFAULT_SETTINGS.preAzureFirstProvider;
 

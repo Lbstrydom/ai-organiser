@@ -2,6 +2,7 @@ import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import * as endpoints from './cloudEndpoints.json';
 import { PROVIDER_DEFAULT_MODEL } from './providerRegistry';
+import { openaiUsesReasoningParams } from './modelCapabilities';
 
 export class OpenAIAdapter extends BaseAdapter {
     constructor(config: AdapterConfig) {
@@ -52,13 +53,7 @@ export class OpenAIAdapter extends BaseAdapter {
         }).filter((item): item is Record<string, unknown> => item !== null);
 
         // Consistent token handling with text path — reasoning models need max_completion_tokens
-        const modelName = this.config.modelName || '';
-        const isReasoningModel =
-            modelName.startsWith('gpt-5') ||
-            modelName.startsWith('o1') ||
-            modelName.startsWith('o3');
-
-        const tokenParam = isReasoningModel
+        const tokenParam = openaiUsesReasoningParams(this.config.modelName)
             ? { max_completion_tokens: options?.maxTokens || 16384 }
             : { max_tokens: options?.maxTokens };
 

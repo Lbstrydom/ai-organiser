@@ -82,7 +82,10 @@ export function claudeThinkingAlwaysOn(modelId: string | undefined | null): bool
  */
 export function claudeThinksByDefault(modelId: string | undefined | null): boolean {
     const p = parseClaudeModel(modelId);
-    if (!p) return false;
+    // A tier this parser does not know (`claude-fable-5-2`, or one not released yet):
+    // from generation 5 assume it thinks, because the cost of assuming it does not
+    // is an empty reply.
+    if (!p) return Number(/^claude-[a-z]+-(\d{1,2})(?!\d)/.exec(modelId ?? '')?.[1] ?? 0) >= 5;
     if (p.tier === 'haiku') return versionAtLeast(p, 5, 5);
     return versionAtLeast(p, 5, 0);
 }
@@ -295,6 +298,26 @@ export function parseOpenAIModel(id: string | undefined | null): OpenAIModelPart
         };
     }
     return null;
+}
+
+/**
+ * Does this model take the reasoning request shape on Chat Completions:
+ * `max_completion_tokens` instead of `max_tokens`, and no `temperature`?
+ * True for GPT-5 and EVERY later major version, and for the o-series, so a new
+ * release needs no code change. Reads the leading number only, not
+ * `parseOpenAIModel`, because Azure deployment names are tenant-chosen (`gpt-6_eu`).
+ */
+export function openaiUsesReasoningParams(modelId: string | undefined | null): boolean {
+    const id = modelId ?? '';
+    if (/^o\d/.test(id)) return true;
+    const major = /^gpt-(\d+)/.exec(id)?.[1];
+    // `gpt-35-turbo` is Azure's spelling of GPT-3.5, not major version 35.
+    return major !== undefined && major !== '35' && Number(major) >= 5;
+}
+
+/** Does the model take `max_completion_tokens`? The reasoning shape, plus gpt-4o. */
+export function openaiUsesMaxCompletionTokens(modelId: string | undefined | null): boolean {
+    return openaiUsesReasoningParams(modelId) || !!modelId?.startsWith('gpt-4o');
 }
 
 /** o-series models use a dedicated reasoning endpoint. */

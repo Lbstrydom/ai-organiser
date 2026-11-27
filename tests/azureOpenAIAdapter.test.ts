@@ -83,6 +83,15 @@ describe('AzureOpenAIAdapter', () => {
 			expect(body.max_tokens).toBeUndefined();
 		});
 
+		it('uses max_completion_tokens for GPT-6 deployments', () => {
+			const adapter = new AzureOpenAIAdapter(makeConfig({ modelName: 'gpt-6.1-terra' }));
+			const body = adapter.formatMultimodalRequest([
+				{ type: 'text', text: 'Test' },
+			], { maxTokens: 8192 });
+			expect(body.max_completion_tokens).toBe(8192);
+			expect(body.max_tokens).toBeUndefined();
+		});
+
 		it('uses max_tokens for non-reasoning models', () => {
 			const adapter = new AzureOpenAIAdapter(makeConfig({ modelName: 'gpt-4o' }));
 			const body = adapter.formatMultimodalRequest([
