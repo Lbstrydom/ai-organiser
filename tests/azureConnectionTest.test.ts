@@ -2,7 +2,7 @@
  * azureConnectionTest — per-capability probe gating (G2).
  * Mocks Obsidian's requestUrl so no real network calls happen.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const mockRequestUrl = vi.fn();
 vi.mock('obsidian', async () => {
@@ -99,5 +99,39 @@ describe('testAzureConnection — GPT chat token field', () => {
         const body = JSON.parse(String(chat?.body));
         expect(body.max_completion_tokens).toBe(16);
         expect(body.max_tokens).toBeUndefined();
+    });
+});
+
+describe('testAzureConnection — Whisper probe', () => {
+    const surfacesFor = async (settings: Record<string, unknown>, capabilities?: Record<string, { mode: string }>) => {
+        const plugin = makePlugin(capabilities);
+        Object.assign(plugin.settings, settings);
+        return (await testAzureConnection(plugin)).surfaces.map((s) => s.surface);
+    };
+    const SPEECH = { azureSpeechEndpoint: 'https://res.cognitiveservices.azure.com' };
+    // The Speech transcription probe uses window timers.
+    beforeEach(() => { vi.stubGlobal('window', globalThis); });
+    afterEach(() => { vi.unstubAllGlobals(); });
+
+    it('probes Whisper when Azure AI Speech is not configured', async () => {
+        expect(await surfacesFor({})).toContain('azure-openai-whisper');
+    });
+
+    it('skips Whisper when Azure AI Speech serves transcription', async () => {
+        const surfaces = await surfacesFor(SPEECH);
+        expect(surfaces).toContain('azure-speech-stt');
+        expect(surfaces).not.toContain('azure-openai-whisper');
+    });
+
+    it('still probes Whisper when the Speech endpoint is unusable', async () => {
+        expect(await surfacesFor({ azureSpeechEndpoint: 'https://example.com' })).toContain('azure-openai-whisper');
+    });
+
+    it('skips Whisper in strict Speech mode, even before Speech is set up', async () => {
+        expect(await surfacesFor({ azureSpeechRequired: true })).not.toContain('azure-openai-whisper');
+    });
+
+    it.each(['off', 'byo'])('skips Whisper when transcription is set to %s', async (mode) => {
+        expect(await surfacesFor({}, { transcription: { mode } })).not.toContain('azure-openai-whisper');
     });
 });
