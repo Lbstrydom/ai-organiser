@@ -165,6 +165,7 @@ Alternative research provider using Anthropic's native web search tool. Replaces
 - `buildToolDefinition()`: Domain filtering — academic takes precedence, mutually exclusive `allowed_domains`/`blocked_domains`
 - `buildSystemPrompt()`: Language, citation style (forces author-year for academic mode), perspective instructions
 - Tool version auto-detect: `web_search_20260209` (dynamic filtering) for Claude 4.6, `web_search_20250305` (basic) for older models
+- A deployment may refuse the dynamic tool (Azure-hosted Claude offers only the basic one). The adapter then resends once with the basic tool and keeps using it for that adapter instance; the model id cannot predict this
 - Citation-frequency scoring: implicit quality signal from citation counts
 
 **Orchestrator Branch** (`src/services/research/researchOrchestrator.ts`):
