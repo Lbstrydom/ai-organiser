@@ -90,6 +90,23 @@ function resolveLatestSonnetSentinel(requested: string): string {
     return resolveLatestModel('claude', requested, availableIds) ?? requested;
 }
 
+/** The server refused the dynamic-filtering tool itself, as opposed to any other failure. */
+function isDynamicToolRejection(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : '';
+    return /web_search_20260209|code[_-]execution/i.test(message)
+        && /not supported|unsupported|not available|not enabled/i.test(message);
+}
+
+/** The provider's own error text from a failed streaming response, or '' when it has none. */
+async function readErrorMessage(response: Response): Promise<string> {
+    try {
+        const parsed = await response.json() as { error?: { message?: unknown } };
+        return typeof parsed.error?.message === 'string' ? parsed.error.message : '';
+    } catch {
+        return '';
+    }
+}
+
 export class ClaudeWebSearchAdapter implements SearchProvider {
     readonly type = 'claude-web-search' as const;
 
@@ -182,9 +199,8 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         question: string,
         options?: ClaudeWebSearchOptions,
     ): Promise<ClaudeWebSearchResponse> {
-        const { headers, body } = await this.buildRequestParts(options);
-        body.messages = [{ role: 'user', content: question }];
-        return this.constrain(await this.sendNonStreaming(headers, body, 'Claude Web Search failed', options?.signal), options);
+        return this.withToolFallback(options, { messages: [{ role: 'user', content: question }] },
+            (headers, body) => this.sendNonStreaming(headers, body, 'Claude Web Search failed', options?.signal));
     }
 
     /**
@@ -196,13 +212,13 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         pausedContent: unknown[],
         options?: ClaudeWebSearchOptions,
     ): Promise<ClaudeWebSearchResponse> {
-        const { headers, body } = await this.buildRequestParts(options);
-        body.messages = [
+        const messages = [
             { role: 'user', content: originalQuestion },
             { role: 'assistant', content: pausedContent },
             { role: 'user', content: 'Please continue.' },
         ];
-        return this.constrain(await this.sendNonStreaming(headers, body, 'Claude Web Search continuation failed', options?.signal), options);
+        return this.withToolFallback(options, { messages },
+            (headers, body) => this.sendNonStreaming(headers, body, 'Claude Web Search continuation failed', options?.signal));
     }
 
     /**
@@ -216,10 +232,8 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         callbacks?: ClaudeWebSearchStreamCallbacks,
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
-        const { headers, body } = await this.buildRequestParts(options);
-        body.stream = true;
-        body.messages = [{ role: 'user', content: question }];
-        return this.constrain(await this.runStreamLoop(headers, body, callbacks, signal), options);
+        return this.withToolFallback(options, { stream: true, messages: [{ role: 'user', content: question }] },
+            (headers, body) => this.runStreamLoop(headers, body, callbacks, signal));
     }
 
     /**
@@ -233,14 +247,13 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         callbacks?: ClaudeWebSearchStreamCallbacks,
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
-        const { headers, body } = await this.buildRequestParts(options);
-        body.stream = true;
-        body.messages = [
+        const messages = [
             { role: 'user', content: originalQuestion },
             { role: 'assistant', content: pausedContent },
             { role: 'user', content: 'Please continue.' },
         ];
-        return this.constrain(await this.runStreamLoop(headers, body, callbacks, signal), options);
+        return this.withToolFallback(options, { stream: true, messages },
+            (headers, body) => this.runStreamLoop(headers, body, callbacks, signal));
     }
 
     /**
@@ -251,9 +264,8 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         messages: Array<{ role: string; content: unknown }>,
         options?: ClaudeWebSearchOptions,
     ): Promise<ClaudeWebSearchResponse> {
-        const { headers, body } = await this.buildRequestParts(options);
-        body.messages = messages;
-        return this.constrain(await this.sendNonStreaming(headers, body, 'Claude Web Search multi-turn failed', options?.signal), options);
+        return this.withToolFallback(options, { messages },
+            (headers, body) => this.sendNonStreaming(headers, body, 'Claude Web Search multi-turn failed', options?.signal));
     }
 
     /**
@@ -265,10 +277,37 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         callbacks?: ClaudeWebSearchStreamCallbacks,
         signal?: AbortSignal,
     ): Promise<ClaudeWebSearchResponse> {
-        const { headers, body } = await this.buildRequestParts(options);
-        body.stream = true;
-        body.messages = messages;
-        return this.constrain(await this.runStreamLoop(headers, body, callbacks, signal), options);
+        return this.withToolFallback(options, { stream: true, messages },
+            (headers, body) => this.runStreamLoop(headers, body, callbacks, signal));
+    }
+
+    /** Set once the server has refused the dynamic-filtering tool, so later calls skip it. */
+    private dynamicToolRejected = false;
+
+    /**
+     * Send a request, and if the server refuses the dynamic-filtering tool, send it once
+     * more with the basic tool. Whether a deployment offers the dynamic variant depends on
+     * where it is hosted, not on the model id, so it cannot be decided up front.
+     */
+    private async withToolFallback(
+        options: ClaudeWebSearchOptions | undefined,
+        fields: Record<string, unknown>,
+        send: (headers: Record<string, string>, body: Record<string, unknown>) => Promise<ClaudeWebSearchResponse>,
+    ): Promise<ClaudeWebSearchResponse> {
+        let sentDynamic = false;
+        const attempt = async (): Promise<ClaudeWebSearchResponse> => {
+            const { headers, body } = await this.buildRequestParts(options);
+            sentDynamic = !!headers['anthropic-beta'];
+            return this.constrain(await send(headers, { ...body, ...fields }), options);
+        };
+        try {
+            return await attempt();
+        } catch (error) {
+            if (!sentDynamic || !isDynamicToolRejection(error)) throw error;
+            this.dynamicToolRejected = true;
+            logger.warn('ClaudeWebSearch', 'Dynamic filtering is not supported by this deployment; using the basic web search tool');
+            return attempt();
+        }
     }
 
     /** Maximum number of auto-continuations for pause_turn responses. */
@@ -555,10 +594,11 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         const requested = this.options.model || 'latest-sonnet';
         const model = resolveLatestSonnetSentinel(requested);
         // Dynamic filtering (web_search_20260209 + the code-execution-web-tools
-        // beta header) works identically on the Azure Foundry passthrough and on
-        // direct Anthropic — Azure proxies the same body/headers. So the only
-        // gate is the model + the user's useDynamicFiltering toggle.
-        const useDynamic = this.options.useDynamicFiltering !== false
+        // beta header) is asked for when the model and the user's toggle allow it.
+        // Some deployments refuse it (Azure-hosted Claude offers only the basic
+        // tool); withToolFallback handles that.
+        const useDynamic = !this.dynamicToolRejected
+            && this.options.useDynamicFiltering !== false
             && claudeSupportsDynamicWebSearch(model);
         const toolType = useDynamic ? TOOL_VERSION_DYNAMIC : TOOL_VERSION_BASIC;
         const tool = this.buildToolDefinition(toolType, options);
@@ -611,7 +651,8 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         const response = pacerKey ? await withAzureLease(pacerKey, signal, doFetch) : await doFetch();
 
         if (!response.ok) {
-            throw new Error(`Claude Web Search streaming failed: HTTP ${response.status}`);
+            const detail = await readErrorMessage(response);
+            throw new Error(`Claude Web Search streaming failed: HTTP ${response.status}${detail ? `: ${detail}` : ''}`);
         }
 
         const state = this.createStreamState();

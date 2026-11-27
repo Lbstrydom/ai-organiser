@@ -441,6 +441,51 @@ describe('ClaudeWebSearchAdapter', () => {
             expect(call.headers['anthropic-beta']).toBe('code-execution-web-tools-2026-02-09');
         });
 
+        const REJECTION = {
+            status: 400,
+            json: { error: { message: 'code_execution, web_search_20260209 not supported in your workspace.' } },
+        };
+        const toolOf = (call: number) => JSON.parse(mockRequestUrl.mock.calls[call][0].body).tools[0].type;
+
+        it('retries once with the basic tool when the dynamic tool is refused, and remembers it', async () => {
+            mockRequestUrl
+                .mockResolvedValueOnce(REJECTION)
+                .mockResolvedValue({ status: 200, json: buildMockResponse() });
+
+            const result = await adapter.searchAndSynthesize('first');
+            await adapter.searchAndSynthesize('second');
+
+            expect(result.searchResults).toHaveLength(2);
+            expect(mockRequestUrl).toHaveBeenCalledTimes(3);
+            expect([toolOf(0), toolOf(1), toolOf(2)]).toEqual(['web_search_20260209', 'web_search_20250305', 'web_search_20250305']);
+            expect(mockRequestUrl.mock.calls[1][0].headers['anthropic-beta']).toBeUndefined();
+            expect(JSON.parse(mockRequestUrl.mock.calls[1][0].body).messages[0].content).toBe('first');
+        });
+
+        it('recovers two searches that were refused at the same time', async () => {
+            mockRequestUrl
+                .mockResolvedValueOnce(REJECTION)
+                .mockResolvedValueOnce(REJECTION)
+                .mockResolvedValue({ status: 200, json: buildMockResponse() });
+
+            await expect(Promise.all([adapter.searchAndSynthesize('a'), adapter.searchAndSynthesize('b')])).resolves.toHaveLength(2);
+            expect(mockRequestUrl).toHaveBeenCalledTimes(4);
+        });
+
+        it('does not retry an unrelated 400', async () => {
+            mockRequestUrl.mockResolvedValue({ status: 400, json: { error: { message: 'max_tokens is too large' } } });
+
+            await expect(adapter.searchAndSynthesize('test')).rejects.toThrow('max_tokens is too large');
+            expect(mockRequestUrl).toHaveBeenCalledOnce();
+        });
+
+        it('retries only once when the basic tool is refused too', async () => {
+            mockRequestUrl.mockResolvedValue(REJECTION);
+
+            await expect(adapter.searchAndSynthesize('test')).rejects.toThrow('not supported');
+            expect(mockRequestUrl).toHaveBeenCalledTimes(2);
+        });
+
         it('throws on missing API key', async () => {
             mockGetApiKey.mockResolvedValue(null);
             await expect(adapter.searchAndSynthesize('test')).rejects.toThrow('Claude API key not configured');
