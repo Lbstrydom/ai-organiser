@@ -73,6 +73,8 @@ scripts/*
 !scripts/install-private-hook.d.mts
 !scripts/check-version-bump.mjs
 !scripts/check-version-bump.d.mts
+# The weekly architectural-drift local scheduled task (replaced the self-hosted workflow).
+!scripts/local/
 !scripts/deployGuard.mjs
 !scripts/deployGuard.d.mts
 .github/skills/

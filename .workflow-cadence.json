@@ -1,9 +1,3 @@
 {
-  "watch": [
-    {
-      "workflow": "architectural-drift.yml",
-      "event": "schedule",
-      "maxAgeDays": 10
-    }
-  ]
+  "watch": []
 }
