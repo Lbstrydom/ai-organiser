@@ -10,10 +10,12 @@
  * contents. HTTP statuses map to fixed user-facing strings.
  */
 
+import { AZURE_DEFAULT_CLAUDE_MODEL, AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
 import { requestUrl } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { getAzureApiKey } from '../apiKeyHelpers';
 import { validateSettings } from './settingsValidator';
+import { openaiUsesReasoningParams } from '../adapters/modelCapabilities';
 import { capabilityChoice } from './resolveAzureCapability';
 import { resolveAzureSpeechCredential } from './azureSpeechCredential';
 import { buildSsml } from '../tts/ssmlBuilder';
@@ -66,8 +68,6 @@ function claudeAuthHeaders(plugin: AIOrganiserPlugin, key: string): Record<strin
 	return { ...base, 'Authorization': `Bearer ${key}` };
 }
 
-const DEFAULT_CLAUDE_MODEL = 'claude-sonnet-5-5';
-const DEFAULT_GPT_MODEL = 'gpt-5.5';
 const DEFAULT_EMBED_MODEL = 'text-embedding-3-large';
 
 /**
@@ -144,7 +144,7 @@ async function testClaudeSurface(
 	const model =
 		(plugin.settings.cloudServiceType === 'azure-claude' && plugin.settings.cloudModel)
 			? plugin.settings.cloudModel
-			: (plugin.settings.taskModels?.chat || DEFAULT_CLAUDE_MODEL);
+			: (plugin.settings.taskModels?.chat || AZURE_DEFAULT_CLAUDE_MODEL);
 	const { status, raw } = await probe(
 		endpoint,
 		claudeAuthHeaders(plugin, key),
@@ -178,11 +178,10 @@ async function testOpenAIChatSurface(
 	const key = await getAzureApiKey(plugin, 'azure-openai');
 	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
 
-	const model = plugin.settings.azureGPTModel || DEFAULT_GPT_MODEL;
-	// Mirror AzureOpenAIAdapter: gpt-5 / o1 / o3 are reasoning models — Azure rejects
-	// `max_tokens` and `temperature` for them, requiring `max_completion_tokens`.
-	const isReasoning = model.startsWith('gpt-5') || model.startsWith('o1') || model.startsWith('o3');
-	const tokenParam = isReasoning ? { max_completion_tokens: 16 } : { max_tokens: 8 };
+	const model = plugin.settings.azureGPTModel || AZURE_DEFAULT_GPT_MODEL;
+	// Same rule as AzureOpenAIAdapter: Azure rejects `max_tokens` for reasoning
+	// models, requiring `max_completion_tokens`.
+	const tokenParam = openaiUsesReasoningParams(model) ? { max_completion_tokens: 16 } : { max_tokens: 8 };
 	const { status, raw } = await probe(
 		endpoint,
 		{ 'Content-Type': 'application/json', 'api-key': key },
@@ -483,8 +482,8 @@ async function testWebSearchSurface(
 
 	const model =
 		plugin.settings.cloudServiceType === 'azure-claude'
-			? (plugin.settings.cloudModel || DEFAULT_CLAUDE_MODEL)
-			: (plugin.settings.azureCapabilities?.websearch?.deployment || DEFAULT_CLAUDE_MODEL);
+			? (plugin.settings.cloudModel || AZURE_DEFAULT_CLAUDE_MODEL)
+			: (plugin.settings.azureCapabilities?.websearch?.deployment || AZURE_DEFAULT_CLAUDE_MODEL);
 	const { status, raw } = await probe(
 		endpoint,
 		claudeAuthHeaders(plugin, key),

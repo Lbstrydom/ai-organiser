@@ -48,6 +48,12 @@ Azure specialist routing is **config-driven, not hardcoded** — any user's Foun
 - **Deferred follow-ups**: Azure connection-test tts/websearch probes, TTS request-pacer integration, `resolveEndpoint` azure-claude SSOT routing, research fallback-on-throw.
 - **Plan**: [docs/completed/azure-capability-flexibility.md](../completed/azure-capability-flexibility.md).
 
+### Model-name convention (what to edit when a new model ships)
+- **Family and version rules live only in `modelCapabilities.ts`**, written as "this generation and later", so a new release works without an edit (GPT-5+ and the o-series take `max_completion_tokens`; an unrecognised Claude tier from generation 5 is assumed to think). `tests/modelNameConvention.test.ts` fails on a GPT version tested by name at a call site: every GPT-6 text request once failed on four copies of `startsWith('gpt-5')`.
+- **Azure default models live only in `src/core/azureDefaults.ts`.** Historical migrations keep their own literals.
+- **Per-model data** (cache minimums, prices, catalog entries, RPM seeds) stays exact-keyed: a model without a row degrades (no caching, no price), it does not fail.
+- **Known gap:** `latest-gpt` / `latest-gpt-mini` rank only ids without a variant or ending `mini` / `nano`, so suffixed releases (`-sol`, `-terra`, `-luna`) are never picked.
+
 ### Key patterns
 - **`getAzureApiKey(plugin, provider)`** — `useMainKeyFallback: false` always (no personal-key borrow). `azure-openai` falls back to the shared Foundry key via two sequential lookups.
 - **`blockOverride = adapterType === 'azure-openai'`** in `cloudService` drops `modelOverride` on the deployment-routed URL.

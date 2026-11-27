@@ -1,3 +1,4 @@
+import { AZURE_DEFAULT_CLAUDE_MODEL } from '../../core/azureDefaults';
 import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import { SYSTEM_PROMPT } from '../../utils/constants';
@@ -34,7 +35,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
             ...config,
             endpoint: config.endpoint || '',
             // Concrete default — NEVER a `latest-*` sentinel on the Azure path.
-            modelName: config.modelName || 'claude-sonnet-5-5'
+            modelName: config.modelName || AZURE_DEFAULT_CLAUDE_MODEL
         });
         this.provider = {
             name: 'azure-claude',

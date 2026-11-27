@@ -87,3 +87,17 @@ describe('testAzureConnection — capability probe gating (G2)', () => {
         expect(ws?.status).toBe(404);
     });
 });
+
+describe('testAzureConnection — GPT chat token field', () => {
+    it.each(['gpt-5.3-chat', 'gpt-6.1-terra', 'gpt-6-luna'])('sends max_completion_tokens for %s', async (model) => {
+        const plugin = makePlugin();
+        plugin.settings.azureGPTModel = model;
+        await testAzureConnection(plugin);
+        const chat = mockRequestUrl.mock.calls
+            .map(([req]) => req as { url: string; body?: unknown })
+            .find((req) => req.url.includes('/chat/completions'));
+        const body = JSON.parse(String(chat?.body));
+        expect(body.max_completion_tokens).toBe(16);
+        expect(body.max_tokens).toBeUndefined();
+    });
+});
