@@ -15,7 +15,7 @@
  */
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import baseline from './fixtures/stream-body-baseline.json';
-import { ALL_ADAPTERS } from '../src/services/adapters/providerRegistry';
+import { ALL_ADAPTERS, PROVIDER_DEFAULT_MODEL } from '../src/services/adapters/providerRegistry';
 import { AdapterType } from '../src/services/adapters';
 import { makeService, stubFetch, sseResponse, linesFor } from './helpers/streamHarness';
 
@@ -41,8 +41,11 @@ describe('stream body baseline (option-less)', () => {
 
     for (const type of STREAMING) {
         it(`[${type}] option-less stream = non-stream body + stream:true; url and headers unchanged`, async () => {
-            const { cap, result } = await emit(type);
             const row = rows[type];
+            // Pin the recorded model where the default is a `latest-*` sentinel: it moves
+            // with the registry, and this baseline is about the body shape.
+            const sentinel = PROVIDER_DEFAULT_MODEL[type]?.startsWith('latest-');
+            const { cap, result } = await emit(type, undefined, sentinel ? row.nonStream.model as string | undefined : undefined);
             expect(result.success).toBe(true);
             expect(cap.url).toBe(row.stream!.url);
             expect(cap.headers).toEqual(row.stream!.headers);
