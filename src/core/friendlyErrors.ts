@@ -245,6 +245,8 @@ export const GUIDANCE_CODES = [
     'activation-reenable-failed',
     // Critic model routing
     'critic-model-unavailable',
+    // Model or deployment names
+    'model-not-found',
 ] as const;
 
 export type GuidanceCode = (typeof GUIDANCE_CODES)[number];

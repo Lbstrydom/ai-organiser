@@ -1,6 +1,7 @@
 import { openaiUsesMaxCompletionTokens, openaiUsesReasoningParams } from './adapters/modelCapabilities';
 import { LLMResponse, LLMServiceConfig, ConnectionTestResult, ConnectionTestError, MultimodalLLMService, SummarizeOptions, SummarizeResult, StreamSummarizeResult, Fidelity, GenerateTagsOptions, LanguageCode } from './types';
 import { getOptionCapabilities, type OptionName, type DropReason, type AdjustReason } from './llm/optionCapabilities';
+import { requestedModelName, withModelGuidance } from './modelNames/modelNotFound';
 import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
@@ -394,6 +395,12 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return lastResponse!;
     }
 
+    /** Add the next step when a failed response says the requested model does not exist. */
+    private explainModelError(message: string, status: number, text: string, body?: unknown): string {
+        return withModelGuidance(message, status, text,
+            requestedModelName(body, this.adapter.getEndpoint(), this.modelName));
+    }
+
     /** Extract the provider's actual error message from a non-2xx response
      *  body so callers see e.g. "model X not found" instead of just "404".
      *  Used by both retry and non-retry paths. */
@@ -454,7 +461,9 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             logger.debug('LLM', `HTTP ${response.status} on ${this.adapter.getEndpoint()} — body: ${response.text?.slice(0, 500) || '(empty)'}`);
 
             if (this.isNonRetriableClientError(response.status)) {
-                throw new Error(this.formatHttpClientError(response.status, response.text));
+                throw new Error(this.explainModelError(
+                    this.formatHttpClientError(response.status, response.text),
+                    response.status, response.text, this.buildTagRequestBody(prompt, opts)));
             }
 
             if (response.status === 429) {
@@ -748,7 +757,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             } catch {
                 errorMessage = `${errorMessage} - ${response.text.substring(0, 200)}`;
             }
-            throw new Error(errorMessage);
+            throw new Error(this.explainModelError(errorMessage, response.status, response.text, requestBody));
         }
 
         const responseText = response.text;
@@ -1057,15 +1066,17 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                 const responseText = response.text;
                 logger.error('LLM', `Multimodal API error ${response.status}:`, responseText?.substring(0, 500));
                 logger.error('LLM', 'Request URL:', this.adapter.getEndpoint());
+                const explain = (m: string): Error =>
+                    new Error(this.explainModelError(m, response.status, responseText, requestBody));
                 try {
                     const errorJson = JSON.parse(responseText);
                     const msg = errorJson.error?.message || errorJson.message || `API error: ${response.status}`;
-                    throw new Error(msg);
+                    throw explain(msg);
                 } catch (parseError) {
                     if (parseError instanceof Error && parseError.message !== `API error: ${response.status}` && !parseError.message.startsWith('Unexpected')) {
                         throw parseError; // Re-throw the meaningful error from above
                     }
-                    throw new Error(`API error: ${response.status} - ${responseText?.substring(0, 200)}`);
+                    throw explain(`API error: ${response.status} - ${responseText?.substring(0, 200)}`);
                 }
             }
 
@@ -1139,6 +1150,17 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         return this.adapter.getMultimodalCapability();
     }
 
+    /** `HTTP <status>`, plus the next step for a missing model. Always releases the body. */
+    private async streamHttpError(response: Response, body: Record<string, unknown>): Promise<string> {
+        const message = `HTTP ${response.status}`;
+        if (response.status !== 400 && response.status !== 404) {
+            void response.body?.cancel().catch(() => undefined);
+            return message;
+        }
+        const text = await response.text().catch(() => '');
+        return this.explainModelError(message, response.status, text, body);
+    }
+
     /**
      * Stream LLM response via SSE using native fetch().
      * Obsidian's requestUrl doesn't support streaming — native fetch is required.
@@ -1200,8 +1222,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
                             await abortableSleep(computeAzureBackoffMs(info, attempt), lifecycle.signal);
                             continue;
                         }
-                        void response.body?.cancel().catch(() => undefined);
-                        return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
+                        break; // reported below, like any other refused stream
                     }
                 }
             } catch (e) {
@@ -1209,8 +1230,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             }
 
             if (!response.ok) {
-                void response.body?.cancel().catch(() => undefined);
-                return { success: false, error: `HTTP ${response.status}`, fidelity: fidelity() };
+                return { success: false, error: await this.streamHttpError(response, body), fidelity: fidelity() };
             }
 
             return await consumeSseResponse({

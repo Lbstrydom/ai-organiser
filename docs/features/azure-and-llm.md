@@ -52,6 +52,7 @@ Azure specialist routing is **config-driven, not hardcoded** — any user's Foun
 - **Family and version rules live only in `modelCapabilities.ts`**, written as "this generation and later", so a new release works without an edit (GPT-5+ and the o-series take `max_completion_tokens`; an unrecognised Claude tier from generation 5 is assumed to think). `tests/modelNameConvention.test.ts` fails on a GPT version tested by name at a call site: every GPT-6 text request once failed on four copies of `startsWith('gpt-5')`.
 - **Azure default models live only in `src/core/azureDefaults.ts`.** Historical migrations keep their own literals.
 - **Per-model data** (cache minimums, prices, catalog entries, RPM seeds) stays exact-keyed: a model without a row degrades (no caching, no price), it does not fail.
+- **Retired or renamed names are changed by the user, never by a migration** (deployment names are user-chosen, so another tenant may still serve the old one). The command **Replace a model name** (`modelNames/modelNameSettings.ts`) changes every setting holding a name; a new `*Model` / `*Deployment` setting must be listed there (`tests/modelNameSettings.test.ts`). A "model does not exist" response from any provider gains that next step (`modelNames/modelNotFound.ts`: chat, multimodal, streaming and local calls; not embeddings, audio or research web search).
 - **Known gap:** `latest-gpt` / `latest-gpt-mini` rank only ids without a variant or ending `mini` / `nano`, so suffixed releases (`-sol`, `-terra`, `-luna`) are never picked.
 
 ### Key patterns
