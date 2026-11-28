@@ -550,6 +550,8 @@ export class LLMSettingsSection extends BaseSettingSection {
             customModelSetting.settingEl.hide();
         }
 
+        if (s.cloudServiceType === 'azure-claude') this.renderClaudeModel();
+
         this.renderGptModel();
 
         if (s.azureRoutingMode === 'deployment-based') {
@@ -589,6 +591,21 @@ export class LLMSettingsSection extends BaseSettingSection {
                 this.settingTab.display();
             });
         }
+    }
+
+    /** Optional: describes a custom deployment name; never sent in a request. */
+    private renderClaudeModel(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        new Setting(this.containerEl)
+            .setName(az.claudeModel)
+            .setDesc(az.claudeModelDesc)
+            .addText(text => text
+                .setPlaceholder(PROVIDER_DEFAULT_MODEL['azure-claude'])
+                .setValue(this.plugin.settings.azureClaudeModel)
+                .onChange((value) => {
+                    this.plugin.settings.azureClaudeModel = value.trim();
+                    void this.plugin.saveSettings();
+                }));
     }
 
     /** "GPT model", with a notice when chat is stored as sending something else. */
@@ -959,9 +976,12 @@ export class LLMSettingsSection extends BaseSettingSection {
         const mainChatSurface = this.plugin.settings.cloudServiceType === 'azure-openai' ? 'azure-openai-chat' : 'azure-claude';
         for (const s of report.surfaces) {
             const label = s.surface === mainChatSurface ? az.chatTarget : labels[s.surface] ?? s.surface;
-            const called = s.target && s.deployment
+            let called = s.target && s.deployment
                 ? az.targetDeployment.replace('{model}', s.target).replace('{deployment}', s.deployment)
                 : s.target;
+            if (called && s.capabilityModel) {
+                called = az.targetModel.replace('{target}', called).replace('{model}', s.capabilityModel);
+            }
             container.createDiv({
                 cls: `ai-organiser-azure-test-row ${s.ok ? 'success' : 'error'}`,
                 text: `${s.ok ? '✓' : '✗'} ${label}: ${called ? `${called} — ` : ''}${s.message}`,

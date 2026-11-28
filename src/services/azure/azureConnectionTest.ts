@@ -52,6 +52,8 @@ export interface AzureSurfaceResult {
 	target?: string;
 	/** The deployment in the request URL, when it differs from `target`. */
 	deployment?: string;
+	/** The "Claude model" setting, when it differs from the deployment called. */
+	capabilityModel?: string;
 }
 
 /** `target` / `deployment` for a probe whose URL may name its own deployment. */
@@ -156,6 +158,10 @@ async function testClaudeSurface(
 		(plugin.settings.cloudServiceType === 'azure-claude' && plugin.settings.cloudModel)
 			? plugin.settings.cloudModel
 			: (plugin.settings.taskModels?.chat || AZURE_DEFAULT_CLAUDE_MODEL);
+	// Named in the report only: the probe stays a minimal reachability request.
+	const described = plugin.settings.cloudServiceType === 'azure-claude'
+		? plugin.settings.azureClaudeModel?.trim()
+		: undefined;
 	const { status, raw } = await probe(
 		endpoint,
 		claudeAuthHeaders(plugin, key),
@@ -170,7 +176,7 @@ async function testClaudeSurface(
 		Array.isArray((raw as { content?: unknown }).content) &&
 		(raw as { content: unknown[] }).content.length > 0;
 	const ok = hasContent;
-	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status), ...calledName(endpoint, model) };
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status), ...calledName(endpoint, model), ...(described && described !== model ? { capabilityModel: described } : {}) };
 }
 
 async function testOpenAIChatSurface(

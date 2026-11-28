@@ -11,7 +11,7 @@ import { logger } from '../../utils/logger';
 
 /** Top-level settings whose value is a name. */
 export const MODEL_NAME_KEYS = [
-    'cloudModel', 'localModel', 'mobileFallbackModel', 'embeddingModel', 'azureGPTModel',
+    'cloudModel', 'localModel', 'mobileFallbackModel', 'embeddingModel', 'azureGPTModel', 'azureClaudeModel',
     'azureWhisperDeployment', 'flashcardModel', 'auditModel', 'quickPeekModel', 'pdfModel',
     'youtubeGeminiModel',
 ] as const;

@@ -2,7 +2,7 @@ import { AZURE_DEFAULT_CLAUDE_MODEL } from '../../core/azureDefaults';
 import { BaseAdapter } from './baseAdapter';
 import { AdapterConfig, ContentPart, MultimodalCapability } from './types';
 import { SYSTEM_PROMPT } from '../../utils/constants';
-import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams } from './modelCapabilities';
+import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveRequestModels } from './modelCapabilities';
 import { parseAnthropicSseLine } from './anthropicStream';
 import { buildClaudeCachedPrompt } from './claudePromptCache';
 
@@ -58,9 +58,14 @@ export class AzureClaudeAdapter extends BaseAdapter {
         };
     }
 
+    /** The model capability rules read: the "Claude model" setting, else the deployment name. */
+    private get capabilityModel(): string {
+        return resolveRequestModels(this.config).capabilityModel;
+    }
+
     /** Whether adaptive thinking is active for this adapter instance */
     private get useAdaptiveThinking(): boolean {
-        return supportsAdaptiveThinking(this.config.modelName) && this.config.thinkingMode === 'adaptive';
+        return supportsAdaptiveThinking(this.capabilityModel) && this.config.thinkingMode === 'adaptive';
     }
 
     /**
@@ -73,7 +78,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
         if (!this.useAdaptiveThinking) {
             // 5.x models think even when not asked to, sharing max_tokens; keep it
             // brief and give the reply room. No-op for 4.x and Haiku 4.5.
-            const extra = claudeAlwaysThinkingParams(this.config.modelName, (body.max_tokens as number) || 0);
+            const extra = claudeAlwaysThinkingParams(this.capabilityModel, (body.max_tokens as number) || 0);
             return Object.keys(extra).length ? { ...body, ...extra } : body;
         }
 
@@ -115,7 +120,7 @@ export class AzureClaudeAdapter extends BaseAdapter {
      */
     public formatCachedRequest(prompt: string, stablePrefix: string): Record<string, unknown> {
         const { systemField, userContent } = buildClaudeCachedPrompt(
-            SYSTEM_PROMPT, prompt, this.config.modelName, stablePrefix,
+            SYSTEM_PROMPT, prompt, this.capabilityModel, stablePrefix,
         );
         return this.buildTagRequest(systemField, userContent);
     }
@@ -213,6 +218,6 @@ export class AzureClaudeAdapter extends BaseAdapter {
      * a StreamProviderError (see anthropicStream.ts).
      */
     parseStreamingChunk(line: string): string | null {
-        return parseAnthropicSseLine(line, 'azure-claude', this.config.modelName);
+        return parseAnthropicSseLine(line, 'azure-claude', this.capabilityModel);
     }
 }

@@ -160,3 +160,22 @@ describe('testAzureConnection — chat probe uses the model chat sends', () => {
         expect(chatBodyModel()).toBe('gpt-other');
     });
 });
+
+describe('testAzureConnection — Claude model', () => {
+    const claudeProbe = () => mockRequestUrl.mock.calls
+        .map(c => c[0] as { url: string; body: string })
+        .find(r => r.url.includes('/anthropic/'))!.body;
+
+    it('probes the same request with or without it, and names both in the report', async () => {
+        await testAzureConnection(makePlugin());
+        const without = claudeProbe();
+        mockRequestUrl.mockClear();
+        const plugin = makePlugin();
+        plugin.settings.azureClaudeModel = 'claude-opus-5-5';
+        const report = await testAzureConnection(plugin);
+        expect(claudeProbe()).toBe(without);
+        const claude = report.surfaces.find(s => s.surface === 'azure-claude')!;
+        expect(claude.target).toBe('claude-sonnet-4-6');
+        expect(claude.capabilityModel).toBe('claude-opus-5-5');
+    });
+});

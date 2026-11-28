@@ -132,3 +132,20 @@ describe('applyAzureConfigImport — GPT model and the chat model', () => {
         expect([settings.cloudModel, settings.azureGPTModel]).toEqual(['gpt-a', 'gpt-b']);
     });
 });
+
+describe('Azure config transfer — Claude model', () => {
+    it('round-trips the optional Claude model', () => {
+        const exported = buildAzureConfigExport(makeSettings({ azureClaudeModel: 'claude-sonnet-5-5' }));
+        const settings = makeSettings();
+        const result = applyAzureConfigImport(settings, exported);
+        expect(settings.azureClaudeModel).toBe('claude-sonnet-5-5');
+        expect(result.appliedFields).toContain('azureClaudeModel');
+    });
+
+    it('an older or blank export leaves the stored value', () => {
+        const settings = makeSettings({ azureClaudeModel: 'claude-opus-5-5' });
+        applyAzureConfigImport(settings, { azureAIEndpoint: 'https://x.services.ai.azure.com' });
+        applyAzureConfigImport(settings, { azureClaudeModel: ' ' });
+        expect(settings.azureClaudeModel).toBe('claude-opus-5-5');
+    });
+});

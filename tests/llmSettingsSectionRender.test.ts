@@ -138,6 +138,18 @@ describe('Azure-first layout', () => {
         expect(plugin.settings.cloudModel).toBe('gpt-other');
     });
 
+    it('offers an optional Claude model under the deployment only when Claude is main', async () => {
+        const claude = await outline('azure model-based (Claude main)');
+        expect(claude.all.indexOf(az.claudeModel)).toBeGreaterThan(claude.all.indexOf(az.defaultModel));
+        const field = recordedSettings.find(r => r.name === az.claudeModel)!;
+        expect(field.controls[0].value).toBe('');
+        field.controls[0].change!(' claude-sonnet-5-5 ');
+        expect(claude.plugin.settings.azureClaudeModel).toBe('claude-sonnet-5-5');
+        expect(claude.plugin.settings.cloudModel).toBe('claude-sonnet-5-5');
+        const gpt = await outline('azure deployment-based (OpenAI main)');
+        expect(gpt.all).not.toContain(az.claudeModel);
+    });
+
     it('describes the read aloud deployment', async () => {
         await outline('azure model-based (Claude main)');
         // Model-based routing draws one "Deployment" outside Search's visual row: read aloud's.

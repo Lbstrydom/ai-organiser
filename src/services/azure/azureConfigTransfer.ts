@@ -21,6 +21,7 @@ export interface AzureConfigExport {
     azureRoutingMode?: 'model-based' | 'deployment-based';
     azureDeployments?: { chat?: string; embeddings?: string };
     azureGPTModel?: string;
+    azureClaudeModel?: string;
     azureWhisperDeployment?: string;
     azureApiVersionOverride?: { whisper?: string; chat?: string; embeddings?: string };
     azureClaudeViaOpenAIGateway?: boolean;
@@ -50,6 +51,7 @@ export function buildAzureConfigExport(settings: AIOrganiserSettings): AzureConf
         azureRoutingMode: settings.azureRoutingMode,
         azureDeployments: { ...settings.azureDeployments },
         azureGPTModel: settings.azureGPTModel,
+        azureClaudeModel: settings.azureClaudeModel,
         azureWhisperDeployment: settings.azureWhisperDeployment,
         azureApiVersionOverride: { ...settings.azureApiVersionOverride },
         azureClaudeViaOpenAIGateway: settings.azureClaudeViaOpenAIGateway,
@@ -106,6 +108,10 @@ export function applyAzureConfigImport(settings: AIOrganiserSettings, raw: unkno
         applied.push('azureDeployments');
     }
     if (isString(raw.azureGPTModel) && raw.azureGPTModel.trim()) { applyAzureGptModel(settings, raw.azureGPTModel); applied.push('azureGPTModel'); }
+    if (isString(raw.azureClaudeModel) && raw.azureClaudeModel.trim()) {
+        settings.azureClaudeModel = raw.azureClaudeModel.trim();
+        applied.push('azureClaudeModel');
+    }
     if (isString(raw.azureWhisperDeployment)) { settings.azureWhisperDeployment = raw.azureWhisperDeployment; applied.push('azureWhisperDeployment'); }
     if (isPlainObject(raw.azureApiVersionOverride)) {
         const o = raw.azureApiVersionOverride;

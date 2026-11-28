@@ -742,6 +742,8 @@ export interface AIOrganiserSettings {
      *  Foundry resource only recognizes the OpenAI-style key header on its
      *  Anthropic passthrough route (some APIM-style setups do). */
     azureClaudeViaOpenAIGateway: boolean;
+    /** Optional model behind a custom Azure Claude deployment name (`cloudModel`). Empty = read the name. */
+    azureClaudeModel: string;
     /** User dismissed the API Management gateway advice banner (Azure settings). */
     azureGatewayAdviceDismissed: boolean;
     /** Deployment-qualified paths (whisper + chat/embeddings) carry a DATED api-version;
@@ -1281,6 +1283,7 @@ export const DEFAULT_SETTINGS: AIOrganiserSettings = {
     azureRoutingMode: 'model-based',
     azureDeployments: {},
     azureClaudeViaOpenAIGateway: false,
+    azureClaudeModel: '',
     azureGatewayAdviceDismissed: false,
     azureApiVersionOverride: {},
     azureCapabilities: {},   // seeded from observable state by migrateOldSettings; empty → defaultModeFor at resolve time
@@ -2322,6 +2325,7 @@ function migrateAzureSettings(s: Record<string, unknown>): void {
     if (s.azureRoutingMode !== 'model-based' && s.azureRoutingMode !== 'deployment-based') {
         s.azureRoutingMode = DEFAULT_SETTINGS.azureRoutingMode;
     }
+    if (typeof s.azureClaudeModel !== 'string') s.azureClaudeModel = DEFAULT_SETTINGS.azureClaudeModel;
     if (typeof s.azureClaudeViaOpenAIGateway !== 'boolean') {
         s.azureClaudeViaOpenAIGateway = DEFAULT_SETTINGS.azureClaudeViaOpenAIGateway;
     }
