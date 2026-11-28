@@ -242,6 +242,7 @@ export interface Translations {
                 targetDeployment: string;
                 usingAzureHeading: string;
                 deployment: string;
+                ttsDeploymentDesc: string;
             };
         };
         tagging: {

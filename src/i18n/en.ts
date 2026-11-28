@@ -247,7 +247,8 @@ export const en: Translations = {
                 chatTarget: "Chat",
                 targetDeployment: "{model}, deployment {deployment}",
                 usingAzureHeading: "Using Azure at work?",
-                deployment: "Deployment"
+                deployment: "Deployment",
+                ttsDeploymentDesc: "Azure OpenAI deployment name for read aloud. It is also sent as the model name."
             }
         },
         tagging: {

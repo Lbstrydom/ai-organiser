@@ -702,7 +702,7 @@ export class LLMSettingsSection extends BaseSettingSection {
         this.azureCapabilityRows()?.renderCapability('tts', { label: az.source, withDeployment: false });
         // The deployment name is sent as the model, so it shows in either routing mode.
         if (this.showsCapability('tts') && capabilityChoice(this.plugin, 'tts').mode === 'azure') {
-            this.renderDeploymentText('tts', '');
+            this.renderDeploymentText('tts', az.ttsDeploymentDesc);
         }
         const rows = this.azureCapabilityRows();
         rows?.renderLegacyNotice();

@@ -138,6 +138,11 @@ describe('Azure-first layout', () => {
         expect(plugin.settings.cloudModel).toBe('gpt-other');
     });
 
+    it('describes the read aloud deployment', async () => {
+        await outline('azure model-based (Claude main)');
+        expect(recordedSettings.find(r => r.name === az.deployment)!.desc).toBe(az.ttsDeploymentDesc);
+    });
+
     it('labels the toggle as changing the provider and model', async () => {
         await outline('azure model-based (Claude main)');
         expect(recordedSettings.find(r => r.name === az.firstMode)!.desc).toBe(az.firstModeDesc);
