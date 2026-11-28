@@ -36,6 +36,8 @@ export const PROVIDER_MODELS: Partial<Record<AdapterType, Record<string, string>
         // Opus 5.5 (2026-09): the newest Opus here, so `latest-opus` resolves to
         // it offline. Thinking is always on — see claudeThinkingAlwaysOn.
         'claude-opus-5-5': 'Claude Opus 5.5 (pin)',
+        'claude-sonnet-5-5': 'Claude Sonnet 5.5 (pin)',
+        'claude-haiku-5-5': 'Claude Haiku 5.5 (pin)',
         'claude-opus-4-7': 'Claude Opus 4.7 (pin)',
         'claude-sonnet-4-6': 'Claude Sonnet 4.6 (pin)',
         'claude-haiku-4-5-20251001': 'Claude Haiku 4.5 (pin)',
