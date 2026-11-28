@@ -6,7 +6,7 @@ import { BaseLLMService } from './baseService';
 import { AdapterType, createAdapter, BaseAdapter } from './adapters';
 import { ContentPart } from './adapters/types';
 import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
-import { claudeSupportsAdaptiveThinking, claudeAlwaysThinkingParams, resolveLatestModel, isClaudeModelId } from './adapters/modelCapabilities';
+import { claudeSupportsAdaptiveThinking, resolveRequestModels, claudeAlwaysThinkingParams, resolveLatestModel, isClaudeModelId } from './adapters/modelCapabilities';
 import { buildClaudeCachedPrompt } from './adapters/claudePromptCache';
 import { joinPromptParts } from './prompts/promptParts';
 import { logLlmUsage } from './llm/llmUsageLog';
@@ -110,6 +110,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
             modelName: resolvedModel,
             language: config.language,
             thinkingMode: config.thinkingMode,
+            capabilityModel: config.capabilityModel,
             azureClaudeAuthHeader: config.azureClaudeAuthHeader
         });
     }
@@ -956,8 +957,10 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // path (previously a silent no-op — the core bug). `azure-claude` is model-in-body
         // (NOT deployment-routed) so it honors the override too; only `azure-openai` blocks
         // it (handled in the OpenAI branch). Unresolvable sentinel → '' → service model.
-        const modelName = resolveModelOverride(this.adapterType, options?.modelOverride, computeAvailableModelIds(this.adapterType))
-            || serviceModel;
+        const { bodyModel: modelName, capabilityModel } = resolveRequestModels(
+            { modelName: serviceModel, capabilityModel: this.adapter['config']?.capabilityModel },
+            resolveModelOverride(this.adapterType, options?.modelOverride, computeAvailableModelIds(this.adapterType)),
+        );
         const thinkingMode = this.adapter['config']?.thinkingMode;
 
         // presentation-depth-controls D1: thinking is on when the service default is
@@ -966,7 +969,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // a Haiku override disables it). disableThinking WINS over both.
         const wantThinking = thinkingMode === 'adaptive' || !!options?.enableThinking;
         const useThinking = wantThinking
-            && claudeSupportsAdaptiveThinking(modelName)
+            && claudeSupportsAdaptiveThinking(capabilityModel)
             && !options?.disableThinking;
 
         let maxTokens: number;
@@ -982,13 +985,13 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         // large storyboard scaling maxTokens by slide count) can't exceed the model limit
         // and 400 — model-aware so an older/smaller model below the provider flagship is
         // honoured (Claude 4.x are all 64k, but the helper keeps this correct generally).
-        const modelMaxOut = getModelOutputLimit(this.adapterType, modelName);
+        const modelMaxOut = getModelOutputLimit(this.adapterType, capabilityModel);
         if (maxTokens > modelMaxOut) maxTokens = modelMaxOut;
 
         const { systemField, userContent } = buildClaudeCachedPrompt(
             systemPrompt,
             prompt,
-            modelName,
+            capabilityModel,
             options?.stablePrefix,
         );
 
@@ -1004,7 +1007,7 @@ export class CloudLLMService extends BaseLLMService implements MultimodalLLMServ
         } else {
             // 5.x models think when `thinking` is omitted (a `disableThinking` caller
             // gets low effort, the nearest honest equivalent). No-op for 4.x / Haiku 4.5.
-            Object.assign(body, claudeAlwaysThinkingParams(modelName, maxTokens));
+            Object.assign(body, claudeAlwaysThinkingParams(capabilityModel, maxTokens));
         }
 
         return body;

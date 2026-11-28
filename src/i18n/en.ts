@@ -248,7 +248,10 @@ export const en: Translations = {
                 targetDeployment: "{model}, deployment {deployment}",
                 usingAzureHeading: "Using Azure at work?",
                 deployment: "Deployment",
-                ttsDeploymentDesc: "Azure OpenAI deployment name for read aloud. It is also sent as the model name."
+                ttsDeploymentDesc: "Azure OpenAI deployment name for read aloud. It is also sent as the model name.",
+                claudeModel: "Claude model (optional)",
+                claudeModelDesc: "Only needed when your deployment name is not a model name. Used to work out what the model supports; never sent in a request.",
+                targetModel: "{target} (model {model})"
             }
         },
         tagging: {

@@ -23,6 +23,8 @@ export interface AdapterConfig {
     modelName?: string;
     language?: LanguageCode;
     thinkingMode?: 'standard' | 'adaptive';
+    /** azure-claude only — see LLMServiceConfig.capabilityModel. */
+    capabilityModel?: string;
     /** azure-claude only — see LLMServiceConfig.azureClaudeAuthHeader. */
     azureClaudeAuthHeader?: 'bearer' | 'api-key';
 }

@@ -956,6 +956,7 @@ export default class AIOrganiserPlugin extends Plugin {
                     type: cloudType,
                     language: this.settings.language,
                     thinkingMode: this.settings.claudeThinkingMode,
+                    capabilityModel: cloudType === 'azure-claude' ? this.settings.azureClaudeModel : undefined,
                     azureClaudeAuthHeader: this.settings.azureClaudeViaOpenAIGateway ? 'api-key' : 'bearer'
                 }, this.app);
         }

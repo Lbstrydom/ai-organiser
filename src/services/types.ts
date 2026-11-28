@@ -44,6 +44,9 @@ export interface LLMServiceConfig {
     apiKey?: string;
     apiSecret?: string;
     language?: LanguageCode;
+    /** azure-claude only: the model behind `modelName` when that is a custom
+     *  deployment name. Read for capabilities and limits, never sent. */
+    capabilityModel?: string;
     /** azure-claude only: 'api-key' when routed through the OpenAI-compatible
      *  gateway (settings.ts azureClaudeViaOpenAIGateway), else native 'bearer'. */
     azureClaudeAuthHeader?: 'bearer' | 'api-key';

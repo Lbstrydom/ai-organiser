@@ -243,6 +243,9 @@ export interface Translations {
                 usingAzureHeading: string;
                 deployment: string;
                 ttsDeploymentDesc: string;
+                claudeModel: string;
+                claudeModelDesc: string;
+                targetModel: string;
             };
         };
         tagging: {

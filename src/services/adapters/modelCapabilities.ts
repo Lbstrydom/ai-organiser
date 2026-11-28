@@ -54,6 +54,28 @@ function versionAtLeast(v: { major: number; minor: number }, major: number, mino
  * parameter? Introduced in Opus 4.6 / Sonnet 4.6; future 4.x / 5.x / 6.x
  * Opus + Sonnet inherit automatically. Haiku does not.
  */
+export interface RequestModels {
+    /** Sent as `model` in the request body (on Azure, the deployment name). */
+    bodyModel: string;
+    /** What capability and limit rules read. */
+    capabilityModel: string;
+}
+
+/**
+ * The two identities of a request's model. A resolved per-call override (blank or
+ * unresolved ones are already dropped) governs both; otherwise the configured
+ * model is sent, and an optional capability model describes it when its name is
+ * not a model name.
+ */
+export function resolveRequestModels(
+    config: { modelName?: string; capabilityModel?: string },
+    resolvedOverride?: string,
+): RequestModels {
+    if (resolvedOverride) return { bodyModel: resolvedOverride, capabilityModel: resolvedOverride };
+    const bodyModel = config.modelName || '';
+    return { bodyModel, capabilityModel: config.capabilityModel?.trim() || bodyModel };
+}
+
 export function claudeSupportsAdaptiveThinking(modelId: string | undefined | null): boolean {
     const p = parseClaudeModel(modelId);
     if (!p) return false;
