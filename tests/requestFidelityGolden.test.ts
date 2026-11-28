@@ -21,6 +21,7 @@ import AIOrganiserPlugin from '../src/main';
 import { DEFAULT_SETTINGS } from '../src/core/settings';
 import { en } from '../src/i18n/en';
 import * as ep from '../src/services/azure/endpointResolver';
+import { LLMSettingsSection } from '../src/ui/settings/LLMSettingsSection';
 import { disposeAzurePacers } from '../src/services/azure/azureRequestPacer';
 import { createEmbeddingServiceFromSettings } from '../src/services/embeddings/embeddingServiceFactory';
 
@@ -65,6 +66,8 @@ describe('request fidelity golden', () => {
     for (const [name, fixture] of Object.entries(SETTINGS_FIXTURES)) {
         it(name, async () => {
             const { plugin } = await makeSettingsPlugin(DEPS, structuredClone(fixture));
+            // Bytes are captured after the real settings screen has been opened.
+            new LLMSettingsSection(plugin as never, document.createElement('div'), { display: vi.fn() } as never).display();
             await flushRender();
             mockRequestUrl.mockClear();
             await (plugin as unknown as { llmService: { summarizeText(t: string): Promise<unknown> } }).llmService.summarizeText('hello');
