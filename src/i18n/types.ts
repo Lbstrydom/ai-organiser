@@ -127,8 +127,6 @@ export interface Translations {
             azure: {
                 firstMode: string;
                 firstModeDesc: string;
-                banner: string;
-                foundryHeading: string;
                 apiKey: string;
                 apiKeyDesc: string;
                 apiKeyPlaceholder: string;
@@ -227,6 +225,23 @@ export interface Translations {
                 perDeploymentRpmValuePlaceholder: string;
                 perDeploymentRpmAdd: string;
                 perDeploymentRpmRemove: string;
+                groupConnection: string;
+                groupChat: string;
+                groupSearch: string;
+                groupTranscription: string;
+                groupReadAloud: string;
+                groupWebSearch: string;
+                source: string;
+                advanced: string;
+                advancedOneOverride: string;
+                advancedOverrides: string;
+                overrideNote: string;
+                chatModelMismatch: string;
+                useForChat: string;
+                chatTarget: string;
+                targetDeployment: string;
+                usingAzureHeading: string;
+                deployment: string;
             };
         };
         tagging: {

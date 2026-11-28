@@ -49,7 +49,8 @@ vi.mock('obsidian', async () => {
         addButton(cb: (c: unknown) => unknown) { return this.control(cb); }
         addExtraButton(cb: (c: unknown) => unknown) { return this.control(cb); }
     }
-    return { ...mod, Setting: RecordingSetting, requestUrl: vi.fn() };
+    const { ButtonComponent } = (await import('./helpers/settingsHarness')).settingsObsidianOverrides();
+    return { ...mod, Setting: RecordingSetting, ButtonComponent, requestUrl: vi.fn() };
 });
 
 vi.mock('../src/ui/modals/AzureConfigImportModal', () => ({

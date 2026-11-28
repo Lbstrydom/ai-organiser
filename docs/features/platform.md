@@ -196,6 +196,12 @@ Organize by **user mental model**, not technical implementation:
     h2 Mobile
 ▸ Advanced                 — Configuration files and management
 ```
+**AI provider section** (`LLMSettingsSection`) has two layouts, each with exactly one Advanced `<details>` (closed; its summary counts the settings inside that differ from defaults, list in `azureEffectiveFields.ts`):
+- Azure-first on: toggle, then Connection, Chat, Search, Transcription, Read aloud, Web search, Replace a model name, Advanced.
+- Otherwise: service, provider, key, model, endpoint (custom / OpenAI-compatible only), test, Replace a model name, Advanced, then the Azure-first toggle.
+
+A model field that changes a request is never hidden. A deployment field edits whichever stored value is in effect (`resolveDeploymentField`) and says so for a per-feature override. Opening the section writes nothing, and `tests/requestFidelityGolden.test.ts` pins request bytes: a UI change must not update that snapshot.
+
 **Collapsible state:** Persists across re-renders via `expandedSections: Set<string>` on tab instance. Toggle listener updates Set; `createCollapsibleSection()` reads from Set on re-render.
 
 **Sub-collapsible sections:** Umbrella groups (Capture & Input, Vault Intelligence, Integrations, Preferences) use `createSubCollapsibleSection(container, id, title, icon)` to wrap each child section class in its own nested `<details>`. The same `expandedSections` Set tracks state. CSS class `ai-organiser-settings-sub-section*` styles the nested headers; inner `h2.ai-organiser-settings-header` is hidden via CSS (sub-collapsible summary is the visual header).

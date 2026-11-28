@@ -48,6 +48,16 @@ export interface AzureSurfaceResult {
 	status: number;
 	/** REDACTED user-facing message (no endpoint / key / header content). */
 	message: string;
+	/** The model, deployment or voice the probe called. */
+	target?: string;
+	/** The deployment in the request URL, when it differs from `target`. */
+	deployment?: string;
+}
+
+/** `target` / `deployment` for a probe whose URL may name its own deployment. */
+function calledName(endpoint: string, model: string): Pick<AzureSurfaceResult, 'target' | 'deployment'> {
+	const dep = /\/deployments\/([^/?]+)\//.exec(endpoint)?.[1];
+	return dep && dep !== model ? { target: model, deployment: dep } : { target: model };
 }
 
 export interface AzureTestReport {
@@ -160,7 +170,7 @@ async function testClaudeSurface(
 		Array.isArray((raw as { content?: unknown }).content) &&
 		(raw as { content: unknown[] }).content.length > 0;
 	const ok = hasContent;
-	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status) };
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status), ...calledName(endpoint, model) };
 }
 
 async function testOpenAIChatSurface(
@@ -196,7 +206,7 @@ async function testOpenAIChatSurface(
 		Array.isArray((raw as { choices?: unknown }).choices) &&
 		(raw as { choices: unknown[] }).choices.length > 0;
 	const ok = hasChoice;
-	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status) };
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status), ...calledName(endpoint, model) };
 }
 
 async function testEmbeddingsSurface(
@@ -230,7 +240,7 @@ async function testEmbeddingsSurface(
 		Array.isArray(data[0]?.embedding) &&
 		(data[0].embedding as unknown[]).length > 0;
 	const ok = hasVector;
-	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status) };
+	return { surface, ok, status, message: ok ? 'connected' : redactedMessage(status), ...calledName(endpoint, model) };
 }
 
 /** Build a tiny valid silent WAV (8 kHz mono 16-bit, ~0.2 s) for the Whisper probe. */
@@ -312,7 +322,7 @@ async function testWhisperSurface(
 		status === 200 ? 'connected'
 			: status === 400 ? 'connected — endpoint, deployment + key valid'
 				: redactedMessage(status);
-	return { surface, ok, status, message };
+	return { surface, ok, status, message, target: /\/deployments\/([^/?]+)\//.exec(endpoint)?.[1] };
 }
 
 /**
@@ -356,7 +366,7 @@ async function testTtsSurface(
 				// deployment — the in-region Azure AI Speech setup is the fix.
 				: status === 404 ? 'no speech deployment — set up Azure AI Speech (region + voice) under Azure capabilities instead'
 					: redactedMessage(status);
-	return { surface, ok, status, message };
+	return { surface, ok, status, message, ...calledName(endpoint, model) };
 }
 
 /**
@@ -402,7 +412,7 @@ async function testSpeechTtsSurface(
 			status = 0;
 		}
 		const ok = status === 200;
-		return { surface, ok, status, message: ok ? 'connected — voice synthesized' : speechRedactedMessage(status, cred.value.source) };
+		return { surface, ok, status, message: ok ? 'connected — voice synthesized' : speechRedactedMessage(status, cred.value.source), target: voice };
 	}
 
 	// No voice yet → the catalog round-trip still proves region + key.
@@ -501,7 +511,7 @@ async function testWebSearchSurface(
 		typeof raw === 'object' &&
 		Array.isArray((raw as { content?: unknown }).content) &&
 		(raw as { content: unknown[] }).content.length > 0;
-	return { surface, ok: hasContent, status, message: hasContent ? 'connected' : redactedMessage(status) };
+	return { surface, ok: hasContent, status, message: hasContent ? 'connected' : redactedMessage(status), ...calledName(endpoint, model) };
 }
 
 /**
