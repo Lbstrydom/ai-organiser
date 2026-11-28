@@ -57,6 +57,7 @@ Azure specialist routing is **config-driven, not hardcoded** — any user's Foun
 
 ### Key patterns
 - **`getAzureApiKey(plugin, provider)`** — `useMainKeyFallback: false` always (no personal-key borrow). `azure-openai` falls back to the shared Foundry key via two sequential lookups.
+- **"GPT model" is also the chat model when Azure OpenAI is the main provider**: chat is built from `cloudModel`, so every user action that sets `azureGPTModel` (picker, config import) goes through `applyAzureGptModel` (`azureModelSync.ts`), and the connection test probes `effectiveAzureGptModel`. Values that already differ are never rewritten on load.
 - **`blockOverride = adapterType === 'azure-openai'`** in `cloudService` drops `modelOverride` on the deployment-routed URL.
 - **Capability detection**: the resolved canonical model id flows as `modelName` (so `modelCapabilities`/`tokenLimits` regexes match); the deployment name never escapes the adapter.
 - **Hygiene**: `PROVIDER_ENDPOINT` Azure entries `''`; no corporate endpoints/keys in defaults; redacted logs. `docs/plans/sync/azure-providers.md` (+ audit summary) are gitignored.

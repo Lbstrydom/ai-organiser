@@ -16,6 +16,7 @@ import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 import { ReplaceModelNameModal } from '../modals/ReplaceModelNameModal';
 import { AzureConfigImportModal } from '../modals/AzureConfigImportModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
+import { applyAzureGptModel } from '../../services/azure/azureModelSync';
 import { usesWhisperDeployment } from '../../services/azure/resolveAzureCapability';
 import { AzureCapabilitiesSettingsSection } from './AzureCapabilitiesSettingsSection';
 
@@ -356,12 +357,12 @@ export class LLMSettingsSection extends BaseSettingSection {
             customModelSetting.settingEl.hide();
         }
 
-        // GPT model — used by azure-openai chat + the live test.
+        // GPT model — also the chat model when Azure OpenAI is the main provider.
         this.addAzureModelPicker(
             new Setting(this.containerEl).setName(az.gptModel).setDesc(az.gptModelDesc),
             'chat',
             () => this.plugin.settings.azureGPTModel,
-            (value) => { this.plugin.settings.azureGPTModel = value; },
+            (value) => { applyAzureGptModel(this.plugin.settings, value); },
             az.gptModelPlaceholder,
         );
 

@@ -135,3 +135,28 @@ describe('testAzureConnection — Whisper probe', () => {
         expect(await surfacesFor({}, { transcription: { mode } })).not.toContain('azure-openai-whisper');
     });
 });
+
+describe('testAzureConnection — chat probe uses the model chat sends', () => {
+    const chatBodyModel = (): string => {
+        const call = mockRequestUrl.mock.calls
+            .map(c => c[0] as { url: string; body: string })
+            .find(r => r.url.includes('/chat/completions'));
+        return (JSON.parse(call!.body) as { model: string }).model;
+    };
+
+    it('azure-openai main: probes cloudModel even when "GPT model" differs', async () => {
+        const plugin = makePlugin();
+        plugin.settings.cloudServiceType = 'azure-openai';
+        plugin.settings.cloudModel = 'gpt-chat-dep';
+        plugin.settings.azureGPTModel = 'gpt-other';
+        await testAzureConnection(plugin);
+        expect(chatBodyModel()).toBe('gpt-chat-dep');
+    });
+
+    it('azure-claude main: probes "GPT model" for the OpenAI surface', async () => {
+        const plugin = makePlugin();
+        plugin.settings.azureGPTModel = 'gpt-other';
+        await testAzureConnection(plugin);
+        expect(chatBodyModel()).toBe('gpt-other');
+    });
+});

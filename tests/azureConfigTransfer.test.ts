@@ -104,3 +104,24 @@ describe('applyAzureConfigImport', () => {
         expect(target.azureSpeechRegion).toBe(source.azureSpeechRegion);
     });
 });
+
+describe('applyAzureConfigImport — GPT model and the chat model', () => {
+    it('azure-openai main: an imported GPT model becomes the chat model', () => {
+        const settings = makeSettings({ cloudServiceType: 'azure-openai', cloudModel: 'gpt-old', azureGPTModel: 'gpt-old' });
+        applyAzureConfigImport(settings, { azureGPTModel: 'gpt-new' });
+        expect(settings.azureGPTModel).toBe('gpt-new');
+        expect(settings.cloudModel).toBe('gpt-new');
+    });
+
+    it('azure-claude main: the chat model is left alone', () => {
+        const settings = makeSettings({ cloudServiceType: 'azure-claude', cloudModel: 'claude-x', azureGPTModel: 'gpt-old' });
+        applyAzureConfigImport(settings, { azureGPTModel: 'gpt-new' });
+        expect(settings.cloudModel).toBe('claude-x');
+    });
+
+    it('a blob without a GPT model does not touch either value', () => {
+        const settings = makeSettings({ cloudServiceType: 'azure-openai', cloudModel: 'gpt-a', azureGPTModel: 'gpt-b' });
+        applyAzureConfigImport(settings, { azureOpenAIEndpoint: 'https://x.openai.azure.com' });
+        expect([settings.cloudModel, settings.azureGPTModel]).toEqual(['gpt-a', 'gpt-b']);
+    });
+});
