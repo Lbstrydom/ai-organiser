@@ -17,8 +17,12 @@ import type { Translations } from '../../../i18n/types';
 
 type UnifiedChatT = Translations['modals']['unifiedChat'];
 
+/** Proof of holding the lock: an operation releases only the lock it took. */
+export type RunToken = object;
+
 export class PresentationRunController {
     private locked = false;
+    private owner: RunToken | null = null;
     private abortController: AbortController | null = null;
     private thinkingUpdater: ((msg: string) => void) | null = null;
     private cancelHook: (() => void) | null = null;
@@ -55,9 +59,14 @@ export class PresentationRunController {
         return this.t;
     }
 
+    /** True while `token` is the current holder: false once cancelled or replaced. */
+    owns(token: RunToken): boolean {
+        return this.owner === token;
+    }
+
     /** Begin an LLM operation: take the lock, mint a fresh AbortController, wire
      *  the thinking sink + i18n. Returns the AbortController so the caller can
-     *  pass its signal downstream. */
+     *  pass its signal downstream, and hand back to {@link end}. */
     begin(thinkingUpdater: (msg: string) => void, t: UnifiedChatT): AbortController {
         // TODO(presentation): consider asserting `!this.locked` here + in lock()
         // (re-entrancy guard, Gemini code-gate LOW). Deferred — it's a shared
@@ -66,31 +75,43 @@ export class PresentationRunController {
         // focused follow-up, not the demo-fixes change.
         this.locked = true;
         this.abortController = new AbortController();
+        this.owner = this.abortController;
         this.thinkingUpdater = thinkingUpdater;
         this.t = t;
         return this.abortController;
     }
 
-    /** End the operation: release the lock + clear the abort/thinking/i18n
-     *  handles. Idempotent. */
-    end(): void {
+    /**
+     * End the operation: release the lock + clear the abort/thinking/i18n handles.
+     * An operation passes what `begin` returned, so one that was cancelled and
+     * finishes late cannot release its successor's lock. Without an argument it
+     * force-releases (user teardown of a wedged run). Idempotent.
+     */
+    end(owner?: RunToken): void {
+        if (owner && owner !== this.owner) return;
         const wasLocked = this.locked;
         this.locked = false;
+        this.owner = null;
         this.abortController = null;
         this.thinkingUpdater = null;
         this.t = null;
         this.fireRelease(wasLocked);
     }
 
-    /** Lightweight lock for non-streaming operations (export) that need mutual
-     *  exclusion but no abort/thinking/i18n. */
-    lock(): void {
+    /** Lightweight lock for operations that need mutual exclusion but no
+     *  abort/thinking/i18n (export, polish). */
+    lock(): RunToken {
         this.locked = true;
+        this.owner = {};
+        return this.owner;
     }
 
-    unlock(): void {
+    /** Release a lock taken by {@link lock}; a stale token releases nothing. */
+    unlock(token?: RunToken): void {
+        if (token && token !== this.owner) return;
         const wasLocked = this.locked;
         this.locked = false;
+        this.owner = null;
         this.fireRelease(wasLocked);
     }
 
