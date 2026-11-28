@@ -2,9 +2,8 @@ import type AIOrganiserPlugin from '../main';
 import { PLUGIN_SECRET_IDS } from '../core/secretIds';
 import { PdfContent } from './pdfService';
 import { isAzureMode } from './azure/endpointResolver';
-import { PROVIDER_DEFAULT_MODEL } from './adapters/providerRegistry';
 import { getAzureApiKey, resolveEndpoint } from './apiKeyHelpers';
-import { azureCapabilityModel } from './azure/azureModelSync';
+import { azureCapabilityModel, effectiveAzureClaudeDeployment } from './azure/azureModelSync';
 
 export interface PdfProviderConfig {
     provider: 'claude' | 'gemini' | 'azure-claude';
@@ -34,7 +33,8 @@ export async function getPdfProviderConfig(plugin: AIOrganiserPlugin): Promise<P
         const azureKey = await getAzureApiKey(plugin, 'azure-claude');
         const endpoint = resolveEndpoint('azure-claude', plugin);
         if (azureKey && endpoint) {
-            const model = plugin.settings.cloudModel || PROVIDER_DEFAULT_MODEL['azure-claude'];
+            // The Claude deployment, not the chat model: with GPT as main that is a GPT name.
+            const model = effectiveAzureClaudeDeployment(plugin.settings);
             return {
                 provider: 'azure-claude',
                 apiKey: azureKey,

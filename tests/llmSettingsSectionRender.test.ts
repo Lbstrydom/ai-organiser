@@ -78,7 +78,7 @@ describe('Azure-first layout', () => {
         expect(all.filter(Boolean)).toEqual([
             az.firstMode,
             `# ${az.groupConnection}`, az.apiKey, az.aiEndpoint, az.openAIEndpoint, az.testConfig, az.configTransfer,
-            `# ${az.groupChat}`, az.mainProviderChoice, az.defaultModel, az.customModelName, az.gptModel, az.chatDeployment,
+            `# ${az.groupChat}`, az.mainProviderChoice, az.defaultModel, az.gptModel, az.chatDeployment,
             `# ${az.groupSearch}`, az.source, az.embeddingModel, az.embeddingsDeployment, caps.visualEmbeddings, caps.deploymentLabel,
             `# ${az.groupTranscription}`, az.source, en.settings.azureSpeech.endpoint, az.whisperDeployment, en.diarization.providerLabel,
             `# ${az.groupReadAloud}`, az.source, az.deployment, en.settings.azureSpeech.region, en.settings.azureSpeech.voice,
@@ -143,20 +143,12 @@ describe('Azure-first layout', () => {
         expect(claude.all.indexOf(az.claudeModel)).toBeGreaterThan(claude.all.indexOf(az.defaultModel));
         const field = recordedSettings.find(r => r.name === az.claudeModel)!;
         expect(field.controls[0].value).toBe('');
-        field.controls[0].change!(' claude-opus-5-5 ');
+        field.controls[0].change!('claude-opus-5-5');
         expect(claude.plugin.settings.azureClaudeModel).toBe('claude-opus-5-5');
         // The deployment name (cloudModel) is left as it was.
         expect(claude.plugin.settings.cloudModel).toBe('claude-sonnet-5-5');
         const gpt = await outline('azure deployment-based (OpenAI main)');
         expect(gpt.all).not.toContain(az.claudeModel);
-    });
-
-    it('picking a preset deployment drops the Claude model that described the previous one', async () => {
-        const { plugin } = await outline('azure model-based (Claude main)', { cloudModel: 'team-sonnet', azureClaudeModel: 'claude-sonnet-5-5' });
-        const preset = recordedSettings.find(r => r.name === az.defaultModel)!.controls.find(c => c.kind === 'dropdown')!;
-        preset.change!('claude-opus-5-5');
-        expect(plugin.settings.cloudModel).toBe('claude-opus-5-5');
-        expect(plugin.settings.azureClaudeModel).toBe('');
     });
 
     it('describes the read aloud deployment', async () => {

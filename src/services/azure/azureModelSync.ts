@@ -7,7 +7,7 @@
  * differ are never rewritten on load.
  */
 import type { AIOrganiserSettings } from '../../core/settings';
-import { AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
+import { AZURE_DEFAULT_CLAUDE_MODEL, AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
 
 /** A blank value (an imported empty setting) changes nothing. */
 export function applyAzureGptModel(settings: AIOrganiserSettings, value: string): void {
@@ -28,13 +28,24 @@ export function effectiveAzureGptModel(
 /**
  * The "Claude deployment" setting: one value for every task slot, and the chat
  * model when Azure Claude is the main provider. A blank value changes nothing.
+ * A changed deployment drops the "Claude model", which described the old one.
  */
 export function applyAzureClaudeDeployment(settings: AIOrganiserSettings, value: string): void {
     const deployment = value.trim();
     if (!deployment) return;
+    const previous = effectiveAzureClaudeDeployment(settings);
+    if (deployment !== previous) settings.azureClaudeModel = '';
     const tasks = settings.taskModels;
     if (tasks) tasks.tagging = tasks.summarization = tasks.chat = tasks.mermaid = deployment;
     if (settings.cloudServiceType === 'azure-claude') settings.cloudModel = deployment;
+}
+
+/** The deployment a request to the Azure Claude surface carries. */
+export function effectiveAzureClaudeDeployment(
+    settings: { cloudServiceType?: string; cloudModel?: string; taskModels?: { chat?: string } },
+): string {
+    const model = settings.cloudServiceType === 'azure-claude' ? settings.cloudModel : settings.taskModels?.chat;
+    return model || AZURE_DEFAULT_CLAUDE_MODEL;
 }
 
 type CapabilitySettings = Pick<AIOrganiserSettings, 'cloudServiceType' | 'cloudModel' | 'azureClaudeModel'>;
