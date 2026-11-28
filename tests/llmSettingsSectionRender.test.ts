@@ -151,6 +151,14 @@ describe('Azure-first layout', () => {
         expect(gpt.all).not.toContain(az.claudeModel);
     });
 
+    it('picking a preset deployment drops the Claude model that described the previous one', async () => {
+        const { plugin } = await outline('azure model-based (Claude main)', { cloudModel: 'team-sonnet', azureClaudeModel: 'claude-sonnet-5-5' });
+        const preset = recordedSettings.find(r => r.name === az.defaultModel)!.controls.find(c => c.kind === 'dropdown')!;
+        preset.change!('claude-opus-5-5');
+        expect(plugin.settings.cloudModel).toBe('claude-opus-5-5');
+        expect(plugin.settings.azureClaudeModel).toBe('');
+    });
+
     it('describes the read aloud deployment', async () => {
         await outline('azure model-based (Claude main)');
         // Model-based routing draws one "Deployment" outside Search's visual row: read aloud's.

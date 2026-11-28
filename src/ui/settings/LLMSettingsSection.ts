@@ -521,7 +521,12 @@ export class LLMSettingsSection extends BaseSettingSection {
                             return;
                         }
                         customModelSetting?.settingEl.hide();
+                        // A preset is a model name: a "Claude model" entered for the
+                        // previous deployment would now describe the wrong one.
+                        const described = !!this.plugin.settings.azureClaudeModel && value !== storedDefaultModel();
+                        if (described) this.plugin.settings.azureClaudeModel = '';
                         applyDefaultModel(value);
+                        if (described) this.settingTab.display();
                     });
             });
 
