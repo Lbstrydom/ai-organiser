@@ -250,6 +250,17 @@ export async function resolveAzureCapability(
     return { kind: 'unavailable', reason: 'no-azure-path' };
 }
 
+/**
+ * True when Azure OpenAI Whisper is what transcription would call. False when it is off or
+ * brought your own, when strict mode forbids it, or when Azure AI Speech serves instead.
+ */
+export async function usesWhisperDeployment(plugin: AIOrganiserPlugin): Promise<boolean> {
+    if (capabilityChoice(plugin, 'transcription').mode !== 'azure') return false;
+    if (plugin.settings.azureSpeechRequired === true) return false;
+    const serving = await resolveAzureCapability(plugin, 'transcription');
+    return !(serving.kind === 'azure' && serving.surface === 'azure-speech');
+}
+
 /** Convenience guard for callers: only consult the resolver in Azure mode. */
 export function shouldUseAzureCapabilityRouting(plugin: AIOrganiserPlugin): boolean {
     return isAzureMode(plugin.settings);

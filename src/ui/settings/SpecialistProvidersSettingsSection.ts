@@ -489,7 +489,7 @@ export class SpecialistProvidersSettingsSection extends BaseSettingSection {
 
         new Setting(this.containerEl)
             .setName(exportT?.flashcardProvider || 'Flashcard provider')
-            .setDesc(exportT?.flashcardProviderDesc || 'Claude sonnet 4.5 is recommended for best flashcard quality.')
+            .setDesc(exportT?.flashcardProviderDesc || 'A strong reasoning model gives the best flashcards.')
             .addDropdown(dropdown => {
                 dropdown.addOption('main', exportT?.flashcardProviderMain || 'Use main provider');
                 for (const [key, label] of Object.entries(providerOptions)) {

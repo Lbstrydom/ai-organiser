@@ -16,6 +16,7 @@ import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 import { ReplaceModelNameModal } from '../modals/ReplaceModelNameModal';
 import { AzureConfigImportModal } from '../modals/AzureConfigImportModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
+import { usesWhisperDeployment } from '../../services/azure/resolveAzureCapability';
 import { AzureCapabilitiesSettingsSection } from './AzureCapabilitiesSettingsSection';
 
 export class LLMSettingsSection extends BaseSettingSection {
@@ -265,7 +266,7 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         this.renderGatewayAdviceBanner();
 
-        new Setting(this.containerEl)
+        const whisperSetting = new Setting(this.containerEl)
             .setName(az.whisperDeployment)
             .setDesc(az.whisperDeploymentDesc)
             .addText(text => text
@@ -275,6 +276,9 @@ export class LLMSettingsSection extends BaseSettingSection {
                     this.plugin.settings.azureWhisperDeployment = value;
                     void this.plugin.saveSettings();
                 }));
+
+        // Asked only when Whisper would be called; the stored value is kept either way.
+        void usesWhisperDeployment(this.plugin).then(used => { if (!used) whisperSetting.settingEl.hide(); });
 
         // Default model for general tasks.
         const CUSTOM_MODEL_SENTINEL = '__custom__';

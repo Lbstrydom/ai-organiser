@@ -115,7 +115,7 @@ export const en: Translations = {
                 narration: "Audio narration + podcast: configure an Azure OpenAI Speech deployment under Azure capabilities, or bring your own gemini key"
             },
             thinkingMode: "Thinking mode",
-            thinkingModeDesc: "Opus 4.6 adaptive thinking — claude decides when to think deeply",
+            thinkingModeDesc: "Adaptive thinking lets Claude decide when to think more deeply. It needs an Opus or Sonnet model that supports it.",
             thinkingStandard: "Standard (no thinking)",
             thinkingAdaptive: "Adaptive (recommended)",
             gettingStarted: {
@@ -141,7 +141,7 @@ export const en: Translations = {
                 aiEndpoint: "Azure AI endpoint",
                 aiEndpointDesc: "Claude models endpoint (e.g. https://<your-resource>.services.ai.azure.com).",
                 openAIEndpoint: "Azure OpenAI endpoint",
-                openAIEndpointDesc: "GPT, embeddings, and Whisper endpoint (e.g. https://<your-resource>.openai.azure.com).",
+                openAIEndpointDesc: "GPT and embeddings endpoint, also used by Whisper if you use it (e.g. https://<your-resource>.openai.azure.com).",
                 whisperDeployment: "Whisper deployment name",
                 whisperDeploymentDesc: "Azure OpenAI deployment name for audio transcription.",
                 whisperDeploymentPlaceholder: "whisper",
@@ -187,8 +187,8 @@ export const en: Translations = {
                 embeddingModelDesc: "Azure OpenAI embedding model (e.g. text-embedding-3-large).",
                 embeddingModelPlaceholder: "text-embedding-3-large",
                 gptModel: "GPT model",
-                gptModelDesc: "Azure OpenAI chat model used for GPT tasks and the live test (e.g. gpt-5.5).",
-                gptModelPlaceholder: "gpt-5.5",
+                gptModelDesc: "Azure OpenAI chat model used for GPT tasks and the live test.",
+                gptModelPlaceholder: "Model or deployment name",
                 maxConcurrent: "Max concurrent requests",
                 maxConcurrentDesc: "How many Azure requests run in parallel (1–10) — applied per deployment, not a shared pool. This is parallelism, not a rate cap. Lower if you hit 429 errors.",
                 maxRpm: "Fallback requests per minute",
@@ -323,7 +323,7 @@ export const en: Translations = {
             webReaderOutputFolderDesc: "Where to save notes created by web reader",
             azureFastModel: "Fast tagging deployment (Azure)",
             azureFastModelDesc: "Optional. Route high-volume tagging through a cheaper/faster Azure deployment (e.g. a nano model). Blank = use your main model. Enter the deployment name exactly as configured in Azure.",
-            azureFastModelOpenAIPlaceholder: "gpt-5.4-nano",
+            azureFastModelOpenAIPlaceholder: "Your small, fast deployment",
             azureFastModelClaudePlaceholder: "my-fast-claude-deployment"
         },
         minutes: {
@@ -356,9 +356,8 @@ export const en: Translations = {
             speakerLabellingDesc: "Use an llm pre-pass to label unlabelled transcripts with speaker names before generating minutes",
             // Phase 4 TRA: Diarisation placeholder
             diarisationProvider: "Diarisation provider",
-            diarisationProviderDesc: "External speaker diarisation service (coming soon)",
-            diarisationNone: "None",
-            diarisationAssemblyAI: "AssemblyAI",
+            diarisationProviderDesc: "Off by default. Add Deepgram to identify who is speaking. Transcription works without it.",
+            diarisationNone: "Off",
             diarisationDeepgram: "Deepgram"
         },
         kindle: {
@@ -406,7 +405,7 @@ export const en: Translations = {
             statusNone: "✗ Azure has no path for this — bring your own provider or turn it off.",
             byoConfigured: "Bring-your-own provider is configured.",
             byoNotConfigured: "Not configured — add the provider key in Specialist providers, or it stays off.",
-            transcription: "Transcription (Whisper)",
+            transcription: "Transcription",
             transcriptionDesc: "Speech-to-text for audio + meeting minutes.",
             embeddings: "Embeddings",
             embeddingsDesc: "Vector embeddings for semantic search.",
@@ -569,7 +568,7 @@ export const en: Translations = {
             claudeMaxSearches: 'Max searches per query',
             claudeMaxSearchesDesc: 'Limit searches per research request (cost control)',
             claudeDynamicFiltering: 'Dynamic filtering',
-            claudeDynamicFilteringDesc: "Claude filters results with code before reasoning (requires claude 4.6)",
+            claudeDynamicFilteringDesc: "Claude filters results with code before reasoning. If your provider or model refuses it, the basic search is used.",
             zotero: "Zotero integration",
             zoteroDesc: "Send research references to Zotero (requires Obsidian-Zotero-desktop-connector, desktop only)",
             zoteroCollection: "Zotero collection",
@@ -828,7 +827,7 @@ export const en: Translations = {
             outputFolder: "Output folder",
             outputFolderDesc: "Where to save exported documents",
             flashcardProvider: "Flashcard llm provider",
-            flashcardProviderDesc: "Claude sonnet 4.6 is recommended for best flashcard quality. 'use main provider' uses your default AI provider.",
+            flashcardProviderDesc: "A strong reasoning model gives the best flashcards. 'Use main provider' uses your default AI provider.",
             flashcardProviderMain: "Use main provider",
             flashcardModel: "Flashcard model",
             flashcardModelDesc: "Override the default model for this provider. Leave empty for the provider default.",

@@ -353,7 +353,6 @@ export interface Translations {
             diarisationProvider: string;
             diarisationProviderDesc: string;
             diarisationNone: string;
-            diarisationAssemblyAI: string;
             diarisationDeepgram: string;
         };
         kindle: {
