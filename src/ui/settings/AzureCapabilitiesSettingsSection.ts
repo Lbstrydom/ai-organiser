@@ -183,7 +183,8 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                 .onChange((value) => {
                     s.audioDiarisationProvider = value as 'none' | 'deepgram' | 'azure-speech';
                     void this.plugin.saveSettings();
-                    void this.refreshDiarizationStatus(statusLine);
+                    // The Deepgram key field in Meeting minutes appears or hides with this choice.
+                    this.settingTab.display();
                 }));
 
         // Effective-provider status (user feedback 2026-06-11): the dropdown is

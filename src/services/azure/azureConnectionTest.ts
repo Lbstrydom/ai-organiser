@@ -16,7 +16,7 @@ import type AIOrganiserPlugin from '../../main';
 import { getAzureApiKey } from '../apiKeyHelpers';
 import { validateSettings } from './settingsValidator';
 import { openaiUsesReasoningParams } from '../adapters/modelCapabilities';
-import { capabilityChoice, resolveAzureCapability } from './resolveAzureCapability';
+import { capabilityChoice, usesWhisperDeployment } from './resolveAzureCapability';
 import { resolveAzureSpeechCredential } from './azureSpeechCredential';
 import { buildSsml } from '../tts/ssmlBuilder';
 import {
@@ -277,10 +277,7 @@ async function testWhisperSurface(
 	// Probe only when Whisper is what transcription would use. When Azure AI Speech
 	// serves it (or strict mode forbids Whisper) a tenant needs no Whisper deployment,
 	// and probing one would report a failure that affects nothing.
-	if (capabilityChoice(plugin, 'transcription').mode !== 'azure') return null;
-	if (plugin.settings.azureSpeechRequired === true) return null;
-	const serving = await resolveAzureCapability(plugin, 'transcription');
-	if (serving.kind === 'azure' && serving.surface === 'azure-speech') return null;
+	if (!await usesWhisperDeployment(plugin)) return null;
 	const surface: AzureTestSurface = 'azure-openai-whisper';
 	let endpoint: string;
 	try {

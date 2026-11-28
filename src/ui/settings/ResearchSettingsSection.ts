@@ -120,7 +120,7 @@ export class ResearchSettingsSection extends BaseSettingSection {
             // Dynamic filtering toggle (AD-7)
             new Setting(this.containerEl)
                 .setName(rt.claudeDynamicFiltering || 'Dynamic filtering')
-                .setDesc(rt.claudeDynamicFilteringDesc || 'Claude filters results with code before reasoning (requires Claude 4.6)')
+                .setDesc(rt.claudeDynamicFilteringDesc || 'Claude filters results with code before reasoning.')
                 .addToggle(toggle => toggle
                     .setValue(this.plugin.settings.researchClaudeUseDynamicFiltering)
                     .onChange(async v => {

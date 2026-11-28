@@ -43,7 +43,7 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
 
         // Voice — options come from the SELECTED user-facing provider's registry
         // entry (Azure-internal engines bind their own voice setting).
-        new Setting(this.containerEl)
+        const voiceSetting = new Setting(this.containerEl)
             .setName(t.voice)
             .setDesc(t.voiceDesc)
             .addDropdown(dropdown => {
@@ -69,6 +69,13 @@ export class AudioNarrationSettingsSection extends BaseSettingSection {
                         void this.plugin.saveSettings();
                     });
             });
+
+        // Azure AI Speech has its own voice (in the Azure section); this list would be ignored.
+        if (isAzureMode(this.plugin.settings)) {
+            void resolveAzureCapability(this.plugin, 'tts').then(tts => {
+                if (tts.kind === 'azure' && tts.surface === 'azure-speech') voiceSetting.settingEl.hide();
+            });
+        }
 
         // Test voice — synthesizes a short fixed sample through the ACTIVE
         // narration engine (Azure mode → the capability-resolved Azure surface,
