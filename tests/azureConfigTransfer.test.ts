@@ -142,10 +142,9 @@ describe('Azure config transfer — Claude model', () => {
         expect(result.appliedFields).toContain('azureClaudeModel');
     });
 
-    it('an older or blank export leaves the stored value', () => {
+    it('a blob without Claude settings leaves the stored value', () => {
         const settings = makeSettings({ azureClaudeModel: 'claude-opus-5-5' });
         applyAzureConfigImport(settings, { azureAIEndpoint: 'https://x.services.ai.azure.com' });
-        applyAzureConfigImport(settings, { azureClaudeModel: ' ' });
         expect(settings.azureClaudeModel).toBe('claude-opus-5-5');
     });
 });

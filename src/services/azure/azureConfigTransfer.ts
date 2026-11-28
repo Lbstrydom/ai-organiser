@@ -11,7 +11,7 @@
  */
 
 import type { AIOrganiserSettings } from '../../core/settings';
-import { applyAzureGptModel } from './azureModelSync';
+import { applyAzureClaudeDeployment, applyAzureGptModel } from './azureModelSync';
 
 /** The exported shape. Keep in sync with the field list in both functions below. */
 export interface AzureConfigExport {
@@ -22,6 +22,8 @@ export interface AzureConfigExport {
     azureDeployments?: { chat?: string; embeddings?: string };
     azureGPTModel?: string;
     azureClaudeModel?: string;
+    /** The Claude deployment in effect for the exporter. */
+    azureClaudeDeployment?: string;
     azureWhisperDeployment?: string;
     azureApiVersionOverride?: { whisper?: string; chat?: string; embeddings?: string };
     azureClaudeViaOpenAIGateway?: boolean;
@@ -52,6 +54,9 @@ export function buildAzureConfigExport(settings: AIOrganiserSettings): AzureConf
         azureDeployments: { ...settings.azureDeployments },
         azureGPTModel: settings.azureGPTModel,
         azureClaudeModel: settings.azureClaudeModel,
+        azureClaudeDeployment: settings.cloudServiceType === 'azure-claude' && settings.cloudModel
+            ? settings.cloudModel
+            : settings.taskModels?.chat,
         azureWhisperDeployment: settings.azureWhisperDeployment,
         azureApiVersionOverride: { ...settings.azureApiVersionOverride },
         azureClaudeViaOpenAIGateway: settings.azureClaudeViaOpenAIGateway,
@@ -87,6 +92,30 @@ const isPlainObject = (v: unknown): v is Record<string, unknown> =>
     typeof v === 'object' && v !== null && !Array.isArray(v);
 
 /**
+ * The Claude deployment and the model behind it. Newer exports name the
+ * deployment; older ones only carry the task models.
+ */
+function applyClaudeSettings(settings: AIOrganiserSettings, raw: Record<string, unknown>, applied: string[]): void {
+    const tasks = isPlainObject(raw.taskModels) ? raw.taskModels : {};
+    const deployment = [raw.azureClaudeDeployment, tasks.chat, tasks.tagging]
+        .find((v): v is string => isString(v) && !!v.trim());
+    const chatBefore = settings.cloudModel;
+    if (deployment) {
+        applyAzureClaudeDeployment(settings, deployment);
+        applied.push('taskModels');
+        if (settings.cloudModel !== chatBefore) applied.push('cloudModel');
+    }
+    if (isString(raw.azureClaudeModel)) {
+        // Blank is a value here: the shared setup reads the model from the deployment name.
+        settings.azureClaudeModel = raw.azureClaudeModel.trim();
+        applied.push('azureClaudeModel');
+    } else if (settings.cloudModel !== chatBefore) {
+        // The stored model described the previous deployment.
+        settings.azureClaudeModel = '';
+    }
+}
+
+/**
  * Mutates `settings` in place with any well-typed fields found in `raw`
  * (parsed JSON, untrusted). Never throws. Returns which fields were applied,
  * so the caller can show the user exactly what changed.
@@ -108,10 +137,6 @@ export function applyAzureConfigImport(settings: AIOrganiserSettings, raw: unkno
         applied.push('azureDeployments');
     }
     if (isString(raw.azureGPTModel) && raw.azureGPTModel.trim()) { applyAzureGptModel(settings, raw.azureGPTModel); applied.push('azureGPTModel'); }
-    if (isString(raw.azureClaudeModel) && raw.azureClaudeModel.trim()) {
-        settings.azureClaudeModel = raw.azureClaudeModel.trim();
-        applied.push('azureClaudeModel');
-    }
     if (isString(raw.azureWhisperDeployment)) { settings.azureWhisperDeployment = raw.azureWhisperDeployment; applied.push('azureWhisperDeployment'); }
     if (isPlainObject(raw.azureApiVersionOverride)) {
         const o = raw.azureApiVersionOverride;
@@ -125,6 +150,8 @@ export function applyAzureConfigImport(settings: AIOrganiserSettings, raw: unkno
     if (isBoolean(raw.azureClaudeViaOpenAIGateway)) { settings.azureClaudeViaOpenAIGateway = raw.azureClaudeViaOpenAIGateway; applied.push('azureClaudeViaOpenAIGateway'); }
     if (isPlainObject(raw.azureCapabilities)) {
         settings.azureCapabilities = raw.azureCapabilities as typeof settings.azureCapabilities;
+        // An imported read aloud choice is deliberate: the old one-time flip must not undo it.
+        if (isPlainObject(raw.azureCapabilities.tts)) settings.azureTtsSeedV2 = true;
         applied.push('azureCapabilities');
     }
     if (isPlainObject(raw.azurePerDeploymentRpm)) {
@@ -139,17 +166,7 @@ export function applyAzureConfigImport(settings: AIOrganiserSettings, raw: unkno
     }
     if (isNumber(raw.azureMaxConcurrentRequests)) { settings.azureMaxConcurrentRequests = raw.azureMaxConcurrentRequests; applied.push('azureMaxConcurrentRequests'); }
     if (isNumber(raw.azureMaxRpm)) { settings.azureMaxRpm = raw.azureMaxRpm; applied.push('azureMaxRpm'); }
-    if (isPlainObject(raw.taskModels)) {
-        const tm = raw.taskModels;
-        const value = isString(tm.chat) ? tm.chat : (isString(tm.tagging) ? tm.tagging : undefined);
-        if (value && settings.taskModels) {
-            settings.taskModels.tagging = value;
-            settings.taskModels.summarization = value;
-            settings.taskModels.chat = value;
-            settings.taskModels.mermaid = value;
-            applied.push('taskModels');
-        }
-    }
+    applyClaudeSettings(settings, raw, applied);
     if (isString(raw.azureSpeechRegion)) { settings.azureSpeechRegion = raw.azureSpeechRegion; applied.push('azureSpeechRegion'); }
     if (isString(raw.azureSpeechEndpoint)) { settings.azureSpeechEndpoint = raw.azureSpeechEndpoint; applied.push('azureSpeechEndpoint'); }
     if (isString(raw.azureSpeechVoice)) { settings.azureSpeechVoice = raw.azureSpeechVoice; applied.push('azureSpeechVoice'); }

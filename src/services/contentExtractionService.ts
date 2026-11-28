@@ -52,6 +52,8 @@ export interface PdfExtractionConfig {
     language?: string;
     /** Resolved endpoint URL. Only set for azure-claude (vault-local config). */
     endpoint?: string;
+    /** See PdfProviderConfig.capabilityModel. */
+    capabilityModel?: string;
 }
 
 export class ContentExtractionService {
@@ -452,7 +454,8 @@ export class ContentExtractionService {
                         ? 'https://api.anthropic.com/v1/messages'
                         : 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions',
                 apiKey: this.pdfExtractionConfig.apiKey,
-                modelName: this.pdfExtractionConfig.model
+                modelName: this.pdfExtractionConfig.model,
+                capabilityModel: this.pdfExtractionConfig.capabilityModel
             }, this.app);
 
             try {

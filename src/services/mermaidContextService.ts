@@ -9,6 +9,7 @@ import type AIOrganiserPlugin from '../main';
 import { RAGService } from './ragService';
 import { getMaxContentCharsForModel } from './tokenLimits';
 import { extractMermaidNodeLabels, findAllMermaidBlocks } from '../utils/mermaidUtils';
+import { mainCapabilityModel } from './azure/azureModelSync';
 
 // Character-budget allocation (as fractions of available context window)
 export const BUDGET_NOTE_PCT     = 0.40;   // Note headings
@@ -44,7 +45,7 @@ export class MermaidContextService {
         const provider = settings.serviceType === 'cloud'
             ? (settings.cloudServiceType ?? 'openai')
             : settings.serviceType;
-        const model = settings.serviceType === 'cloud' ? settings.cloudModel : settings.localModel;
+        const model = settings.serviceType === 'cloud' ? mainCapabilityModel(settings) : settings.localModel;
         const totalBudget = getMaxContentCharsForModel(provider, model);
         const available = Math.max(0, totalBudget - PROMPT_OVERHEAD_CHARS);
 

@@ -18,6 +18,7 @@ import { BrightDataSerpAdapter } from './adapters/brightdataSerpAdapter';
 import { ClaudeWebSearchAdapter } from './adapters/claudeWebSearchAdapter';
 import { normalizeUrl, extractDomain } from '../../utils/urlUtils';
 import { enrichWithAcademicMetadata, buildAcademicQueries, ACADEMIC_DOMAINS } from './academicUtils';
+import { azureCapabilityModel } from '../azure/azureModelSync';
 
 export class ResearchSearchService {
     private providers: Map<SearchProviderType, SearchProvider>;
@@ -52,6 +53,10 @@ export class ResearchSearchService {
                         : (wsAzure
                             ? (plugin.settings.azureCapabilities?.websearch?.deployment || 'latest-sonnet')
                             : 'latest-sonnet'),
+                    // Describes a custom Azure Claude deployment name; never sent.
+                    capabilityModel: wsAzure
+                        ? azureCapabilityModel(plugin.settings, 'azure-claude', plugin.settings.cloudModel)
+                        : undefined,
                     maxSearches: plugin.settings.researchClaudeMaxSearches ?? 5,
                     useDynamicFiltering: plugin.settings.researchClaudeUseDynamicFiltering ?? true,
                     // Azure web search routes through the Foundry passthrough only when

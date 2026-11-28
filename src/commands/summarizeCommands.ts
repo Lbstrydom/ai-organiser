@@ -2340,7 +2340,8 @@ async function summarizePdfWithLLM(
             apiKey: pdfConfig.apiKey,
             // `latest-*` sentinels resolve inside CloudLLMService constructor
             // so newly released Sonnet / Flash variants auto-upgrade.
-            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'latest-sonnet' : 'latest-flash')
+            modelName: pdfConfig.model || (pdfConfig.provider === 'claude' ? 'latest-sonnet' : 'latest-flash'),
+            capabilityModel: pdfConfig.capabilityModel
         }, plugin.app);
 
         try {

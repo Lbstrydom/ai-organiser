@@ -1,5 +1,5 @@
 /**
- * The Azure "GPT model" setting and the model chat sends.
+ * The Azure model settings: what chat sends, and what describes it.
  *
  * With Azure OpenAI as the main provider, the chat service is built from
  * `cloudModel`, so a change to `azureGPTModel` has to carry over. These run only
@@ -23,4 +23,32 @@ export function effectiveAzureGptModel(
 ): string {
     const model = settings.cloudServiceType === 'azure-openai' ? settings.cloudModel : settings.azureGPTModel;
     return model || AZURE_DEFAULT_GPT_MODEL;
+}
+
+/**
+ * The "Claude deployment" setting: one value for every task slot, and the chat
+ * model when Azure Claude is the main provider. A blank value changes nothing.
+ */
+export function applyAzureClaudeDeployment(settings: AIOrganiserSettings, value: string): void {
+    const deployment = value.trim();
+    if (!deployment) return;
+    const tasks = settings.taskModels;
+    if (tasks) tasks.tagging = tasks.summarization = tasks.chat = tasks.mermaid = deployment;
+    if (settings.cloudServiceType === 'azure-claude') settings.cloudModel = deployment;
+}
+
+type CapabilitySettings = Pick<AIOrganiserSettings, 'cloudServiceType' | 'cloudModel' | 'azureClaudeModel'>;
+
+/**
+ * The "Claude model" setting, when it describes this request: the main Azure
+ * Claude deployment. Anything else (another provider or deployment) is undefined.
+ */
+export function azureCapabilityModel(settings: CapabilitySettings, provider: string, modelName: string): string | undefined {
+    if (provider !== 'azure-claude' || settings.cloudServiceType !== 'azure-claude') return undefined;
+    return modelName === settings.cloudModel ? settings.azureClaudeModel?.trim() || undefined : undefined;
+}
+
+/** What limits and capabilities of the main cloud model are read from. Never sent in a request. */
+export function mainCapabilityModel(settings: CapabilitySettings): string {
+    return azureCapabilityModel(settings, settings.cloudServiceType, settings.cloudModel) ?? settings.cloudModel;
 }

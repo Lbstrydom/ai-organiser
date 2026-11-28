@@ -15,7 +15,7 @@ import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 import { ReplaceModelNameModal } from '../modals/ReplaceModelNameModal';
 import { AzureConfigImportModal } from '../modals/AzureConfigImportModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
-import { applyAzureGptModel } from '../../services/azure/azureModelSync';
+import { applyAzureClaudeDeployment, applyAzureGptModel } from '../../services/azure/azureModelSync';
 import { capabilityChoice, usesWhisperDeployment } from '../../services/azure/resolveAzureCapability';
 import { getCapability, type AzureCapabilityId } from '../../services/azure/azureCapabilities';
 import {
@@ -482,14 +482,7 @@ export class LLMSettingsSection extends BaseSettingSection {
         // move together or the dropdown is cosmetic (the connection test and chat read
         // cloudModel).
         const applyDefaultModel = (value: string): void => {
-            const s = this.plugin.settings;
-            if (s.taskModels) {
-                s.taskModels.tagging = value;
-                s.taskModels.summarization = value;
-                s.taskModels.chat = value;
-                s.taskModels.mermaid = value;
-            }
-            if (s.cloudServiceType === 'azure-claude') s.cloudModel = value;
+            applyAzureClaudeDeployment(this.plugin.settings, value);
             void this.plugin.saveSettings();
         };
         const storedDefaultModel = (): string => {
@@ -528,7 +521,12 @@ export class LLMSettingsSection extends BaseSettingSection {
                             return;
                         }
                         customModelSetting?.settingEl.hide();
+                        // A preset is a model name: a "Claude model" entered for the
+                        // previous deployment would now describe the wrong one.
+                        const described = !!this.plugin.settings.azureClaudeModel && value !== storedDefaultModel();
+                        if (described) this.plugin.settings.azureClaudeModel = '';
                         applyDefaultModel(value);
+                        if (described) this.settingTab.display();
                     });
             });
 

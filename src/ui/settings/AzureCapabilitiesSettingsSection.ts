@@ -309,6 +309,8 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
         if (!this.plugin.settings.azureCapabilities) this.plugin.settings.azureCapabilities = {};
         const prev = this.plugin.settings.azureCapabilities[id];
         this.plugin.settings.azureCapabilities[id] = { mode, deployment: prev?.deployment };
+        // A chosen read aloud source is deliberate: the old one-time flip must not undo it.
+        if (id === 'tts') this.plugin.settings.azureTtsSeedV2 = true;
     }
 
     private setDeployment(id: AzureCapabilityId, deployment: string): void {
