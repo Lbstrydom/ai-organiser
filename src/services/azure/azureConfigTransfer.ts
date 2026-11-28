@@ -109,9 +109,6 @@ function applyClaudeSettings(settings: AIOrganiserSettings, raw: Record<string, 
         // Blank is a value here: the shared setup reads the model from the deployment name.
         settings.azureClaudeModel = raw.azureClaudeModel.trim();
         applied.push('azureClaudeModel');
-    } else if (settings.cloudModel !== chatBefore) {
-        // The stored model described the previous deployment.
-        settings.azureClaudeModel = '';
     }
 }
 

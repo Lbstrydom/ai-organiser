@@ -16,7 +16,7 @@ import type AIOrganiserPlugin from '../../main';
 import { getAzureApiKey } from '../apiKeyHelpers';
 import { validateSettings } from './settingsValidator';
 import { openaiUsesReasoningParams } from '../adapters/modelCapabilities';
-import { effectiveAzureGptModel } from './azureModelSync';
+import { effectiveAzureClaudeDeployment, effectiveAzureGptModel } from './azureModelSync';
 import { capabilityChoice, usesWhisperDeployment } from './resolveAzureCapability';
 import { resolveAzureSpeechCredential } from './azureSpeechCredential';
 import { buildSsml } from '../tts/ssmlBuilder';
@@ -154,10 +154,7 @@ async function testClaudeSurface(
 	// `cloudModel`, which becomes a non-Azure value (e.g. the `latest-sonnet`
 	// sentinel) the moment the user selects a different main provider, causing a
 	// 404 on the Foundry endpoint even though Azure is configured correctly.
-	const model =
-		(plugin.settings.cloudServiceType === 'azure-claude' && plugin.settings.cloudModel)
-			? plugin.settings.cloudModel
-			: (plugin.settings.taskModels?.chat || AZURE_DEFAULT_CLAUDE_MODEL);
+	const model = effectiveAzureClaudeDeployment(plugin.settings);
 	// Named in the report only: the probe stays a minimal reachability request.
 	const described = plugin.settings.cloudServiceType === 'azure-claude'
 		? plugin.settings.azureClaudeModel?.trim()

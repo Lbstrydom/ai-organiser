@@ -49,18 +49,21 @@ export const MODEL_CATALOG: CatalogEntry[] = [
 		id: 'claude-sonnet-4-6' as ModelId,
 		name: 'Claude Sonnet 4.6',
 		provider: 'azure-claude',
+		superseded: true,
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
 	},
 	{
 		id: 'claude-opus-4-6' as ModelId,
 		name: 'Claude Opus 4.6',
 		provider: 'azure-claude',
+		superseded: true,
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
 	},
 	{
 		id: 'claude-opus-4-7' as ModelId,
 		name: 'Claude Opus 4.7',
 		provider: 'azure-claude',
+		superseded: true,
 		// 1M context — deep research/audit over long PDF reports.
 		capabilities: { vision: true, tools: true, reasoning: true, maxContextK: 1024 },
 	},
@@ -215,17 +218,42 @@ export const TASK_CAPABILITY_REQUIREMENTS: Record<TaskType, Partial<ModelCapabil
 /**
  * Settings-dropdown presets for an Azure model field, derived from the catalog
  * SSOT (a new model is a catalog edit). `chat` = azure-openai completion models,
- * `embedding` = azure-openai models with a vector dimension. Superseded entries
- * are omitted. Azure deployment names are tenant-chosen, so callers must still
- * offer a custom/passthrough option.
+ * `embedding` = azure-openai models with a vector dimension, `claude` = current
+ * azure-claude models. Superseded entries are omitted. Azure deployment names are
+ * tenant-chosen, so callers must still offer a custom/passthrough option.
  */
-export function getAzureModelPresets(kind: 'chat' | 'embedding'): Array<{ id: string; name: string }> {
+export function getAzureModelPresets(kind: 'chat' | 'embedding' | 'claude'): Array<{ id: string; name: string }> {
+	if (kind === 'claude') return azureClaudeNewestFirst().filter(m => !m.superseded).map(toPreset);
 	return MODEL_CATALOG
 		.filter(m => m.provider === 'azure-openai' && !m.superseded)
 		.filter(m => kind === 'embedding'
 			? m.capabilities.dimensions !== undefined
 			: m.capabilities.dimensions === undefined && m.capabilities.maxContextK > 0)
-		.map(m => ({ id: m.id as string, name: m.name }));
+		.map(toPreset);
+}
+
+/**
+ * Every Claude model the catalog knows, older ones included: what the "Claude
+ * model" field offers, since a deployment may still serve an earlier model.
+ */
+export function getAzureClaudeModels(): Array<{ id: string; name: string }> {
+	return azureClaudeNewestFirst().map(toPreset);
+}
+
+const toPreset = (m: CatalogEntry): { id: string; name: string } => ({ id: m.id as string, name: m.name });
+
+/** Newest version first; Sonnet before Opus within a version. */
+function azureClaudeNewestFirst(): CatalogEntry[] {
+	const rank = (m: CatalogEntry): [number, number, number] => {
+		const parts = parseClaudeModel(m.id);
+		return [parts?.major ?? 0, parts?.minor ?? 0, parts?.tier === 'sonnet' ? 1 : 0];
+	};
+	return MODEL_CATALOG
+		.filter(m => m.provider === 'azure-claude')
+		.sort((a, b) => {
+			const [x, y] = [rank(a), rank(b)];
+			return y[0] - x[0] || y[1] - x[1] || y[2] - x[2];
+		});
 }
 
 /**

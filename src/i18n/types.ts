@@ -139,13 +139,7 @@ export interface Translations {
                 whisperDeploymentPlaceholder: string;
                 defaultModel: string;
                 defaultModelDesc: string;
-                modelSonnet55: string;
-                modelOpus55: string;
-                modelSonnet: string;
-                modelOpus: string;
                 modelCustom: string;
-                customModelName: string;
-                customModelNameDesc: string;
                 customModelNamePlaceholder: string;
                 configTransfer: string;
                 configTransferDesc: string;
@@ -244,6 +238,7 @@ export interface Translations {
                 deployment: string;
                 ttsDeploymentDesc: string;
                 claudeModel: string;
+                claudeModelNone: string;
                 claudeModelDesc: string;
                 targetModel: string;
             };

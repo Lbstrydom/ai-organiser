@@ -2,7 +2,7 @@ import { Setting, ButtonComponent, Notice, requestUrl } from 'obsidian';
 import { ConnectionTestResult } from '../../services';
 import { BaseSettingSection } from './BaseSettingSection';
 import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL, buildProviderOptions } from '../../services/adapters/providerRegistry';
-import { getAzureModelPresets } from '../../core/modelCatalog';
+import { getAzureClaudeModels, getAzureModelPresets } from '../../core/modelCatalog';
 import { adviseGatewaySettings, applyGatewayFixes, type GatewayFix } from '../../services/azure/gatewayAdvisor';
 import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
 import {
@@ -282,7 +282,7 @@ export class LLMSettingsSection extends BaseSettingSection {
      */
     private addAzureModelPicker(
         setting: Setting,
-        kind: 'chat' | 'embedding',
+        kind: 'chat' | 'embedding' | 'claude',
         get: () => string,
         set: (value: string) => void,
         placeholder: string,
@@ -474,81 +474,8 @@ export class LLMSettingsSection extends BaseSettingSection {
                     }));
         }
 
-        // Default model for general tasks.
-        const CUSTOM_MODEL_SENTINEL = '__custom__';
-        const PRESET_MODELS = ['claude-sonnet-5-5', 'claude-opus-5-5', 'claude-sonnet-5', 'claude-opus-5'];
-        // `cloudModel` is what the runtime sends as the deployment name for the main
-        // azure-claude surface; `taskModels.*` carries the per-task copies. Both must
-        // move together or the dropdown is cosmetic (the connection test and chat read
-        // cloudModel).
-        const applyDefaultModel = (value: string): void => {
-            applyAzureClaudeDeployment(this.plugin.settings, value);
-            void this.plugin.saveSettings();
-        };
-        const storedDefaultModel = (): string => {
-            const s = this.plugin.settings;
-            return (s.cloudServiceType === 'azure-claude' && s.cloudModel)
-                || s.taskModels?.tagging
-                || PROVIDER_DEFAULT_MODEL['azure-claude'];
-        };
-        let customModelSetting: Setting | null = null;
-        new Setting(this.containerEl)
-            .setName(az.defaultModel)
-            .setDesc(az.defaultModelDesc)
-            .addDropdown(dropdown => {
-                // Azure deployment names are user-chosen at creation time, so these
-                // presets only work when a deployment is literally named after the
-                // model id — the "Custom" option below covers every other tenant.
-                const current = storedDefaultModel();
-                dropdown
-                    .addOption('claude-sonnet-5-5', az.modelSonnet55)
-                    .addOption('claude-opus-5-5', az.modelOpus55)
-                    .addOption('claude-sonnet-5', az.modelSonnet)
-                    .addOption('claude-opus-5', az.modelOpus)
-                    .addOption(CUSTOM_MODEL_SENTINEL, az.modelCustom);
-                // Preserve any other stored value (e.g. a legacy sonnet-4-6/
-                // opus-4-7 pin or an already-custom deployment) as a passthrough
-                // option so the dropdown never silently mismatches what's saved
-                // — no forced migration of a tenant model the user may rely on.
-                if (!PRESET_MODELS.includes(current)) {
-                    dropdown.addOption(current, current);
-                }
-                dropdown
-                    .setValue(current)
-                    .onChange((value) => {
-                        if (value === CUSTOM_MODEL_SENTINEL) {
-                            customModelSetting?.settingEl.show();
-                            return;
-                        }
-                        customModelSetting?.settingEl.hide();
-                        // A preset is a model name: a "Claude model" entered for the
-                        // previous deployment would now describe the wrong one.
-                        const described = !!this.plugin.settings.azureClaudeModel && value !== storedDefaultModel();
-                        if (described) this.plugin.settings.azureClaudeModel = '';
-                        applyDefaultModel(value);
-                        if (described) this.settingTab.display();
-                    });
-            });
+        this.renderClaudeDeployment();
 
-        // Free-text entry for any deployment name that doesn't match a preset —
-        // e.g. any tenant other than one whose Azure deployments happen to be
-        // named exactly after the model id. Hidden unless "Custom" is selected
-        // above, or the currently-saved value is already a non-preset name.
-        customModelSetting = new Setting(this.containerEl)
-            .setName(az.customModelName)
-            .setDesc(az.customModelNameDesc)
-            .addText(text => text
-                .setPlaceholder(az.customModelNamePlaceholder)
-                .setValue(PRESET_MODELS.includes(storedDefaultModel()) ? '' : storedDefaultModel())
-                .onChange((value) => {
-                    if (!value.trim()) return;
-                    applyDefaultModel(value.trim());
-                }));
-        if (PRESET_MODELS.includes(storedDefaultModel())) {
-            customModelSetting.settingEl.hide();
-        }
-
-        if (s.cloudServiceType === 'azure-claude') this.renderClaudeModel();
 
         this.renderGptModel();
 
@@ -591,19 +518,58 @@ export class LLMSettingsSection extends BaseSettingSection {
         }
     }
 
-    /** Optional: describes a custom deployment name; never sent in a request. */
-    private renderClaudeModel(): void {
+    /**
+     * The Claude deployment (a catalog preset or a typed name), then, when Claude
+     * is the main provider, the optional model behind it.
+     */
+    private renderClaudeDeployment(): void {
         const az = this.plugin.t.settings.llm.azure;
+        let showModel: ((value: string) => void) | null = null;
+        this.addAzureModelPicker(
+            new Setting(this.containerEl).setName(az.defaultModel).setDesc(az.defaultModelDesc),
+            'claude',
+            () => {
+                const s = this.plugin.settings;
+                return (s.cloudServiceType === 'azure-claude' && s.cloudModel)
+                    || s.taskModels?.tagging
+                    || PROVIDER_DEFAULT_MODEL['azure-claude'];
+            },
+            (value) => {
+                applyAzureClaudeDeployment(this.plugin.settings, value);
+                // A changed deployment drops the Claude model: show that.
+                showModel?.(this.plugin.settings.azureClaudeModel);
+            },
+            az.customModelNamePlaceholder,
+        );
+        if (this.plugin.settings.cloudServiceType === 'azure-claude') showModel = this.renderClaudeModel();
+    }
+
+    /**
+     * Optional: describes a custom deployment name; never sent in a request. Picked
+     * from the catalog so it cannot be mistyped; an unlisted stored value is kept.
+     * Returns how to show a value changed elsewhere.
+     */
+    private renderClaudeModel(): (value: string) => void {
+        const az = this.plugin.t.settings.llm.azure;
+        const models = getAzureClaudeModels();
+        const current = this.plugin.settings.azureClaudeModel;
+        let show: (value: string) => void = () => {};
         new Setting(this.containerEl)
             .setName(az.claudeModel)
             .setDesc(az.claudeModelDesc)
-            .addText(text => text
-                .setPlaceholder(PROVIDER_DEFAULT_MODEL['azure-claude'])
-                .setValue(this.plugin.settings.azureClaudeModel)
-                .onChange((value) => {
-                    this.plugin.settings.azureClaudeModel = value.trim();
-                    void this.plugin.saveSettings();
-                }));
+            .addDropdown(dropdown => {
+                dropdown.addOption('', az.claudeModelNone);
+                for (const m of models) dropdown.addOption(m.id, `${m.name} (${m.id})`);
+                if (current && !models.some(m => m.id === current)) dropdown.addOption(current, current);
+                dropdown
+                    .setValue(current)
+                    .onChange((value) => {
+                        this.plugin.settings.azureClaudeModel = value;
+                        void this.plugin.saveSettings();
+                    });
+                show = (value) => { if (dropdown.getValue() !== value) dropdown.setValue(value); };
+            });
+        return show;
     }
 
     /** "GPT model", with a notice when chat is stored as sending something else. */
@@ -1126,7 +1092,7 @@ export class LLMSettingsSection extends BaseSettingSection {
                             if (savedSettings?.model) {
                                 this.plugin.settings.cloudModel = savedSettings.model;
                             } else {
-                                this.plugin.settings.cloudModel = PROVIDER_DEFAULT_MODEL[newType] || 'gpt-4.1';
+                                this.plugin.settings.cloudModel = PROVIDER_DEFAULT_MODEL[newType] || PROVIDER_DEFAULT_MODEL.openai;
                             }
 
                             // Picking a NON-Azure provider exits Azure-first mode so the

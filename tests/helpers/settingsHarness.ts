@@ -17,6 +17,8 @@ import { installObsidianDomShims } from './obsidianDom';
 export interface RecordedControl {
     kind: string;
     value?: unknown;
+    /** Dropdown options as [value, label]. */
+    options?: Array<[string, string]>;
     buttonText?: string;
     change?: (v: unknown) => unknown;
     click?: () => unknown;
@@ -44,6 +46,7 @@ function makeControl(kind: string, setting: RecordedSetting): { proxy: unknown; 
         get(_t, prop) {
             if (prop === 'inputEl' || prop === 'buttonEl' || prop === 'selectEl' || prop === 'toggleEl') return el;
             if (prop === 'getValue') return () => control.value;
+            if (prop === 'addOption') return (v: string, label: string) => { (control.options ??= []).push([v, label]); return proxy; };
             if (prop === 'onChange') return (fn: (v: unknown) => unknown) => { control.change = fn; return proxy; };
             if (prop === 'onClick') return (fn: () => unknown) => { control.click = fn; return proxy; };
             // Obsidian's toggles fire onChange from a later setValue; mimic it so a render that writes shows up.
