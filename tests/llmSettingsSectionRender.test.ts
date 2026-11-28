@@ -140,7 +140,9 @@ describe('Azure-first layout', () => {
 
     it('describes the read aloud deployment', async () => {
         await outline('azure model-based (Claude main)');
-        expect(recordedSettings.find(r => r.name === az.deployment)!.desc).toBe(az.ttsDeploymentDesc);
+        // Model-based routing draws one "Deployment" outside Search's visual row: read aloud's.
+        const described = recordedSettings.filter(r => r.name === az.deployment).map(r => r.desc);
+        expect(described).toContain(az.ttsDeploymentDesc);
     });
 
     it('labels the toggle as changing the provider and model', async () => {
