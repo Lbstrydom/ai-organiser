@@ -105,7 +105,7 @@ export function applyAzureConfigImport(settings: AIOrganiserSettings, raw: unkno
         settings.azureDeployments = { chat, embeddings };
         applied.push('azureDeployments');
     }
-    if (isString(raw.azureGPTModel)) { applyAzureGptModel(settings, raw.azureGPTModel); applied.push('azureGPTModel'); }
+    if (isString(raw.azureGPTModel) && raw.azureGPTModel.trim()) { applyAzureGptModel(settings, raw.azureGPTModel); applied.push('azureGPTModel'); }
     if (isString(raw.azureWhisperDeployment)) { settings.azureWhisperDeployment = raw.azureWhisperDeployment; applied.push('azureWhisperDeployment'); }
     if (isPlainObject(raw.azureApiVersionOverride)) {
         const o = raw.azureApiVersionOverride;

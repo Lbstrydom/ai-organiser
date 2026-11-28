@@ -12,10 +12,16 @@ describe('applyAzureGptModel', () => {
         expect([s.azureGPTModel, s.cloudModel]).toEqual(['b', 'b']);
     });
 
-    it('a blank value (e.g. an imported empty setting) never blanks the chat model', () => {
+    it('a blank value changes neither setting', () => {
         const s = make({ cloudServiceType: 'azure-openai', cloudModel: 'keep', azureGPTModel: 'a' });
         applyAzureGptModel(s, '  ');
-        expect([s.azureGPTModel, s.cloudModel]).toEqual(['  ', 'keep']);
+        expect([s.azureGPTModel, s.cloudModel]).toEqual(['a', 'keep']);
+    });
+
+    it('a padded value is trimmed once and written to both', () => {
+        const s = make({ cloudServiceType: 'azure-openai', cloudModel: 'a', azureGPTModel: 'a' });
+        applyAzureGptModel(s, ' b ');
+        expect([s.azureGPTModel, s.cloudModel]).toEqual(['b', 'b']);
     });
 
     it.each(['azure-claude', 'claude', 'openai'] as const)('leaves the chat model alone when main is %s', (type) => {
@@ -30,8 +36,8 @@ describe('effectiveAzureGptModel', () => {
         expect(effectiveAzureGptModel({ cloudServiceType: 'azure-openai', cloudModel: 'chat', azureGPTModel: 'gpt' })).toBe('chat');
     });
 
-    it('falls back to "GPT model" when the chat model is empty', () => {
-        expect(effectiveAzureGptModel({ cloudServiceType: 'azure-openai', cloudModel: '', azureGPTModel: 'gpt' })).toBe('gpt');
+    it('is the Azure default, as chat sends, when Azure OpenAI is main and the chat model is empty', () => {
+        expect(effectiveAzureGptModel({ cloudServiceType: 'azure-openai', cloudModel: '', azureGPTModel: 'gpt' })).toBe(AZURE_DEFAULT_GPT_MODEL);
     });
 
     it('is "GPT model", else the Azure default, on the other surfaces', () => {

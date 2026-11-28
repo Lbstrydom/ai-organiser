@@ -119,6 +119,13 @@ describe('applyAzureConfigImport — GPT model and the chat model', () => {
         expect(settings.cloudModel).toBe('claude-x');
     });
 
+    it('a blank imported GPT model is skipped and not reported as applied', () => {
+        const settings = makeSettings({ cloudServiceType: 'azure-openai', cloudModel: 'gpt-a', azureGPTModel: 'gpt-b' });
+        const result = applyAzureConfigImport(settings, { azureGPTModel: '  ', azureOpenAIEndpoint: 'https://x.openai.azure.com' });
+        expect([settings.cloudModel, settings.azureGPTModel]).toEqual(['gpt-a', 'gpt-b']);
+        expect(result.appliedFields).not.toContain('azureGPTModel');
+    });
+
     it('a blob without a GPT model does not touch either value', () => {
         const settings = makeSettings({ cloudServiceType: 'azure-openai', cloudModel: 'gpt-a', azureGPTModel: 'gpt-b' });
         applyAzureConfigImport(settings, { azureOpenAIEndpoint: 'https://x.openai.azure.com' });

@@ -9,16 +9,18 @@
 import type { AIOrganiserSettings } from '../../core/settings';
 import { AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
 
+/** A blank value (an imported empty setting) changes nothing. */
 export function applyAzureGptModel(settings: AIOrganiserSettings, value: string): void {
-    settings.azureGPTModel = value;
-    // A blank value (an imported empty setting) must not blank the chat model.
-    if (settings.cloudServiceType === 'azure-openai' && value.trim()) settings.cloudModel = value;
+    const model = value.trim();
+    if (!model) return;
+    settings.azureGPTModel = model;
+    if (settings.cloudServiceType === 'azure-openai') settings.cloudModel = model;
 }
 
 /** The model a request to the Azure OpenAI chat surface actually carries. */
 export function effectiveAzureGptModel(
     settings: { cloudServiceType?: string; cloudModel?: string; azureGPTModel?: string },
 ): string {
-    if (settings.cloudServiceType === 'azure-openai' && settings.cloudModel) return settings.cloudModel;
-    return settings.azureGPTModel || AZURE_DEFAULT_GPT_MODEL;
+    const model = settings.cloudServiceType === 'azure-openai' ? settings.cloudModel : settings.azureGPTModel;
+    return model || AZURE_DEFAULT_GPT_MODEL;
 }
