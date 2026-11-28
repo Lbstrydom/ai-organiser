@@ -2463,7 +2463,8 @@ function migrateDeprecatedGeminiIds(s: Record<string, unknown>): void {
     const modelKeys = ['youtubeGeminiModel', 'pdfModel'] as const;
     for (const key of modelKeys) {
         const current = s[key];
-        if (typeof current === 'string' && current in remap) {
+        // Own keys only: `in` also matches inherited names such as "constructor".
+        if (typeof current === 'string' && Object.prototype.hasOwnProperty.call(remap, current)) {
             s[key] = remap[current];
         }
     }

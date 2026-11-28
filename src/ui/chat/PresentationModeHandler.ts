@@ -41,6 +41,7 @@ import { classifyStorylineNote } from '../../services/chat/storylineNote';
 import { resolvePresentationRole, settingForRole, type PresentationRole, type ResolvedRole, type Independence } from '../../services/presentationIr/presentationModelResolver';
 import { routeRole, type DowngradeReason } from '../../services/llm/optionCapabilities';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
+import { assertWritable } from '../../core/protectedPaths';
 import type { Fidelity } from '../../services/types';
 import { buildStoryboardJudge } from '../../services/chat/consultantCriticService';
 import type { StoryboardJudge } from '../../services/chat/consultantAuditService';
@@ -84,7 +85,7 @@ import { collectDeckIconConcepts } from '../../services/presentationIr/deckIconC
 import { EditScopeController } from './presentation/editScopeController';
 import { PresentationDeckStore } from './presentation/presentationDeckStore';
 import { PresentationCanvasView } from './presentation/presentationCanvasView';
-import { PresentationRunController } from './presentation/presentationRunController';
+import { PresentationRunController, type RunToken } from './presentation/presentationRunController';
 import { azureCapabilityModel, mainCapabilityModel } from '../../services/azure/azureModelSync';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
@@ -473,7 +474,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                         }
                         return await this.runRefine(runCtx);
                     } finally {
-                        this.run.end();
+                        this.run.end(abort);
                     }
                 },
             },
@@ -935,7 +936,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (pending.savedNotePath) {
             try {
                 const f = r.ctx.app.vault.getAbstractFileByPath(pending.savedNotePath);
-                if (f instanceof TFile) await r.ctx.app.vault.modify(f, revised.value.storylineMarkdown);
+                if (f instanceof TFile) await this.updateStorylineNote(r.ctx, f, revised.value.storylineMarkdown);
                 else pending.savedNotePath = undefined; // moved/deleted — drop the stale link
             } catch (e) {
                 logger.warn('Presentation', `[storyline] saved-note sync failed (revision still applied): ${e instanceof Error ? e.message : String(e)}`);
@@ -954,7 +955,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (pending.savedNotePath) {
             const existing = ctx.app.vault.getAbstractFileByPath(pending.savedNotePath);
             if (existing instanceof TFile) {
-                await ctx.app.vault.modify(existing, pending.storylineMarkdown);
+                await this.updateStorylineNote(ctx, existing, pending.storylineMarkdown);
                 return pending.savedNotePath;
             }
         }
@@ -963,16 +964,30 @@ export class PresentationModeHandler implements ChatModeHandler {
         return path;
     }
 
+    /** Storyline notes never touch a protected folder; the error says what to do next. */
+    private assertStorylineWritable(ctx: ModalContext, op: 'create' | 'modify', path: string): void {
+        if (assertWritable(ctx.plugin.settings.protectedFolders, op, path).ok) return;
+        throw new Error(formatGuidance(describeError(ctx.plugin.t, 'protected-path')));
+    }
+
+    private async updateStorylineNote(ctx: ModalContext, file: TFile, markdown: string): Promise<void> {
+        this.assertStorylineWritable(ctx, 'modify', file.path);
+        await ctx.app.vault.modify(file, markdown);
+    }
+
     /** Write the dot-dash storyline `.md` to the presentation output folder + open it. */
     private async writeStorylineNote(ctx: ModalContext, markdown: string, title: string): Promise<string> {
         const sub = ctx.plugin.settings.presentationOutputFolder || 'Presentations';
         const folder = `${ctx.plugin.settings.pluginFolder}/${sub}`;
+        // The folder setting is user text: check it before creating anything.
+        this.assertStorylineWritable(ctx, 'create', `${folder}/x`);
         if (!ctx.app.vault.getAbstractFileByPath(folder)) await ctx.app.vault.createFolder(folder);
         const safe = (title || 'Storyline').replace(/[\\/:*?"<>|#^[\]]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Storyline';
         let path = `${folder}/${safe} — storyline.md`;
         for (let i = 1; ctx.app.vault.getAbstractFileByPath(path) && i <= 999; i++) {
             path = `${folder}/${safe} — storyline ${i}.md`;
         }
+        this.assertStorylineWritable(ctx, 'create', path);
         await ctx.app.vault.create(path, markdown);
         // Auto-saved, NOT force-opened: the storyline is reviewed/iterated IN the
         // chat (it's posted as the assistant's reply); the .md is the synced
@@ -987,6 +1002,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         llmCtx: LLMFacadeContext,
         theme: BrandTheme,
         abort: AbortController,
+        superseded: () => boolean = () => false,
     ): Promise<void> {
         if (!this.deck.deckIr) return;
         this.runQualityCheck();
@@ -1003,7 +1019,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             outputLanguage: ctx.plugin.settings.summaryLanguage,
             signal: abort.signal,
         });
-        if (abort.signal.aborted || !refined.ok) return;
+        if (abort.signal.aborted || superseded() || !refined.ok) return;
         const built = buildHtmlFromDeckIr(refined.value, exportTheme, theme.css, ctx.plugin.settings.summaryLanguage, ctx.plugin.t.progress.presentation.slideRenderFailed);
         if (!built.ok) return;
         this.commitDeckMutation({
@@ -1428,7 +1444,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (this.run.isLocked()) { callbacks.notify(t.presentationBusy); return; }
         const deck = buildDeckFromStoryboard(pending.storyboard, pending.catalog);
         if (!deck.ok) { callbacks.notify(t.storylineBuildFailed.replace('{error}', deck.error)); return; }
-        this.run.begin(() => { /* deterministic build — no thinking sink */ }, t);
+        const held = this.run.begin(() => { /* deterministic build — no thinking sink */ }, t);
         try {
             if (!(await this.commitBuiltDeck(ctx, deck.value, pending.deckName))) return;
             // Provenance .md copy (best-effort — the deck is already committed).
@@ -1438,7 +1454,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         } catch (e) {
             callbacks.notify(t.buildFromStorylineFailed.replace('{error}', e instanceof Error ? e.message : String(e)));
         } finally {
-            this.run.end();
+            this.run.end(held);
             this.flushPendingBrandRerender();
         }
     }
@@ -1727,7 +1743,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify('Preview not ready — click into the slide panel once, then retry export.');
             return;
         }
-        this.run.lock();
+        const held = this.run.lock();
         this.setPhase('exporting');
         callbacks.rerenderActions();
 
@@ -1756,7 +1772,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             logger.error('Presentation', `PPTX export failed: ${msg}`);
         } finally {
             this.setPhase('preview-ready');
-            this.run.unlock();
+            this.run.unlock(held);
             callbacks.rerenderActions();
         }
     }
@@ -1799,7 +1815,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify('Can\'t save right now — generation / refinement in progress.');
             return;
         }
-        this.run.lock();
+        const held = this.run.lock();
         this.setPhase('exporting');
         callbacks.rerenderActions();
 
@@ -1811,7 +1827,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             callbacks.notify(`HTML export failed: ${msg}`);
         } finally {
             this.setPhase('preview-ready');
-            this.run.unlock();
+            this.run.unlock(held);
             callbacks.rerenderActions();
         }
     }
@@ -1861,7 +1877,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 callbacks.notify(`Brand audit failed: ${this.deck.lastError}. Please try again.`);
             }
         } finally {
-            this.run.end();
+            this.run.end(abort);
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
@@ -1895,13 +1911,13 @@ export class PresentationModeHandler implements ChatModeHandler {
             // from the LLM fast scan, which may not have finished after
             // generation. Skip if we already have per-slide findings.
             if (!this.hasPerSlideFindings() && !this.run.isLocked()) {
-                this.run.lock();
+                const held = this.run.lock();
                 callbacks.showThinking(ctx.plugin.t.modals.polishSelector.analysingLabel);
                 callbacks.rerenderActions();
                 try {
                     await this.ensureQualityFindings(ctx);
                 } finally {
-                    this.run.unlock();
+                    this.run.unlock(held);
                     callbacks.hideThinking();
                     callbacks.rerenderActions();
                 }
@@ -1978,7 +1994,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                 callbacks.notify(`Polish failed: ${this.deck.lastError}`);
             }
         } finally {
-            this.run.end();
+            this.run.end(abort);
             callbacks.hideThinking();
             callbacks.rerenderActions();
         }
@@ -2030,8 +2046,27 @@ export class PresentationModeHandler implements ChatModeHandler {
         draft: PolishSubmit,
         signal: AbortSignal,
     ): Promise<{ ok: true } | { ok: false; error: string }> {
+        if (this.run.isLocked()) return { ok: false, error: ctx.plugin.t.modals.unifiedChat.presentationBusy };
+        const held = this.run.lock();
+        try {
+            return await this.polishUnderLock(ctx, llmCtx, draft, signal, held);
+        } finally {
+            this.run.unlock(held);
+        }
+    }
+
+    /** The polish itself. Nothing is committed once it was cancelled or its lock was taken away. */
+    private async polishUnderLock(
+        ctx: ModalContext,
+        llmCtx: LLMFacadeContext,
+        draft: PolishSubmit,
+        signal: AbortSignal,
+        held: RunToken,
+    ): Promise<{ ok: true } | { ok: false; error: string }> {
         const tSlice = ctx.plugin.t.modals.polishSelector;
         const theme = await this.getTheme(ctx);
+        const stale = (): boolean => signal.aborted || !this.run.owns(held);
+        const cancelled = { ok: false as const, error: ctx.plugin.t.modals.unifiedChat.generationCancelled };
 
         // "All slides" → existing whole-deck IR polish, unchanged. Bridge the
         // modal's AbortSignal to the AbortController polishDeckIr expects so
@@ -2042,11 +2077,11 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (signal.aborted) localAbort.abort();
             else signal.addEventListener('abort', onAbort);
             try {
-                await this.polishDeckIr(ctx, llmCtx, theme, localAbort);
+                await this.polishDeckIr(ctx, llmCtx, theme, localAbort, () => !this.run.owns(held));
             } finally {
                 signal.removeEventListener('abort', onAbort);
             }
-            return { ok: true };
+            return stale() ? cancelled : { ok: true };
         }
 
         // Selective path — wrapped in withProgressResult so the reporter owns
@@ -2084,6 +2119,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (!compute.ok) {
             return { ok: false, error: compute.error };
         }
+        if (stale()) return cancelled;
 
         // ── Commit (Result.ok only) — routed through the SAME consolidated
         // post-mutation path as refine/polish, so quality is re-scanned fresh
@@ -2335,7 +2371,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             if (cls.kind === 'empty') { new Notice(t.storylineNoteEmpty); return; }
             if (cls.kind !== 'ok') { new Notice(t.storylineNoteRequired); return; }
 
-            this.run.begin(() => { /* deterministic build — no thinking sink needed */ }, t);
+            const held = this.run.begin(() => { /* deterministic build — no thinking sink needed */ }, t);
             try {
                 const built = buildDeckFromStoryline(md, [], ctx.plugin.settings.summaryLanguage);
                 if (!built.ok) { new Notice(t.storylineParseFailed.replace('{error}', built.error)); return; }
@@ -2344,7 +2380,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     new Notice(t.storylineRebuiltFromSavedNote);
                 }
             } finally {
-                this.run.end();
+                this.run.end(held);
                 this.flushPendingBrandRerender();
             }
         } catch (e) {

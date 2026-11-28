@@ -81,6 +81,7 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/operations/operationIndex.ts': { count: 3, cls: 'plugin-data', reason: 'operation summaries and their folder live in the plugin folder; nothing is written to a note' },
 	'src/services/offload/offloadJournal.ts': { count: 9, cls: 'plugin-data', reason: 'the offload journal and its temp files live in the plugin folder' },
 
+	'src/ui/chat/PresentationModeHandler.ts': { count: 3, cls: 'guarded', reason: 'storyline notes: the folder create, the note create and the saved-note update each assert writability first' },
 	// ── Plugin output roots (validated disjoint from protected folders) ─────────────────────
 	'src/commands/minutesCommands.ts': { count: 1, cls: 'output-root', reason: 'Word export under the minutes output folder' },
 	'src/services/audio/audioImportService.ts': { count: 3, cls: 'output-root', reason: 'audio import into the configured recordings folder' },
@@ -105,7 +106,6 @@ const MANIFEST: Record<string, Entry> = {
 	'src/services/research/researchUsageService.ts': { count: 4, cls: 'output-root', reason: 'usage log under the plugin folder' },
 	'src/services/sketch/sketchExport.ts': { count: 1, cls: 'output-root', reason: 'sketches under the sketch output folder' },
 	'src/services/webReaderService.ts': { count: 1, cls: 'output-root', reason: 'article lists under the web reader output folder' },
-	'src/ui/chat/PresentationModeHandler.ts': { count: 4, cls: 'output-root', reason: 'storyline notes under the presentation output folder' },
 	'src/ui/chat/presentation/presentationExporter.ts': { count: 2, cls: 'output-root', reason: 'decks under the export output folder' },
 	'src/ui/modals/AudioRecorderModal.ts': { count: 3, cls: 'output-root', reason: 'recordings under the recordings folder' },
 	'src/ui/modals/DashboardCreationModal.ts': { count: 1, cls: 'output-root', reason: 'dashboard folder under the output root' },
