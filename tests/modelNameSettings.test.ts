@@ -87,6 +87,13 @@ describe('replaceModelNameAndSave', () => {
         expect(s.azurePerDeploymentRpm).toEqual({ a: 5, b: 9, c: 1 });
     });
 
+    it('runs overlapping replacements one after the other, so two failed saves leave the saved name', async () => {
+        const s = settings({ cloudModel: 'a' });
+        const fail = () => Promise.reject(new Error('disk'));
+        await Promise.all([replaceModelNameAndSave(s, 'a', 'b', fail), replaceModelNameAndSave(s, 'b', 'c', fail)]);
+        expect(s.cloudModel).toBe('a');
+    });
+
     it('does not save when nothing changes', async () => {
         let saves = 0;
         await replaceModelNameAndSave(settings({}), 'absent', 'b', async () => { saves++; });

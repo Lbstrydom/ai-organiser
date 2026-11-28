@@ -117,11 +117,22 @@ export function replaceModelName(settings: AIOrganiserSettings, from: string, to
     return applyReplacement(settings, from, to).paths;
 }
 
+let lastSave: Promise<unknown> = Promise.resolve();
+
 /**
  * Replace and persist. If saving fails, the values this call wrote are put back, so the old name is
  * still listed and the user can try again. Anything edited while the save ran is kept.
+ * Calls run one after the other, so each starts from what the one before it actually saved.
  */
-export async function replaceModelNameAndSave(
+export function replaceModelNameAndSave(
+    settings: AIOrganiserSettings, from: string, to: string, save: () => Promise<void>,
+): Promise<Result<string[]>> {
+    const run = lastSave.then(() => replaceThenSave(settings, from, to, save));
+    lastSave = run.catch(() => undefined);
+    return run;
+}
+
+async function replaceThenSave(
     settings: AIOrganiserSettings, from: string, to: string, save: () => Promise<void>,
 ): Promise<Result<string[]>> {
     const change = applyReplacement(settings, from, to);
