@@ -22,7 +22,8 @@ export const MODEL_NAME_GROUPS = ['azureDeployments', 'azureFastModel', 'taskMod
 /** Per-deployment pacing, keyed by name. */
 const RPM_KEY = 'azurePerDeploymentRpm';
 
-interface Slot { path: string; name: string; set(next: string): void }
+/** `set` returns the undo for that one write; undo leaves a value alone if it changed since. */
+interface Slot { path: string; name: string; set(next: string): () => void }
 
 type Bag = Record<string, unknown>;
 
@@ -30,7 +31,15 @@ const isBag = (v: unknown): v is Bag => v !== null && typeof v === 'object' && !
 
 function slot(owner: Bag, key: string, path: string): Slot[] {
     const name = owner[key];
-    return typeof name === 'string' && name ? [{ path, name, set: next => { owner[key] = next; } }] : [];
+    if (typeof name !== 'string' || !name) return [];
+    return [{
+        path,
+        name,
+        set: next => {
+            owner[key] = next;
+            return () => { if (owner[key] === next) owner[key] = name; };
+        },
+    }];
 }
 
 /** `settings[group].<entry>.<field>`, for maps of small objects. */
@@ -40,6 +49,8 @@ function nestedSlots(settings: Bag, group: string, field: string): Slot[] {
     return Object.entries(map).flatMap(([id, entry]) => isBag(entry) ? slot(entry, field, `${group}.${id}.${field}`) : []);
 }
 
+const has = (map: Bag, key: string): boolean => Object.prototype.hasOwnProperty.call(map, key);
+
 function rpmSlots(settings: Bag): Slot[] {
     const map = settings[RPM_KEY];
     if (!isBag(map)) return [];
@@ -48,8 +59,14 @@ function rpmSlots(settings: Bag): Slot[] {
         name,
         // An existing row for the new name is the user's current quota: keep it.
         set: next => {
-            if (!Object.prototype.hasOwnProperty.call(map, next)) map[next] = map[name];
+            const limit = map[name];
+            const added = !has(map, next);
+            if (added) map[next] = limit;
             delete map[name];
+            return () => {
+                if (added && map[next] === limit) delete map[next];
+                if (!has(map, name)) map[name] = limit;
+            };
         },
     }));
 }
@@ -88,32 +105,33 @@ export function cleanNewName(from: string, to: string): string | null {
     return next && next !== from && !/\s/.test(next) && next !== '__proto__' ? next : null;
 }
 
+function applyReplacement(settings: AIOrganiserSettings, from: string, to: string): { paths: string[]; undo(): void } {
+    const next = cleanNewName(from, to);
+    const matches = next ? allSlots(settings).filter(s => s.name === from) : [];
+    const undos = next ? matches.map(m => m.set(next)) : [];
+    return { paths: matches.map(m => m.path), undo: () => { for (const undo of undos) undo(); } };
+}
+
 /** Replace `from` with `to` in `settings` (mutates it). Returns the paths that changed. */
 export function replaceModelName(settings: AIOrganiserSettings, from: string, to: string): string[] {
-    const next = cleanNewName(from, to);
-    if (!next) return [];
-    const matches = allSlots(settings).filter(s => s.name === from);
-    for (const match of matches) match.set(next);
-    return matches.map(m => m.path);
+    return applyReplacement(settings, from, to).paths;
 }
 
 /**
- * Replace and persist. If saving fails, the settings that changed are put back, so the old name is
- * still listed and the user can try again.
+ * Replace and persist. If saving fails, the values this call wrote are put back, so the old name is
+ * still listed and the user can try again. Anything edited while the save ran is kept.
  */
 export async function replaceModelNameAndSave(
     settings: AIOrganiserSettings, from: string, to: string, save: () => Promise<void>,
 ): Promise<Result<string[]>> {
-    const before = structuredClone(settings) as unknown as Bag;
-    const changed = replaceModelName(settings, from, to);
-    if (changed.length === 0) return ok(changed);
+    const change = applyReplacement(settings, from, to);
+    if (change.paths.length === 0) return ok(change.paths);
     try {
         await save();
-        return ok(changed);
+        return ok(change.paths);
     } catch (error) {
         logger.error('ModelNames', 'Saving the replaced names failed', error);
-        const live = settings as unknown as Bag;
-        for (const key of new Set(changed.map(path => path.split('.')[0]))) live[key] = before[key];
+        change.undo();
         return err('model-replace-unsaved');
     }
 }

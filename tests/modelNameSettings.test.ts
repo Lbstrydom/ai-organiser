@@ -73,6 +73,20 @@ describe('replaceModelNameAndSave', () => {
         expect(s.cloudModel).toBe('b');
     });
 
+    it('keeps what was edited while the failed save was running', async () => {
+        const s = settings({ cloudModel: 'a', pdfModel: 'a', providerSettings: { openai: { model: 'a' } }, azurePerDeploymentRpm: { a: 5, b: 9 } });
+        await replaceModelNameAndSave(s, 'a', 'b', () => {
+            s.pdfModel = 'chosen-meanwhile';
+            s.providerSettings.openai!.apiKey = 'typed-meanwhile';
+            s.azurePerDeploymentRpm.c = 1;
+            return Promise.reject(new Error('disk'));
+        });
+        expect(s.cloudModel).toBe('a');
+        expect(s.pdfModel).toBe('chosen-meanwhile');
+        expect(s.providerSettings.openai).toEqual({ model: 'a', apiKey: 'typed-meanwhile' });
+        expect(s.azurePerDeploymentRpm).toEqual({ a: 5, b: 9, c: 1 });
+    });
+
     it('does not save when nothing changes', async () => {
         let saves = 0;
         await replaceModelNameAndSave(settings({}), 'absent', 'b', async () => { saves++; });
