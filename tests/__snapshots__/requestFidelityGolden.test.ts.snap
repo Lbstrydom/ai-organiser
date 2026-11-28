@@ -1,0 +1,243 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`request fidelity golden > azure deployment-based (OpenAI main) 1`] = `
+{
+  "azureUrls": {
+    "chat": "https://my-resource.openai.azure.com/openai/deployments/gpt-chat-dep/chat/completions?api-version=2025-03-01-preview",
+    "claude": "https://my-resource.services.ai.azure.com/anthropic/v1/messages",
+    "embeddings": "https://my-resource.openai.azure.com/openai/deployments/embed-dep/embeddings?api-version=2025-03-01-preview",
+    "imageEmbeddings": "https://my-resource.services.ai.azure.com/models/images/embeddings?api-version=2024-05-01-preview",
+    "speech": "https://my-resource.openai.azure.com/openai/deployments/tts/audio/speech?api-version=2024-10-21",
+    "whisper": "https://my-resource.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-10-21",
+  },
+  "chat": {
+    "body": {
+      "max_tokens": 8192,
+      "messages": [
+        {
+          "content": "Complete the task in the user message and follow its output format exactly.",
+          "role": "system",
+        },
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "gpt-chat-dep",
+      "temperature": 0.3,
+    },
+    "headers": [
+      "Content-Type: application/json",
+      "api-key: AZ-KEY",
+    ],
+    "url": "https://my-resource.openai.azure.com/openai/deployments/gpt-chat-dep/chat/completions?api-version=2025-03-01-preview",
+  },
+}
+`;
+
+exports[`request fidelity golden > azure gateway 1`] = `
+{
+  "azureUrls": {
+    "chat": "https://my-apim.azure-api.net/foundry/openai/deployments/gpt-5.5/chat/completions?api-version=2025-03-01-preview",
+    "claude": "https://my-apim.azure-api.net/foundry/anthropic/v1/messages",
+    "embeddings": "https://my-apim.azure-api.net/foundry/openai/deployments/text-embedding-3-large/embeddings?api-version=2025-03-01-preview",
+    "imageEmbeddings": "https://my-resource.services.ai.azure.com/models/images/embeddings?api-version=2024-05-01-preview",
+    "speech": "https://my-apim.azure-api.net/foundry/openai/deployments/tts/audio/speech?api-version=2024-10-21",
+    "whisper": "https://my-apim.azure-api.net/foundry/openai/deployments/whisper/audio/transcriptions?api-version=2024-10-21",
+  },
+  "chat": {
+    "body": {
+      "max_tokens": 8192,
+      "messages": [
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "claude-sonnet-5-5",
+      "output_config": {
+        "effort": "low",
+      },
+      "system": "Complete the task in the user message and follow its output format exactly.",
+    },
+    "headers": [
+      "Content-Type: application/json",
+      "anthropic-version: 2023-06-01",
+      "api-key: AZ-KEY",
+    ],
+    "url": "https://my-apim.azure-api.net/foundry/anthropic/v1/messages",
+  },
+}
+`;
+
+exports[`request fidelity golden > azure model-based (Claude main) 1`] = `
+{
+  "azureUrls": {
+    "chat": "https://my-resource.openai.azure.com/openai/v1/chat/completions",
+    "claude": "https://my-resource.services.ai.azure.com/anthropic/v1/messages",
+    "embeddings": "https://my-resource.openai.azure.com/openai/v1/embeddings",
+    "imageEmbeddings": "https://my-resource.services.ai.azure.com/models/images/embeddings?api-version=2024-05-01-preview",
+    "speech": "https://my-resource.openai.azure.com/openai/v1/audio/speech",
+    "whisper": "https://my-resource.openai.azure.com/openai/deployments/whisper/audio/transcriptions?api-version=2024-10-21",
+  },
+  "chat": {
+    "body": {
+      "max_tokens": 8192,
+      "messages": [
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "claude-sonnet-5-5",
+      "output_config": {
+        "effort": "low",
+      },
+      "system": "Complete the task in the user message and follow its output format exactly.",
+    },
+    "headers": [
+      "Authorization: Bearer AZ-KEY",
+      "Content-Type: application/json",
+      "anthropic-version: 2023-06-01",
+    ],
+    "url": "https://my-resource.services.ai.azure.com/anthropic/v1/messages",
+  },
+}
+`;
+
+exports[`request fidelity golden > azure per-feature override 1`] = `
+{
+  "azureUrls": {
+    "chat": "https://my-resource.openai.azure.com/openai/deployments/gpt-5.5/chat/completions?api-version=2025-03-01-preview",
+    "claude": "https://my-resource.services.ai.azure.com/anthropic/v1/messages",
+    "embeddings": "https://my-resource.openai.azure.com/openai/deployments/override-embed/embeddings?api-version=2025-03-01-preview",
+    "imageEmbeddings": "https://my-resource.services.ai.azure.com/models/images/embeddings?api-version=2024-05-01-preview",
+    "speech": "https://my-resource.openai.azure.com/openai/deployments/override-tts/audio/speech?api-version=2024-10-21",
+    "whisper": "https://my-resource.openai.azure.com/openai/deployments/override-whisper/audio/transcriptions?api-version=2024-10-21",
+  },
+  "chat": {
+    "body": {
+      "max_completion_tokens": 16384,
+      "messages": [
+        {
+          "content": "Complete the task in the user message and follow its output format exactly.",
+          "role": "system",
+        },
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "gpt-5.5",
+    },
+    "headers": [
+      "Content-Type: application/json",
+      "api-key: AZ-KEY",
+    ],
+    "url": "https://my-resource.openai.azure.com/openai/deployments/gpt-5.5/chat/completions?api-version=2025-03-01-preview",
+  },
+}
+`;
+
+exports[`request fidelity golden > direct claude 1`] = `
+{
+  "chat": {
+    "body": {
+      "max_tokens": 8192,
+      "messages": [
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "claude-sonnet-5-5",
+      "output_config": {
+        "effort": "low",
+      },
+      "system": "Complete the task in the user message and follow its output format exactly.",
+    },
+    "headers": [
+      "Content-Type: application/json",
+      "anthropic-dangerous-direct-browser-access: true",
+      "anthropic-version: 2023-06-01",
+      "x-api-key: sk-ant-key",
+    ],
+    "url": "https://api.anthropic.com/v1/messages",
+  },
+  "embeddings": {
+    "body": {
+      "encoding_format": "float",
+      "input": "hello",
+      "model": "text-embedding-3-small",
+    },
+    "headers": [
+      "Authorization: Bearer sk-ant-key",
+      "Content-Type: application/json",
+    ],
+    "url": "https://api.openai.com/v1/embeddings",
+  },
+}
+`;
+
+exports[`request fidelity golden > direct openai 1`] = `
+{
+  "chat": {
+    "body": {
+      "max_completion_tokens": 16384,
+      "messages": [
+        {
+          "content": "Complete the task in the user message and follow its output format exactly.",
+          "role": "system",
+        },
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "gpt-5.5",
+    },
+    "headers": [
+      "Authorization: Bearer sk-key",
+      "Content-Type: application/json",
+    ],
+    "url": "https://api.openai.com/v1/chat/completions",
+  },
+  "embeddings": {
+    "body": {
+      "encoding_format": "float",
+      "input": "hello",
+      "model": "text-embedding-3-small",
+    },
+    "headers": [
+      "Authorization: Bearer sk-key",
+      "Content-Type: application/json",
+    ],
+    "url": "https://api.openai.com/v1/embeddings",
+  },
+}
+`;
+
+exports[`request fidelity golden > local ollama 1`] = `
+{
+  "chat": {
+    "body": {
+      "messages": [
+        {
+          "content": "Complete the task in the user message and follow its output format exactly.",
+          "role": "system",
+        },
+        {
+          "content": "hello",
+          "role": "user",
+        },
+      ],
+      "model": "llama3",
+      "temperature": 0.3,
+    },
+    "headers": [
+      "Content-Type: application/json",
+    ],
+    "url": "http://localhost:11434/v1/chat/completions",
+  },
+}
+`;

@@ -10661,3 +10661,14 @@
     border-bottom: none;
     padding: 6px 0 0;
 }
+
+/* AI provider settings: the single Advanced disclosure */
+.ai-organiser-settings-advanced {
+    margin-block: var(--size-4-4);
+}
+
+.ai-organiser-settings-advanced > summary {
+    cursor: pointer;
+    padding-block: var(--size-4-2);
+    font-weight: var(--font-semibold);
+}

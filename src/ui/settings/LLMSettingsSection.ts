@@ -5,19 +5,32 @@ import { PROVIDER_ENDPOINT, PROVIDER_DEFAULT_MODEL, buildProviderOptions } from 
 import { getAzureModelPresets } from '../../core/modelCatalog';
 import { adviseGatewaySettings, applyGatewayFixes, type GatewayFix } from '../../services/azure/gatewayAdvisor';
 import { getProviderModels, hasModelList } from '../../services/adapters/modelRegistry';
-import { claudeSupportsAdaptiveThinking } from '../../services/adapters/modelCapabilities';
 import {
     getCachedModels,
     getLiveModels,
     providerSupportsLiveFetch,
 } from '../../services/adapters/dynamicModelService';
-import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
+import { PLUGIN_SECRET_IDS, PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
 import { ReplaceModelNameModal } from '../modals/ReplaceModelNameModal';
 import { AzureConfigImportModal } from '../modals/AzureConfigImportModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
 import { applyAzureGptModel } from '../../services/azure/azureModelSync';
-import { usesWhisperDeployment } from '../../services/azure/resolveAzureCapability';
+import { capabilityChoice, usesWhisperDeployment } from '../../services/azure/resolveAzureCapability';
+import { getCapability, type AzureCapabilityId } from '../../services/azure/azureCapabilities';
+import {
+    AZURE_ADVANCED,
+    countAdvancedOverrides,
+    endpointIsAdvanced,
+    resolveDeploymentField,
+    setDeploymentField,
+    standardAdvancedSettings,
+    type AdvancedSetting,
+    type AzureAdvancedId,
+    type DeploymentFieldId,
+    type StandardAdvancedId,
+} from '../../services/azure/azureEffectiveFields';
+import { isFeatureEnabled } from '../../services/featureService';
 import { AzureCapabilitiesSettingsSection } from './AzureCapabilitiesSettingsSection';
 
 export class LLMSettingsSection extends BaseSettingSection {
@@ -26,6 +39,8 @@ export class LLMSettingsSection extends BaseSettingSection {
     /** Escape-hatch: when true, reveal the full provider dropdown even in
      *  streamlined Azure mode. Resets each settings-tab open (instance-local). */
     private azureShowFullProvider = false;
+    /** Whether Advanced is open, remembered per settings tab so a re-render keeps it. */
+    private static readonly advancedOpen = new WeakMap<object, boolean>();
 
     /**
      * Streamlined Azure UX is active when Azure-first mode is on, the main
@@ -44,29 +59,59 @@ export class LLMSettingsSection extends BaseSettingSection {
 
     display(): void {
         this.createSectionHeader(this.plugin.t.settings.llm.title, 'bot');
-        this.renderAzureFirstToggle();
-        this.createServiceTypeDropdown();
-        if (this.plugin.settings.serviceType === 'local') {
-            this.displayLocalSettings();
+        this.renderSecretStorageMigrationNotice();
+        if (this.plugin.settings.azureFirstMode) {
+            this.renderAzureLayout();
         } else {
-            this.displayCloudSettings();
+            this.renderStandardLayout();
         }
 
         // Check local service status when loading settings if local service is selected
         if (this.plugin.settings.serviceType === 'local') {
             void this.checkLocalService(this.plugin.settings.localEndpoint);
         }
+    }
 
-        this.renderSecretStorageMigrationNotice();
+    /** Azure-first layout: connection, then one group per capability, then Advanced. */
+    private renderAzureLayout(): void {
+        this.renderAzureFirstToggle();
+        this.renderAzureConnection();
+        this.renderAzureChat();
+        this.renderAzureSearch();
+        this.renderAzureTranscription();
+        this.renderAzureReadAloud();
+        this.renderAzureWebSearch();
+        this.renderReplaceModelName();
+        // The honest list of what has no Azure path and needs a separate key.
+        if (isAzureMode(this.plugin.settings)) this.renderProviderCapabilityBanner();
+        this.renderAzureAdvanced();
+    }
 
+    /** Every other setup: provider, key and model first; the rest under Advanced. */
+    private renderStandardLayout(): void {
+        this.renderServiceType();
+        if (this.plugin.settings.serviceType === 'local') {
+            this.displayLocalSettings();
+        } else {
+            this.renderProviderDropdown();
+            this.displayCloudSettings();
+        }
+        this.renderReplaceModelName();
+        this.renderStandardAdvanced();
+        this.containerEl.createEl('h4', { text: this.plugin.t.settings.llm.azure.usingAzureHeading });
+        this.renderAzureFirstToggle();
+    }
+
+    private renderReplaceModelName(): void {
         new Setting(this.containerEl)
             .setName(this.plugin.t.commands.replaceModelName)
             .setDesc(this.plugin.t.modals.modelReplace.settingDesc)
             .addButton(button => button
                 .setButtonText(this.plugin.t.modals.modelReplace.settingButton)
                 .onClick(() => new ReplaceModelNameModal(this.plugin, () => { void this.settingTab.display(); }).open()));
+    }
 
-        // Debug mode toggle
+    private renderDebugMode(): void {
         new Setting(this.containerEl)
             .setName(this.plugin.t.settings.llm.debugMode)
             .setDesc(this.plugin.t.settings.llm.debugModeDesc)
@@ -81,13 +126,106 @@ export class LLMSettingsSection extends BaseSettingSection {
             );
     }
 
+    /** Render a block into another container (the Advanced disclosure). */
+    private into(container: HTMLElement, render: () => void): void {
+        const previous = this.containerEl;
+        this.containerEl = container;
+        try {
+            render();
+        } finally {
+            this.containerEl = previous;
+        }
+    }
+
     /**
-     * Azure-first mode toggle + section (Plan A — Azure providers).
-     *
-     * Azure-first is UX-ONLY (plan AD-6): it surfaces the Azure config fields up
-     * front but does NOT route requests. The user still explicitly selects the
-     * `azure-claude` / `azure-openai` provider in the cloud-provider dropdown.
-     * Fields are vault-local (stored in data.json, never shipped as defaults).
+     * The one Advanced disclosure: closed by default, its summary counting the
+     * settings inside that differ from their defaults.
+     */
+    private renderAdvanced<Id extends string>(
+        list: ReadonlyArray<AdvancedSetting<Id>>,
+        render: (id: Id) => void,
+    ): void {
+        const az = this.plugin.t.settings.llm.azure;
+        const details = this.containerEl.createEl('details', { cls: 'ai-organiser-settings-advanced' });
+        details.open = LLMSettingsSection.advancedOpen.get(this.settingTab) ?? false;
+        const summary = details.createEl('summary');
+        let speechKeySet = false;
+        const refresh = (): void => {
+            const n = countAdvancedOverrides(this.plugin.settings, list, { speechKeySet });
+            summary.setText(n === 0 ? az.advanced
+                : n === 1 ? az.advancedOneOverride
+                    : az.advancedOverrides.replace('{count}', String(n)));
+        };
+        details.addEventListener('toggle', () => LLMSettingsSection.advancedOpen.set(this.settingTab, details.open));
+        // Settings write synchronously in their own handlers; recount just after.
+        for (const type of ['change', 'input', 'click']) {
+            details.addEventListener(type, () => { window.setTimeout(refresh, 0); });
+        }
+        this.into(details, () => { for (const item of list) render(item.id); });
+        refresh();
+
+        const secrets = this.plugin.secretStorageService;
+        if (list.some(item => item.id === 'speech-key') && secrets.isAvailable()) {
+            void secrets.hasSecret(PLUGIN_SECRET_IDS.AZURE_SPEECH)
+                .then((has) => { speechKeySet = has; refresh(); })
+                .catch(() => { /* the count then covers only the stored settings */ });
+        }
+    }
+
+    private renderStandardAdvanced(): void {
+        this.renderAdvanced(standardAdvancedSettings(this.plugin.settings), (id) => this.renderStandardAdvancedRow(id));
+    }
+
+    private renderStandardAdvancedRow(id: StandardAdvancedId): void {
+        if (id === 'endpoint') this.renderCloudEndpoint();
+        else if (id === 'thinking') this.renderThinkingMode();
+        else this.renderDebugMode();
+    }
+
+    private renderAzureAdvanced(): void {
+        const s = this.plugin.settings;
+        // A non-Azure main provider (reached through "Use a different provider") keeps its own advanced rows.
+        const extra = isAzureMode(s) ? [] : standardAdvancedSettings(s).filter(item => item.id !== 'debug');
+        const list: ReadonlyArray<AdvancedSetting<AzureAdvancedId | StandardAdvancedId>> = [...extra, ...AZURE_ADVANCED];
+        const az = this.plugin.t.settings.llm.azure;
+        this.renderAdvanced(list, (id) => {
+            switch (id) {
+                case 'endpoint': return this.renderCloudEndpoint();
+                case 'thinking': return this.renderThinkingMode();
+                case 'routing': return this.renderRoutingMode();
+                case 'claude-gateway': return this.renderClaudeGateway();
+                case 'max-concurrent': return this.renderMaxConcurrent();
+                case 'max-rpm': return this.renderMaxRpm();
+                // Per-deployment RPM overrides: user-entered quotas, nothing shipped or derived.
+                case 'deployment-rpm': return this.renderPerDeploymentRpmEditor(az);
+                case 'speech-key': return this.azureCapabilityRows()?.renderSpeechKey();
+                case 'max-speakers': return this.azureCapabilityRows()?.renderMaxSpeakers();
+                case 'in-region-only': return this.azureCapabilityRows()?.renderStrictMode();
+                case 'youtube': return this.azureCapabilityRows()?.renderCapability('youtube');
+                case 'debug': return this.renderDebugMode();
+            }
+        });
+    }
+
+    /** Per-capability and Speech rows drawn into the current container; Azure main providers only. */
+    private azureCapabilityRows(): AzureCapabilitiesSettingsSection | null {
+        if (!isAzureMode(this.plugin.settings)) return null;
+        return new AzureCapabilitiesSettingsSection(this.plugin, this.containerEl, this.settingTab);
+    }
+
+    /** Whether a capability's source row is on screen (its feature enabled, Azure main provider). */
+    private showsCapability(id: AzureCapabilityId): boolean {
+        return isAzureMode(this.plugin.settings)
+            && getCapability(id).featureFlags.some(f => isFeatureEnabled(this.plugin.settings, f));
+    }
+
+    private renderGroupHeading(text: string): void {
+        this.containerEl.createEl('h4', { text, cls: 'ai-organiser-settings-group' });
+    }
+
+    /**
+     * Azure-first mode toggle. It changes the main provider and model: ON selects
+     * Azure (remembering the personal provider and model), OFF restores them.
      */
     private renderAzureFirstToggle(): void {
         const az = this.plugin.t.settings.llm.azure;
@@ -133,12 +271,6 @@ export class LLMSettingsSection extends BaseSettingSection {
                     this.settingTab.display();
                 })
             );
-
-        if (this.plugin.settings.azureFirstMode) {
-            const banner = this.containerEl.createDiv({ cls: 'ai-organiser-azure-banner' });
-            banner.createSpan({ text: az.banner });
-            this.renderAzureSection();
-        }
     }
 
     /**
@@ -194,37 +326,9 @@ export class LLMSettingsSection extends BaseSettingSection {
         if (current && isPreset(current)) textRef.el?.hide();
     }
 
-    /** Azure config fields, shown when Azure-first mode is on. */
-    private renderAzureSection(): void {
+    private renderAzureConnection(): void {
         const az = this.plugin.t.settings.llm.azure;
-        this.containerEl.createEl('h4', { text: az.foundryHeading });
-
-        // Main-provider choice (azure-claude vs azure-openai) lives INSIDE the
-        // Azure section in streamlined mode — the generic full dropdown is
-        // suppressed below. Both surfaces are still served automatically.
-        if (this.isStreamlinedAzure()) {
-            const current = isAzureMode(this.plugin.settings)
-                ? this.plugin.settings.cloudServiceType
-                : 'azure-claude';
-            new Setting(this.containerEl)
-                .setName(az.mainProviderChoice)
-                .setDesc(az.mainProviderChoiceDesc)
-                .addDropdown(dropdown => dropdown
-                    .addOption('azure-claude', az.providerAzureClaude)
-                    .addOption('azure-openai', az.providerAzureOpenAI)
-                    .setValue(current)
-                    .onChange((value) => {
-                        this.plugin.settings.cloudServiceType = value as typeof this.plugin.settings.cloudServiceType;
-                        this.plugin.settings.cloudEndpoint = PROVIDER_ENDPOINT[value as keyof typeof PROVIDER_ENDPOINT] || '';
-                        // cloudModel is what the runtime sends as the deployment name —
-                        // keep it in step with the surface instead of leaving a stale id.
-                        this.plugin.settings.cloudModel = value === 'azure-openai'
-                            ? (this.plugin.settings.azureGPTModel || PROVIDER_DEFAULT_MODEL['azure-openai'])
-                            : (this.plugin.settings.taskModels?.chat || PROVIDER_DEFAULT_MODEL['azure-claude']);
-                        void this.plugin.saveSettings();
-                        this.settingTab.display();
-                    }));
-        }
+        this.renderGroupHeading(az.groupConnection);
 
         // API key — plain password field (transient; migrated to SecretStorage on save).
         new Setting(this.containerEl)
@@ -267,19 +371,108 @@ export class LLMSettingsSection extends BaseSettingSection {
 
         this.renderGatewayAdviceBanner();
 
-        const whisperSetting = new Setting(this.containerEl)
-            .setName(az.whisperDeployment)
-            .setDesc(az.whisperDeploymentDesc)
-            .addText(text => text
-                .setPlaceholder(az.whisperDeploymentPlaceholder)
-                .setValue(this.plugin.settings.azureWhisperDeployment)
-                .onChange((value) => {
-                    this.plugin.settings.azureWhisperDeployment = value;
-                    void this.plugin.saveSettings();
+        // Live connection test — pre-flight validates config, then makes real
+        // minimal round-trips to each configured Azure surface. Results render
+        // per-surface (✓/✗ + redacted message) under the button.
+        const resultsEl = this.containerEl.createDiv({ cls: 'ai-organiser-azure-test-results' });
+        new Setting(this.containerEl)
+            .setName(az.testConfig)
+            .setDesc(az.testConfigDesc)
+            .addButton(button => button
+                .setButtonText(az.testButton)
+                .onClick(async () => {
+                    button.setButtonText(az.testingButton);
+                    button.setDisabled(true);
+                    resultsEl.empty();
+                    try {
+                        const { testAzureConnection } = await import('../../services/azure/azureConnectionTest');
+                        const report = await testAzureConnection(this.plugin);
+                        this.renderAzureTestReport(resultsEl, report);
+                    } catch (err) {
+                        const msg = err instanceof Error ? err.message : String(err);
+                        resultsEl.createDiv({ cls: 'ai-organiser-azure-test-row error', text: `✗ ${msg}` });
+                    } finally {
+                        button.setButtonText(az.testButton);
+                        button.setDisabled(false);
+                    }
                 }));
 
-        // Asked only when Whisper would be called; the stored value is kept either way.
-        void usesWhisperDeployment(this.plugin).then(used => { if (!used) whisperSetting.settingEl.hide(); });
+        // Config export/import — copies every Azure setting on this screen
+        // (endpoints, routing, deployment names, RPM overrides, default model,
+        // Speech region/voice) as one JSON blob so a team on a shared Azure
+        // resource can sync in one paste instead of a field-by-field
+        // walkthrough. NEVER includes the API key — each person still enters
+        // their own.
+        new Setting(this.containerEl)
+            .setName(az.configTransfer)
+            .setDesc(az.configTransferDesc)
+            .addButton(button => button
+                .setButtonText(az.exportButton)
+                .onClick(async () => {
+                    const { buildAzureConfigExport } = await import('../../services/azure/azureConfigTransfer');
+                    const json = JSON.stringify(buildAzureConfigExport(this.plugin.settings), null, 2);
+                    try {
+                        await navigator.clipboard.writeText(json);
+                        new Notice(az.exportCopied);
+                    } catch {
+                        new Notice(az.exportCopyFailed);
+                    }
+                }))
+            .addButton(button => button
+                .setButtonText(az.importButton)
+                .onClick(() => {
+                    new AzureConfigImportModal(this.plugin.app, az, async (raw) => {
+                        const { applyAzureConfigImport } = await import('../../services/azure/azureConfigTransfer');
+                        let parsed: unknown;
+                        try {
+                            parsed = JSON.parse(raw);
+                        } catch {
+                            new Notice(az.importInvalidJson);
+                            return;
+                        }
+                        const result = applyAzureConfigImport(this.plugin.settings, parsed);
+                        if (!result.ok) {
+                            new Notice(az.importNoFields);
+                            return;
+                        }
+                        await this.plugin.saveSettings();
+                        new Notice(az.importApplied.replace('{count}', String(result.appliedFields.length)));
+                        this.settingTab.display();
+                    }).open();
+                }));
+    }
+
+    private renderAzureChat(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        const s = this.plugin.settings;
+        this.renderGroupHeading(az.groupChat);
+
+        // Main-provider choice (azure-claude vs azure-openai) lives INSIDE the
+        // Azure section in streamlined mode — the generic full dropdown is
+        // suppressed below. Both surfaces are still served automatically.
+        if (this.isStreamlinedAzure()) {
+            const current = isAzureMode(this.plugin.settings)
+                ? this.plugin.settings.cloudServiceType
+                : 'azure-claude';
+            new Setting(this.containerEl)
+                .setName(az.mainProviderChoice)
+                .setDesc(az.mainProviderChoiceDesc)
+                .addDropdown(dropdown => dropdown
+                    .addOption('azure-claude', az.providerAzureClaude)
+                    .addOption('azure-openai', az.providerAzureOpenAI)
+                    .setValue(current)
+                    .onChange((value) => {
+                        this.plugin.settings.cloudServiceType = value as typeof this.plugin.settings.cloudServiceType;
+                        this.plugin.settings.cloudEndpoint = PROVIDER_ENDPOINT[value as keyof typeof PROVIDER_ENDPOINT] || '';
+                        // cloudModel is what the runtime sends as the deployment name —
+                        // keep it in step with the surface instead of leaving a stale id.
+                        this.plugin.settings.cloudModel = value === 'azure-openai'
+                            ? (this.plugin.settings.azureGPTModel || PROVIDER_DEFAULT_MODEL['azure-openai'])
+                            : (this.plugin.settings.taskModels?.chat || PROVIDER_DEFAULT_MODEL['azure-claude']);
+                        void this.plugin.saveSettings();
+                        this.settingTab.display();
+                    }));
+        }
 
         // Default model for general tasks.
         const CUSTOM_MODEL_SENTINEL = '__custom__';
@@ -357,69 +550,9 @@ export class LLMSettingsSection extends BaseSettingSection {
             customModelSetting.settingEl.hide();
         }
 
-        // GPT model — also the chat model when Azure OpenAI is the main provider.
-        this.addAzureModelPicker(
-            new Setting(this.containerEl).setName(az.gptModel).setDesc(az.gptModelDesc),
-            'chat',
-            () => this.plugin.settings.azureGPTModel,
-            (value) => { applyAzureGptModel(this.plugin.settings, value); },
-            az.gptModelPlaceholder,
-        );
+        this.renderGptModel();
 
-        // Embedding model — so semantic-search embeddings are configurable.
-        this.addAzureModelPicker(
-            new Setting(this.containerEl).setName(az.embeddingModel).setDesc(az.embeddingModelDesc),
-            'embedding',
-            () => this.plugin.settings.embeddingModel,
-            (value) => { this.plugin.settings.embeddingModel = value; },
-            az.embeddingModelPlaceholder,
-        );
-
-        // Rate-limit pacing — Azure deployments ship with low default quotas;
-        // pace request starts to stay under them. Defaults: 4 concurrent / 60 RPM.
-        new Setting(this.containerEl)
-            .setName(az.maxConcurrent)
-            .setDesc(az.maxConcurrentDesc)
-            .addText(text => text
-                .setPlaceholder('4')
-                .setValue(String(this.plugin.settings.azureMaxConcurrentRequests))
-                .onChange((value) => {
-                    const n = Math.floor(Number(value));
-                    this.plugin.settings.azureMaxConcurrentRequests = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 4;
-                    void this.plugin.saveSettings();
-                }));
-        new Setting(this.containerEl)
-            .setName(az.maxRpm)
-            .setDesc(az.maxRpmDesc)
-            .addText(text => text
-                .setPlaceholder('60')
-                .setValue(String(this.plugin.settings.azureMaxRpm))
-                .onChange((value) => {
-                    const n = Math.floor(Number(value));
-                    this.plugin.settings.azureMaxRpm = Number.isFinite(n) ? Math.min(600, Math.max(1, n)) : 60;
-                    void this.plugin.saveSettings();
-                }));
-
-        // Per-deployment RPM overrides (Phase 2). A name→rpm editor: deployments
-        // not listed fall back to "Max requests per minute" above. Public-safe —
-        // the user enters their own verified quotas; nothing is shipped/derived.
-        this.renderPerDeploymentRpmEditor(az);
-
-        // Routing mode — deployment-based reveals named deployment fields.
-        new Setting(this.containerEl)
-            .setName(az.routingMode)
-            .setDesc(az.routingModeDesc)
-            .addDropdown(dropdown => dropdown
-                .addOption('model-based', az.routingModel)
-                .addOption('deployment-based', az.routingDeployment)
-                .setValue(this.plugin.settings.azureRoutingMode)
-                .onChange((value) => {
-                    this.plugin.settings.azureRoutingMode = value as 'model-based' | 'deployment-based';
-                    void this.plugin.saveSettings();
-                    this.settingTab.display();
-                }));
-
-        if (this.plugin.settings.azureRoutingMode === 'deployment-based') {
+        if (s.azureRoutingMode === 'deployment-based') {
             this.addAzureModelPicker(
                 new Setting(this.containerEl).setName(az.chatDeployment).setDesc(az.chatDeploymentDesc),
                 'chat',
@@ -430,102 +563,18 @@ export class LLMSettingsSection extends BaseSettingSection {
                 },
                 az.gptModelPlaceholder,
             );
-
-            this.addAzureModelPicker(
-                new Setting(this.containerEl).setName(az.embeddingsDeployment).setDesc(az.embeddingsDeploymentDesc),
-                'embedding',
-                () => this.plugin.settings.azureDeployments?.embeddings || '',
-                (value) => {
-                    if (!this.plugin.settings.azureDeployments) this.plugin.settings.azureDeployments = {};
-                    this.plugin.settings.azureDeployments.embeddings = value;
-                },
-                az.embeddingModelPlaceholder,
-            );
         }
 
-        new Setting(this.containerEl)
-            .setName(az.claudeViaGateway)
-            .setDesc(az.claudeViaGatewayDesc)
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.azureClaudeViaOpenAIGateway)
-                .onChange((value) => {
-                    this.plugin.settings.azureClaudeViaOpenAIGateway = value;
-                    void this.plugin.saveSettings();
-                }));
-
-        // Config export/import — copies every Azure setting on this screen
-        // (endpoints, routing, deployment names, RPM overrides, default model,
-        // Speech region/voice) as one JSON blob so a team on a shared Azure
-        // resource can sync in one paste instead of a field-by-field
-        // walkthrough. NEVER includes the API key — each person still enters
-        // their own.
-        new Setting(this.containerEl)
-            .setName(az.configTransfer)
-            .setDesc(az.configTransferDesc)
-            .addButton(button => button
-                .setButtonText(az.exportButton)
-                .onClick(async () => {
-                    const { buildAzureConfigExport } = await import('../../services/azure/azureConfigTransfer');
-                    const json = JSON.stringify(buildAzureConfigExport(this.plugin.settings), null, 2);
-                    try {
-                        await navigator.clipboard.writeText(json);
-                        new Notice(az.exportCopied);
-                    } catch {
-                        new Notice(az.exportCopyFailed);
-                    }
-                }))
-            .addButton(button => button
-                .setButtonText(az.importButton)
-                .onClick(() => {
-                    new AzureConfigImportModal(this.plugin.app, az, async (raw) => {
-                        const { applyAzureConfigImport } = await import('../../services/azure/azureConfigTransfer');
-                        let parsed: unknown;
-                        try {
-                            parsed = JSON.parse(raw);
-                        } catch {
-                            new Notice(az.importInvalidJson);
-                            return;
-                        }
-                        const result = applyAzureConfigImport(this.plugin.settings, parsed);
-                        if (!result.ok) {
-                            new Notice(az.importNoFields);
-                            return;
-                        }
-                        await this.plugin.saveSettings();
-                        new Notice(az.importApplied.replace('{count}', String(result.appliedFields.length)));
-                        this.settingTab.display();
-                    }).open();
-                }));
-
-        // Live connection test — pre-flight validates config, then makes real
-        // minimal round-trips to each configured Azure surface. Results render
-        // per-surface (✓/✗ + redacted message) under the button.
-        const resultsEl = this.containerEl.createDiv({ cls: 'ai-organiser-azure-test-results' });
-        new Setting(this.containerEl)
-            .setName(az.testConfig)
-            .setDesc(az.testConfigDesc)
-            .addButton(button => button
-                .setButtonText(az.testButton)
-                .onClick(async () => {
-                    button.setButtonText(az.testingButton);
-                    button.setDisabled(true);
-                    resultsEl.empty();
-                    try {
-                        const { testAzureConnection } = await import('../../services/azure/azureConnectionTest');
-                        const report = await testAzureConnection(this.plugin);
-                        this.renderAzureTestReport(resultsEl, report);
-                    } catch (err) {
-                        const msg = err instanceof Error ? err.message : String(err);
-                        resultsEl.createDiv({ cls: 'ai-organiser-azure-test-row error', text: `✗ ${msg}` });
-                    } finally {
-                        button.setButtonText(az.testButton);
-                        button.setDisabled(false);
-                    }
-                }));
-
-        // Per-capability Azure routing (flexible Azure config) — Use Azure / BYO / Off
-        // per specialist feature, with the Azure situation surfaced per row.
-        new AzureCapabilitiesSettingsSection(this.plugin, this.containerEl, this.settingTab).display();
+        // A local or non-Azure setup keeps its service and provider controls here.
+        if (s.serviceType === 'local' || !this.isStreamlinedAzure()) {
+            this.renderServiceType();
+            if (s.serviceType === 'local') {
+                this.displayLocalSettings();
+            } else {
+                this.renderProviderDropdown();
+                if (!isAzureMode(s)) this.displayCloudSettings();
+            }
+        }
 
         // Escape hatch — reveal the full provider dropdown for users who want a
         // non-Azure provider while keeping Azure-first mode on.
@@ -540,6 +589,199 @@ export class LLMSettingsSection extends BaseSettingSection {
                 this.settingTab.display();
             });
         }
+    }
+
+    /** "GPT model", with a notice when chat is stored as sending something else. */
+    private renderGptModel(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        const s = this.plugin.settings;
+        let notice: HTMLElement | null = null;
+        // GPT model — also the chat model when Azure OpenAI is the main provider.
+        this.addAzureModelPicker(
+            new Setting(this.containerEl).setName(az.gptModel).setDesc(az.gptModelDesc),
+            'chat',
+            () => this.plugin.settings.azureGPTModel,
+            (value) => {
+                applyAzureGptModel(this.plugin.settings, value);
+                notice?.hide();
+            },
+            az.gptModelPlaceholder,
+        );
+        const gpt = s.azureGPTModel?.trim();
+        if (s.cloudServiceType !== 'azure-openai' || !s.cloudModel || !gpt || s.cloudModel === gpt) return;
+        // Values that already differ are only changed by this button or the picker.
+        notice = this.containerEl.createDiv({ cls: 'setting-item-description ai-organiser-azure-model-mismatch' });
+        notice.createSpan({ text: `${az.chatModelMismatch.replace('{chat}', s.cloudModel).replace('{gpt}', gpt)} ` });
+        new ButtonComponent(notice)
+            .setButtonText(az.useForChat.replace('{gpt}', gpt))
+            .onClick(() => {
+                applyAzureGptModel(this.plugin.settings, gpt);
+                void this.plugin.saveSettings();
+                this.settingTab.display();
+            });
+    }
+
+    private renderAzureSearch(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        this.renderGroupHeading(az.groupSearch);
+        this.azureCapabilityRows()?.renderCapability('embeddings', { label: az.source, withDeployment: false });
+
+        // Embedding model — sent in the request body and sizes the index.
+        this.addAzureModelPicker(
+            new Setting(this.containerEl).setName(az.embeddingModel).setDesc(az.embeddingModelDesc),
+            'embedding',
+            () => this.plugin.settings.embeddingModel,
+            (value) => { this.plugin.settings.embeddingModel = value; },
+            az.embeddingModelPlaceholder,
+        );
+
+        if (this.plugin.settings.azureRoutingMode === 'deployment-based'
+            && capabilityChoice(this.plugin, 'embeddings').mode === 'azure') {
+            this.renderEmbeddingsDeployment();
+        }
+        this.azureCapabilityRows()?.renderCapability('visual-embeddings');
+    }
+
+    private renderEmbeddingsDeployment(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        const field = resolveDeploymentField(this.plugin.settings, 'embeddings');
+        if (field.source === 'capability') {
+            this.renderDeploymentText('embeddings', az.embeddingsDeploymentDesc);
+            return;
+        }
+        this.addAzureModelPicker(
+            new Setting(this.containerEl).setName(az.embeddingsDeployment).setDesc(az.embeddingsDeploymentDesc),
+            'embedding',
+            () => this.plugin.settings.azureDeployments?.embeddings || '',
+            (value) => { setDeploymentField(this.plugin.settings, 'embeddings', 'legacy', value); },
+            az.embeddingModelPlaceholder,
+        );
+    }
+
+    /** A deployment text field that edits whichever stored value is in effect. */
+    private renderDeploymentText(
+        id: DeploymentFieldId,
+        desc: string,
+        name: string = this.plugin.t.settings.llm.azure.deployment,
+    ): Setting {
+        const az = this.plugin.t.settings.llm.azure;
+        const field = resolveDeploymentField(this.plugin.settings, id);
+        return new Setting(this.containerEl)
+            .setName(name)
+            .setDesc(field.isOverride ? `${desc} ${az.overrideNote}`.trim() : desc)
+            .addText(text => {
+                text.setPlaceholder(this.plugin.t.settings.azureCapabilities.deploymentPlaceholder)
+                    .setValue(field.value)
+                    .onChange((value) => {
+                        setDeploymentField(this.plugin.settings, id, field.source, value);
+                        void this.plugin.saveSettings();
+                    });
+                if (field.isOverride) {
+                    // Clearing an override puts the shared value back in effect: show it.
+                    text.inputEl.addEventListener('blur', () => {
+                        if (!resolveDeploymentField(this.plugin.settings, id).isOverride) this.settingTab.display();
+                    });
+                }
+            });
+    }
+
+    private renderAzureTranscription(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        this.renderGroupHeading(az.groupTranscription);
+        this.azureCapabilityRows()?.renderCapability('transcription', { label: az.source, withDeployment: false });
+        this.azureCapabilityRows()?.renderSpeechEndpoint();
+        const whisper = this.renderDeploymentText('transcription', az.whisperDeploymentDesc, az.whisperDeployment);
+        // Asked only when Whisper would be called; the stored value is kept either way.
+        void usesWhisperDeployment(this.plugin).then(used => { if (!used) whisper.settingEl.hide(); });
+        this.azureCapabilityRows()?.renderDiarization();
+    }
+
+    private renderAzureReadAloud(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        this.renderGroupHeading(az.groupReadAloud);
+        this.azureCapabilityRows()?.renderCapability('tts', { label: az.source, withDeployment: false });
+        // The deployment name is sent as the model, so it shows in either routing mode.
+        if (this.showsCapability('tts') && capabilityChoice(this.plugin, 'tts').mode === 'azure') {
+            this.renderDeploymentText('tts', az.ttsDeploymentDesc);
+        }
+        const rows = this.azureCapabilityRows();
+        rows?.renderLegacyNotice();
+        rows?.renderSpeechRegion();
+        rows?.renderVoicePicker();
+    }
+
+    private renderAzureWebSearch(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        if (!this.showsCapability('websearch')) return;
+        this.renderGroupHeading(az.groupWebSearch);
+        this.azureCapabilityRows()?.renderCapability('websearch', { label: az.source, withDeployment: false });
+        // With Claude as the main provider, web search uses the Claude deployment.
+        if (this.plugin.settings.cloudServiceType === 'azure-openai'
+            && capabilityChoice(this.plugin, 'websearch').mode === 'azure') {
+            this.renderDeploymentText('websearch', '');
+        }
+    }
+
+    private renderRoutingMode(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        // Routing mode — deployment-based reveals named deployment fields.
+        new Setting(this.containerEl)
+            .setName(az.routingMode)
+            .setDesc(az.routingModeDesc)
+            .addDropdown(dropdown => dropdown
+                .addOption('model-based', az.routingModel)
+                .addOption('deployment-based', az.routingDeployment)
+                .setValue(this.plugin.settings.azureRoutingMode)
+                .onChange((value) => {
+                    this.plugin.settings.azureRoutingMode = value as 'model-based' | 'deployment-based';
+                    void this.plugin.saveSettings();
+                    this.settingTab.display();
+                }));
+    }
+
+    private renderClaudeGateway(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        new Setting(this.containerEl)
+            .setName(az.claudeViaGateway)
+            .setDesc(az.claudeViaGatewayDesc)
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.azureClaudeViaOpenAIGateway)
+                .onChange((value) => {
+                    this.plugin.settings.azureClaudeViaOpenAIGateway = value;
+                    void this.plugin.saveSettings();
+                }));
+    }
+
+    private renderMaxConcurrent(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        // Rate-limit pacing — Azure deployments ship with low default quotas;
+        // pace request starts to stay under them. Defaults: 4 concurrent / 60 RPM.
+        new Setting(this.containerEl)
+            .setName(az.maxConcurrent)
+            .setDesc(az.maxConcurrentDesc)
+            .addText(text => text
+                .setPlaceholder('4')
+                .setValue(String(this.plugin.settings.azureMaxConcurrentRequests))
+                .onChange((value) => {
+                    const n = Math.floor(Number(value));
+                    this.plugin.settings.azureMaxConcurrentRequests = Number.isFinite(n) ? Math.min(10, Math.max(1, n)) : 4;
+                    void this.plugin.saveSettings();
+                }));
+    }
+
+    private renderMaxRpm(): void {
+        const az = this.plugin.t.settings.llm.azure;
+        new Setting(this.containerEl)
+            .setName(az.maxRpm)
+            .setDesc(az.maxRpmDesc)
+            .addText(text => text
+                .setPlaceholder('60')
+                .setValue(String(this.plugin.settings.azureMaxRpm))
+                .onChange((value) => {
+                    const n = Math.floor(Number(value));
+                    this.plugin.settings.azureMaxRpm = Number.isFinite(n) ? Math.min(600, Math.max(1, n)) : 60;
+                    void this.plugin.saveSettings();
+                }));
     }
 
     /**
@@ -714,11 +956,15 @@ export class LLMSettingsSection extends BaseSettingSection {
             'azure-speech-tts': az.surfaceSpeechTts,
             'azure-speech-stt': az.surfaceSpeechStt,
         };
+        const mainChatSurface = this.plugin.settings.cloudServiceType === 'azure-openai' ? 'azure-openai-chat' : 'azure-claude';
         for (const s of report.surfaces) {
-            const label = labels[s.surface] ?? s.surface;
+            const label = s.surface === mainChatSurface ? az.chatTarget : labels[s.surface] ?? s.surface;
+            const called = s.target && s.deployment
+                ? az.targetDeployment.replace('{model}', s.target).replace('{deployment}', s.deployment)
+                : s.target;
             container.createDiv({
                 cls: `ai-organiser-azure-test-row ${s.ok ? 'success' : 'error'}`,
-                text: `${s.ok ? '✓' : '✗'} ${label}: ${s.message}`,
+                text: `${s.ok ? '✓' : '✗'} ${label}: ${called ? `${called} — ` : ''}${s.message}`,
             });
         }
 
@@ -783,7 +1029,7 @@ export class LLMSettingsSection extends BaseSettingSection {
             });
     }
 
-    private createServiceTypeDropdown(): void {
+    private renderServiceType(): void {
         if (!this.plugin.settings.serviceType) {
             this.plugin.settings.serviceType = 'cloud';
         }
@@ -804,9 +1050,12 @@ export class LLMSettingsSection extends BaseSettingSection {
                     })
             );
 
+    }
+
+    private renderProviderDropdown(): void {
         // In streamlined Azure mode the azure-claude/azure-openai choice lives
-        // inside the Azure section — suppress the redundant full dropdown here.
-        if (this.plugin.settings.serviceType === 'cloud' && !this.isStreamlinedAzure()) {
+        // in the Chat group — suppress the redundant full dropdown here.
+        if (!this.isStreamlinedAzure()) {
             new Setting(this.containerEl)
                 .setName(this.plugin.t.settings.llm.cloudProvider)
                 .setDesc(this.plugin.t.settings.llm.cloudProviderDesc)
@@ -1013,26 +1262,6 @@ export class LLMSettingsSection extends BaseSettingSection {
             this.renderGettingStartedBox(serviceType);
         }
 
-        new Setting(this.containerEl)
-            .setName(this.plugin.t.settings.llm.apiEndpoint)
-            .setDesc(this.plugin.t.settings.llm.apiEndpointDesc)
-            .addText(text => {
-                const placeholder = this.plugin.settings.cloudEndpoint || PROVIDER_ENDPOINT[serviceType] ||
-                    (serviceType === 'openai-compatible' ? 'http://your-api-endpoint/v1/chat/completions' : '');
-
-                text.setPlaceholder(placeholder)
-                    .setValue(this.plugin.settings.cloudEndpoint);
-
-                text.onChange((value) => {
-                    this.plugin.settings.cloudEndpoint = value;
-                    void this.plugin.saveSettings();
-                });
-
-                return text;
-            });
-
-        this.renderProviderCapabilityBanner();
-
         const apiKeyPlaceholder =
             this.plugin.settings.cloudServiceType === 'openai' ? 'sk-...' :
             this.plugin.settings.cloudServiceType === 'gemini' ? 'AIza...' :
@@ -1173,26 +1402,48 @@ export class LLMSettingsSection extends BaseSettingSection {
                     }));
         }
 
-        // Show thinking mode dropdown for Claude models that support adaptive
-        // thinking. Capability gated by family+version pattern — new releases
-        // (Opus 4.8, 5.0, …) are picked up automatically.
-        if (serviceType === 'claude' && claudeSupportsAdaptiveThinking(this.plugin.settings.cloudModel)) {
-            new Setting(this.containerEl)
-                .setName(this.plugin.t.settings.llm.thinkingMode)
-                .setDesc(this.plugin.t.settings.llm.thinkingModeDesc)
-                .addDropdown(dropdown =>
-                    dropdown
-                        .addOption('adaptive', this.plugin.t.settings.llm.thinkingAdaptive)
-                        .addOption('standard', this.plugin.t.settings.llm.thinkingStandard)
-                        .setValue(this.plugin.settings.claudeThinkingMode)
-                        .onChange((value) => {
-                            this.plugin.settings.claudeThinkingMode = value as 'standard' | 'adaptive';
-                            void this.plugin.saveSettings();
-                        })
-                );
-        }
+        if (!endpointIsAdvanced(serviceType)) this.renderCloudEndpoint();
+        this.renderProviderCapabilityBanner();
 
         this.createTestButton();
+    }
+
+    private renderCloudEndpoint(): void {
+        const serviceType = this.plugin.settings.cloudServiceType;
+        new Setting(this.containerEl)
+            .setName(this.plugin.t.settings.llm.apiEndpoint)
+            .setDesc(this.plugin.t.settings.llm.apiEndpointDesc)
+            .addText(text => {
+                const placeholder = this.plugin.settings.cloudEndpoint || PROVIDER_ENDPOINT[serviceType] ||
+                    (serviceType === 'openai-compatible' ? 'http://your-api-endpoint/v1/chat/completions' : '');
+
+                text.setPlaceholder(placeholder)
+                    .setValue(this.plugin.settings.cloudEndpoint);
+
+                text.onChange((value) => {
+                    this.plugin.settings.cloudEndpoint = value;
+                    void this.plugin.saveSettings();
+                });
+
+                return text;
+            });
+    }
+
+    /** Offered only for Claude models that support adaptive thinking (see `showsThinkingMode`). */
+    private renderThinkingMode(): void {
+        new Setting(this.containerEl)
+            .setName(this.plugin.t.settings.llm.thinkingMode)
+            .setDesc(this.plugin.t.settings.llm.thinkingModeDesc)
+            .addDropdown(dropdown =>
+                dropdown
+                    .addOption('adaptive', this.plugin.t.settings.llm.thinkingAdaptive)
+                    .addOption('standard', this.plugin.t.settings.llm.thinkingStandard)
+                    .setValue(this.plugin.settings.claudeThinkingMode)
+                    .onChange((value) => {
+                        this.plugin.settings.claudeThinkingMode = value as 'standard' | 'adaptive';
+                        void this.plugin.saveSettings();
+                    })
+            );
     }
 
     private renderGettingStartedBox(serviceType: string): void {
@@ -1216,22 +1467,6 @@ export class LLMSettingsSection extends BaseSettingSection {
             text: t.otherProviders,
             cls: 'setting-item-description'
         });
-
-        // Collapsible list of all 14 supported providers
-        const detailsEl = boxEl.createEl('details');
-        detailsEl.addClass('ai-organiser-mt-4');
-        detailsEl.createEl('summary', {
-            text: t.viewAllProviders,
-            cls: 'setting-item-description ai-organiser-cursor-pointer'
-        });
-
-        const providerOptions = this.getProviderOptions();
-        const providerList = detailsEl.createEl('ul');
-        providerList.setCssProps({ '--margin': '4px 0 0 0' }); providerList.addClass('ai-organiser-margin-custom');
-        providerList.setCssProps({ '--pl': '20px' }); providerList.addClass('ai-organiser-pl-custom');
-        for (const name of Object.values(providerOptions)) {
-            providerList.createEl('li', { text: name, cls: 'setting-item-description' });
-        }
 
         // Local recommendation
         this.renderLocalRecommendation(boxEl);

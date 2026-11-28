@@ -13,6 +13,7 @@ import { isAzureMode } from '../../services/azure/endpointResolver';
 import { isFeatureEnabled } from '../../services/featureService';
 import {
     listCapabilities,
+    getCapability,
     type AzureCapabilityDef,
     type AzureCapabilityId,
 } from '../../services/azure/azureCapabilities';
@@ -28,32 +29,43 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
         this.containerEl.createEl('h4', { text: t.title });
         this.containerEl.createEl('p', { text: t.description, cls: 'setting-item-description' });
 
-        for (const def of listCapabilities()) {
-            // OR semantics — show the row if ANY dependent feature is enabled.
-            if (!def.featureFlags.some((f) => isFeatureEnabled(this.plugin.settings, f))) continue;
-            this.renderRow(def);
-        }
+        for (const def of listCapabilities()) this.renderCapability(def.id);
 
-        this.renderSpeechSection();
+        const speech = this.plugin.t.settings.azureSpeech;
+        this.containerEl.createEl('h4', { text: speech.title });
+        this.containerEl.createEl('p', { text: speech.description, cls: 'setting-item-description' });
+        this.renderLegacyNotice();
+        this.renderSpeechRegion();
+        this.renderSpeechEndpoint();
+        this.renderSpeechKey();
+        this.renderVoicePicker();
+        this.renderMaxSpeakers();
+        this.renderStrictMode();
+        this.renderDiarization();
     }
 
     /**
-     * Azure AI Speech (azure-audio plan Phase 5) — region, endpoint, key,
-     * catalog-backed voice picker (UI-state matrix M2: loading / error / empty /
-     * configured), max speakers, strict mode, diarization provider.
+     * One capability's source row (and deployment, unless the caller draws its own).
+     * Skipped when none of the dependent features is enabled.
      */
-    private renderSpeechSection(): void {
+    renderCapability(id: AzureCapabilityId, options: { label?: string; withDeployment?: boolean } = {}): void {
+        const def = getCapability(id);
+        // OR semantics — show the row if ANY dependent feature is enabled.
+        if (!def.featureFlags.some((f) => isFeatureEnabled(this.plugin.settings, f))) return;
+        this.renderRow(def, options);
+    }
+
+    /** Legacy Global-Standard disclosure (DP-1): visible while Speech is unconfigured and strict mode is off. */
+    renderLegacyNotice(): void {
+        const s = this.plugin.settings;
+        if (!s.azureSpeechRequired && (!s.azureSpeechRegion || !s.azureSpeechVoice)) {
+            this.containerEl.createDiv({ cls: 'setting-item-description', text: this.plugin.t.settings.azureSpeech.legacyGlobalStandardNotice });
+        }
+    }
+
+    renderSpeechRegion(): void {
         const t = this.plugin.t.settings.azureSpeech;
         const s = this.plugin.settings;
-        this.containerEl.createEl('h4', { text: t.title });
-        this.containerEl.createEl('p', { text: t.description, cls: 'setting-item-description' });
-
-        // Legacy Global-Standard disclosure (DP-1): visible while Speech is
-        // unconfigured and strict mode is off.
-        if (!s.azureSpeechRequired && (!s.azureSpeechRegion || !s.azureSpeechVoice)) {
-            this.containerEl.createDiv({ cls: 'setting-item-description', text: t.legacyGlobalStandardNotice });
-        }
-
         new Setting(this.containerEl)
             .setName(t.region)
             .setDesc(t.regionDesc)
@@ -66,6 +78,11 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
+    }
+
+    renderSpeechEndpoint(): void {
+        const t = this.plugin.t.settings.azureSpeech;
+        const s = this.plugin.settings;
         const endpointSetting = new Setting(this.containerEl)
             .setName(t.endpoint)
             .setDesc(t.endpointDesc)
@@ -98,6 +115,11 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                 }));
         }
 
+    }
+
+    renderSpeechKey(): void {
+        const t = this.plugin.t.settings.azureSpeech;
+        const s = this.plugin.settings;
         new Setting(this.containerEl)
             .setName(t.apiKey)
             .setDesc(t.apiKeyDesc)
@@ -144,8 +166,11 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                 });
             });
 
-        this.renderVoicePicker();
+    }
 
+    renderMaxSpeakers(): void {
+        const t = this.plugin.t.settings.azureSpeech;
+        const s = this.plugin.settings;
         new Setting(this.containerEl)
             .setName(t.maxSpeakers)
             .setDesc(t.maxSpeakersDesc)
@@ -158,6 +183,11 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                     void this.plugin.saveSettings();
                 }));
 
+    }
+
+    renderStrictMode(): void {
+        const t = this.plugin.t.settings.azureSpeech;
+        const s = this.plugin.settings;
         new Setting(this.containerEl)
             .setName(t.strictMode)
             .setDesc(t.strictModeDesc)
@@ -169,6 +199,10 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
                     this.settingTab.display();
                 }));
 
+    }
+
+    renderDiarization(): void {
+        const s = this.plugin.settings;
         // Diarization provider (Azure mode): the coordinator prefers the
         // in-region azure-speech surface once configured; this row controls
         // whether diarization is offered at all + the private fallback.
@@ -218,7 +252,7 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
     }
 
     /** Catalog-backed voice picker with the M2 state matrix. */
-    private renderVoicePicker(): void {
+    renderVoicePicker(): void {
         const t = this.plugin.t.settings.azureSpeech;
         const s = this.plugin.settings;
         const setting = new Setting(this.containerEl)
@@ -283,12 +317,12 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
         this.plugin.settings.azureCapabilities[id] = { mode: prev?.mode ?? 'azure', deployment };
     }
 
-    private renderRow(def: AzureCapabilityDef): void {
+    private renderRow(def: AzureCapabilityDef, { label, withDeployment = true }: { label?: string; withDeployment?: boolean }): void {
         const t = this.plugin.t.settings.azureCapabilities as unknown as Record<string, string>;
         const choice = capabilityChoice(this.plugin, def.id);
 
         const setting = new Setting(this.containerEl)
-            .setName(t[def.labelKey])
+            .setName(label ?? t[def.labelKey])
             .setDesc(t[def.descKey])
             .addDropdown((dd) => {
                 if (def.support !== 'none') dd.addOption('azure', t.modeAzure);
@@ -309,7 +343,7 @@ export class AzureCapabilitiesSettingsSection extends BaseSettingSection {
         this.containerEl.createDiv({ cls: 'setting-item-description', text: statusText });
 
         // Azure deployment field (only when Azure mode is selected + the surface needs a deployment).
-        if (choice.mode === 'azure' && def.needsDeployment) {
+        if (withDeployment && choice.mode === 'azure' && def.needsDeployment) {
             new Setting(this.containerEl)
                 .setName(t.deploymentLabel)
                 .addText((text) => text
