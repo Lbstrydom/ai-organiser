@@ -1446,7 +1446,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         if (!deck.ok) { callbacks.notify(t.storylineBuildFailed.replace('{error}', deck.error)); return; }
         const held = this.run.begin(() => { /* deterministic build — no thinking sink */ }, t);
         try {
-            if (!(await this.commitBuiltDeck(ctx, deck.value, pending.deckName))) return;
+            if (!(await this.commitBuiltDeck(ctx, deck.value, pending.deckName, held))) return;
             // Provenance .md copy (best-effort — the deck is already committed).
             await this.saveStorylineNote(ctx, pending).catch((e) =>
                 logger.warn('Presentation', `[storyline] provenance copy failed: ${e instanceof Error ? e.message : String(e)}`));
@@ -2375,7 +2375,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             try {
                 const built = buildDeckFromStoryline(md, [], ctx.plugin.settings.summaryLanguage);
                 if (!built.ok) { new Notice(t.storylineParseFailed.replace('{error}', built.error)); return; }
-                if (await this.commitBuiltDeck(ctx, built.value.deck, file.basename)) {
+                if (await this.commitBuiltDeck(ctx, built.value.deck, file.basename, held)) {
                     this.pendingStoryline = null;   // Gemini-G2: resync the live chat gate
                     new Notice(t.storylineRebuiltFromSavedNote);
                 }
@@ -2393,12 +2393,14 @@ export class PresentationModeHandler implements ChatModeHandler {
     /** Shared deck-commit transaction: resolve the theme, render the IR → HTML,
      *  commit it as the live deck, run quality + the background scan. The CALLER
      *  holds the run lock. Captures brand BEFORE the async theme-resolve (Gemini-G1).
-     *  Returns false (with a Notice) if the render fails. */
-    private async commitBuiltDeck(ctx: ModalContext, deckIr: SlideDeckIr, label: string): Promise<boolean> {
+     *  Returns false (with a Notice) if the render fails, and silently if the run
+     *  was cancelled or replaced while the theme resolved. */
+    private async commitBuiltDeck(ctx: ModalContext, deckIr: SlideDeckIr, label: string, held: RunToken): Promise<boolean> {
         const t = ctx.plugin.t.modals.unifiedChat;
         const requestedBrand = this.brandEnabled;
         const exportTheme = await this.themeResolver.resolve(ctx, requestedBrand);
         const themeCss = (await resolveTheme(ctx.app, ctx.plugin.settings, requestedBrand)).css;
+        if (!this.run.owns(held)) return false;
         const html = buildHtmlFromDeckIr(
             deckIr, exportTheme, themeCss,
             ctx.plugin.settings.summaryLanguage,

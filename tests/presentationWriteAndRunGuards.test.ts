@@ -28,6 +28,7 @@ import { App, TFile } from './mocks/obsidian';
 import { coffeeDeckIr } from './fixtures/coffeeDeckIr';
 import { en } from '../src/i18n/en';
 import { ok } from '../src/core/result';
+import { describeError, formatGuidance } from '../src/core/friendlyErrors';
 
 const refine = refineDeckIrSelective as unknown as ReturnType<typeof vi.fn>;
 const T = en.modals.unifiedChat;
@@ -37,7 +38,8 @@ function deferred<V>() {
     const promise = new Promise<V>((r) => { resolve = r; });
     return { promise, resolve };
 }
-const tick = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+/** Resolves once `mock` has been called `times` times: the operation reached that boundary. */
+const reached = (mock: ReturnType<typeof vi.fn>, times = 1) => vi.waitFor(() => expect(mock).toHaveBeenCalledTimes(times));
 
 type Inner = Record<string, any>;
 function makeHandler(): Inner {
@@ -72,19 +74,20 @@ describe('run ownership', () => {
         const h = makeHandler();
         const gates = [deferred<unknown>(), deferred<unknown>()];
         let call = 0;
+        const runRefine = vi.fn(() => gates[call++].promise);
         Object.assign(h, {
             getLLMContext: () => ({}), getTheme: async () => ({}), truncateNoteContent: () => undefined,
-            buildProjectContextPrefix: () => '', runRefine: () => gates[call++].promise,
+            buildProjectContextPrefix: () => '', runRefine,
         });
         h.editScope.getSelection = () => null;
         const ctx = { plugin: { t: en } };
         const start = async () => (await h.buildPrompt('go', '', ctx)).streamingSetup.start({ updateThinking: () => {} });
 
         const first = start();
-        await tick();
+        await reached(runRefine);
         h.cancelActiveOperation();
         const second = start();
-        await tick();
+        await reached(runRefine, 2);
         gates[0].resolve({ finalContent: '' });
         await first;
         expect(h.run.isLocked()).toBe(true);
@@ -114,7 +117,7 @@ describe('selective polish', () => {
         const gate = deferred<unknown>();
         refine.mockReturnValue(gate.promise);
         const pending = submit(h);
-        await tick();
+        await reached(refine);
         expect(h.run.isLocked()).toBe(true);
         gate.resolve(ok(coffeeDeckIr));
         await pending;
@@ -136,7 +139,7 @@ describe('selective polish', () => {
         const gate = deferred<unknown>();
         refine.mockReturnValue(gate.promise);
         const pending = submit(h);
-        await tick();
+        await reached(refine);
         h.onClear();
         gate.resolve(ok(coffeeDeckIr));
         expect((await pending).ok).toBe(false);
@@ -149,6 +152,24 @@ describe('selective polish', () => {
         refine.mockImplementation(async () => { abort.abort(); return ok(coffeeDeckIr); });
         expect((await submit(h, abort.signal)).ok).toBe(false);
         expect(h.deck.html).toBe('<deck>');
+    });
+});
+
+describe('building a deck from a storyline', () => {
+    it('commits nothing once the run was cancelled while the theme resolved', async () => {
+        const h = new PresentationModeHandler() as unknown as Inner;
+        const theme = deferred<unknown>();
+        const resolveTheme = vi.fn(() => theme.promise);
+        h.themeResolver = { resolve: resolveTheme };
+        h.getTheme = async () => ({ css: '' });
+        const held = h.run.begin(() => {}, T);
+        const ctx = { plugin: { t: en, settings: { summaryLanguage: 'en' } } };
+        const committing = h.commitBuiltDeck(ctx, coffeeDeckIr, 'Deck', held);
+        await reached(resolveTheme);
+        h.onClear();
+        theme.resolve({});
+        expect(await committing).toBe(false);
+        expect(h.deck.html).toBeFalsy();
     });
 });
 
@@ -188,7 +209,7 @@ describe('storyline notes and protected folders', () => {
 
     it('tells the person what to do, not a code', async () => {
         const { ctx } = makeCtx({ presentationOutputFolder: '../Private', protectedFolders: ['Private'] });
-        await expect(save(ctx, pending())).rejects.not.toThrow('protected-path');
+        await expect(save(ctx, pending())).rejects.toThrow(formatGuidance(describeError(en, 'protected-path')));
     });
 });
 
