@@ -1,8 +1,7 @@
 import { Modal, Notice, Setting, type ButtonComponent } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { describeError, formatGuidance } from '../../core/friendlyErrors';
-import { logger } from '../../utils/logger';
-import { cleanNewName, listModelNames, replaceModelName, touchesSearchModel } from '../../services/modelNames/modelNameSettings';
+import { cleanNewName, listModelNames, replaceModelNameAndSave, touchesSearchModel } from '../../services/modelNames/modelNameSettings';
 
 /** Choose a model or deployment name, type its replacement, see every setting that changes, confirm. */
 export class ReplaceModelNameModal extends Modal {
@@ -66,21 +65,17 @@ export class ReplaceModelNameModal extends Modal {
 
     private async apply(): Promise<void> {
         if (this.saving) return;
-        const t = this.plugin.t.modals.modelReplace;
-        const changed = replaceModelName(this.plugin.settings, this.from, this.to);
-        if (changed.length === 0) return;
         this.saving = true;
         this.confirmButton?.setDisabled(true);
-        try {
-            await this.plugin.saveSettings();
-            new Notice(`${t.done}: ${changed.length}`);
-        } catch (error) {
-            logger.error('ModelNames', 'Saving the replaced names did not finish', error);
-            new Notice(formatGuidance(describeError(this.plugin.t, 'model-replace-unsaved')), 10000);
-        } finally {
-            this.saving = false;
-            this.close();
-            this.onDone?.();
+        const result = await replaceModelNameAndSave(this.plugin.settings, this.from, this.to, () => this.plugin.saveSettings());
+        this.saving = false;
+        if (!result.ok) {
+            new Notice(formatGuidance(describeError(this.plugin.t, result.error)), 10000);
+            this.refresh();
+            return;
         }
+        if (result.value.length > 0) new Notice(`${this.plugin.t.modals.modelReplace.done}: ${result.value.length}`);
+        this.close();
+        this.onDone?.();
     }
 }

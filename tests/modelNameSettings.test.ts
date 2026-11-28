@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { DEFAULT_SETTINGS, type AIOrganiserSettings } from '../src/core/settings';
 import {
-    MODEL_NAME_GROUPS, MODEL_NAME_KEYS, cleanNewName, listModelNames, replaceModelName, touchesSearchModel,
+    MODEL_NAME_GROUPS, MODEL_NAME_KEYS, cleanNewName, listModelNames, replaceModelName, replaceModelNameAndSave, touchesSearchModel,
 } from '../src/services/modelNames/modelNameSettings';
 
 const settings = (patch: Partial<AIOrganiserSettings>): AIOrganiserSettings =>
@@ -58,6 +58,25 @@ describe('replaceModelName', () => {
     it('flags a search model change', () => {
         expect(touchesSearchModel(['cloudModel'])).toBe(false);
         expect(touchesSearchModel(['azureDeployments.embeddings'])).toBe(true);
+    });
+});
+
+describe('replaceModelNameAndSave', () => {
+    it('puts the old names back when saving fails, and a retry then succeeds', async () => {
+        const s = settings({ cloudModel: 'a', providerSettings: { openai: { model: 'a' } }, azurePerDeploymentRpm: { 'a': 5 } });
+        const failed = await replaceModelNameAndSave(s, 'a', 'b', () => Promise.reject(new Error('disk')));
+        expect(failed).toEqual({ ok: false, error: 'model-replace-unsaved' });
+        expect([s.cloudModel, s.providerSettings.openai?.model, s.azurePerDeploymentRpm]).toEqual(['a', 'a', { a: 5 }]);
+
+        const retried = await replaceModelNameAndSave(s, 'a', 'b', () => Promise.resolve());
+        expect(retried.ok && retried.value.length).toBe(3);
+        expect(s.cloudModel).toBe('b');
+    });
+
+    it('does not save when nothing changes', async () => {
+        let saves = 0;
+        await replaceModelNameAndSave(settings({}), 'absent', 'b', async () => { saves++; });
+        expect(saves).toBe(0);
     });
 });
 

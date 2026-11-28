@@ -6,6 +6,8 @@
  * `tests/modelNameSettings.test.ts` fails until it is.
  */
 import type { AIOrganiserSettings } from '../../core/settings';
+import { err, ok, type Result } from '../../core/result';
+import { logger } from '../../utils/logger';
 
 /** Top-level settings whose value is a name. */
 export const MODEL_NAME_KEYS = [
@@ -93,4 +95,25 @@ export function replaceModelName(settings: AIOrganiserSettings, from: string, to
     const matches = allSlots(settings).filter(s => s.name === from);
     for (const match of matches) match.set(next);
     return matches.map(m => m.path);
+}
+
+/**
+ * Replace and persist. If saving fails, the settings that changed are put back, so the old name is
+ * still listed and the user can try again.
+ */
+export async function replaceModelNameAndSave(
+    settings: AIOrganiserSettings, from: string, to: string, save: () => Promise<void>,
+): Promise<Result<string[]>> {
+    const before = structuredClone(settings) as unknown as Bag;
+    const changed = replaceModelName(settings, from, to);
+    if (changed.length === 0) return ok(changed);
+    try {
+        await save();
+        return ok(changed);
+    } catch (error) {
+        logger.error('ModelNames', 'Saving the replaced names failed', error);
+        const live = settings as unknown as Bag;
+        for (const key of new Set(changed.map(path => path.split('.')[0]))) live[key] = before[key];
+        return err('model-replace-unsaved');
+    }
 }
