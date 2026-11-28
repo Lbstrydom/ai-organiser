@@ -11,6 +11,7 @@
  */
 
 import type { AIOrganiserSettings } from '../../core/settings';
+import { applyAzureGptModel } from './azureModelSync';
 
 /** The exported shape. Keep in sync with the field list in both functions below. */
 export interface AzureConfigExport {
@@ -104,7 +105,7 @@ export function applyAzureConfigImport(settings: AIOrganiserSettings, raw: unkno
         settings.azureDeployments = { chat, embeddings };
         applied.push('azureDeployments');
     }
-    if (isString(raw.azureGPTModel)) { settings.azureGPTModel = raw.azureGPTModel; applied.push('azureGPTModel'); }
+    if (isString(raw.azureGPTModel) && raw.azureGPTModel.trim()) { applyAzureGptModel(settings, raw.azureGPTModel); applied.push('azureGPTModel'); }
     if (isString(raw.azureWhisperDeployment)) { settings.azureWhisperDeployment = raw.azureWhisperDeployment; applied.push('azureWhisperDeployment'); }
     if (isPlainObject(raw.azureApiVersionOverride)) {
         const o = raw.azureApiVersionOverride;

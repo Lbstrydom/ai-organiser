@@ -10,12 +10,13 @@
  * contents. HTTP statuses map to fixed user-facing strings.
  */
 
-import { AZURE_DEFAULT_CLAUDE_MODEL, AZURE_DEFAULT_GPT_MODEL } from '../../core/azureDefaults';
+import { AZURE_DEFAULT_CLAUDE_MODEL } from '../../core/azureDefaults';
 import { requestUrl } from 'obsidian';
 import type AIOrganiserPlugin from '../../main';
 import { getAzureApiKey } from '../apiKeyHelpers';
 import { validateSettings } from './settingsValidator';
 import { openaiUsesReasoningParams } from '../adapters/modelCapabilities';
+import { effectiveAzureGptModel } from './azureModelSync';
 import { capabilityChoice, usesWhisperDeployment } from './resolveAzureCapability';
 import { resolveAzureSpeechCredential } from './azureSpeechCredential';
 import { buildSsml } from '../tts/ssmlBuilder';
@@ -178,7 +179,7 @@ async function testOpenAIChatSurface(
 	const key = await getAzureApiKey(plugin, 'azure-openai');
 	if (!key) return { surface, ok: false, status: 0, message: 'no key configured' };
 
-	const model = plugin.settings.azureGPTModel || AZURE_DEFAULT_GPT_MODEL;
+	const model = effectiveAzureGptModel(plugin.settings);
 	// Same rule as AzureOpenAIAdapter: Azure rejects `max_tokens` for reasoning
 	// models, requiring `max_completion_tokens`.
 	const tokenParam = openaiUsesReasoningParams(model) ? { max_completion_tokens: 16 } : { max_tokens: 8 };
