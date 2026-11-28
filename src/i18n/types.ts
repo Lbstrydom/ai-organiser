@@ -1394,6 +1394,7 @@ export interface Translations {
         editAiWorkspace: string;
         openAiWorkspacesSettings: string;
         openWelcome: string;
+        replaceModelName: string;
         copyAiInstructions: string;
         createContextPack: string;
         refreshLivePack: string;
@@ -1828,6 +1829,22 @@ export interface Translations {
         warning: string;
         confirm: string;
         cancel: string;
+        modelReplace: {
+            title: string;
+            intro: string;
+            noNames: string;
+            currentName: string;
+            newName: string;
+            newNameDesc: string;
+            willChange: string;
+            searchModelWarning: string;
+            confirm: string;
+            cancel: string;
+            done: string;
+            requestedName: string;
+            settingDesc: string;
+            settingButton: string;
+        };
         newsletterCatchUp: {
             title: string;
             statusBarLabel: string;       // "Newsletter audio: {summary} pending"
@@ -3060,6 +3077,7 @@ export interface Translations {
                 editAiWorkspace: string;
                 openAiWorkspacesSettings: string;
                 openWelcome: string;
+                replaceModelName: string;
                 copyAiInstructions: string;
                 createContextPack: string;
                 refreshLivePack: string;

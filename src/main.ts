@@ -2,6 +2,7 @@ import { createLivePackRuntime, type LivePackRuntime } from './services/aiWorksp
 import { createClaudeImportRuntime, type ClaudeImportRuntime } from './services/claudeImport/importRuntime';
 import { addIcon, App, debounce, loadPdfJs, MarkdownView, Notice, Platform, Plugin, TFile, TFolder, type EventRef } from 'obsidian';
 import { FeatureActivationModal } from './ui/modals/FeatureActivationModal';
+import { ReplaceModelNameModal } from './ui/modals/ReplaceModelNameModal';
 import { consumePendingResume } from './services/featureActivation';
 import { actionAvailability, type Availability } from './core/actionAvailability';
 import { candidatesFor, resolveRoles, type ContextRole } from './core/contextResolver';
@@ -1297,6 +1298,13 @@ export default class AIOrganiserPlugin extends Plugin {
             name: actionName(this.t, 'open-welcome'),
             icon: 'door-open',
             callback: () => this.openWelcome(),
+        });
+
+        this.addCommand({
+            id: 'replace-model-name',
+            name: actionName(this.t, 'replace-model-name'),
+            icon: 'replace',
+            callback: () => new ReplaceModelNameModal(this).open(),
         });
 
         // Register custom AI Organiser icon

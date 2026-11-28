@@ -13,6 +13,7 @@ import {
 } from '../../services/adapters/dynamicModelService';
 import { PROVIDER_TO_SECRET_ID } from '../../core/secretIds';
 import { MigrationConfirmModal } from '../modals/MigrationConfirmModal';
+import { ReplaceModelNameModal } from '../modals/ReplaceModelNameModal';
 import { AzureConfigImportModal } from '../modals/AzureConfigImportModal';
 import { isAzureMode } from '../../services/azure/endpointResolver';
 import { AzureCapabilitiesSettingsSection } from './AzureCapabilitiesSettingsSection';
@@ -55,6 +56,13 @@ export class LLMSettingsSection extends BaseSettingSection {
         }
 
         this.renderSecretStorageMigrationNotice();
+
+        new Setting(this.containerEl)
+            .setName(this.plugin.t.commands.replaceModelName)
+            .setDesc(this.plugin.t.modals.modelReplace.settingDesc)
+            .addButton(button => button
+                .setButtonText(this.plugin.t.modals.modelReplace.settingButton)
+                .onClick(() => new ReplaceModelNameModal(this.plugin, () => { void this.settingTab.display(); }).open()));
 
         // Debug mode toggle
         new Setting(this.containerEl)

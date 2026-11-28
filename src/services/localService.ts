@@ -7,6 +7,7 @@ import { abortableRequestUrl } from '../utils/abortableRequestUrl';
 import { abortableSleep } from '../utils/abortableSleep';
 import { joinPromptParts } from './prompts/promptParts';
 import { SYSTEM_PROMPT } from '../utils/constants';
+import { withModelGuidance } from './modelNames/modelNotFound';
 import { BaseLLMService } from './baseService';
 import { TaggingMode } from './prompts/types';
 import { getProviderLimits } from './tokenLimits';
@@ -97,6 +98,12 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
         }
     }
 
+    /** The model a request body names (a per-call override), else the configured one. */
+    private modelNameIn(body: RequestInit['body']): string {
+        const named = typeof body === 'string' ? /"model":"([^"\\]+)"/.exec(body)?.[1] : undefined;
+        return named ?? this.modelName;
+    }
+
     private async makeRequestWithRetry(options: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<import('obsidian').RequestUrlResponse> {
         let lastError: Error | null = null;
 
@@ -114,9 +121,9 @@ export class LocalLLMService extends BaseLLMService implements SummarizableLLMSe
 
                 // Read the error response
                 const errorText = response.text;
-                lastError = new Error(
-                    `HTTP error ${response.status}: ${errorText || ''}`
-                );
+                lastError = new Error(withModelGuidance(
+                    `HTTP error ${response.status}: ${errorText || ''}`,
+                    response.status, errorText || '', this.modelNameIn(options.body)));
             } catch (error) {
                 // A caller abort ends the call: never retry it.
                 if (signal?.aborted) throw error;
