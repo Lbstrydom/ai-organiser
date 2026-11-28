@@ -93,6 +93,8 @@ describe('Claude deployment picker', () => {
     it('writing the same deployment keeps the Claude model', () => {
         const settings = make({ cloudServiceType: 'azure-claude', cloudModel: 'dep', azureClaudeModel: 'claude-opus-5-5' });
         applyAzureClaudeDeployment(settings, ' dep ');
+        settings.cloudModel = ' dep ';
+        applyAzureClaudeDeployment(settings, 'dep');
         expect(settings.azureClaudeModel).toBe('claude-opus-5-5');
     });
 });

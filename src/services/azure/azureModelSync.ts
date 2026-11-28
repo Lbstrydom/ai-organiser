@@ -34,7 +34,7 @@ export function applyAzureClaudeDeployment(settings: AIOrganiserSettings, value:
     const deployment = value.trim();
     if (!deployment) return;
     const previous = effectiveAzureClaudeDeployment(settings);
-    if (deployment !== previous) settings.azureClaudeModel = '';
+    if (deployment !== previous.trim()) settings.azureClaudeModel = '';
     const tasks = settings.taskModels;
     if (tasks) tasks.tagging = tasks.summarization = tasks.chat = tasks.mermaid = deployment;
     if (settings.cloudServiceType === 'azure-claude') settings.cloudModel = deployment;
