@@ -85,6 +85,7 @@ import { EditScopeController } from './presentation/editScopeController';
 import { PresentationDeckStore } from './presentation/presentationDeckStore';
 import { PresentationCanvasView } from './presentation/presentationCanvasView';
 import { PresentationRunController } from './presentation/presentationRunController';
+import { azureCapabilityModel, mainCapabilityModel } from '../../services/azure/azureModelSync';
 
 /** Bundled params for the runGenerate/runRefine helpers — keeps method
  *  signatures under the max-param lint threshold. */
@@ -544,7 +545,7 @@ export class PresentationModeHandler implements ChatModeHandler {
             const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
             const newSpans = buildEvidenceCatalog(
                 found.map((s) => ({ ref: s.ref, content: s.content })),
-                { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) },
+                { maxTotalChars: computeSourceBudgetChars(provider, mainCapabilityModel(settings)) },
             );
             this.pendingStoryline.catalog = [...this.pendingStoryline.catalog, ...newSpans];
             return { finalContent: `${header}${findingsBlock}\n${t.slideSearchHintStoryline}` };
@@ -592,7 +593,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     // Model-aware budget so substantial sources reach generation
                     // untruncated on cloud models, instead of a flat 40K-char cap.
                     const provider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
-                    const totalBudgetChars = computeSourceBudgetChars(provider, settings.cloudModel);
+                    const totalBudgetChars = computeSourceBudgetChars(provider, mainCapabilityModel(settings));
                     // Option A: ground any web-search query in the deck's attached
                     // notes + prompt before dispatching (gated; default on).
                     const groundWebSearchQuery = settings.presentationGroundWebSearch
@@ -616,7 +617,7 @@ export class PresentationModeHandler implements ChatModeHandler {
                     // Same provider-aware slide cap as the storyline path (H1) — the direct
                     // IR deck is one JSON response too, so an over-large config would truncate.
                     const directProvider = settings.serviceType === 'local' ? 'local' : settings.cloudServiceType;
-                    const directCappedLength = Math.min(this.creationConfig.length, maxStoryboardSlides(directProvider, settings.cloudModel));
+                    const directCappedLength = Math.min(this.creationConfig.length, maxStoryboardSlides(directProvider, mainCapabilityModel(settings)));
                     irResult = await generateDeckIr(r.llmCtx, {
                         userQuery: r.effectiveQuery,
                         noteContent: r.noteContent,
@@ -733,7 +734,8 @@ export class PresentationModeHandler implements ChatModeHandler {
         const apiKey = s.providerSettings?.[resolvedRole.provider]?.apiKey || (s.cloudServiceType === resolvedRole.provider ? s.cloudApiKey : '') || '';
         if (!apiKey) return { context: r.llmCtx, modelOverride: '' };
         const endpoint = PROVIDER_ENDPOINT[resolvedRole.provider] || '';
-        const service = new CloudLLMService({ type: resolvedRole.provider, apiKey, modelName: resolvedRole.resolvedModel, endpoint }, r.ctx.app);
+        const service = new CloudLLMService({ type: resolvedRole.provider, apiKey, modelName: resolvedRole.resolvedModel, endpoint,
+            capabilityModel: azureCapabilityModel(s, resolvedRole.provider, resolvedRole.resolvedModel) }, r.ctx.app);
         if (s.debugMode) service.setDebugMode(true);
         return { context: { llmService: service, settings: s }, modelOverride: '' };
     }
@@ -755,7 +757,8 @@ export class PresentationModeHandler implements ChatModeHandler {
         const apiKey = s.providerSettings?.[provider]?.apiKey || (s.cloudServiceType === provider ? s.cloudApiKey : '') || '';
         if (!apiKey) return downgrade('override-unsupported');
         const endpoint = (!resolvedRole.crossProvider && s.cloudEndpoint) || PROVIDER_ENDPOINT[provider] || '';
-        const service = new CloudLLMService({ type: provider, apiKey, modelName: resolvedRole.resolvedModel, endpoint }, r.ctx.app);
+        const service = new CloudLLMService({ type: provider, apiKey, modelName: resolvedRole.resolvedModel, endpoint,
+            capabilityModel: azureCapabilityModel(s, provider, resolvedRole.resolvedModel) }, r.ctx.app);
         if (s.debugMode) service.setDebugMode(true);
         return { context: { llmService: service, settings: s }, modelOverride: '' };
     }
@@ -835,13 +838,13 @@ export class PresentationModeHandler implements ChatModeHandler {
         const catalog = buildEvidenceCatalog([
             ...(r.noteContent ? [{ ref: 'active note', content: r.noteContent }] : []),
             ...sources.map((s) => ({ ref: s.ref, content: s.content })),
-        ], { maxTotalChars: computeSourceBudgetChars(provider, settings.cloudModel) });
+        ], { maxTotalChars: computeSourceBudgetChars(provider, mainCapabilityModel(settings)) });
         const gen = await this.resolveRoleRun(r, 'storyboard_generator');
         const judge = await this.buildCritic(r, catalog);
         // Cap the request at what this provider can emit in ONE storyboard JSON response,
         // so an over-large config can never silently overflow the model's output budget
         // and truncate ("no JSON object found"). The UI advises the same cap up front.
-        const slideCap = maxStoryboardSlides(provider, settings.cloudModel);
+        const slideCap = maxStoryboardSlides(provider, mainCapabilityModel(settings));
         const cappedLength = Math.min(this.creationConfig.length, slideCap);
         if (cappedLength < this.creationConfig.length) {
             logger.warn('Presentation', `storyboard slide count capped ${this.creationConfig.length} → ${cappedLength} (provider ${provider} output budget)`);
@@ -2410,7 +2413,7 @@ export class PresentationModeHandler implements ChatModeHandler {
         const content = ctx.options.noteContent;
         if (!content) return undefined;
         const provider = ctx.plugin.settings.cloudServiceType;
-        const model = ctx.plugin.settings.cloudModel;
+        const model = mainCapabilityModel(ctx.plugin.settings);
         const budget = Math.floor(getMaxContentCharsForModel(provider, model) * 0.20);
         return content.length > budget
             ? truncateAtBoundary(content, budget, '\n\n[Content truncated...]')

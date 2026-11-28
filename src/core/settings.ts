@@ -1488,9 +1488,11 @@ export function getPluginManagedFolders(settings: AIOrganiserSettings): string[]
     }
 
     // When split, exclude config root + each managed output subfolder
-    return [
+    return [...new Set([
         pluginFolder,
         getTranscriptFullPath(settings),
+        getTranscriptOutputFullPath(settings),
+        getAudioNarrationFullPath(settings),
         getMinutesOutputFullPath(settings),
         getExportOutputFullPath(settings),
         getFlashcardFullPath(settings),
@@ -1505,7 +1507,7 @@ export function getPluginManagedFolders(settings: AIOrganiserSettings): string[]
         getResearchOutputFullPath(settings),
         getOutputSubfolderPath(settings, DEFAULT_RECORDING_FOLDER),
         ...packs,
-    ];
+    ])];
 }
 
 /** Full absolute path to the chat root folder (conversations + projects). */
@@ -1611,12 +1613,10 @@ export function migrateOldSettings(oldSettings: Record<string, unknown> | null):
         if (typeof r.independentCritic !== 'string') r.independentCritic = null;
     }
 
-    // Migrate summary length: brief|detailed|comprehensive → brief|standard|detailed
-    // Check comprehensive FIRST to avoid double-migration (comprehensive→detailed→standard)
+    // The retired "comprehensive" length is now "detailed". "detailed" is a current
+    // value and this runs on every load, so it is never rewritten.
     if (oldSettings.summaryLength === 'comprehensive') {
         oldSettings.summaryLength = 'detailed';
-    } else if (oldSettings.summaryLength === 'detailed') {
-        oldSettings.summaryLength = 'standard';
     }
 
     // Migrate legacy sketch output folder: full path → subfolder only
@@ -2144,8 +2144,9 @@ const VALID_VISUAL_DIMS = [256, 512, 1024, 1536];
  * persisted — CA2; a stale one from a crash mid-write must not block re-probing).
  */
 function migrateVisualSearchSettings(s: Record<string, unknown>): void {
-    if (s.visualEmbeddingDim !== undefined && !VALID_VISUAL_DIMS.includes(Number(s.visualEmbeddingDim))) {
-        s.visualEmbeddingDim = DEFAULT_SETTINGS.visualEmbeddingDim;
+    if (s.visualEmbeddingDim !== undefined) {
+        const dim = Number(s.visualEmbeddingDim);
+        s.visualEmbeddingDim = VALID_VISUAL_DIMS.includes(dim) ? dim : DEFAULT_SETTINGS.visualEmbeddingDim;
     }
     if (s.maxVisualPagesPerAttachment !== undefined) {
         const n = Math.floor(Number(s.maxVisualPagesPerAttachment));

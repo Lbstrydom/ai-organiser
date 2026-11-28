@@ -38,6 +38,7 @@ import { ensurePrivacyConsent } from '../../services/privacyNotice';
 import { getServiceType, summarizeText, summarizeTextStream, pluginContext } from '../../services/llmFacade';
 
 import { guardActiveNote } from '../../utils/protectedGuard';
+import { mainCapabilityModel } from '../../services/azure/azureModelSync';
 interface ConversationTurn {
     role: 'user' | 'assistant';
     content: string;
@@ -412,7 +413,7 @@ export class MermaidChatModal extends Modal {
                 .join('\n');
 
             const { provider } = getServiceType(pluginContext(this.plugin));
-            const model = this.plugin.settings.cloudModel;
+            const model = mainCapabilityModel(this.plugin.settings);
 
             const contextData = await this.gatherContextData();
 

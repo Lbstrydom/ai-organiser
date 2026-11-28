@@ -12,6 +12,7 @@ import { DocumentExtractionService } from '../../services/documentExtractionServ
 import { IndexingChoiceModal } from '../modals/IndexingChoiceModal';
 import { resolveLocalOnnxEmbeddingService } from '../../services/embeddings/embeddingServiceFactory';
 import type { AIOrganiserSettings } from '../../core/settings';
+import { mainCapabilityModel } from '../../services/azure/azureModelSync';
 
 export interface AttachmentEntry {
     path: string;
@@ -200,7 +201,8 @@ export class FreeChatModeHandler implements ChatModeHandler {
         if (s.serviceType === 'local') {
             return { provider: s.localServiceType ?? 'ollama', model: this.selectedModel || s.localModel || '' };
         }
-        return { provider: s.cloudServiceType, model: this.selectedModel || s.cloudModel };
+        // Both callers size a budget from this; neither sends it.
+        return { provider: s.cloudServiceType, model: this.selectedModel || mainCapabilityModel(s) };
     }
 
     async buildPrompt(query: string, history: string, ctx: ModalContext): Promise<SendResult> {

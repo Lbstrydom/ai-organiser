@@ -114,6 +114,8 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         private getApiKey: () => Promise<string | null>,
         private options: {
             model?: string;
+            /** The model behind `model` when that is a custom Azure deployment name. */
+            capabilityModel?: string;
             maxSearches?: number;
             useDynamicFiltering?: boolean;
             /**
@@ -599,7 +601,7 @@ export class ClaudeWebSearchAdapter implements SearchProvider {
         // tool); withToolFallback handles that.
         const useDynamic = !this.dynamicToolRejected
             && this.options.useDynamicFiltering !== false
-            && claudeSupportsDynamicWebSearch(model);
+            && claudeSupportsDynamicWebSearch(this.options.capabilityModel || model);
         const toolType = useDynamic ? TOOL_VERSION_DYNAMIC : TOOL_VERSION_BASIC;
         const tool = this.buildToolDefinition(toolType, options);
         const systemPrompt = options?.systemPrompt || this.buildSystemPrompt(options);

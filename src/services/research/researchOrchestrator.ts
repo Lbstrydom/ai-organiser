@@ -58,6 +58,7 @@ import { extractDomain } from '../../utils/urlUtils';
 import { tryExtractJson } from '../../utils/responseParser';
 import { RAGService } from '../ragService';
 import { getMaxContentCharsForModel, truncateAtBoundary } from '../tokenLimits';
+import { azureCapabilityModel, mainCapabilityModel } from '../azure/azureModelSync';
 
 /** Callback to request user consent before escalating to a paid tier. */
 /** Maximum parallel fetch+extract operations during source reading. */
@@ -108,7 +109,8 @@ export function researchDeepThinkingAvailable(settings: AIOrganiserSettings): bo
     if (settings.serviceType === 'local') return false;
     const adapterType = settings.cloudServiceType;
     if (adapterType !== 'claude' && adapterType !== 'azure-claude') return false;
-    const configured = settings.providerSettings?.[adapterType]?.model
+    const configured = azureCapabilityModel(settings, adapterType, settings.cloudModel)
+        || settings.providerSettings?.[adapterType]?.model
         || settings.cloudModel
         || PROVIDER_DEFAULT_MODEL[adapterType];
     const resolved = resolveLatestModel(adapterType, configured, computeAvailableModelIds(adapterType)) ?? configured;
@@ -461,7 +463,7 @@ export class ResearchOrchestrator {
 
     private getModelContextChars(): number {
         const provider = this.plugin.settings.cloudServiceType;
-        const model = this.plugin.settings.cloudModel;
+        const model = mainCapabilityModel(this.plugin.settings);
         return Math.floor(getMaxContentCharsForModel(provider, model) * 0.5);
     }
 

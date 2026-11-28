@@ -35,6 +35,7 @@ import { isFeatureEnabled } from '../../services/featureService';
 
 
 import { guardActiveNote } from '../../utils/protectedGuard';
+import { mainCapabilityModel } from '../../services/azure/azureModelSync';
 interface ChatMessage {
     role: 'user' | 'assistant' | 'system';
     content: string;
@@ -232,7 +233,7 @@ export class UnifiedChatModal extends Modal {
         if (this.plugin.settings.chatAutoCompaction) {
             this.compactionService = new ConversationCompactionService({
                 provider: this.plugin.settings.cloudServiceType,
-                model: this.plugin.settings.cloudModel,
+                model: mainCapabilityModel(this.plugin.settings),
                 summarize: async (prompt: string) => summarizeText(pluginContext(this.plugin), prompt),
             });
         }

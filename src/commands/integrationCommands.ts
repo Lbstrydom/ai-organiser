@@ -532,6 +532,7 @@ export async function resolveAllPendingContent(
             apiKey: pdfProviderConfig.apiKey,
             model: pdfProviderConfig.model,
             endpoint: pdfProviderConfig.endpoint,
+            capabilityModel: pdfProviderConfig.capabilityModel,
             language: plugin.settings.summaryLanguage !== 'auto'
                 ? plugin.settings.summaryLanguage
                 : undefined

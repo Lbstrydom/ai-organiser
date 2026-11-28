@@ -25,6 +25,7 @@ import type {
 } from '../../../services/chat/creationSourceController';
 import { openSourcePicker } from '../../modals/SourcePickerModal';
 import { maxStoryboardSlides } from '../../../services/presentationIr/storyboardService';
+import { mainCapabilityModel } from '../../../services/azure/azureModelSync';
 
 /** Subset of i18n strings the panel consumes. */
 export type CreatePanelT = Pick<
@@ -177,7 +178,7 @@ function renderLengthRow(parent: HTMLElement, opts: CreatePanelOptions): void {
     // than the model's output budget would truncate. Cap the input at what THIS model
     // can hold (azure-claude/claude reach 40; a low-output model is honestly lower).
     const provider = opts.plugin.settings.serviceType === 'local' ? 'local' : opts.plugin.settings.cloudServiceType;
-    const effectiveMax = Math.min(MAX_LENGTH, maxStoryboardSlides(provider, opts.plugin.settings.cloudModel));
+    const effectiveMax = Math.min(MAX_LENGTH, maxStoryboardSlides(provider, mainCapabilityModel(opts.plugin.settings)));
 
     const presetGroup = row.createDiv({
         cls: 'ai-organiser-pres-create-pill-group',

@@ -61,10 +61,10 @@ describe('migrateOldSettings', () => {
             expect(result.summaryLength).toBe('detailed');
         });
 
-        it('should migrate detailed to standard', () => {
+        it('should preserve detailed, a current value (migration runs on every load)', () => {
             const old = { summaryLength: 'detailed' } as any;
             const result = migrateOldSettings(old)!;
-            expect(result.summaryLength).toBe('standard');
+            expect(result.summaryLength).toBe('detailed');
         });
 
         it('should not change brief', () => {
