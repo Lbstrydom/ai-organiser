@@ -143,8 +143,9 @@ describe('Azure-first layout', () => {
         expect(claude.all.indexOf(az.claudeModel)).toBeGreaterThan(claude.all.indexOf(az.defaultModel));
         const field = recordedSettings.find(r => r.name === az.claudeModel)!;
         expect(field.controls[0].value).toBe('');
-        field.controls[0].change!(' claude-sonnet-5-5 ');
-        expect(claude.plugin.settings.azureClaudeModel).toBe('claude-sonnet-5-5');
+        field.controls[0].change!(' claude-opus-5-5 ');
+        expect(claude.plugin.settings.azureClaudeModel).toBe('claude-opus-5-5');
+        // The deployment name (cloudModel) is left as it was.
         expect(claude.plugin.settings.cloudModel).toBe('claude-sonnet-5-5');
         const gpt = await outline('azure deployment-based (OpenAI main)');
         expect(gpt.all).not.toContain(az.claudeModel);
